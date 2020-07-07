@@ -454,7 +454,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         allSegments.addAll(this.segmentStoreStarter.tableStoreWrapper.getSegments());
         log.info("No. of segments = {}", allSegments.size());
 
-        Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
+        @Cleanup Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
         // wait for all segments to be flushed to the long term storage.
@@ -480,7 +480,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // List all segments from the long term storage
         Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
-        tier2.close();
 
         // Start debug segment container using dataLogFactory from new BK instance and old long term storageFactory.
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
@@ -489,9 +488,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
-                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
-        sleep(5000);
-        Services.stopAsync(debugStreamSegmentContainer, executorService).join();
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
+                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
         debugStreamSegmentContainer.close();
         debugTool.close();
 
