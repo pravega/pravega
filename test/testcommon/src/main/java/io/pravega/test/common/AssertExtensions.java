@@ -126,11 +126,11 @@ public class AssertExtensions {
             Assert.fail(message + " No exception has been thrown.");
         } catch (CompletionException | ExecutionException ex) {
             if (!tester.test(ex.getCause())) {
-                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex.getCause(), ex);
+                throw new AssertionError(message + " Exception thrown failed tester: " + ex.getCause(), ex);
             }
         } catch (Throwable ex) {
             if (!tester.test(ex)) {
-                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex, ex);
+                throw new AssertionError(message + " Exception thrown failed tester: " + ex, ex);
             }
         }
     }
