@@ -253,6 +253,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                     .connectString("localhost:" + bkPort.get())
                     .namespace(baseNamespace)
                     .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                    .connectionTimeoutMs(10000)
+                    .sessionTimeoutMs(10000)
                     .build());
 
             this.zkClient.get().start();
@@ -514,8 +516,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.zkTestServer.close();
         this.zkTestServer = null;
         log.info("BookKeeper & ZooKeeper shutdown");
-
-        sleep(5000); // Sleep to make sure all segments got flushed properly
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(1);
