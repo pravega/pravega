@@ -82,6 +82,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
@@ -90,6 +91,7 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -156,6 +158,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private SegmentStoreStarter segmentStoreStarter = null;
     private ControllerStarter controllerStarter = null;
     private BKZK bkzk = null;
+    private TestingServer zkTestServer = null;
 
     @After
     public void tearDown() throws Exception {
@@ -187,6 +190,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         if (this.baseDir != null) {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
+        }
+
+        if (this.zkTestServer != null) {
+            this.zkTestServer.close();
+            this.zkTestServer = null;
         }
     }
 
@@ -459,10 +467,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        this.bkzk = setUpNewBK(0);
+        this.zkTestServer = new TestingServerStarter().start();
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
-        log.info("First bk Port = {}", this.bkzk.bkPort.get());
-        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
+        @Cleanup ControllerStarter controllerStarter = startController(this.zkTestServer.getPort(), this.segmentStoreStarter.servicePort);
 
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
         createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
@@ -504,8 +511,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.segmentStoreStarter = null;
         log.info("Segment Store Shutdown");
 
-        this.bkzk.close();
-        this.bkzk = null;
+        this.zkTestServer.close();
+        this.zkTestServer = null;
         log.info("BookKeeper & ZooKeeper shutdown");
 
         sleep(5000); // Sleep to make sure all segments got flushed properly
