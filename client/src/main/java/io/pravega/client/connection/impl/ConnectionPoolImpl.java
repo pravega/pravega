@@ -87,7 +87,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @GuardedBy("$lock")
     private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
-    private ConnectionFactory connectionFactory;
+    private final ConnectionFactory connectionFactory;
 
     public ConnectionPoolImpl(ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this.clientConfig = clientConfig;
@@ -144,7 +144,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         return connection.getFlowHandler().thenApply(h -> h.createConnectionWithFlowDisabled(rp));
     }
 
-    private boolean isUnused(Connection connection) {
+    private static boolean isUnused(Connection connection) {
         return Futures.isSuccessful(connection.getFlowHandler()) && connection.getFlowCount() == 0;
     }
 

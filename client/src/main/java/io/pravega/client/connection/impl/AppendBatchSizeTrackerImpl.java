@@ -9,6 +9,7 @@
  */
 package io.pravega.client.connection.impl;
 
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -28,12 +29,12 @@ import java.util.function.Supplier;
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
-    private static final double NANOS_PER_MILLI = 1000000;
+    private static final double NANOS_PER_MILLI = AbstractTimer.NANOS_TO_MILLIS;
     
     // This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
     private static final int MAX_BATCH_SIZE = initializeConstant("PRAVEGA_MAX_BATCH_SIZE",
                                                                  2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
-    private static final int BASE_TIME_NANOS = initializeConstant("PRAVEGA_BATCH_BASE_TIME_NANOS", 500000);
+    private static final int BASE_TIME_NANOS = initializeConstant("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
     private static final int BASE_SIZE = initializeConstant("PRAVEGA_BATCH_BASE_SIZE", 0);
     private static final double OUTSTANDING_FRACTION = 1.0 / initializeConstant("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
     
@@ -98,7 +99,8 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
             try {
                 return Integer.parseInt(val);
             } catch (NumberFormatException e) {
-                //Use default
+                throw new IllegalArgumentException(
+                        "Enviromental variable " + name + " could not be parsed as an integer");
             }
         }
         return defaultValue;

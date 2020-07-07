@@ -188,7 +188,7 @@ public class TcpClientConnection implements ClientConnection {
                 reader.start();
                 CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream());
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 try {
                     onClose.run();
                     socket.close();
@@ -262,7 +262,7 @@ public class TcpClientConnection implements ClientConnection {
         try {
             encoder.write(cmd);
         } catch (IOException e) {
-            log.warn("Error writing to connection");
+            log.warn("Error writing to connection", e.toString());
             close();
             throw new ConnectionFailedException(e);
         }
@@ -276,7 +276,7 @@ public class TcpClientConnection implements ClientConnection {
         try {
             encoder.write(append);
         } catch (IOException e) {
-            log.warn("Error writing to connection");
+            log.warn("Error writing to connection", e.toString());
             close();
             throw new ConnectionFailedException(e);
         }
@@ -288,12 +288,12 @@ public class TcpClientConnection implements ClientConnection {
             reader.stop();
             timeoutFuture.cancel(false);
             try {
-                if (onClose != null) {
-                    onClose.run();
-                }
                 socket.close();
             } catch (IOException e) {
                 log.warn("Error closing socket", e);
+            }
+            if (onClose != null) {
+                onClose.run();
             }
         }
     }
@@ -306,7 +306,7 @@ public class TcpClientConnection implements ClientConnection {
             }
             callback.complete(null);
         } catch (IOException e) {
-            log.warn("Error writing to connection");
+            log.warn("Error writing to connection", e.toString());
             close();
             callback.complete(new ConnectionFailedException(e));
         }

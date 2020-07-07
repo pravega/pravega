@@ -18,8 +18,8 @@ import lombok.RequiredArgsConstructor;
 @Data
 @RequiredArgsConstructor
 public class Append implements Request, Comparable<Append> {
-    public final String segment;
-    public final UUID writerId;
+    final String segment;
+    final UUID writerId;
     final long eventNumber;
     final int eventCount;
     final ByteBuf data;

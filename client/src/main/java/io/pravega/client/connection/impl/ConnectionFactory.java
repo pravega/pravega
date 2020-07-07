@@ -33,6 +33,9 @@ public interface ConnectionFactory extends AutoCloseable {
     @Override
     void close();
 
+    /**
+     * Returns the client-internal thread pool for background tasks.
+     */
     ScheduledExecutorService getInternalExecutor();
 
 }

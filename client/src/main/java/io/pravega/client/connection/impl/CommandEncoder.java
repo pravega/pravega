@@ -77,7 +77,7 @@ public class CommandEncoder {
         private final UUID id;
         private final long requestId;
         private final List<ByteBuf> pendingList = new ArrayList<>();
-        private int  pendingBytes = 0;
+        private int pendingBytes = 0;
         private long lastEventNumber = -1L;
         private int eventCount = 0;
 
@@ -190,7 +190,7 @@ public class CommandEncoder {
     
     @Synchronized
     public void write(Append append) throws IOException {
-        Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
+        Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
         validateAppend(append, session);
         final ByteBuf data = append.getData().slice();
         final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
@@ -293,8 +293,8 @@ public class CommandEncoder {
                                                blockSize);
         }
 
-        segmentBeingAppendedTo = append.segment;
-        writerIdPerformingAppends = append.writerId;
+        segmentBeingAppendedTo = append.getSegment();
+        writerIdPerformingAppends = append.getWriterId();
         if (blockSize > msgSize) {
             currentBlockSize = blockSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE);

@@ -17,9 +17,16 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import javax.annotation.concurrent.NotThreadSafe;
 
+/**
+ * This is a utility class for repeatedly reading data from an input stream, that tries to buffer data in a way that minimizes allocations.
+ * It is intended that {@link #getBuffOfSize(InputStream, int)} is called in a loop to read chunks of data from the provided input stream.
+ * This class does not support reading chunks larger than {@link WireCommands#MAX_WIRECOMMAND_SIZE}.
+ */
+@NotThreadSafe
 class IoBuffer {
-    private int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
+    private final int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
     private ByteBuffer buffer = null;
     
     private ByteBuf sliceOut(int size) {
@@ -31,6 +38,9 @@ class IoBuffer {
         return result;
     }
     
+    /**
+     * Obtain a ByteBuff of size `size` by reading data from the provided input stream or from this buffer if the data is already available.
+     */
     public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
         if (size > maxBufferSize) {
             throw new IllegalArgumentException("Requested buffer size " + size + " is larger than maximum allowed"
