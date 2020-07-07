@@ -460,13 +460,14 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // wait for all segments to be flushed to the long term storage.
         waitForSegmentsInStorage(allSegments, this.segmentStoreStarter.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        sleep(2500); // Sleep to make sure all segments got flushed properly
 
         this.segmentStoreStarter.close(); // Shutdown SS
         log.info("SS Shutdown");
 
         this.bkzk.close();
         log.info("BK & ZK shutdown");
+
+        sleep(2500); // Sleep to make sure all segments got flushed properly
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(1);

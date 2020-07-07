@@ -499,13 +499,13 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         waitForSegmentsInStorage(allSegments, this.segmentStoreStarter.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        sleep(5000); // Sleep to make sure all segments got flushed properly
-
         this.segmentStoreStarter.close(); // Shutdown SS
         log.info("Segment Store Shutdown");
 
         this.bkzk.close();
         log.info("BookKeeper & ZooKeeper shutdown");
+
+        sleep(5000); // Sleep to make sure all segments got flushed properly
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(1);
