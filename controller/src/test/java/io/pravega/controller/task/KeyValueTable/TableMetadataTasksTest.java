@@ -178,13 +178,18 @@ public abstract class TableMetadataTasksTest {
                 requestTracker, helper));
 
         creationTime = System.currentTimeMillis();
+        createOperationFuture = kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
+        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, createOperationFuture.join());
         AssertExtensions.assertFutureThrows("create timedout",
-                kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
+                helper.checkDone(() -> kvtTasks.isCreated(SCOPE, kvtable1, executor)),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
 
         // delete KVTable times out
+        CompletableFuture<Controller.DeleteKVTableStatus.Status> deleteOperation =
+        kvtTasks.deleteKeyValueTable(SCOPE, tableName, null);
+        assertEquals(DeleteKVTableStatus.Status.FAILURE, deleteOperation.join());
         AssertExtensions.assertFutureThrows("delete timedout",
-                kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
+                helper.checkDone(() -> kvtTasks.isDeleted(SCOPE, tableName)),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 

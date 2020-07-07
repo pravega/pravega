@@ -143,7 +143,15 @@ public class TableMetadataTasks implements AutoCloseable {
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
                             });
-               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        log.warn(requestId, "Create kvtable failed due to ", ex);
+                        return CreateKeyValueTableStatus.Status.FAILURE;
+                    } else {
+                        return result;
+                    }
+                });
     }
 
 
@@ -175,7 +183,15 @@ public class TableMetadataTasks implements AutoCloseable {
                                     .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName)))
                                     .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
                         });
-            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
+            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor)
+                .handle((result, ex) -> {
+                    if (ex != null) {
+                        log.warn(requestId, "Delete kvtable failed due to ", ex);
+                        return DeleteKVTableStatus.Status.FAILURE;
+                    } else {
+                        return result;
+                    }
+                });
     }
 
     public CompletableFuture<Void> deleteSegments(String scope, String kvt, Set<Long> segmentsToDelete,
@@ -196,7 +212,8 @@ public class TableMetadataTasks implements AutoCloseable {
                                                 false, delegationToken, requestId), executor));
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName) {
+    @VisibleForTesting
+    protected CompletableFuture<Boolean> isDeleted(String scope, String kvtName) {
         return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
@@ -223,7 +240,8 @@ public class TableMetadataTasks implements AutoCloseable {
                 });
     }
 
-    private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
+    @VisibleForTesting
+    protected CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                .thenApply(state -> {
