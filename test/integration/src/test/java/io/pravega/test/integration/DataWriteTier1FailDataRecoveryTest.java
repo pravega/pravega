@@ -202,7 +202,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Sets up a new BookKeeper & ZooKeeper.
      */
-    private class BKZK implements AutoCloseable {
+    private static class BKZK implements AutoCloseable {
         private final int writeCount = 500;
         private final int maxWriteAttempts = 3;
         private final int maxLedgerSize = 200 * Math.max(10, writeCount / 20);
@@ -366,7 +366,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a segment store server.
      */
-    private class SegmentStoreStarter {
+    private static class SegmentStoreStarter {
         private int servicePort = TestUtils.getAvailableListenPort();
         private ServiceBuilder serviceBuilder = null;
         private StreamSegmentStoreWrapper streamSegmentStoreWrapper = null;
@@ -422,7 +422,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a controller instance and runs it.
      */
-    private class ControllerStarter {
+    private static class ControllerStarter {
         private int controllerPort = TestUtils.getAvailableListenPort();
         private String serviceHost = "localhost";
         private ControllerWrapper controllerWrapper = null;
@@ -529,8 +529,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
-                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID)))
-                .whenComplete((v, ex) -> Services.stopAsync(debugStreamSegmentContainer, executorService)).join();
+                .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
+        sleep(5000);
+        Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         debugStreamSegmentContainer.close();
         debugTool.close();
 
