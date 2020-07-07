@@ -448,6 +448,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
         controllerStarter.close(); // Shut down the controller
+        controllerStarter = null;
 
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
@@ -462,9 +463,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         this.segmentStoreStarter.close(); // Shutdown SS
+        this.segmentStoreStarter = null;
         log.info("SS Shutdown");
 
         this.bkzk.close();
+        this.bkzk = null;
         log.info("BK & ZK shutdown");
 
         sleep(2500); // Sleep to make sure all segments got flushed properly

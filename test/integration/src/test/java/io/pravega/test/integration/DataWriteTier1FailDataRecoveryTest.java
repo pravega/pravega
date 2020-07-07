@@ -486,6 +486,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         clientFactory.close();
 
         controllerStarter.close(); // Shut down the controller
+        controllerStarter = null;
 
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
@@ -500,9 +501,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         this.segmentStoreStarter.close(); // Shutdown SS
+        this.segmentStoreStarter = null;
         log.info("Segment Store Shutdown");
 
         this.bkzk.close();
+        this.bkzk = null;
         log.info("BookKeeper & ZooKeeper shutdown");
 
         sleep(5000); // Sleep to make sure all segments got flushed properly
