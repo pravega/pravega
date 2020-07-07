@@ -447,7 +447,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("First bk Port = {}", this.bkzk.bkPort.get());
         @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
-        this.controllerStarter.close(); // Shut down the controller
+        controllerStarter.close(); // Shut down the controller
 
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
