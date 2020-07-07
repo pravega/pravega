@@ -143,15 +143,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
                                  });
                             });
-               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor)
-                .handle((result, ex) -> {
-                    if (ex != null) {
-                        log.warn(requestId, "Create kvtable failed due to ", ex);
-                        return CreateKeyValueTableStatus.Status.FAILURE;
-                    } else {
-                        return result;
-                    }
-                });
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
 
@@ -205,7 +197,7 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN)) {
