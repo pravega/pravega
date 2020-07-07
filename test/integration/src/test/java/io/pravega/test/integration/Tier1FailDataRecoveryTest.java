@@ -419,7 +419,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         public void close() throws Exception {
-            if(this.controller != null) {
+            if (this.controller != null) {
                 this.controller.close();
                 this.controller = null;
             }
