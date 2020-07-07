@@ -15,7 +15,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
@@ -43,7 +42,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-//import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Executors;
@@ -123,14 +121,6 @@ public abstract class TableMetadataTasksTest {
 
         KeyValueTableConfiguration storedConfig = kvtStore.getConfiguration(SCOPE, kvtable1, null, executor).get();
         assertEquals(storedConfig.getPartitionCount(), kvtConfig.getPartitionCount());
-
-        // check retry failures...
-        EventHelper mockHelper = EventHelperMock.getFailingEventHelperMock();
-        TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, mockHelper));
-        CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
-        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
     }
 
     @Test(timeout = 30000)
