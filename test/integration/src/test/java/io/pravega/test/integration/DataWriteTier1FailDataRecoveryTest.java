@@ -532,7 +532,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         sleep(5000);
         Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         debugStreamSegmentContainer.close();
-        this.dataLogFactory.close();
+        debugTool.close();
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);

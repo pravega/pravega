@@ -857,9 +857,6 @@ class BookKeeperLog implements DurableDataLog {
      * @throws DurableDataLogException          If another kind of exception occurred.
      */
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
-        log.info("Printing stack trace at persistMetadata");
-        Throwable t = new Throwable();
-        t.printStackTrace();
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
             Stat result = create

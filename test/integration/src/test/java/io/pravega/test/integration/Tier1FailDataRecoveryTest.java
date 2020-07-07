@@ -9,10 +9,13 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -66,6 +69,7 @@ import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -83,6 +87,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -105,17 +110,35 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private static final int CONTAINER_COUNT = 1;
     private static final int CONTAINER_ID = 0;
 
+    /**
+     * Write 300 events to different segments.
+     */
+    private static final long TOTAL_NUM_EVENTS = 300;
+
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
 
+    private static final Random RANDOM = new Random();
+
+    /**
+     * Scope and streams to read and write events.
+     */
+    private static final String SCOPE = "testMetricsScope";
+    private static final String STREAM1 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
+    private static final String STREAM2 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
+    private static final String EVENT = "12345";
+
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+
     private ScheduledExecutorService executorService = createExecutorService(100);
-    private InMemoryDurableDataLogFactory durableDataLogFactory;
-    private File baseDir;
-    private FileSystemStorageFactory storageFactory;
-    private BookKeeperLogFactory dataLogFactory;
+    private InMemoryDurableDataLogFactory durableDataLogFactory = null;
+    private File baseDir = null;
+    private FileSystemStorageFactory storageFactory = null;
+    private BookKeeperLogFactory dataLogFactory = null;
     private SegmentStoreStarter segmentStoreStarter = null;
     private ControllerStarter controllerStarter = null;
-    private BKZK bkzk;
+    private BKZK bkzk = null;
 
     @After
     public void tearDown() throws Exception {
@@ -129,11 +152,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.dataLogFactory = null;
         }
 
-        if (this.bkzk != null) {
-            this.bkzk.close();
-            this.bkzk = null;
-        }
-
         if (this.controllerStarter != null) {
             this.controllerStarter.close();
             this.controllerStarter = null;
@@ -144,8 +162,14 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             this.segmentStoreStarter = null;
         }
 
+        if (this.bkzk != null) {
+            this.bkzk.close();
+            this.bkzk = null;
+        }
+
         if (this.baseDir != null) {
-            this.baseDir.deleteOnExit();
+            FileHelpers.deleteFileOrDirectory(this.baseDir);
+            this.baseDir = null;
         }
     }
 
@@ -154,8 +178,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         return 100;
     }
 
-    BKZK setUpNewBK() throws Exception {
-        return new BKZK();
+    BKZK setUpNewBK(int instanceId) throws Exception {
+        return new BKZK(instanceId);
     }
 
     /**
@@ -170,11 +194,12 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
         private AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
         private BookKeeperServiceRunner bookKeeperServiceRunner;
-        private String namespace;
         private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
         private AtomicInteger bkPort = new AtomicInteger();
+        private int instanceId;
 
-        BKZK() throws Exception {
+        BKZK(int instanceId) throws Exception {
+            this.instanceId = instanceId;
             secureBk.set(false);
             bkPort.set(TestUtils.getAvailableListenPort());
             val bookiePorts = new ArrayList<Integer>();
@@ -182,45 +207,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 bookiePorts.add(TestUtils.getAvailableListenPort());
             }
 
-            this.bookKeeperServiceRunner = getBookKeeperServiceRunner(bookiePorts);
-            this.bookKeeperServiceRunner.startAll();
-            bkService.set(this.bookKeeperServiceRunner);
-            setZkClient();
-            this.zkClient.get().start();
-
-            setBkConfig();
-        }
-
-        public void setZkClient() {
-            // Create a ZKClient with a unique namespace.
-            this.namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
-            this.zkClient.set(CuratorFrameworkFactory
-                    .builder()
-                    .connectString("localhost:" + bkPort.get())
-                    .namespace(this.namespace)
-                    .retryPolicy(new ExponentialBackoffRetry(1000, 5))
-                    .build());
-        }
-
-        public void setBkConfig() {
-            // Setup config to use the port and namespace.
-            this.bkConfig.set(BookKeeperConfig
-                    .builder()
-                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
-                    .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, maxWriteAttempts)
-                    .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, maxLedgerSize)
-                    .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
-                    .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
-                    .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
-                    .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bookieCount)
-                    .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bookieCount)
-                    .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
-                    .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
-                    .build());
-        }
-
-        public BookKeeperServiceRunner getBookKeeperServiceRunner(List<Integer> bookiePorts) {
-            return BookKeeperServiceRunner.builder()
+            this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
                     .zkPort(bkPort.get())
                     .ledgersPath("/pravega/bookkeeper/ledgers")
@@ -231,6 +218,34 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                     .tLSKeyStorePasswordPath("../segmentstore/config/bookie.keystore.jks.passwd")
                     .bookiePorts(bookiePorts)
                     .build();
+            this.bookKeeperServiceRunner.startAll();
+            bkService.set(this.bookKeeperServiceRunner);
+
+            // Create a ZKClient with a unique namespace.
+            String baseNamespace = "pravega/" + this.instanceId + "_" + Long.toHexString(System.nanoTime());
+            this.zkClient.set(CuratorFrameworkFactory
+                    .builder()
+                    .connectString("localhost:" + bkPort.get())
+                    .namespace(baseNamespace)
+                    .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                    .build());
+
+            this.zkClient.get().start();
+
+            String logMetaNamespace = "segmentstore/containers" + this.instanceId;
+            this.bkConfig.set(BookKeeperConfig
+                    .builder()
+                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
+                    .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, maxWriteAttempts)
+                    .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, maxLedgerSize)
+                    .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
+                    .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
+                    .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
+                    .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bookieCount)
+                    .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bookieCount)
+                    .with(BookKeeperConfig.BK_TLS_ENABLED, isSecure())
+                    .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000)
+                    .build());
         }
 
         public boolean isSecure() {
@@ -238,9 +253,15 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         public void close() throws Exception {
-            val process = bkService.getAndSet(null);
+            val process = this.bkService.getAndSet(null);
             if (process != null) {
                 process.close();
+            }
+
+            val bk = this.bookKeeperServiceRunner;
+            if (bk != null) {
+                bk.close();
+                this.bookKeeperServiceRunner = null;
             }
 
             val zkClient = this.zkClient.getAndSet(null);
@@ -268,11 +289,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private BookKeeperLogFactory dataLogFactory = null;
         private StorageFactory storageFactory;
 
-        private DurableLogConfig durableLogConfig = DurableLogConfig
+        private final DurableLogConfig durableLogConfig = DurableLogConfig
                 .builder()
                 .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
-                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024L)
                 .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
                 .build();
 
@@ -314,12 +335,10 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
-            if (this.dataLogFactory != null) {
-                this.dataLogFactory.close();
-                this.dataLogFactory = null;
-            }
+            this.readIndexFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+            this.dataLogFactory.close();
         }
     }
 
@@ -367,6 +386,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 this.server = null;
             }
 
+            if (this.monitor != null) {
+                this.monitor.close();
+                this.monitor = null;
+            }
+
             if (this.serviceBuilder != null) {
                 this.serviceBuilder.close();
                 this.serviceBuilder = null;
@@ -395,6 +419,11 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         public void close() throws Exception {
+            if(this.controller != null) {
+                this.controller.close();
+                this.controller = null;
+            }
+
             if (this.controllerWrapper != null) {
                 this.controllerWrapper.close();
                 this.controllerWrapper = null;
@@ -413,9 +442,10 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        this.bkzk = setUpNewBK();
+        this.bkzk = setUpNewBK(0);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
-        this.controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
+        log.info("First bk Port = {}", this.bkzk.bkPort.get());
+        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
         this.controllerStarter.close(); // Shut down the controller
 
@@ -439,7 +469,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("BK & ZK shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        this.bkzk = setUpNewBK();
+        this.bkzk = setUpNewBK(1);
         this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
 
@@ -449,6 +479,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // List all segments from the long term storage
         Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
+        tier2.close();
 
         // Start debug segment container using dataLogFactory from new BK instance and old long term storageFactory.
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
@@ -460,14 +491,13 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
         sleep(5000);
         Services.stopAsync(debugStreamSegmentContainer, executorService).join();
-        this.dataLogFactory.close();
+        debugStreamSegmentContainer.close();
+        debugTool.close();
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        this.controllerStarter = startController(bkzk.bkPort.get(), segmentStoreStarter.servicePort);
-        this.controllerStarter.close();
-        this.segmentStoreStarter.close();
-        bkzk.close();
+        log.info("Second bk Port = {}", this.bkzk.bkPort.get());
+        controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
     }
 
     public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
