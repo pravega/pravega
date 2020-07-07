@@ -87,7 +87,8 @@ import static org.junit.Assert.assertTrue;
 public class ReaderGroupNotificationTest {
 
     private static final String SCOPE = "test";
-    private static final int NUM_SEGMENTS = 10000;
+    private static final int NUM_SEGMENTS = 10;
+    private static final int NUM_EVENTS = 10;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
@@ -235,11 +236,11 @@ public class ReaderGroupNotificationTest {
         routingKeys.add("1");
         routingKeys.add("2");
         routingKeys.add("3");
-        writer1.writeEvent("0", "data1").get();
+        writer1.writeEvent("0", "data").get();
 
         // scale
         Stream stream = new StreamImpl(SCOPE, streamName);
-        writer1.writeEvent("0", "data2").get();
+        writer1.writeEvent("0", "data").get();
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
@@ -261,7 +262,7 @@ public class ReaderGroupNotificationTest {
         segmentNotifier.registerListener(l1);
 
         long start = System.currentTimeMillis();
-        log.info("Segments={}", controller.getCurrentSegments(SCOPE, streamName).get());
+        log.info("Segments found as: {}", controller.getCurrentSegments(SCOPE, streamName).get());
         CompletableFuture.runAsync(() -> {
             while (System.currentTimeMillis() - start < Duration.ofMinutes(1).toMillis()) {
                 try {
@@ -289,29 +290,26 @@ public class ReaderGroupNotificationTest {
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, streamName)
                         .thenAccept(streamSegments -> {
-                            segmentNotifier.pollNow();
-                            SegmentNotification initialSegmentNotification = null;
-                            initialSegmentNotification = notificationResults.poll();
-                            log.info("notification={}", initialSegmentNotification);
                             try {
+                                Thread.sleep(1000);
+                                EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                                        ReaderConfig.builder().initialAllocationDelay(0).build());
+                                for (int i = 0; i < NUM_EVENTS; i++) {
+                                    EventRead<String> result =  reader1.readNextEvent(1000);
+                                    assertNotNull(result);
+                                    assertTrue(result.getEvent().equals("data"));
+                                }
+                                segmentNotifier.pollNow();
+                                SegmentNotification initialSegmentNotification = notificationResults.poll();
+                                log.info("notification={}", initialSegmentNotification);
+                                readerGroup.resetReaderGroup(readerGroupConfig);
+                                readerGroup.readerOffline("readerId", null);
                                 long segmentSize = streamSegments.getSegments().size();
                                 log.info("segment_size={}", segmentSize);
                                 if (segmentSize > 3) {
                                     log.info("success");
                                     return;
                                 }
-                                Thread.sleep(1000);
-                                EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
-                                        ReaderConfig.builder().initialAllocationDelay(0).build());
-                                for (int i = 0; i < 20; i++) {
-                                    EventRead<String> result =  reader1.readNextEvent(1000);
-                                    log.info("readResult={}", result);
-                                }
-                                segmentNotifier.pollNow();
-                                initialSegmentNotification = notificationResults.poll();
-                                log.info("notification={}", initialSegmentNotification);
-                                readerGroup.resetReaderGroup(readerGroupConfig);
-                                readerGroup.readerOffline("readerId", null);
                                 throw new IllegalStateException("expected number of segments to be > 3");
                             } catch (InterruptedException e) {
                                 log.error("Exception:", e);
