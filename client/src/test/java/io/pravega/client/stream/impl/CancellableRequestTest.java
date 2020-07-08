@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.CompletableFuture;

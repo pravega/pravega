@@ -25,7 +25,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;

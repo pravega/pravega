@@ -29,7 +29,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import java.util.function.Supplier;
 
 public class MockClientFactory extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {

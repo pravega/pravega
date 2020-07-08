@@ -13,8 +13,8 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -22,8 +22,10 @@ import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessor
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
@@ -88,6 +90,8 @@ public class ControllerEventProcessorsTest {
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = new EventProcessorGroup<ControllerEvent>() {
@@ -170,8 +174,8 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
-                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor);
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
+                kvtStore, kvtTasks, system, executor);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -188,6 +192,8 @@ public class ControllerEventProcessorsTest {
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
+        KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
+        TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
@@ -218,7 +224,7 @@ public class ControllerEventProcessorsTest {
         LinkedBlockingQueue<CompletableFuture<Void>> createStreamSignals = new LinkedBlockingQueue<>();
         List<CompletableFuture<Boolean>> createStreamResponsesList = new LinkedList<>();
         List<CompletableFuture<Void>> createStreamSignalsList = new LinkedList<>();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 8; i++) {
             CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
             CompletableFuture<Void> signalFuture = new CompletableFuture<>();
             createStreamResponsesList.add(responseFuture);
@@ -236,10 +242,10 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                system, executor);
+                kvtStore, kvtTasks, system, executor);
 
         // call bootstrap on ControllerEventProcessors
-        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks);
+        processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
         
         // wait on create scope being called.
         createScopeSignalsList.get(0).join();
@@ -261,29 +267,33 @@ public class ControllerEventProcessorsTest {
         createScopeResponsesList.get(1).complete(true);
 
         // create streams should be called now
-        // since we call three create streams. We will wait on first three signal futures
+        // since we call four create streams. We will wait on first three signal futures
         createStreamSignalsList.get(0).join();
         createStreamSignalsList.get(1).join();
         createStreamSignalsList.get(2).join();
+        createStreamSignalsList.get(3).join();
 
-        verify(controller, times(3)).createStream(anyString(), anyString(), any());
+        verify(controller, times(4)).createStream(anyString(), anyString(), any());
 
-        // fail first three requests
+        // fail first four requests
         createStreamResponsesList.get(0).completeExceptionally(new RuntimeException());
         createStreamResponsesList.get(1).completeExceptionally(new RuntimeException());
         createStreamResponsesList.get(2).completeExceptionally(new RuntimeException());
+        createStreamResponsesList.get(3).completeExceptionally(new RuntimeException());
         
-        // this should result in a retry for three create streams. wait on next three signals
-        createStreamSignalsList.get(3).join();
+        // this should result in a retry for four create streams. wait on next four signals
         createStreamSignalsList.get(4).join();
         createStreamSignalsList.get(5).join();
+        createStreamSignalsList.get(6).join();
+        createStreamSignalsList.get(7).join();
 
-        verify(controller, times(6)).createStream(anyString(), anyString(), any());
+        verify(controller, times(8)).createStream(anyString(), anyString(), any());
         
         // complete successfully
-        createStreamResponsesList.get(3).complete(true);
         createStreamResponsesList.get(4).complete(true);
         createStreamResponsesList.get(5).complete(true);
+        createStreamResponsesList.get(6).complete(true);
+        createStreamResponsesList.get(7).complete(true);
     }
     
 }
