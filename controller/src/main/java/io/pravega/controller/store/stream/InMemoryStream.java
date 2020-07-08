@@ -16,6 +16,8 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RecordHelper;
@@ -938,7 +940,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data) {
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data) {
         synchronized (lock) {
             if (waitingRequestNode == null) {
                 waitingRequestNode = data;
@@ -948,7 +950,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<String> getWaitingRequestNode() {
+    public CompletableFuture<String> getWaitingRequestNode() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -962,7 +964,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> deleteWaitingRequestNode() {
+    public CompletableFuture<Void> deleteWaitingRequestNode() {
         synchronized (lock) {
             this.waitingRequestNode = null;
         }

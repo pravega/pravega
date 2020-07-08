@@ -13,6 +13,9 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.SneakyThrows;
 
 /**
@@ -30,7 +33,9 @@ public class ControllerEventSerializer extends VersionedSerializer.MultiType<Con
                .serializer(ScaleOpEvent.class, 5, new ScaleOpEvent.Serializer())
                .serializer(SealStreamEvent.class, 6, new SealStreamEvent.Serializer())
                .serializer(TruncateStreamEvent.class, 7, new TruncateStreamEvent.Serializer())
-               .serializer(UpdateStreamEvent.class, 8, new UpdateStreamEvent.Serializer());
+               .serializer(UpdateStreamEvent.class, 8, new UpdateStreamEvent.Serializer())
+               .serializer(CreateTableEvent.class, 9, new CreateTableEvent.Serializer())
+               .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer());
     }
 
     /**

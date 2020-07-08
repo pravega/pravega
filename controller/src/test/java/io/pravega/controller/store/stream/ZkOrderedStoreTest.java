@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

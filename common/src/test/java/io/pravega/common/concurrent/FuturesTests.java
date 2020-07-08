@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -569,6 +570,22 @@ public class FuturesTests {
         AssertExtensions.assertFutureThrows("Future should have timedout. ", f2, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
+    public void testCompleteOn() {
+        val successfulFuture = new CompletableFuture<Integer>();
+        Executor executor = Executors.newSingleThreadExecutor();
+        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executor);
+        successfulFuture.complete(1);
+        Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());
+
+        val failedFuture = new CompletableFuture<Integer>();
+        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executor);
+        failedFuture.completeExceptionally(new IntentionalException());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Failed future throws exception.",
+                () -> failedResult,
+                ex -> ex instanceof IntentionalException);
+    }
+    
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
         ArrayList<CompletableFuture<Integer>> result = new ArrayList<>();
         for (int i = 0; i < count; i++) {
