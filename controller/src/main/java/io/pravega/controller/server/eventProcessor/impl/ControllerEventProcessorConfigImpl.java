@@ -36,6 +36,8 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     private final ScalingPolicy abortStreamScalingPolicy;
     private final String scaleStreamName;
     private final ScalingPolicy scaleStreamScalingPolicy;
+    private final String kvtStreamName;
+    private final ScalingPolicy kvtStreamScalingPolicy;
 
     private final String commitReaderGroupName;
     private final int commitReaderGroupSize;
@@ -43,6 +45,9 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     private final int abortReaderGroupSize;
     private final String scaleReaderGroupName;
     private final int scaleReaderGroupSize;
+    private final String kvtReaderGroupName;
+    private final int kvtReaderGroupSize;
+
 
     private final CheckpointConfig commitCheckpointConfig;
     private final CheckpointConfig abortCheckpointConfig;
@@ -60,6 +65,10 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                                        final int commitReaderGroupSize,
                                        final String abortReaderGroupName,
                                        final int abortReaderGroupSize,
+                                       final String kvtStreamName,
+                                       final String kvtReaderGroupName,
+                                       final int kvtReaderGroupSize,
+                                       final ScalingPolicy kvtStreamScalingPolicy,
                                        final CheckpointConfig commitCheckpointConfig,
                                        final CheckpointConfig abortCheckpointConfig,
                                        final ScalingPolicy scaleStreamScalingPolicy,
@@ -68,10 +77,13 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(commitStreamName, "commitStreamName");
         Exceptions.checkNotNullOrEmpty(abortStreamName, "abortStreamName");
+        Exceptions.checkNotNullOrEmpty(kvtStreamName, "kvTableStreamName");
         Exceptions.checkNotNullOrEmpty(commitReaderGroupName, "commitReaderGroupName");
         Exceptions.checkNotNullOrEmpty(abortReaderGroupName, "abortReaderGroupName");
+        Exceptions.checkNotNullOrEmpty(kvtReaderGroupName, "kvTableReaderGroupName");
         Preconditions.checkArgument(commitReaderGroupSize > 0, "commitReaderGroupSize should be a positive integer");
         Preconditions.checkArgument(abortReaderGroupSize > 0, "abortReaderGroupSize should be a positive integer");
+        Preconditions.checkArgument(kvtReaderGroupSize > 0, "kvTableReaderGroupSize should be a positive integer");
         Preconditions.checkNotNull(commitStreamScalingPolicy, "commitStreamScalingPolicy");
         Preconditions.checkNotNull(abortStreamScalingPolicy, "abortStreamScalingPolicy");
         Preconditions.checkNotNull(scaleStreamScalingPolicy, "scaleStreamScalingPolicy");
@@ -83,10 +95,14 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.commitStreamScalingPolicy = commitStreamScalingPolicy;
         this.abortStreamName = abortStreamName;
         this.abortStreamScalingPolicy = abortStreamScalingPolicy;
+        this.kvtStreamName = kvtStreamName;
+        this.kvtStreamScalingPolicy = kvtStreamScalingPolicy;
         this.commitReaderGroupName = commitReaderGroupName;
         this.commitReaderGroupSize = commitReaderGroupSize;
         this.abortReaderGroupName = abortReaderGroupName;
         this.abortReaderGroupSize = abortReaderGroupSize;
+        this.kvtReaderGroupName = kvtReaderGroupName;
+        this.kvtReaderGroupSize = kvtReaderGroupSize;
         this.commitCheckpointConfig = commitCheckpointConfig;
         this.abortCheckpointConfig = abortCheckpointConfig;
         this.scaleStreamName = Config.SCALE_STREAM_NAME;
@@ -102,13 +118,17 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                 .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
                 .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
                 .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
+                .kvtStreamName(NameUtils.getInternalNameForStream("kvTableStream"))
                 .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                 .scaleStreamScalingPolicy(ScalingPolicy.fixed(2))
+                .kvtStreamScalingPolicy(ScalingPolicy.fixed(5))
                 .commitReaderGroupName("commitStreamReaders")
                 .commitReaderGroupSize(1)
                 .abortReaderGroupName("abortStreamReaders")
                 .abortReaderGroupSize(1)
+                .kvtReaderGroupName("kvtStreamReaders")
+                .kvtReaderGroupSize(1)
                 .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .rebalanceIntervalMillis(Duration.ofMinutes(2).toMillis())

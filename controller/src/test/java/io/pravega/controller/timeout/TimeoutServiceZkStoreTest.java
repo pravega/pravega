@@ -17,7 +17,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.Version;
 import lombok.extern.slf4j.Slf4j;
 
 import static org.mockito.Mockito.mock;

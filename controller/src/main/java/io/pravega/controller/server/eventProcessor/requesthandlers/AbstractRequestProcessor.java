@@ -22,7 +22,7 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
+import io.pravega.shared.controller.event.StreamRequestProcessor;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
@@ -54,7 +54,7 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
  * was set against its name.
  */
 @Slf4j
-public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements RequestProcessor {
+public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> implements StreamRequestProcessor {
     protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
 
     protected final StreamMetadataStore streamMetadataStore;
@@ -127,7 +127,6 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
         CompletableFuture<Boolean> hasTaskStarted = task.hasTaskStarted(event);
-        
         CompletableFuture.allOf(waitingProcFuture, hasTaskStarted)
                 .thenAccept(v -> {
                     boolean hasStarted = hasTaskStarted.join();
@@ -157,9 +156,9 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-                    resultFuture.completeExceptionally(e);
-                    return null;
-                });
+            resultFuture.completeExceptionally(e);
+            return null;
+        });
 
         return resultFuture;
     }
