@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
-import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.google.common.util.concurrent.Service;
 

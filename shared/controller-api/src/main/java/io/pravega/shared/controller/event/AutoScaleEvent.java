@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,7 +44,7 @@ public class AutoScaleEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processAutoScaleRequest(this);
+        return ((StreamRequestProcessor) processor).processAutoScaleRequest(this);
     }
 
     @Override
@@ -57,7 +58,7 @@ public class AutoScaleEvent implements ControllerEvent {
     private static class AutoScaleEventBuilder implements ObjectBuilder<AutoScaleEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<AutoScaleEvent, AutoScaleEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<AutoScaleEvent, AutoScaleEventBuilder> {
         @Override
         protected AutoScaleEventBuilder newBuilder() {
             return AutoScaleEvent.builder();

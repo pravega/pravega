@@ -13,6 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -21,10 +22,12 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.index.HostIndex;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -94,9 +97,10 @@ public abstract class RequestSweeperTest {
         streamStore = getStream();
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, HOSTNAME, ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
                 TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker);
+                requestTracker, helperMock);
         requestEventWriter = spy(new EventStreamWriterMock<>());
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 

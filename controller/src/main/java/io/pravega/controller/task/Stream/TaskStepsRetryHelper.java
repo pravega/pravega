@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
-class TaskStepsRetryHelper {
+public class TaskStepsRetryHelper {
     private static final long RETRY_INITIAL_DELAY = 100;
     private static final int RETRY_MULTIPLIER = 10;
     private static final int RETRY_MAX_ATTEMPTS = 10;
@@ -26,7 +26,7 @@ class TaskStepsRetryHelper {
             .withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
             .retryWhen(RetryableException::isRetryable);
 
-    static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
+    public static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
         return RETRY.runAsync(futureSupplier, executor);
     }
 }

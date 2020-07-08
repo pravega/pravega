@@ -10,18 +10,75 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Data;
+import io.netty.buffer.Unpooled;
+import io.pravega.client.tables.IteratorState;
+import java.nio.ByteBuffer;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Implementation of {@link KeyVersion}.
+ * {@link IteratorState} Implementation.
  */
-@Data
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@Getter
 public class IteratorStateImpl implements IteratorState {
-
+    /**
+     * No state. Providing this value will result in an iterator that starts from the beginning (i.e., not resuming an
+     * existing iteration).
+     */
+    public static final IteratorStateImpl EMPTY = new IteratorStateImpl(Unpooled.EMPTY_BUFFER);
     private final ByteBuf token;
 
     @Override
-    public ByteBuf toBytes() {
-        return token;
+    public ByteBuffer toBytes() {
+        return this.token.copy().nioBuffer();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return this.token.readableBytes() == 0;
+    }
+
+    /**
+     * Deserializes the {@link IteratorStateImpl} from its serialized form obtained from calling {@link #getToken()} .
+     *
+     * @param serializedState A serialized {@link IteratorStateImpl}.
+     * @return The IteratorState object.
+     */
+    public static IteratorStateImpl fromBytes(ByteBuf serializedState) {
+        if (serializedState == null || serializedState.readableBytes() == 0) {
+            return EMPTY;
+        } else {
+            return new IteratorStateImpl(serializedState);
+        }
+    }
+
+    /**
+     * Deserializes the IteratorState from its serialized form obtained from calling {@link #toBytes()} ()} .
+     *
+     * @param serializedState A serialized {@link IteratorStateImpl}.
+     * @return The IteratorState object.
+     */
+    public static IteratorStateImpl fromBytes(ByteBuffer serializedState) {
+        if (serializedState == null) {
+            return EMPTY;
+        } else {
+            return IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(serializedState));
+        }
+    }
+
+    /**
+     * Creates a new {@link IteratorStateImpl} which is a copy of the given {@link IteratorState}.
+     *
+     * @param source The {@link IteratorState} to copy.
+     * @return The copy.
+     */
+    public static IteratorStateImpl copyOf(IteratorState source) {
+        if (source == null || source == IteratorStateImpl.EMPTY) {
+            return EMPTY;
+        }
+
+        return fromBytes(source.toBytes());
     }
 }

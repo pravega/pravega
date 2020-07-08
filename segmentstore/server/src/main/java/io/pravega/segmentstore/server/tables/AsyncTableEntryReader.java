@@ -287,7 +287,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (header.isDeletion()) {
                 // Deleted key. We cannot read more.
-                complete(TableEntry.notExists(getKeyData(this.soughtKey, readData, header)));
+                complete(TableEntry.notExists(getOrReadKey(readData, header)));
                 return true;
             }
 
@@ -304,16 +304,16 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 valueData = readData.slice(header.getValueOffset(), header.getValueLength());
             }
 
-            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
+            complete(TableEntry.versioned(readKey(readData, header), valueData, getKeyVersion()));
             return true; // Now we are truly done.
         }
 
-        private BufferView getKeyData(BufferView soughtKey, BufferView readData, EntrySerializer.Header header) {
-            if (soughtKey == null) {
-                soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
-            }
+        private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
+            return readData.slice(header.getKeyOffset(), header.getKeyLength());
+        }
 
-            return soughtKey;
+        private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
+            return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());
         }
     }
 

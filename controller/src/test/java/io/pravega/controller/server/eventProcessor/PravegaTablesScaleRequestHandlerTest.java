@@ -14,7 +14,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.VersionedMetadata;
 
 public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTest {
     SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);

@@ -42,6 +42,14 @@ interface TableWriterConnector extends AutoCloseable {
     KeyHasher getKeyHasher();
 
     /**
+     * Gets the {@link SegmentSortedKeyIndex} associated with this Table Segment. If this Table Segment is not Sorted,
+     * this should return {@link SegmentSortedKeyIndex#noop()}.
+     *
+     * @return The {@link SegmentSortedKeyIndex} for this Table Segment.
+     */
+    SegmentSortedKeyIndex getSortedKeyIndex();
+
+    /**
      * Gets a {@link DirectSegmentAccess} that can be used to operate directly on the Table Segment.
      *
      * @param timeout Timeout for the operation.

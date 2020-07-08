@@ -13,6 +13,8 @@ import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -31,5 +33,10 @@ public class ZKControllerServiceStarterTest extends ZKBackedControllerServiceSta
     @Override
     StreamMetadataStore getStore(StoreClient storeClient) {
         return StreamStoreFactory.createZKStore((CuratorFramework) storeClient.getClient(), executor);
+    }
+
+    @Override
+    KVTableMetadataStore getKVTStore(StoreClient storeClient) {
+        return KVTableStoreFactory.createZKStore((CuratorFramework) storeClient.getClient(), executor);
     }
 }
