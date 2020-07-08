@@ -14,9 +14,13 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.control.impl.ModelHelper;
 =======
 import io.pravega.client.stream.impl.ModelHelper;
+=======
+import io.pravega.client.control.impl.ModelHelper;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.common.Exceptions;
 >>>>>>> Issue 4638: Propagate retryable exception to the client instead of returning Status.Failure on all exceptions (#4640)
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -212,25 +216,25 @@ public class ControllerServiceTest {
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
     }
-    
+
     @Test(timeout = 10000L)
     public void testTransactions() {
         TransactionMetrics.initialize();
         UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
         doThrow(StoreException.create(StoreException.Type.WRITE_CONFLICT, "Write conflict"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
-        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
                 consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
-        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
                 consumer.abortTransaction(SCOPE, stream1, txnId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
@@ -242,12 +246,12 @@ public class ControllerServiceTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         doThrow(StoreException.create(StoreException.Type.UNKNOWN, "Connection failed"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
         Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
-        
+
         status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);

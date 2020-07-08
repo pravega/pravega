@@ -297,19 +297,27 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
         public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
 =======
         public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             throw new UnsupportedOperationException("keyIterator");
         }
 
         @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
 =======
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             throw new UnsupportedOperationException("entryIterator");
         }
     }

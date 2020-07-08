@@ -42,11 +42,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/PravegaTablesStoreHelper.java
 <<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758):controller/src/main/java/io/pravega/controller/store/PravegaTablesStoreHelper.java
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
+<<<<<<< HEAD:controller/src/main/java/io/pravega/controller/store/PravegaTablesStoreHelper.java
 =======
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
@@ -56,6 +60,11 @@ import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DAT
 >>>>>>> Issue 4639: Table store helper to retry only on unknownhost and auth failure for update requests (#4641)
 =======
 >>>>>>> Build fix
+=======
+
+import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
+import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
+>>>>>>> Issue 4569: Key Value Tables (#4758):controller/src/main/java/io/pravega/controller/store/PravegaTablesStoreHelper.java
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
@@ -512,9 +521,9 @@ public class PravegaTablesStoreHelper {
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
-    
-    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, 
-                                                                   Supplier<String> errorMessageSupplier, 
+
+    private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future,
+                                                                   Supplier<String> errorMessageSupplier,
                                                                    boolean throwOriginalOnCFE) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
@@ -525,8 +534,8 @@ public class PravegaTablesStoreHelper {
                 switch (wcfe.getReason()) {
                     case ConnectionDropped:
                     case ConnectionFailed:
-                        toThrow = throwOriginalOnCFE ? wcfe : 
-                                StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);        
+                        toThrow = throwOriginalOnCFE ? wcfe :
+                                StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);
                         break;
                     case UnknownHost:
                         toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);
@@ -612,7 +621,7 @@ public class PravegaTablesStoreHelper {
         return withRetries(futureSupplier, errorMessage, false);
     }
 
-    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage, 
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage,
                                          boolean throwOriginalOnCfe) {
         return RetryHelper.withRetriesAsync(exceptionalCallback(futureSupplier, errorMessage, throwOriginalOnCfe),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, numOfRetries, executor)
@@ -625,7 +634,7 @@ public class PravegaTablesStoreHelper {
                         if (unwrap instanceof WireCommandFailedException &&
                                 (((WireCommandFailedException) unwrap).getReason().equals(ConnectionDropped) ||
                                         ((WireCommandFailedException) unwrap).getReason().equals(ConnectionFailed))) {
-                            throw new CompletionException(StoreException.create(StoreException.Type.CONNECTION_ERROR, 
+                            throw new CompletionException(StoreException.create(StoreException.Type.CONNECTION_ERROR,
                                     errorMessage.get()));
                         } else {
                             throw new CompletionException(unwrap);
@@ -633,5 +642,25 @@ public class PravegaTablesStoreHelper {
                     }
                 });
 >>>>>>> Issue 4639: Table store helper to retry only on unknownhost and auth failure for update requests (#4641)
+    }
+
+    private byte[] getArray(ByteBuf buf) {
+        final byte[] bytes = new byte[buf.readableBytes()];
+        final int readerIndex = buf.readerIndex();
+        buf.getBytes(readerIndex, bytes);
+        return bytes;
+    }
+
+    private void releaseKeys(Collection<TableSegmentKey> keys) {
+        for (TableSegmentKey k : keys) {
+            ReferenceCountUtil.safeRelease(k.getKey());
+        }
+    }
+
+    private void releaseEntries(Collection<TableSegmentEntry> entries) {
+        for (TableSegmentEntry e : entries) {
+            ReferenceCountUtil.safeRelease(e.getKey().getKey());
+            ReferenceCountUtil.safeRelease(e.getValue());
+        }
     }
 }

@@ -309,6 +309,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
             return readData.slice(header.getKeyOffset(), header.getKeyLength());
         }
@@ -318,6 +319,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 soughtKey = readData.slice(header.getKeyOffset(), header.getKeyLength());
             }
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+        private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
+            return readData.slice(header.getKeyOffset(), header.getKeyLength());
+        }
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 
         private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
             return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());

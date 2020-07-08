@@ -12,9 +12,13 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.util.ByteArrayComparator;
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+import io.pravega.common.util.ByteArrayComparator;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;

@@ -7,13 +7,37 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
+<<<<<<< HEAD
 package io.pravega.controller.store;
 
 public interface SegmentRecord {
 
+=======
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/stream/notifications/Notification.java
+package io.pravega.client.stream.notifications;
+=======
+package io.pravega.controller.store;
+>>>>>>> Issue 4569: Key Value Tables (#4758):controller/src/main/java/io/pravega/controller/store/SegmentRecord.java
+
+public interface SegmentRecord {
+
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/stream/notifications/Notification.java
+/**
+ * Represents base notification type.
+ */
+@Data
+public class Notification {
+}
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     long segmentId();
 
     double getKeyStart();
 
     double getKeyEnd();
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> Issue 4569: Key Value Tables (#4758):controller/src/main/java/io/pravega/controller/store/SegmentRecord.java
+>>>>>>> Issue 4569: Key Value Tables (#4758)

@@ -10,9 +10,12 @@
 package io.pravega.segmentstore.contracts.tables;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import com.google.common.annotations.Beta;
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -222,6 +225,7 @@ public interface TableStore {
      * the table.
      *
 <<<<<<< HEAD
+<<<<<<< HEAD
      * @param segmentName The name of the Table Segment to iterate over.
      * @param args        Arguments for the Iterator.
 =======
@@ -231,6 +235,10 @@ public interface TableStore {
      *                        where it left off, otherwise it will start from the beginning.
      * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param args        Arguments for the Iterator.
+>>>>>>> Issue 4569: Key Value Tables (#4758)
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableKey} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -241,16 +249,21 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args);
 =======
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args);
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 
     /**
      * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
      * <p>
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
+<<<<<<< HEAD
 <<<<<<< HEAD
      * @param segmentName The name of the Table Segment to iterate over.
      * @param args        Arguments for the Iterator.
@@ -261,6 +274,10 @@ public interface TableStore {
      *                        where it left off, otherwise it will start from the beginning.
      * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param args        Arguments for the Iterator.
+>>>>>>> Issue 4569: Key Value Tables (#4758)
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableEntry} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -271,8 +288,12 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args);
 =======
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args);
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 }

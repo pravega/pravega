@@ -1518,17 +1518,23 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void testWorkflowCompletionTimeout() {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStorePartialMock).getHostTaskIndex());
 
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore,
                 TaskStoreFactory.createZKStore(zkClient, executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, helper);
+<<<<<<< HEAD
 =======
         StreamMetadataTasks streamMetadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, TaskStoreFactory.createZKStore(zkClient, executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, executor, "host",
                 new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         streamMetadataTask.setCompletionTimeoutMillis(500L);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
 

@@ -19,11 +19,14 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 >>>>>>> Issue 4791: Add a new controller API to fetch segments for a given epoch. (#4829)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

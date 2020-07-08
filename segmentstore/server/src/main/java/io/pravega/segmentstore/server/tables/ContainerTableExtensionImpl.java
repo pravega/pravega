@@ -23,9 +23,13 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.segmentstore.contracts.SegmentProperties;
 =======
 >>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
+=======
+import io.pravega.segmentstore.contracts.SegmentProperties;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -52,9 +56,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.function.BiFunction;
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+import java.util.function.BiFunction;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Data;
@@ -172,22 +180,32 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         if (sorted) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 
         // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
         // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
         // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
 <<<<<<< HEAD
+<<<<<<< HEAD
         val attributeUpdates = attributes
 =======
         val attributeUpdates = TableAttributes.DEFAULT_VALUES
 >>>>>>> Issue 3637: (SegmentStore) Enable compaction on all Controller Table Segments (#3701)
+=======
+        val attributeUpdates = attributes
+>>>>>>> Issue 4569: Key Value Tables (#4758)
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
                 .collect(Collectors.toList());
@@ -234,6 +252,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toUpdate = translateItems(entries, segmentInfo, external, KeyTranslator::inbound);
@@ -246,11 +267,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return this.keyIndex.update(segment, updateBatch,
                             () -> commit(toUpdate, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer);
                 }, this.executor);
+<<<<<<< HEAD
 =======
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
                         () -> commit(entries, this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
                         this.executor);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     }
 
     @Override
@@ -264,6 +288,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toRemove = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
@@ -273,23 +300,32 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return this.keyIndex.update(segment, removeBatch,
                             () -> commit(toRemove, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer);
                 }, this.executor)
+<<<<<<< HEAD
 =======
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
                         () -> commit(keys, this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
                         this.executor)
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
                 .thenRun(Runnables.doNothing());
     }
 
     @Override
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, Duration timeout) {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         return get(segmentName, keys, true, timeout);
     }
 
     private CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<BufferView> keys, boolean external, Duration timeout) {
+<<<<<<< HEAD
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
@@ -366,6 +402,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
                 .thenComposeAsync(segment -> {
@@ -378,6 +417,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                         return newHashIterator(segment, args, TableBucketReader::key, KeyTranslator::outbound);
                     }
                 }, this.executor);
+<<<<<<< HEAD
     }
 
     @Override
@@ -403,6 +443,22 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         logRequest("entryIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+        return this.segmentContainer.forSegment(segmentName, args.getFetchTimeout())
+                .thenComposeAsync(segment -> {
+                    if (ContainerSortedKeyIndex.isSortedTableSegment(segment.getInfo())) {
+                        logRequest("entryIterator", segmentName, "sorted");
+                        return newSortedIterator(segment, args, keys -> get(segmentName, keys, args.getFetchTimeout()));
+                    } else {
+                        logRequest("entryIterator", segmentName, "hash");
+                        return newHashIterator(segment, args, TableBucketReader::entry, KeyTranslator::outbound);
+                    }
+                }, this.executor);
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     }
 
     //endregion
@@ -439,6 +495,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
                                                                                     @NonNull Function<List<BufferView>, CompletableFuture<List<T>>> toResult) {
         return this.keyIndex.getSortedKeyIndex(segment)
@@ -476,11 +535,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                                                                   @NonNull GetBucketReader<T> createBucketReader,
                                                                                   @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
+<<<<<<< HEAD
 =======
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
                                                                               @NonNull Duration fetchTimeout,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         UUID fromHash;
         try {
             fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());

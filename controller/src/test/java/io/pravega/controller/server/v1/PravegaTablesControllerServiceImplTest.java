@@ -12,6 +12,7 @@ package io.pravega.controller.server.v1;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -20,6 +21,11 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
@@ -61,10 +67,15 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 =======
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+import io.pravega.controller.task.EventHelper;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -190,10 +201,14 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         TransactionMetrics.reset();
     }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
     
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Test
     public void testTimeout() {
         streamMetadataTasks.setCompletionTimeoutMillis(500L);
@@ -212,10 +227,14 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
         
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processTruncateStream(any());
         result = new ResultObserver<>();
         this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
@@ -227,20 +246,28 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
         
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processSealStream(any());
         result = new ResultObserver<>();
         this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, stream), result);
         AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
         
 >>>>>>> Issue 4783: Timebound check for completion of workflow to avoid log flooding (#4800)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         streamStore.setState(SCOPE1, stream, State.SEALED, null, executorService).join();
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processDeleteStream(any());
         ResultObserver<Controller.DeleteStreamStatus> result2 = new ResultObserver<>();

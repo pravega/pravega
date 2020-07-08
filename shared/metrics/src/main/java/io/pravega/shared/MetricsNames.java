@@ -175,6 +175,9 @@ public final class MetricsNames {
 
     // Metrics in Controller
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     // KeyValueTable create request counts
     public static final String CREATE_KVTABLE = PREFIX + "controller.kvtable.created";
     // KeyValueTable segment counts
@@ -186,7 +189,11 @@ public final class MetricsNames {
     public static final String DELETE_KVTABLE = PREFIX + "controller.kvtable.deleted";                         // Counter
     public static final String DELETE_KVTABLE_LATENCY = PREFIX + "controller.kvtable.deleted_latency_ms";      // Histogram
     public static final String DELETE_KVTABLE_FAILED = PREFIX + "controller.kvtable.delete_failed";
+<<<<<<< HEAD
 =======
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     // Scope request counts
     public static final String CREATE_SCOPE = PREFIX + "controller.scope.created";                           // Counter
     public static final String CREATE_SCOPE_LATENCY = PREFIX + "controller.scope.created_latency_ms";        // Histogram

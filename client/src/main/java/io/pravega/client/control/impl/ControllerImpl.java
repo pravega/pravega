@@ -94,13 +94,19 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 <<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758):client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
+<<<<<<< HEAD:client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
 =======
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 >>>>>>> Issue 4791: Add a new controller API to fetch segments for a given epoch. (#4829):client/src/main/java/io/pravega/client/stream/impl/ControllerImpl.java
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758):client/src/main/java/io/pravega/client/control/impl/ControllerImpl.java
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;

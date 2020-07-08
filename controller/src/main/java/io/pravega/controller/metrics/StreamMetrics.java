@@ -79,6 +79,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
 =======
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
+<<<<<<< HEAD
 >>>>>>> Merge conflict fixes.
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
@@ -86,6 +87,10 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
 >>>>>>> Issue 4893: Add Scopes Metrics (#4906)
+=======
+        createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
+        deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     }
 
     /**

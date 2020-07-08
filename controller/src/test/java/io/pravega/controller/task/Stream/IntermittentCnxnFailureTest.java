@@ -90,14 +90,22 @@ public class IntermittentCnxnFailureTest {
     private RequestTracker requestTracker = new RequestTracker(true);
     private ConnectionFactory connectionFactory;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Mock
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
+<<<<<<< HEAD
 =======
     private StatsProvider statsProvider = null;
 >>>>>>> Issue 4893: Add Scopes Metrics (#4906)
     
+=======
+    private StatsProvider statsProvider = null;
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()

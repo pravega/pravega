@@ -17,9 +17,13 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.segmentstore.contracts.tables.TableStore;
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+import io.pravega.segmentstore.contracts.tables.TableStore;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import java.util.Collection;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -43,12 +47,17 @@ import lombok.val;
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
 <<<<<<< HEAD
+<<<<<<< HEAD
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
 =======
     static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
     static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+    static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;

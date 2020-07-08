@@ -500,10 +500,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                       VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
 =======
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
 >>>>>>> Issue 4852: Update segment split/merge metrics after rolling transaction is committed (#4853)
+=======
+        CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 
         future.thenCompose(result -> findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                 StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue())));

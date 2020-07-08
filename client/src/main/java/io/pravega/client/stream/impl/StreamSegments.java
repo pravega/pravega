@@ -45,6 +45,7 @@ public class StreamSegments extends SegmentCollection {
     @Override
     protected double hashToRange(String key) {
         return HASHER.hashToRange(key);
+<<<<<<< HEAD
     }
 
     public int getNumberOfSegments() {
@@ -59,13 +60,19 @@ public class StreamSegments extends SegmentCollection {
             result.add(seg.getSegment());
         }
         return result;
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     }
 
     public int getNumberOfSegments() {
         return segments.size();
     }
+<<<<<<< HEAD
     
 >>>>>>> Issue 4817: Improve sealed stream handling of EventStreamWriter and ByteStreamWriter. (#4848)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
         verifyReplacementRange(replacedSegment, replacementRanges);

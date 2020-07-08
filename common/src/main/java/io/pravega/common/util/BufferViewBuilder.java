@@ -47,17 +47,25 @@ public class BufferViewBuilder {
      *                   of their data. Any modifications made to this {@link BufferView} will be reflected in the resulting
      *                   {@link BufferView} and viceversa.
 <<<<<<< HEAD
+<<<<<<< HEAD
      * @return This instance.
      */
     public BufferViewBuilder add(@NonNull BufferView bufferView) {
         if (bufferView.getLength() == 0) {
             return this;
 =======
+=======
+     * @return This instance.
+>>>>>>> Issue 4569: Key Value Tables (#4758)
      */
-    public void add(@NonNull BufferView bufferView) {
+    public BufferViewBuilder add(@NonNull BufferView bufferView) {
         if (bufferView.getLength() == 0) {
+<<<<<<< HEAD
             return;
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+            return this;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         }
 
         if (bufferView instanceof CompositeBufferView) {
@@ -68,9 +76,13 @@ public class BufferViewBuilder {
 
         this.length += bufferView.getLength();
 <<<<<<< HEAD
+<<<<<<< HEAD
         return this;
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+        return this;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     }
 
     /**

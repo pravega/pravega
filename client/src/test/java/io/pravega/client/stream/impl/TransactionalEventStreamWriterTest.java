@@ -12,9 +12,13 @@ package io.pravega.client.stream.impl;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
 =======
 >>>>>>> Issue 4815: (Bugfix) Ensure TxnFailedException is thrown only if Transaction is not in an open state (#4814)
+=======
+import io.pravega.client.control.impl.Controller;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;

@@ -91,9 +91,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 <<<<<<< HEAD
+<<<<<<< HEAD
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -363,6 +367,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     .entrySet().stream().map(e -> toUnconditionalTableEntry(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
                     .collect(Collectors.toList());
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             context.ext.put(SEGMENT_NAME, toUpdate, TIMEOUT)
                     .thenAccept(versions -> {
                         // Update key versions.
@@ -371,6 +378,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                             keyVersions.put(toUpdate.get(i).getKey().getKey(), versions.get(i));
                         }
                     }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+<<<<<<< HEAD
 =======
             addToProcessor(
                     () -> context.ext.put(SEGMENT_NAME, toUpdate, TIMEOUT)
@@ -384,6 +392,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     processor,
                     context.segment().getInfo()::getLength);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             removedKeys.removeAll(current.toUpdate.keySet());
 
             // Remove entries.
@@ -577,6 +587,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
                     .collect(Collectors.toList());
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             context.ext.put(SEGMENT_NAME, toUpdate, TIMEOUT)
                     .thenAccept(versions -> {
                         // Update key versions.
@@ -585,6 +598,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                             keyVersions.put(toUpdate.get(i).getKey().getKey(), versions.get(i));
                         }
                     }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+<<<<<<< HEAD
 =======
             addToProcessor(
                     () -> context.ext.put(SEGMENT_NAME, toUpdate, TIMEOUT)
@@ -598,6 +612,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     processor,
                     context.segment().getInfo()::getLength);
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
             removedKeys.removeAll(current.toUpdate.keySet());
 
             // Remove entries.
@@ -651,10 +667,14 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private void deleteSegment(Collection<BufferView> remainingKeys, boolean mustBeEmpty, ContainerTableExtension ext) throws Exception {
 =======
     private void deleteSegment(Collection<BufferView> remainingKeys, ContainerTableExtension ext) throws Exception {
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+    private void deleteSegment(Collection<BufferView> remainingKeys, boolean mustBeEmpty, ContainerTableExtension ext) throws Exception {
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         if (remainingKeys.size() > 0) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "deleteIfEmpty worked on a non-empty segment.",
@@ -695,9 +715,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
 =======
 >>>>>>> Issue 4808: (SegmentStore) Using BufferViews for Table Segment APIs (#4842)
+=======
+        val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
+>>>>>>> Issue 4569: Key Value Tables (#4758)
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);

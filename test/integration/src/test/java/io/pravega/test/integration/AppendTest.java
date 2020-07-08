@@ -16,9 +16,13 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.client.control.impl.Controller;
 =======
 >>>>>>> Issue 4784: Release throttle in the event an unhandled exception comes from netty. (#4785)
+=======
+import io.pravega.client.control.impl.Controller;
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.RawClient;
@@ -36,9 +40,12 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import io.pravega.client.stream.impl.Controller;
 >>>>>>> Issue 4784: Release throttle in the event an unhandled exception comes from netty. (#4785)
+=======
+>>>>>>> Issue 4569: Key Value Tables (#4758)
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -332,10 +339,14 @@ public class AppendTest extends LeakDetectorTestSuite {
     }
     
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 =======
     
 >>>>>>> Issue 4784: Release throttle in the event an unhandled exception comes from netty. (#4785)
+=======
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Test(timeout = 100000)
     public void appendALotOfData() {
         String endpoint = "localhost";
@@ -381,12 +392,17 @@ public class AppendTest extends LeakDetectorTestSuite {
         producer.close();
     }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 
 =======
     
     
 >>>>>>> Issue 4784: Release throttle in the event an unhandled exception comes from netty. (#4785)
+=======
+
+
+>>>>>>> Issue 4569: Key Value Tables (#4758)
     @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
