@@ -11,6 +11,7 @@ package io.pravega.segmentstore.contracts.tables;
 
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import java.util.Collection;
 
 /**
@@ -23,7 +24,7 @@ public interface IteratorItem<T> {
      * {@link TableStore#keyIterator} or {@link TableStore#entryIterator} if a previous iteration has been interrupted.
      * @return An {@link ArrayView} containing the serialized state.
      */
-    ArrayView getState();
+    BufferView getState();
 
     /**
      * Gets a Collection of items that are contained in this instance. The items in this list are not necessarily related

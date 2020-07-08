@@ -12,6 +12,7 @@ package io.pravega.common.util.btree;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;

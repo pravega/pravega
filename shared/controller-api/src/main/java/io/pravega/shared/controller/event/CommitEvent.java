@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,7 +36,7 @@ public class CommitEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processCommitTxnRequest(this);
+        return ((StreamRequestProcessor) processor).processCommitTxnRequest(this);
     }
 
     //region Serialization
@@ -43,7 +44,7 @@ public class CommitEvent implements ControllerEvent {
     private static class CommitEventBuilder implements ObjectBuilder<CommitEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<CommitEvent, CommitEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<CommitEvent, CommitEventBuilder> {
         @Override
         protected CommitEventBuilder newBuilder() {
             return CommitEvent.builder();

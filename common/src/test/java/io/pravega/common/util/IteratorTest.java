@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -153,7 +154,7 @@ public class IteratorTest {
         List<Integer> toReturn = IntStream.range(0, 25).boxed().collect(Collectors.toList());
         AtomicInteger timesCalled = new AtomicInteger(0);
 
-        BlockingAsyncIterator<Integer> iterator = new BlockingAsyncIterator<>(getIterator(toReturn, timesCalled));
+        Iterator<Integer> iterator = getIterator(toReturn, timesCalled).asIterator();
         int found = 0;
         while (iterator.hasNext()) {
             Integer i = iterator.next();
