@@ -36,7 +36,7 @@ import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;

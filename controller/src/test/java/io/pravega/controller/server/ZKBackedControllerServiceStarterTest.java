@@ -28,6 +28,7 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
@@ -90,7 +91,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         segmentEvent = new ConcurrentHashMap<>();
         writers = new ConcurrentHashMap<>();
         writerEventNumber = new ConcurrentHashMap<>();
-
     }
     
     @Override
@@ -103,6 +103,8 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
     abstract StoreClientConfig getStoreConfig(ZKClientConfig zkClientConfig);
     
     abstract StreamMetadataStore getStore(StoreClient storeClient);
+
+    abstract KVTableMetadataStore getKVTStore(StoreClient storeClient);
 
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
@@ -266,6 +268,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         CompletableFuture<Void> signal = new CompletableFuture<>();
         @Cleanup
         StreamMetadataStore store = spy(getStore(storeClient));
+        KVTableMetadataStore kvtStore = spy(getKVTStore(storeClient));
         doAnswer(x -> {
             signal.complete(null);
             latch.join();
@@ -273,7 +276,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         }).when(store).createScope(anyString());
         
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, kvtStore);
         starter.startAsync();
         
         // this will block until createScope is called from event processors. 

@@ -18,6 +18,7 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -31,7 +32,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -327,7 +327,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    
+
     @Test(timeout = 100000)
     public void appendALotOfData() {
         String endpoint = "localhost";
@@ -375,8 +375,8 @@ public class AppendTest extends LeakDetectorTestSuite {
         }
         producer.close();
     }
-    
-    
+
+
     @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
