@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,7 +37,7 @@ public class DeleteStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processDeleteStream(this);
+        return ((StreamRequestProcessor) processor).processDeleteStream(this);
     }
 
     //region Serialization
@@ -44,7 +45,7 @@ public class DeleteStreamEvent implements ControllerEvent {
     private static class DeleteStreamEventBuilder implements ObjectBuilder<DeleteStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<DeleteStreamEvent, DeleteStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<DeleteStreamEvent, DeleteStreamEventBuilder> {
         @Override
         protected DeleteStreamEventBuilder newBuilder() {
             return DeleteStreamEvent.builder();

@@ -129,4 +129,25 @@ public interface ControllerEventProcessorConfig {
      * @return period in milliseconds.
      */
     long getRebalanceIntervalMillis();
+
+    /**
+     * Fetches name of the request stream.
+     *
+     * @return Name of the request stream.
+     */
+    String getKvtStreamName();
+
+    /**
+     * Fetches name of the reader group processing events from request stream.
+     *
+     * @return Name of the reader group processing events from request stream.
+     */
+    String getKvtReaderGroupName();
+
+    /**
+     * Fetches scaling policy for stream used to store kvtable requests.
+     *
+     * @return Request kvtable scaling policy.
+     */
+    ScalingPolicy getKvtStreamScalingPolicy();
 }

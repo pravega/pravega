@@ -10,6 +10,7 @@
 package io.pravega.common.util.btree;
 
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;

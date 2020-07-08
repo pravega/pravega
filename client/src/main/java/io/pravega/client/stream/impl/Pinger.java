@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
@@ -32,9 +33,9 @@ import static io.pravega.common.Exceptions.unwrap;
 
 /**
  * Pinger is used to send pings to renew the transaction lease for active transactions.
- * It invokes io.pravega.client.stream.impl.Controller#pingTransaction() on the controller to renew the lease of active
+ * It invokes io.pravega.client.control.impl.Controller#pingTransaction() on the controller to renew the lease of active
  * transactions. Incase of a controller instance not being reachable the controller client takes care of retrying on a
- * different controller instance see io.pravega.client.stream.impl.ControllerResolverFactory for details.
+ * different controller instance see io.pravega.client.control.impl.ControllerResolverFactory for details.
  */
 @Slf4j
 public class Pinger implements AutoCloseable {

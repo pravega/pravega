@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.Segment;

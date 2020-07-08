@@ -137,7 +137,7 @@ abstract class KeyHasher {
         @Override
         public UUID hash(@NonNull BufferView key) {
             val h = HASH.newHasher();
-            key.getContents().forEach(h::putBytes);
+            key.collect(h::putBytes);
             byte[] rawHash = new byte[HASH_SIZE_BYTES];
             int c = h.hash().writeBytesTo(rawHash, 0, rawHash.length);
             assert c == rawHash.length;
