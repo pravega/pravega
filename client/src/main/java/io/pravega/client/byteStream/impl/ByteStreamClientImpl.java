@@ -27,6 +27,10 @@ import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
+/**
+ * Implementation for {@link ByteStreamClientFactory}.
+ * Note: Ownership of all constructor arguments is assumed to be passed to this implementation.
+ */
 @AllArgsConstructor
 public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @NonNull
