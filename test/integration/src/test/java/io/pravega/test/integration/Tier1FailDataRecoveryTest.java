@@ -109,7 +109,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
 
-    private final ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = createExecutorService(100);
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
@@ -137,6 +137,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
         }
+
+        executorService.shutdown();
     }
 
     @Override

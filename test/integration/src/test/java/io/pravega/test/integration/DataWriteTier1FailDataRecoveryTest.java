@@ -147,7 +147,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
-    private final ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = createExecutorService(100);
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
@@ -175,6 +175,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
         }
+
+        executorService.shutdown();
     }
 
     @Override
