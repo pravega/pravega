@@ -76,7 +76,6 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
@@ -148,30 +147,18 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
-    private ScheduledExecutorService executorService = createExecutorService(100);
-    private InMemoryDurableDataLogFactory durableDataLogFactory = null;
-    private File baseDir = null;
-    private FileSystemStorageFactory storageFactory = null;
-    private BookKeeperLogFactory dataLogFactory = null;
-    private SegmentStoreStarter segmentStoreStarter = null;
-    private ControllerStarter controllerStarter = null;
+    private final ScheduledExecutorService executorService = createExecutorService(100);
+    private File baseDir;
+    private FileSystemStorageFactory storageFactory;
+    private BookKeeperLogFactory dataLogFactory;
+    private SegmentStoreStarter segmentStoreStarter;
     private BKZK bkzk = null;
 
     @After
     public void tearDown() throws Exception {
-        if (this.durableDataLogFactory != null) {
-            this.durableDataLogFactory.close();
-            this.durableDataLogFactory = null;
-        }
-
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
-        }
-
-        if (this.controllerStarter != null) {
-            this.controllerStarter.close();
-            this.controllerStarter = null;
         }
 
         if (this.segmentStoreStarter != null) {
@@ -213,10 +200,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private BookKeeperServiceRunner bookKeeperServiceRunner;
         private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
         private AtomicInteger bkPort = new AtomicInteger();
-        private int instanceId;
 
         BKZK(int instanceId) throws Exception {
-            this.instanceId = instanceId;
             secureBk.set(false);
             bkPort.set(TestUtils.getAvailableListenPort());
             val bookiePorts = new ArrayList<Integer>();
@@ -239,7 +224,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             bkService.set(this.bookKeeperServiceRunner);
 
             // Create a ZKClient with a unique namespace.
-            String baseNamespace = "pravega/" + this.instanceId + "_" + Long.toHexString(System.nanoTime());
+            String baseNamespace = "pravega/" + instanceId + "_" + Long.toHexString(System.nanoTime());
             this.zkClient.set(CuratorFrameworkFactory
                     .builder()
                     .connectString("localhost:" + bkPort.get())
@@ -251,7 +236,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
             this.zkClient.get().start();
 
-            String logMetaNamespace = "segmentstore/containers" + this.instanceId;
+            String logMetaNamespace = "segmentstore/containers" + instanceId;
             this.bkConfig.set(BookKeeperConfig
                     .builder()
                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
@@ -298,15 +283,15 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
      * Sets up the environment for creating a DebugSegmentContainer.
      */
     private class DebugTool implements AutoCloseable {
-        private CacheStorage cacheStorage;
-        private OperationLogFactory operationLogFactory;
-        private ReadIndexFactory readIndexFactory;
-        private AttributeIndexFactory attributeIndexFactory;
-        private WriterFactory writerFactory;
-        private CacheManager cacheManager;
-        private StreamSegmentContainerFactory containerFactory;
-        private BookKeeperLogFactory dataLogFactory = null;
-        private StorageFactory storageFactory;
+        private final CacheStorage cacheStorage;
+        private final OperationLogFactory operationLogFactory;
+        private final ReadIndexFactory readIndexFactory;
+        private final AttributeIndexFactory attributeIndexFactory;
+        private final WriterFactory writerFactory;
+        private final CacheManager cacheManager;
+        private final StreamSegmentContainerFactory containerFactory;
+        private final BookKeeperLogFactory dataLogFactory;
+        private final StorageFactory storageFactory;
 
         private final DurableLogConfig durableLogConfig = DurableLogConfig
                 .builder()
@@ -369,7 +354,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
      * Creates a segment store server.
      */
     private static class SegmentStoreStarter {
-        private int servicePort = TestUtils.getAvailableListenPort();
+        private final int servicePort = TestUtils.getAvailableListenPort();
         private ServiceBuilder serviceBuilder = null;
         private StreamSegmentStoreWrapper streamSegmentStoreWrapper = null;
         private AutoScaleMonitor monitor = null;
@@ -425,8 +410,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
      * Creates a controller instance and runs it.
      */
     private static class ControllerStarter {
-        private int controllerPort = TestUtils.getAvailableListenPort();
-        private String serviceHost = "localhost";
+        private final int controllerPort = TestUtils.getAvailableListenPort();
+        private final String serviceHost = "localhost";
         private ControllerWrapper controllerWrapper = null;
         private Controller controller = null;
 
@@ -450,7 +435,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    @Test(timeout = 800000)
+    @Test(timeout = 240000)
     public void testTier1Fail() throws Exception {
         int instanceId = 0;
 

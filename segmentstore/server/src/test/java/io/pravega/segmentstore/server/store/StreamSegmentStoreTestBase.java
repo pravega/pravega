@@ -247,12 +247,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .build();
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
-            TestContext context = createContext(getReadOnlyStorageFactory());
+            @Cleanup TestContext context = createContext(getReadOnlyStorageFactory());
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory,
                     DataRecoveryTestUtils.createExecutorService(10));
 
             for (int containerId = 0; containerId < containerCount; containerId++) {
                 // start DebugSegmentContainer with given container Id.
+                @Cleanup
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
@@ -282,8 +283,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     /**
      * Deletes container-metadata segment and attribute index segment for the given container Id.
-     * @param tier2 Long term storage to delete the segments from.
-     * @param containerId Id of the container for which the segments has to be deleted.
+     * @param tier2         Long term storage to delete the segments from.
+     * @param containerId   Id of the container for which the segments has to be deleted.
      */
     private void deleteContainerMetadataSegments(Storage tier2, int containerId) {
         deleteSegment(tier2, "_system/containers/metadata_" + containerId);
@@ -292,8 +293,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     /**
      * Deletes the segment with given segment name from the given long term storage.
-     * @param tier2 Long term storage to delete the segment from.
-     * @param segmentName Name of the segment to be deleted.
+     * @param tier2         Long term storage to delete the segment from.
+     * @param segmentName   Name of the segment to be deleted.
      */
     private void deleteSegment(Storage tier2, String segmentName) {
         try {
@@ -565,6 +566,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return builder;
     }
 
+    /**
+     * Creates a ServiceBuilder instance, but also gets the storage Factory used in creating.
+     * @return              A newly created ServiceBuilder instance.
+     * @throws Exception    In case of any exception occurred during execution.
+     */
     private ServiceBuilder createReadOnlyBuilder() throws Exception {
         // Copy base config properties to a new object.
         val props = new Properties();
