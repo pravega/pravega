@@ -10,8 +10,10 @@
 package io.pravega.test.integration.demo.interactive;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Streams;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.ConditionalTableUpdateException;
@@ -27,6 +29,7 @@ import io.pravega.common.util.AsyncIterator;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -187,6 +190,37 @@ abstract class KeyValueTableCommand extends Command {
             return createDescriptor("delete", "Deletes one or more Key-Value Tables.")
                     .withArg("scoped-kvt-names", "Names of the Scoped Key-Value Tables to delete.")
                     .withSyntaxExample("scope1/kvt1 scope1/kvt2 scope3/kvt3", "Deletes kvt1 and kvt2 from scope1 and kvt3 from scope3.")
+                    .build();
+        }
+    }
+
+    //endregion
+
+    //region List
+
+    static class ListKVTables extends KeyValueTableCommand {
+        ListKVTables(@NonNull CommandArgs commandArgs) {
+            super(commandArgs);
+        }
+
+        @Override
+        public void execute() {
+            ensureArgCount(1);
+            @Cleanup
+            val m = createManager();
+            val kvtIterator = m.listKeyValueTables(getArg(0));
+            if (!kvtIterator.hasNext()) {
+                output("Scope '%s' does not have any Key-Value Tables.", getArg(0));
+            }
+
+            Streams.stream(kvtIterator)
+                    .sorted(Comparator.comparing(KeyValueTableInfo::getScopedName))
+                    .forEach(kvt -> output("\t%s", kvt.getScopedName()));
+        }
+
+        public static CommandDescriptor descriptor() {
+            return createDescriptor("list", "Lists all Key-Value Tables in a Scope.")
+                    .withArg("scope-name", "Name of Scope to list Key-Value Tables from.")
                     .build();
         }
     }

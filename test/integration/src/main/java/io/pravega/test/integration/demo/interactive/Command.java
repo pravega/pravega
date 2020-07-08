@@ -231,6 +231,7 @@ abstract class Command {
                         .put(StreamCommand.Read::descriptor, StreamCommand.Read::new)
                         .put(KeyValueTableCommand.Create::descriptor, KeyValueTableCommand.Create::new)
                         .put(KeyValueTableCommand.Delete::descriptor, KeyValueTableCommand.Delete::new)
+                        .put(KeyValueTableCommand.ListKVTables::descriptor, KeyValueTableCommand.ListKVTables::new)
                         .put(KeyValueTableCommand.Get::descriptor, KeyValueTableCommand.Get::new)
                         .put(KeyValueTableCommand.Put::descriptor, KeyValueTableCommand.Put::new)
                         .put(KeyValueTableCommand.PutIf::descriptor, KeyValueTableCommand.PutIf::new)
