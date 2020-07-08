@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
