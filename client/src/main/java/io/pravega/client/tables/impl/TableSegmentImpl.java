@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -279,7 +280,13 @@ class TableSegmentImpl implements TableSegment {
      */
     private List<WireCommands.TableKey> rawKeysToWireCommand(Iterator<ByteBuf> keys) {
         ArrayList<WireCommands.TableKey> result = new ArrayList<>();
-        keys.forEachRemaining(key -> result.add(toWireCommand(TableSegmentKey.unversioned(key))));
+        AtomicInteger serializationLength = new AtomicInteger();
+        keys.forEachRemaining(key -> {
+            val k = toWireCommand(TableSegmentKey.unversioned(key));
+            serializationLength.addAndGet(k.size());
+            result.add(k);
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return result;
     }
 
@@ -291,7 +298,13 @@ class TableSegmentImpl implements TableSegment {
      */
     private List<WireCommands.TableKey> keysToWireCommand(Iterator<TableSegmentKey> keys) {
         ArrayList<WireCommands.TableKey> result = new ArrayList<>();
-        keys.forEachRemaining(k -> result.add(toWireCommand(k)));
+        AtomicInteger serializationLength = new AtomicInteger();
+        keys.forEachRemaining(k -> {
+            val key = toWireCommand(k);
+            serializationLength.addAndGet(key.size());
+            result.add(key);
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return result;
     }
 
@@ -303,8 +316,14 @@ class TableSegmentImpl implements TableSegment {
      */
     private WireCommands.TableEntries entriesToWireCommand(Iterator<TableSegmentEntry> tableEntries) {
         ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> result = new ArrayList<>();
-        tableEntries.forEachRemaining(entry -> result.add(new AbstractMap.SimpleImmutableEntry<>(
-                toWireCommand(entry.getKey()), toWireCommand(entry.getValue()))));
+        AtomicInteger serializationLength = new AtomicInteger();
+        tableEntries.forEachRemaining(entry -> {
+            val key = toWireCommand(entry.getKey());
+            val value = toWireCommand(entry.getValue());
+            serializationLength.addAndGet(key.size() + value.size());
+            result.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return new WireCommands.TableEntries(result);
     }
 
@@ -476,6 +495,13 @@ class TableSegmentImpl implements TableSegment {
     private static boolean isRetryableException(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         return ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
+    }
+
+    private void checkBatchSize(int count, int serializationLength) {
+        Preconditions.checkArgument(count <= TableSegment.MAXIMUM_BATCH_KEY_COUNT,
+                "Too many items. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_KEY_COUNT, count);
+        Preconditions.checkArgument(serializationLength <= TableSegment.MAXIMUM_BATCH_LENGTH,
+                "Batch serialization too big. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_LENGTH, serializationLength);
     }
 
     //endregion

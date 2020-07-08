@@ -24,8 +24,17 @@ import org.apache.commons.lang3.SerializationException;
  * Serializer for Key-Value Table Key Families.
  */
 class KeyFamilySerializer {
+    /**
+     * Maximum length for a Key Family serialization using {@link #ENCODING}.
+     * If this value is changed, care must be taken such that the sum of it, {@link #PREFIX_LENGTH} and
+     * {@link TableSegment#MAXIMUM_KEY_LENGTH} do not exceed the server-side limits.
+     */
     @VisibleForTesting
-    static final int MAX_KEY_FAMILY_LENGTH = 1024; // It can't be longer than TableSegment.MAX_KEY_LENGTH
+    static final int MAX_KEY_FAMILY_LENGTH = 2096;
+    /**
+     * A prefix added to every Key Family serialization. This is encoded in the key itself. See
+     * {@link #MAX_KEY_FAMILY_LENGTH} for constraints.
+     */
     @VisibleForTesting
     static final int PREFIX_LENGTH = 2; // [0, 65535]. First 6 bits will be empty.
     @VisibleForTesting
