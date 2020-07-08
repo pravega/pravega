@@ -48,10 +48,10 @@ public class DataRecoveryTestUtils {
 
     /**
      * Lists all segments from a given long term storage.
-     * @param tier2 Long term storage.
-     * @param containerCount Total number of segment containers.
-     * @return A map of lists containing segments by container Ids.
-     * @throws IOException in case of exception during the execution.
+     * @param tier2             Long term storage.
+     * @param containerCount    Total number of segment containers.
+     * @return                  A map of lists containing segments by container Ids.
+     * @throws                  IOException in case of exception during the execution.
      */
     public static Map<Integer, List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);

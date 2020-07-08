@@ -9,8 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -67,7 +65,6 @@ import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
@@ -76,7 +73,6 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Test;
 
@@ -89,7 +85,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -112,26 +107,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private static final int CONTAINER_COUNT = 1;
     private static final int CONTAINER_ID = 0;
 
-    /**
-     * Write 300 events to different segments.
-     */
-    private static final long TOTAL_NUM_EVENTS = 300;
-
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
-
-    private static final Random RANDOM = new Random();
-
-    /**
-     * Scope and streams to read and write events.
-     */
-    private static final String SCOPE = "testMetricsScope";
-    private static final String STREAM1 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
-    private static final String STREAM2 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
-    private static final String EVENT = "12345";
-
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
-    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
     private ScheduledExecutorService executorService = createExecutorService(100);
     private InMemoryDurableDataLogFactory durableDataLogFactory = null;
@@ -141,7 +118,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private SegmentStoreStarter segmentStoreStarter = null;
     private ControllerStarter controllerStarter = null;
     private BKZK bkzk = null;
-    private TestingServer zkTestServer = null;
 
     @After
     public void tearDown() throws Exception {
@@ -173,11 +149,6 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         if (this.baseDir != null) {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
-        }
-
-        if (this.zkTestServer != null) {
-            this.zkTestServer.close();
-            this.zkTestServer = null;
         }
     }
 
@@ -296,7 +267,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private WriterFactory writerFactory;
         private CacheManager cacheManager;
         private StreamSegmentContainerFactory containerFactory;
-        private BookKeeperLogFactory dataLogFactory = null;
+        private BookKeeperLogFactory dataLogFactory;
         private StorageFactory storageFactory;
 
         private final DurableLogConfig durableLogConfig = DurableLogConfig
@@ -443,6 +414,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 400000)
     public void testTier1Fail() throws Exception {
+        int instanceId = 0;
+
         // Creating tier 2 only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         FileSystemStorageConfig fsConfig = FileSystemStorageConfig
@@ -452,9 +425,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        this.zkTestServer = new TestingServerStarter().start();
+        this.bkzk = setUpNewBK(instanceId++);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
-        @Cleanup ControllerStarter controllerStarter = startController(this.zkTestServer.getPort(), this.segmentStoreStarter.servicePort);
+        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
         controllerStarter.close(); // Shut down the controller
         controllerStarter = null;
@@ -462,8 +435,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
         allSegments.addAll(this.segmentStoreStarter.tableStoreWrapper.getSegments());
-        log.info("No. of segments = {}", allSegments.size());
+        log.info("No. of segments created = {}", allSegments.size());
 
+        // Get the long term storage from the running pravega instance
         @Cleanup Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
@@ -475,9 +449,9 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.segmentStoreStarter = null;
         log.info("SS Shutdown");
 
-        this.zkTestServer.close();
-        this.zkTestServer = null;
-        log.info("BK & ZK shutdown");
+        this.bkzk.close(); // Shutdown BookKeeper & ZooKeeper
+        this.bkzk = null;
+        log.info("BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(1);
@@ -499,7 +473,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
-        sleep(2000);
+        sleep(2000); // Without sleep the test fails sometimes complaining some segment offsets don't exist.
         Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         debugStreamSegmentContainer.close();
         debugTool.close();

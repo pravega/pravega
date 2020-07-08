@@ -869,7 +869,6 @@ class BookKeeperLog implements DurableDataLog {
                         this.traceObjectId, keeperEx.toString(), this.zkClient.getNamespace(), this.logNodePath);
             } else {
                 // We were fenced out. Convert to an appropriate exception.
-                // print stack trace
                 throw new DataLogWriterNotPrimaryException(
                         String.format("Unable to acquire exclusive write lock for log (path = '%s%s').", this.zkClient.getNamespace(), this.logNodePath),
                         keeperEx);

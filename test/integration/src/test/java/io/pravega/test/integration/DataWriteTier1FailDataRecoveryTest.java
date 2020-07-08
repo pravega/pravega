@@ -82,7 +82,6 @@ import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
@@ -91,7 +90,6 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -158,7 +156,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private SegmentStoreStarter segmentStoreStarter = null;
     private ControllerStarter controllerStarter = null;
     private BKZK bkzk = null;
-    private TestingServer zkTestServer = null;
 
     @After
     public void tearDown() throws Exception {
@@ -190,11 +187,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         if (this.baseDir != null) {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
-        }
-
-        if (this.zkTestServer != null) {
-            this.zkTestServer.close();
-            this.zkTestServer = null;
         }
     }
 
@@ -460,6 +452,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 800000)
     public void testTier1Fail() throws Exception {
+        int instanceId = 0;
+
         // Creating tier 2 only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         FileSystemStorageConfig fsConfig = FileSystemStorageConfig
@@ -469,10 +463,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
 
         // Start a new BK & ZK, segment store and controller
-        this.zkTestServer = new TestingServerStarter().start();
+        this.bkzk = setUpNewBK(instanceId++);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
-        @Cleanup ControllerStarter controllerStarter = startController(this.zkTestServer.getPort(), this.segmentStoreStarter.servicePort);
+        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
 
+        // Create two streams for writing data onto two different segments
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
         createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
 
@@ -486,10 +481,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Verify events write by reading them.
         readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("First read on stream 1");
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("First read on stream 2");
 
         readerGroupManager.close();
         clientFactory.close();
@@ -500,8 +493,9 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
         allSegments.addAll(this.segmentStoreStarter.tableStoreWrapper.getSegments());
-        log.info("No. of segments = {}", allSegments.size());
+        log.info("No. of segments created = {}", allSegments.size());
 
+        // Get the long term storage from the running pravega instance
         @Cleanup Storage tier2 = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), DataRecoveryTestUtils.createExecutorService(1));
 
@@ -509,16 +503,16 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         waitForSegmentsInStorage(allSegments, this.segmentStoreStarter.streamSegmentStoreWrapper, tier2)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        this.segmentStoreStarter.close(); // Shutdown SS
+        this.segmentStoreStarter.close(); // Shutdown SegmentStore
         this.segmentStoreStarter = null;
         log.info("Segment Store Shutdown");
 
-        this.zkTestServer.close();
-        this.zkTestServer = null;
+        this.bkzk.close(); // Shutdown BookKeeper & ZooKeeper
+        this.bkzk = null;
         log.info("BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        this.bkzk = setUpNewBK(1);
+        this.bkzk = setUpNewBK(instanceId++);
         this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
 
@@ -537,7 +531,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Re-create all segments which were listed.
         Services.startAsync(debugStreamSegmentContainer, executorService)
                 .thenRun(new DataRecoveryTestUtils.Worker(debugStreamSegmentContainer, segmentsToCreate.get(CONTAINER_ID))).join();
-        sleep(5000);
+        sleep(5000); // Without sleep the test fails sometimes complaining some segment offsets don't exist.
         Services.stopAsync(debugStreamSegmentContainer, executorService).join();
         debugStreamSegmentContainer.close();
         debugTool.close();
@@ -551,16 +545,15 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
         readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory, connectionFactory);
 
+        // Try creating the same segments again with the new controller
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
         createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
 
         // Try reading all events again
         readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Second read on stream 1");
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Second read on stream 2");
     }
 
     public ScheduledExecutorService createExecutorService(int threadPoolSize) {

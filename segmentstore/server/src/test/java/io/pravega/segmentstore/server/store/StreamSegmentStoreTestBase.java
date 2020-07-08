@@ -1239,6 +1239,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+            this.readIndexFactory.close();
         }
     }
 }

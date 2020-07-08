@@ -76,8 +76,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  */
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
-    private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating a length for a segment
-    private static final int MAX_SEGMENT_LENGTH = 10100; // Used in randomly generating a length for a segment
+    private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating the length for a segment
+    private static final int MAX_SEGMENT_LENGTH = 10100; // Used in randomly generating the length for a segment
     private static final int CONTAINER_ID = 1234567;
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
@@ -323,6 +323,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
+            this.readIndexFactory.close();
             this.dataLogFactory.close();
             this.storageFactory.close();
             this.cacheManager.close();
