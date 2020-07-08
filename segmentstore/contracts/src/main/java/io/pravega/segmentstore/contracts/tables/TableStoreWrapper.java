@@ -41,6 +41,12 @@ public class TableStoreWrapper implements TableStore {
     }
 
     @Override
+    public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
+        this.segments.add(segmentName); // Add the segmentName to the set
+        return this.tableStore.createSegment(segmentName, sorted, timeout);
+    }
+
+    @Override
     public CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout) {
         if (this.segments.contains(segmentName)) { // Remove the segmentName from the set
             this.segments.remove(segmentName);
@@ -74,12 +80,12 @@ public class TableStoreWrapper implements TableStore {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
-        return this.tableStore.keyIterator(segmentName, serializedState, fetchTimeout);
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
+        return this.tableStore.keyIterator(segmentName, args);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
-        return this.tableStore.entryIterator(segmentName, serializedState, fetchTimeout);
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+        return this.tableStore.entryIterator(segmentName, args);
     }
 }
