@@ -253,7 +253,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             for (int containerId = 0; containerId < containerCount; containerId++) {
                 // start DebugSegmentContainer with given container Id.
-                @Cleanup
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
@@ -269,6 +268,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     Assert.assertEquals("Segment length mismatch ", segmentProperties.getLength(), props.getLength());
                 }
                 Services.stopAsync(localContainer, executorService).join();
+                localContainer.close();
             }
         }
     }
