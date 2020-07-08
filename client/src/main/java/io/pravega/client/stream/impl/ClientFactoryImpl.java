@@ -82,6 +82,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
+     * @param config            The client config.
      */
     public ClientFactoryImpl(String scope, Controller controller, ClientConfig config) {
         super(scope, controller, new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config)));
