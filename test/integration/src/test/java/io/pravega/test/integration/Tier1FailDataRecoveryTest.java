@@ -109,7 +109,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
 
-    private ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = DataRecoveryTestUtils.createExecutorService(100);
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
@@ -442,7 +442,8 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(1);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(),
+                DataRecoveryTestUtils.createExecutorService(1));
         this.dataLogFactory.initialize();
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
@@ -467,16 +468,7 @@ public class Tier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        log.info("Second bk Port = {}", this.bkzk.bkPort.get());
         controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
-    }
-
-    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
-        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
-        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        es.setRemoveOnCancelPolicy(true);
-        return es;
     }
 
     private void deleteSegment(String segmentName, Storage tier2) {

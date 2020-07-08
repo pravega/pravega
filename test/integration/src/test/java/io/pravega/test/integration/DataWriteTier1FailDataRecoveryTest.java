@@ -147,7 +147,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
-    private ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = DataRecoveryTestUtils.createExecutorService(100);
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
@@ -200,11 +200,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         private AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
         private BookKeeperServiceRunner bookKeeperServiceRunner;
         private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
-        private AtomicInteger bkPort = new AtomicInteger();
+        private int bkPort;
 
         BKZK(int instanceId) throws Exception {
             secureBk.set(false);
-            bkPort.set(TestUtils.getAvailableListenPort());
+            bkPort = TestUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
             for (int i = 0; i < bookieCount; i++) {
                 bookiePorts.add(TestUtils.getAvailableListenPort());
@@ -212,7 +212,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
             this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
-                    .zkPort(bkPort.get())
+                    .zkPort(bkPort)
                     .ledgersPath("/pravega/bookkeeper/ledgers")
                     .secureBK(isSecure())
                     .secureZK(isSecure())
@@ -228,7 +228,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             String baseNamespace = "pravega/" + instanceId + "_" + Long.toHexString(System.nanoTime());
             this.zkClient.set(CuratorFrameworkFactory
                     .builder()
-                    .connectString("localhost:" + bkPort.get())
+                    .connectString("localhost:" + bkPort)
                     .namespace(baseNamespace)
                     .retryPolicy(new ExponentialBackoffRetry(1000, 5))
                     .connectionTimeoutMs(10000)
@@ -240,7 +240,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
             String logMetaNamespace = "segmentstore/containers" + instanceId;
             this.bkConfig.set(BookKeeperConfig
                     .builder()
-                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort.get())
+                    .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
                     .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, maxWriteAttempts)
                     .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, maxLedgerSize)
                     .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
@@ -451,7 +451,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         // Start a new BK & ZK, segment store and controller
         this.bkzk = setUpNewBK(instanceId++);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
-        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
+        @Cleanup ControllerStarter controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
 
         // Create two streams for writing data onto two different segments
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
@@ -499,7 +499,8 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // start a new BookKeeper and ZooKeeper.
         this.bkzk = setUpNewBK(instanceId++);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(),
+                DataRecoveryTestUtils.createExecutorService(1));
         this.dataLogFactory.initialize();
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
@@ -524,8 +525,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        log.info("Second bk Port = {}", this.bkzk.bkPort.get());
-        controllerStarter = startController(this.bkzk.bkPort.get(), this.segmentStoreStarter.servicePort);
+        controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
@@ -540,14 +540,6 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-    }
-
-    public ScheduledExecutorService createExecutorService(int threadPoolSize) {
-        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
-        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        es.setRemoveOnCancelPolicy(true);
-        return es;
     }
 
     private void deleteSegment(String segmentName, Storage tier2) {
