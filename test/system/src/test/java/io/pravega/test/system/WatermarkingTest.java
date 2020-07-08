@@ -167,7 +167,6 @@ public class WatermarkingTest extends AbstractSystemTest {
                 connectionFactory);
         String markStream = NameUtils.getMarkStreamForStream(STREAM);
         
-
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());

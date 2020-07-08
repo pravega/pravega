@@ -83,7 +83,7 @@ public class TcpClientConnection implements ClientConnection {
 
     @VisibleForTesting
     static class ConnectionReader implements Runnable {
-        static final ThreadFactory THREAD_FACTORY = ExecutorServiceHelpers.getThreadFactory("ClientSocketReaders", (Thread.NORM_PRIORITY + Thread.MAX_PRIORITY) /2);
+        static final ThreadFactory THREAD_FACTORY = ExecutorServiceHelpers.getThreadFactory("ClientSocketReaders", (Thread.NORM_PRIORITY + Thread.MAX_PRIORITY) / 2);
         
         private final String name;
         private final InputStream in;
