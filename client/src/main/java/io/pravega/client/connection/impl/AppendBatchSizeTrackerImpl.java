@@ -12,6 +12,7 @@ package io.pravega.client.connection.impl;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.EnvVars;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -32,11 +33,11 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final double NANOS_PER_MILLI = AbstractTimer.NANOS_TO_MILLIS;
     
     // This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
-    private static final int MAX_BATCH_SIZE = initializeConstant("PRAVEGA_MAX_BATCH_SIZE",
+    private static final int MAX_BATCH_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_MAX_BATCH_SIZE",
                                                                  2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
-    private static final int BASE_TIME_NANOS = initializeConstant("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
-    private static final int BASE_SIZE = initializeConstant("PRAVEGA_BATCH_BASE_SIZE", 0);
-    private static final double OUTSTANDING_FRACTION = 1.0 / initializeConstant("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
+    private static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
+    private static final int BASE_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_SIZE", 0);
+    private static final double OUTSTANDING_FRACTION = 1.0 / EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
@@ -91,18 +92,5 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     @Override
     public int getBatchTimeout() {
         return MAX_BATCH_TIME_MILLIS;
-    }
-    
-    private static int initializeConstant(String name, int defaultValue) {
-        String val = System.getenv(name);
-        if (val != null) {
-            try {
-                return Integer.parseInt(val);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                        "Enviromental variable " + name + " could not be parsed as an integer");
-            }
-        }
-        return defaultValue;
     }
 }
