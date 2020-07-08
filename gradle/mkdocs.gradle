@@ -1,3 +1,5 @@
+import org.omg.PortableInterceptor.USER_EXCEPTION
+
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -13,6 +15,16 @@ if (gradleProject == gradleProject.rootProject) {
     apply plugin: 'org.hidetake.ssh'
     apply plugin: 'ru.vyarus.mkdocs'
 }
+
+/*
+ The current version of mkdocs plugin depends on 'use-python' plugin of version 1.2 which has a known issue
+ when using the virtualenv. To overcome this issue the usage of virtualenv must be disabled.
+
+ Don't forget to enable it once 'mkdocs' plugin is upgraded to the latest version (depends on gradle upgrade as well)
+
+ https://github.com/xvik/gradle-use-python-plugin
+ */
+python.scope = USER
 
 mkdocs {
     sourcesDir = "$rootDir/documentation/src"
