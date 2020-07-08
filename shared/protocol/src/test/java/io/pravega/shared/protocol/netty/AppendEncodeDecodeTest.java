@@ -573,7 +573,6 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Append readAppend = (Append) received.get(1);
         assertEquals((256  + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
         assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
-        System.out.println();
     }
 
     @Test
