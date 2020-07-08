@@ -9,7 +9,6 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
@@ -120,16 +119,12 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                     Exceptions.checkNotClosed(this.closed, this);
                     val result = new ArrayList<TableSegmentKeyVersion>();
                     val toUpdate = new HashMap<ByteBuf, EntryValue>();
-                    AtomicInteger serializationLength = new AtomicInteger();
                     entries.forEachRemaining(e -> {
                         checkVersion(e.getKey());
-                        checkLengths(e);
-                        serializationLength.addAndGet(e.getKey().getKey().readableBytes() + e.getValue().readableBytes());
                         long version = this.nextVersion.getAndIncrement();
                         toUpdate.put(e.getKey().getKey().copy(), new EntryValue(e.getValue().copy(), version));
                         result.add(TableSegmentKeyVersion.from(version));
                     });
-                    checkBatchSize(result.size(), serializationLength.get());
                     this.data.putAll(toUpdate);
                     return result;
                 }
@@ -142,13 +137,10 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                 synchronized (this.data) {
                     Exceptions.checkNotClosed(this.closed, this);
                     val toRemove = new ArrayList<ByteBuf>();
-                    AtomicInteger serializationLength = new AtomicInteger();
                     keys.forEachRemaining(k -> {
                         checkVersion(k);
-                        serializationLength.addAndGet(k.getKey().readableBytes());
                         toRemove.add(k.getKey());
                     });
-                    checkBatchSize(toRemove.size(), serializationLength.get());
                     toRemove.forEach(this.data::remove);
                 }
             }, this.executorService);
@@ -160,16 +152,13 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                 synchronized (this.data) {
                     Exceptions.checkNotClosed(this.closed, this);
                     val result = new ArrayList<TableSegmentEntry>();
-                    AtomicInteger serializationLength = new AtomicInteger();
                     keys.forEachRemaining(k -> {
-                        serializationLength.addAndGet(k.readableBytes());
                         EntryValue ev = this.data.getOrDefault(k, null);
                         TableSegmentEntry e = ev == null
                                 ? null
                                 : TableSegmentEntry.versioned(k.copy(), ev.value.copy(), ev.version);
                         result.add(e);
                     });
-                    checkBatchSize(result.size(), serializationLength.get());
                     return result;
                 }
             }, this.executorService);
@@ -244,18 +233,6 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                     }
                 }
             }
-        }
-
-        private void checkLengths(TableSegmentEntry e) {
-            Preconditions.checkArgument(e.getKey().getKey().readableBytes() <= TableSegment.MAXIMUM_KEY_LENGTH, "Key too long.");
-            Preconditions.checkArgument(e.getValue().readableBytes() <= TableSegment.MAXIMUM_VALUE_LENGTH, "Value too long.");
-        }
-
-        private void checkBatchSize(int count, int serializationLength) {
-            Preconditions.checkArgument(count <= TableSegment.MAXIMUM_BATCH_KEY_COUNT,
-                    "Too many items. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_KEY_COUNT, count);
-            Preconditions.checkArgument(serializationLength <= TableSegment.MAXIMUM_BATCH_LENGTH,
-                    "Batch serialization too big. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_LENGTH, serializationLength);
         }
 
         @RequiredArgsConstructor

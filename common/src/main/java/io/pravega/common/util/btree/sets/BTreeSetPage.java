@@ -449,7 +449,7 @@ abstract class BTreeSetPage {
             } else if (!u.isRemoval()) {
                 // Entry does not exist and we were asked to insert it. Collect its index in the list.
                 int newPos = searchResult.getPosition() - removedPositions.size() + inserts.size();
-                inserts.add(new InsertInfo<T>(updates.get(i).getItem(), (T) (values == null ? null : values.get(i)), newPos));
+                inserts.add(new InsertInfo<>(updates.get(i).getItem(), values == null ? null : values.get(i), newPos));
                 sizeDelta += itemLength;
             }
 

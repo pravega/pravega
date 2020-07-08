@@ -11,7 +11,6 @@ package io.pravega.client.tables.impl;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
@@ -38,11 +37,9 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -58,7 +55,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -163,57 +159,6 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         val wireCommand = (WireCommands.ReadTable) context.getConnection().getLastSentWireCommand();
         checkWireCommand(expectedWireKeys, wireCommand.getKeys());
         context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyWireEntries));
-        val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
-        AssertExtensions.assertListEquals("Unexpected return value", expectedEntries, actualEntries, this::entryEquals);
-    }
-
-    /**
-     * Tests the {@link TableSegmentImpl#get} method when the response coming back from the server is truncated.
-     * Connection reset failures are not tested here; they're checked in {@link #testReconnect()}.
-     */
-    @Test
-    public void testGetALotOfKeys() throws Exception {
-        val expectedBatchKeyLength = 15; // Manual calculation of TableSegmentImpl.MAX_GET_KEY_BATCH_SIZE.
-        val requestKeys = LongStream.range(0, 61).mapToObj(l -> l * 100).collect(Collectors.toList());
-        val expectedEntries = requestKeys.stream().map(key -> versionedEntry(key, key.toString(), key)).collect(Collectors.toList());
-        expectedEntries.set(expectedEntries.size() - 1, null); // This key does not exist.
-        val expectedWireKeys = toWireKeys(requestKeys.stream().map(this::buf).map(TableSegmentKey::unversioned).collect(Collectors.toList()));
-
-        // Calculate the expected sent/receive ranges.
-        val expectedRanges = new ArrayList<Map.Entry<Integer, Integer>>(); // Key: Start Index, Value: End Index.
-        int idx = 0;
-        while (idx < expectedEntries.size()) {
-            val expectedLength = Math.min(expectedBatchKeyLength, expectedEntries.size() - idx);
-            expectedRanges.add(new AbstractMap.SimpleImmutableEntry<>(idx, idx + expectedLength));
-            idx += expectedLength;
-        }
-
-        @Cleanup
-        val context = new TestContext();
-
-        // Initiate a get request.
-        val getResult = context.segment.get(requestKeys.stream().map(this::buf).iterator());
-
-        // Capture all the requests sent over the wire and verify that we've sent as many as we expected to.
-        val sentWireCommands = context.getConnection().getLastSentWireCommands(expectedRanges.size());
-        Assert.assertEquals(expectedRanges.size(), sentWireCommands.size());
-
-        // Validate the sent keys and send appropriate responses.
-        for (int i = 0; i < expectedRanges.size(); i++) {
-            int rangeStart = expectedRanges.get(i).getKey();
-            int rangeEnd = expectedRanges.get(i).getValue();
-
-            val expectedSentKeys = expectedWireKeys.subList(rangeStart, rangeEnd);
-            val wireCommand = (WireCommands.ReadTable) sentWireCommands.get(i);
-            checkWireCommand(expectedSentKeys, wireCommand.getKeys());
-
-            val returnedKeys = requestKeys.subList(rangeStart, rangeEnd);
-            val returnedEntries = expectedEntries.subList(rangeStart, rangeEnd);
-            val replyWireEntries = toWireEntries(returnedEntries, returnedKeys);
-            context.sendReply(new WireCommands.TableRead(wireCommand.getRequestId(), SEGMENT.getScopedName(), replyWireEntries));
-        }
-
-        // Validate final result.
         val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
         AssertExtensions.assertListEquals("Unexpected return value", expectedEntries, actualEntries, this::entryEquals);
     }
@@ -651,24 +596,12 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         private final Runnable onClose;
         @Getter
         private long lastRequestId;
-        private final Deque<WireCommand> lastSentWireCommands = new ArrayDeque<>();
+        @Getter
+        private WireCommand lastSentWireCommand;
         @Setter
         private boolean failed = false;
         @Getter
         private boolean closed = false;
-
-        public WireCommand getLastSentWireCommand() {
-            return this.lastSentWireCommands.isEmpty() ? null : this.lastSentWireCommands.peekLast();
-        }
-
-        public List<WireCommand> getLastSentWireCommands(int count) {
-            val result = new ArrayList<WireCommand>();
-            val it = this.lastSentWireCommands.descendingIterator();
-            while (count > 0 && it.hasNext()) {
-                result.add(it.next());
-            }
-            return Lists.reverse(result);
-        }
 
         @Override
         public void close() {
@@ -685,7 +618,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
             }
 
             this.lastRequestId = ((Request) cmd).getRequestId();
-            this.lastSentWireCommands.addLast(cmd);
+            this.lastSentWireCommand = cmd;
             if (this.failed) {
                 throw new ConnectionFailedException();
             }
