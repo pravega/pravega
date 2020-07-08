@@ -552,6 +552,25 @@ project('test:integration') {
         standardInput = System.in
         systemProperties System.getProperties()
     }
+
+    /**
+     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool .
+     */
+    task startInteractiveDemo(type: JavaExec) {
+        main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+    }
+
+    task startChatDemo(type: JavaExec) {
+        main = "io.pravega.test.integration.demo.ChatService"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+    }
 }
 
 project('shared:controller-api') {
