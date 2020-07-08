@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.controller.store.Version;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

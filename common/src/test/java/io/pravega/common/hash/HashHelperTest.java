@@ -11,12 +11,15 @@ package io.pravega.common.hash;
 
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import lombok.val;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -89,6 +92,59 @@ public class HashHelperTest {
         testBucketUniformity(HashHelper::hashToBucket, () -> new UUID(r.nextLong(), r.nextLong()));
     }
 
+    @Test
+    public void testHashToRangeStringUniformity() {
+        val r = new Random(0);
+        testHashToRangeUniformity(HashHelper::hashToRange,
+                () -> {
+                    byte[] array = new byte[16];
+                    r.nextBytes(array);
+                    return new String(array);
+                });
+    }
+
+    @Test
+    public void testHashToRangeByteBufUniformity() {
+        val r = new Random(0);
+        testHashToRangeUniformity(HashHelper::hashToRange,
+                () -> {
+                    byte[] array1 = new byte[8];
+                    byte[] array2 = new byte[8];
+                    r.nextBytes(array1);
+                    r.nextBytes(array2);
+                    return new ByteBuffer[]{ByteBuffer.wrap(array1), ByteBuffer.wrap(array2)};
+                });
+    }
+
+    @Test
+    public void testHashToRangeByteBuf() {
+        val r = new Random(0);
+        final int totalCount = 1000;
+        val h = HashHelper.seededWith("Test");
+        for (int i = 0; i < totalCount; i++) {
+            byte[] array1 = new byte[r.nextInt(100)];
+            byte[] array2 = new byte[r.nextInt(100)];
+            r.nextBytes(array1);
+            r.nextBytes(array2);
+            byte[] array3 = new byte[array1.length + array2.length];
+            System.arraycopy(array1, 0, array3, 0, array1.length);
+            System.arraycopy(array2, 0, array3, array1.length, array2.length);
+
+            double range1 = h.hashToRange(ByteBuffer.wrap(array1), ByteBuffer.wrap(array2));
+            double range2 = h.hashToRange(ByteBuffer.wrap(array3));
+            Assert.assertEquals(range2, range1, 0.01);
+        }
+    }
+
+    private <T> void testHashToRangeUniformity(HashToRangeFunction<T> toTest, Supplier<T> generator) {
+        testBucketUniformity(
+                (hh, value, bucketCount) -> {
+                    double d = toTest.apply(hh, value);
+                    return (int) Math.floor(d * bucketCount);
+                },
+                generator);
+    }
+
     private <T> void testBucketUniformity(HashBucketFunction<T> toTest, Supplier<T> generator) {
         final int elementsPerBucket = 100000;
         final int acceptedDeviation = (int) (0.05 * elementsPerBucket);
@@ -111,5 +167,8 @@ public class HashHelperTest {
     interface HashBucketFunction<T> {
         int apply(HashHelper hashHelper, T value, int bucketCount);
     }
-    
+
+    @FunctionalInterface
+    interface HashToRangeFunction<T> extends BiFunction<HashHelper, T, Double> {
+    }
 }
