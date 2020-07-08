@@ -68,9 +68,6 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger createScopeLatency;
     private final OpStatsLogger deleteScopeLatency;
 
-    private final OpStatsLogger createScopeLatency;
-    private final OpStatsLogger deleteScopeLatency;
-
     private StreamMetrics() {
         createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
         deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
@@ -79,6 +76,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
+        createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
+        deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
     }
 
     /**

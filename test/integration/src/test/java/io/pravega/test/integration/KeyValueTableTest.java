@@ -12,11 +12,9 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.Serializer;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -24,6 +22,7 @@ import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
 import io.pravega.client.tables.impl.KeyValueTableTestBase;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
+
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -31,15 +30,16 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import java.time.Duration;
 import java.util.Collections;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import lombok.val;
+
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -59,7 +59,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
     private PravegaConnectionListener serverListener = null;
-    private ConnectionPool connectionPool;
+    private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
@@ -91,18 +91,16 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.controller = controllerWrapper.getController();
 
         //4. Create Scope
-        this.controller.createScope(SCOPE).get();
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionPool);
+        this.isScopeCreated = this.controller.createScope(SCOPE).get();
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
     }
 
 
     @After
     public void tearDown() throws Exception {
         this.controller.close();
-        this.connectionPool.close();
+        this.connectionFactory.close();
         this.controllerWrapper.close();
         this.serverListener.close();
         this.serviceBuilder.close();
@@ -114,6 +112,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateListKeyValueTable() {
+        Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
@@ -165,6 +164,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateDeleteKeyValueTable() {
+        Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
@@ -194,15 +194,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
     @Override
     protected KeyValueTable<Integer, String> createKeyValueTable() {
-        return createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
-    }
-
-    @Override
-    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         val kvt = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
-        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), keySerializer, valueSerializer,
+        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER,
                 KeyValueTableClientConfiguration.builder().build());
     }
 

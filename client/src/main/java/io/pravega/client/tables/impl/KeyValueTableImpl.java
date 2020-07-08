@@ -371,8 +371,6 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     private ByteBuf serializeKey(String keyFamily, KeyT k) {
         ByteBuf keyFamilySerialization = KEY_FAMILY_SERIALIZER.serialize(keyFamily);
         ByteBuf keySerialization = Unpooled.wrappedBuffer(this.keySerializer.serialize(k));
-        Preconditions.checkArgument(keySerialization.readableBytes() <= KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH,
-                "Key Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH, keySerialization.readableBytes());
         return Unpooled.wrappedBuffer(keyFamilySerialization, keySerialization);
     }
 
@@ -384,10 +382,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     }
 
     private ByteBuf serializeValue(ValueT v) {
-        ByteBuf valueSerialization = Unpooled.wrappedBuffer(this.valueSerializer.serialize(v));
-        Preconditions.checkArgument(valueSerialization.readableBytes() <= KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH,
-                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH, valueSerialization.readableBytes());
-        return valueSerialization;
+        return Unpooled.wrappedBuffer(this.valueSerializer.serialize(v));
     }
 
     private ValueT deserializeValue(ByteBuf s) {

@@ -89,8 +89,12 @@ public class IntermittentCnxnFailureTest {
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
     private ConnectionFactory connectionFactory;
+    @Mock
+    private KVTableMetadataStore kvtStore;
+    @Mock
+    private TableMetadataTasks kvtMetadataTasks;
     private StatsProvider statsProvider = null;
-    
+
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()

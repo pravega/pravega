@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -442,7 +443,10 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 context.random.nextBytes(keyData);
                 byte[] valueData = new byte[context.random.nextInt(MAX_VALUE_LENGTH)];
                 context.random.nextBytes(valueData);
-                val key = new ByteArraySegment(keyData);
+
+                // Run the key through the external translator to ensure that we don't clash with internal keys by chance.
+                // (this is done for us by ContainerTableExtensionImpl already, so we're only simulating the same behavior).
+                val key = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData));
                 val offset = context.metadata.getLength();
                 val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
                 append = generateRawAppend(entry, offset, context);

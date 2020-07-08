@@ -10,7 +10,6 @@
 package io.pravega.client.tables;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import java.util.Map;
@@ -98,16 +97,6 @@ import lombok.NonNull;
  */
 @Beta
 public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
-    /**
-     * The maximum serialization length of a Table Segment Key.
-     */
-    int MAXIMUM_SERIALIZED_KEY_LENGTH = TableSegment.MAXIMUM_KEY_LENGTH / 2;
-
-    /**
-     * The maximum serialized length of a Table Segment Value.
-     */
-    int MAXIMUM_SERIALIZED_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
-
     /**
      * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
      *

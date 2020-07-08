@@ -18,6 +18,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -38,6 +39,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Creat
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -66,7 +68,6 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -94,9 +95,10 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private TableRequestHandler tableRequestHandler;
 
     @Override
-    public ControllerService getControllerService() throws Exception {
+    public void setup() throws Exception {
         final HostControllerStore hostStore;
         final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        final RequestTracker requestTracker = new RequestTracker(true);
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -146,11 +148,12 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
+        ControllerService controller = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
+        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
-    @After
+    @Override
     public void tearDown() throws Exception {
         if (executorService != null) {
             ExecutorServiceHelpers.shutdown(executorService);

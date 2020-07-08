@@ -99,7 +99,7 @@ final class KeyValueTableMapImpl<KeyT, ValueT> implements KeyValueTableMap<KeyT,
         val oldValue = new AtomicReference<ValueT>();
         this.kvt.get(this.keyFamily, key)
                 .thenCompose(existingEntry -> {
-                    oldValue.set((ValueT) (existingEntry == null ? null : existingEntry.getValue()));
+                    oldValue.set(existingEntry == null ? null : existingEntry.getValue());
                     return this.kvt.put(this.keyFamily, key, value);
                 })
                 .join();
