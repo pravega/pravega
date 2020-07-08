@@ -14,8 +14,8 @@ import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import lombok.val;
 
 /**

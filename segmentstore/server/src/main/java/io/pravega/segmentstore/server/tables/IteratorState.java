@@ -56,8 +56,7 @@ class IteratorState {
     /**
      * Creates a new instance of the IteratorState class from the given array.
      *
-     * @param data A byte array containing the serialization of an IteratorState. This must have been generated using
-     *             {@link #serialize()}.
+     * @param data The serialization of an IteratorState. This must have been generated using {@link #serialize()}.
      * @return As new instance of the IteratorState class.
      * @throws IOException If unable to deserialize.
      */

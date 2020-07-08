@@ -13,7 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
@@ -25,18 +25,21 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
@@ -74,8 +77,10 @@ public class ControllerServiceTest {
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
+    private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(executor));
 
     private StreamMetadataTasks streamMetadataTasks;
+    private TableMetadataTasks kvtMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
     private ControllerService consumer;
@@ -106,8 +111,9 @@ public class ControllerServiceTest {
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
-
-        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
+        kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper,  executor,  executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionFactory, hostStore), executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -202,25 +208,25 @@ public class ControllerServiceTest {
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
     }
-    
+
     @Test(timeout = 10000L)
     public void testTransactions() {
         TransactionMetrics.initialize();
         UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
         doThrow(StoreException.create(StoreException.Type.WRITE_CONFLICT, "Write conflict"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
-        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
                 consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
-        AssertExtensions.assertFutureThrows("Write conflict should have been thrown", 
+        AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
                 consumer.abortTransaction(SCOPE, stream1, txnId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
@@ -232,12 +238,12 @@ public class ControllerServiceTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         doThrow(StoreException.create(StoreException.Type.UNKNOWN, "Connection failed"))
-                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(), 
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
         Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
-        
+
         status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);

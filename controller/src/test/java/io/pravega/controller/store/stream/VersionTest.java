@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.Version;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 

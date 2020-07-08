@@ -16,6 +16,7 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -37,7 +38,7 @@ public class AbortEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processAbortTxnRequest(this);
+        return ((StreamRequestProcessor) processor).processAbortTxnRequest(this);
     }
 
     //region Serialization
@@ -45,7 +46,7 @@ public class AbortEvent implements ControllerEvent {
     private static class AbortEventBuilder implements ObjectBuilder<AbortEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<AbortEvent, AbortEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<AbortEvent, AbortEventBuilder> {
         @Override
         protected AbortEventBuilder newBuilder() {
             return AbortEvent.builder();
