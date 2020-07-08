@@ -45,6 +45,10 @@ service ControllerService {
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
     rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
+    rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
+    rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
+    rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
 }
 
 message ServerRequest {
@@ -52,6 +56,53 @@ message ServerRequest {
 
 message ServerResponse {
     repeated NodeUri nodeURI = 1;
+}
+
+message CreateKeyValueTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_EXISTS = 2;
+        SCOPE_NOT_FOUND = 3;
+        INVALID_TABLE_NAME = 4;
+    }
+    Status status = 1;
+}
+
+message KeyValueTableConfig {
+    string scope = 1;
+    string kvtName = 2;
+    int32 partitionCount = 3;
+}
+
+message KeyValueTableInfo {
+    string scope = 1;
+    string kvtName = 2;
+}
+
+message KVTablesInScopeRequest {
+    ScopeInfo scope = 1;
+    ContinuationToken continuationToken = 2;
+}
+
+message KVTablesInScopeResponse {
+    repeated KeyValueTableInfo kvtables = 1;
+    ContinuationToken continuationToken = 2;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+}
+
+message DeleteKVTableStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 1;
 }
 
 message CreateStreamStatus {

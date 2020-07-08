@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,7 +36,7 @@ public class TruncateStreamEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processTruncateStream(this);
+        return ((StreamRequestProcessor) processor).processTruncateStream(this);
     }
 
     //region Serialization
@@ -43,7 +44,7 @@ public class TruncateStreamEvent implements ControllerEvent {
     private static class TruncateStreamEventBuilder implements ObjectBuilder<TruncateStreamEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<TruncateStreamEvent, TruncateStreamEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<TruncateStreamEvent, TruncateStreamEventBuilder> {
         @Override
         protected TruncateStreamEventBuilder newBuilder() {
             return TruncateStreamEvent.builder();

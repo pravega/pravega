@@ -10,9 +10,9 @@
 package io.pravega.client.security.auth;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.util.RetriesExhaustedException;
 import java.net.URI;
 import java.time.Instant;
