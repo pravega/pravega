@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -43,7 +44,7 @@ public class ScaleOpEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processScaleOpRequest(this);
+        return ((StreamRequestProcessor) processor).processScaleOpRequest(this);
     }
 
     //region Serialization
@@ -51,7 +52,7 @@ public class ScaleOpEvent implements ControllerEvent {
     private static class ScaleOpEventBuilder implements ObjectBuilder<ScaleOpEvent> {
     }
 
-    static class Serializer extends VersionedSerializer.WithBuilder<ScaleOpEvent, ScaleOpEventBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<ScaleOpEvent, ScaleOpEventBuilder> {
         @Override
         protected ScaleOpEventBuilder newBuilder() {
             return ScaleOpEvent.builder();
