@@ -11,9 +11,13 @@ package io.pravega.controller.task.KeyValueTable;
 
 import io.pravega.client.tables.KeyValueTableConfiguration;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import io.pravega.common.Exceptions;
 =======
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+import io.pravega.common.Exceptions;
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -49,11 +53,14 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import io.pravega.test.common.AssertExtensions;
+<<<<<<< HEAD
 =======
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
 import lombok.Data;
 import lombok.Getter;
 
@@ -70,10 +77,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.*;
 =======
+=======
+import java.util.concurrent.TimeoutException;
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
 
 <<<<<<< HEAD
 import static org.junit.Assert.assertEquals;
@@ -168,10 +179,14 @@ public abstract class TableMetadataTasksTest {
                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, mockHelper));
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
 
         AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
                 kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
+<<<<<<< HEAD
     }
 
     @Test(timeout = 30000)
@@ -196,6 +211,8 @@ public abstract class TableMetadataTasksTest {
         CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
         assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
     }
 
     @Test(timeout = 30000)
@@ -234,6 +251,9 @@ public abstract class TableMetadataTasksTest {
 
     @Test(timeout = 30000)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
     public void testWorkflowCompletionTimeout() throws Exception {
         // Create a new KVTable
         String tableName = "kvtable2";
@@ -243,6 +263,7 @@ public abstract class TableMetadataTasksTest {
                 = kvtMetadataTasks.createKeyValueTable(SCOPE, tableName, kvtConfig, creationTime);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
+<<<<<<< HEAD
 
         //Create KVTable times out
         EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
@@ -296,35 +317,34 @@ public abstract class TableMetadataTasksTest {
         AssertExtensions.assertFutureThrows("truncate timedout",
                 streamMetadataTask.truncateStream(SCOPE, completion, streamCut, null),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
 
-        event = requestEventWriter.eventQueue.poll();
-        assertTrue(event instanceof TruncateStreamEvent);
-        
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = kvtStorePartialMock
-                .getTruncationRecord(SCOPE, completion, null, executor).join();
-        assertTrue(truncationRecord.getObject().isUpdating());
+        //Create KVTable times out
+        EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
+        helper.setCompletionTimeoutMillis(50L);
+        EventStreamWriter<ControllerEvent> eventWriter = new WriterMock();
+        helper.setRequestEventWriter(eventWriter);
+        TableMetadataTasks kvtTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(),
+                requestTracker, helper));
 
-        AssertExtensions.assertFutureThrows("seal timedout",
-                streamMetadataTask.sealStream(SCOPE, completion, null),
+        AssertExtensions.assertFutureThrows("create timedout",
+                kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
 
-        event = requestEventWriter.eventQueue.poll();
-        assertTrue(event instanceof SealStreamEvent);
-        
-        VersionedMetadata<State> state = kvtStorePartialMock
-                .getVersionedState(SCOPE, completion, null, executor).join();
-        assertEquals(state.getObject(), State.SEALING);
-
-        kvtStorePartialMock.setState(SCOPE, completion, State.SEALED, null, executor).join();
-
+        //Delete KVTable times out
         AssertExtensions.assertFutureThrows("delete timedout",
-                streamMetadataTask.deleteStream(SCOPE, completion, null),
+                kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
+<<<<<<< HEAD
 
         event = requestEventWriter.eventQueue.poll();
         assertTrue(event instanceof DeleteStreamEvent);
          */
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
     }
 
     @Data

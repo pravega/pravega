@@ -182,6 +182,7 @@ public class TableMetadataTasks implements AutoCloseable {
                             });
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
@@ -256,8 +257,10 @@ public class TableMetadataTasks implements AutoCloseable {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
                     }
                 });
+=======
+               }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
     }
-
 
     /**
      * Delete a KeyValueTable.
@@ -284,7 +287,7 @@ public class TableMetadataTasks implements AutoCloseable {
                             DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
                             return eventHelper.addIndexAndSubmitTask(deleteEvent,
                                     () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
-                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
+                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName)))
                                     .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
                         });
             }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
@@ -308,7 +311,7 @@ public class TableMetadataTasks implements AutoCloseable {
                                                 false, delegationToken, requestId), executor));
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName) {
         return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
@@ -325,10 +328,14 @@ public class TableMetadataTasks implements AutoCloseable {
                                                                                   final long createTimestamp,
                                                                                   Executor executor) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         return eventHelper.checkDone(() -> isCreated(scope, kvtName, executor))
 =======
         return eventHelper.checkDone(() -> isCreated(scope, kvtName, kvtConfig, executor))
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        return eventHelper.checkDone(() -> isCreated(scope, kvtName, executor))
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
                 .thenCompose(y -> isSameCreateRequest(scope, kvtName, kvtConfig, createTimestamp, executor))
                 .thenCompose(same -> {
                     if (same) {
@@ -340,10 +347,14 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
 =======
     private CompletableFuture<Boolean> isCreated(String scope, String kvtName, KeyValueTableConfiguration kvtConfig, Executor executor) {
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+    private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                .thenApply(state -> {
@@ -397,10 +408,14 @@ public class TableMetadataTasks implements AutoCloseable {
                                                      long requestId) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
 <<<<<<< HEAD
+<<<<<<< HEAD
         log.debug("Creating segment {}", qualifiedTableSegmentName);
 =======
         log.info("Creating segment {}", qualifiedTableSegmentName);
 >>>>>>> Issue 4796: (KeyValue Tables) CreateAPI for Key Value Tables (#4797)
+=======
+        log.debug("Creating segment {}", qualifiedTableSegmentName);
+>>>>>>> Issue 4925: Unit Test fix for TableMetadataTasksTest in Controller (#4926)
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, true), executor));
     }
 
