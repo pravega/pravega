@@ -62,7 +62,6 @@ public class NameUtilsTest {
         AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
     }
 
-
     @Test
     public void testStreamNameVerifier() {
         NameUtils.validateStreamName("_systemstream123");
