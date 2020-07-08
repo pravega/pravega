@@ -69,7 +69,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Zookeeper stream store configuration.
@@ -230,26 +229,30 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     }
 
     @Test
+    @Override
     public void createKeyValueTableTests() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 
     @Test
+    @Override
     public void getCurrentSegmentsKeyValueTableTest() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 
     @Test
+    @Override
     public void kvtablesInScopeTest() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 
     @Test
+    @Override
     public void deleteKeyValueTableTests() {
-        //TODO: Place holder till we fix the test
-        assertTrue(true);
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 }
