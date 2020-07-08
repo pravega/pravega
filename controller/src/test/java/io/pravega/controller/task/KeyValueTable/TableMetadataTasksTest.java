@@ -128,8 +128,10 @@ public abstract class TableMetadataTasksTest {
         TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, mockHelper));
-        CreateKeyValueTableStatus.Status status = kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime).get();
-        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, status);
+
+        AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
+                kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
     }
 
     @Test(timeout = 30000)
@@ -177,7 +179,7 @@ public abstract class TableMetadataTasksTest {
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
 
-        //CreateKVTable times out
+        //Create KVTable times out
         EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         helper.setCompletionTimeoutMillis(50L);
         EventStreamWriter<ControllerEvent> eventWriter = new WriterMock();
@@ -186,19 +188,13 @@ public abstract class TableMetadataTasksTest {
                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker, helper));
 
-        creationTime = System.currentTimeMillis();
-        createOperationFuture = kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
-        assertEquals(CreateKeyValueTableStatus.Status.FAILURE, createOperationFuture.join());
         AssertExtensions.assertFutureThrows("create timedout",
-                helper.checkDone(() -> kvtTasks.isCreated(SCOPE, kvtable1, executor)),
+                kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
 
-        // delete KVTable times out
-        CompletableFuture<Controller.DeleteKVTableStatus.Status> deleteOperation =
-        kvtTasks.deleteKeyValueTable(SCOPE, tableName, null);
-        assertEquals(DeleteKVTableStatus.Status.FAILURE, deleteOperation.join());
+        //Delete KVTable times out
         AssertExtensions.assertFutureThrows("delete timedout",
-                helper.checkDone(() -> kvtTasks.isDeleted(SCOPE, tableName)),
+                kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
