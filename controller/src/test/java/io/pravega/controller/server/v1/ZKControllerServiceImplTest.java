@@ -10,7 +10,7 @@
 package io.pravega.controller.server.v1;
 
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -21,6 +21,8 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.mocks.EventHelperMock;
+import io.pravega.controller.mocks.ControllerEventTableWriterMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -30,18 +32,27 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.store.kvtable.KVTableStoreFactory;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.EventHelper;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
@@ -75,6 +86,10 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private Cluster cluster;
     private StreamMetadataStore streamStore;
 
+    private KVTableMetadataStore kvtStore;
+    private TableMetadataTasks kvtMetadataTasks;
+    private TableRequestHandler tableRequestHandler;
+
     @Override
     public ControllerService getControllerService() throws Exception {
         final HostControllerStore hostStore;
@@ -94,9 +109,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
-
+        EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -112,13 +127,23 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
+        this.kvtStore = KVTableStoreFactory.createZKStore(zkClient, executorService);
+        EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
+                ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
+        this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+        this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
+                executorService), this.kvtStore, executorService);
+        tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
+
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
         cluster.addListener((type, host) -> latch.countDown());
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        return new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+        return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
     }
 
@@ -198,5 +223,33 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         Controller.CreateTxnResponse response = resultObserver.get();
         Assert.assertTrue(response != null);
         return response;
+    }
+
+    @Test
+    @Override
+    public void createKeyValueTableTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void getCurrentSegmentsKeyValueTableTest() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void kvtablesInScopeTest() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void deleteKeyValueTableTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 }
