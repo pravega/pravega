@@ -623,14 +623,14 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                 throw new ConnectionFailedException();
             }
         }
-
+        
         @Override
-        public void sendAsync(List<Append> appends, CompletedCallback callback) {
+        public void send(Append append) {
             throw new UnsupportedOperationException("not needed for this test");
         }
 
         @Override
-        public void send(Append append) {
+        public void sendAsync(List<Append> appends, CompletedCallback callback) {
             throw new UnsupportedOperationException("not needed for this test");
         }
     }
