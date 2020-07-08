@@ -16,6 +16,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
@@ -43,7 +44,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  */
 @Slf4j
 public class DataRecoveryTestUtils {
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final ScheduledExecutorService EXECUTOR_SERVICE = createExecutorService(10);
 
     /**
@@ -105,8 +106,8 @@ public class DataRecoveryTestUtils {
             }
             log.info("Recovery started for container = {}", containerId);
             ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
-            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId), null,
-                    Duration.ofSeconds(10)).join();
+            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId),
+                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).join();
 
             // Add all segments present in the container metadata in a set.
             Set<TableKey> segmentsInMD = new HashSet<>();
