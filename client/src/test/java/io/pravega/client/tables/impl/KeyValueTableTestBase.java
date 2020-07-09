@@ -394,7 +394,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testLargeEntryBatchRetrieval() {
-        val maxSize = TableSegment.MAXIMUM_BATCH_LENGTH * 4; // Sufficiently large to require multiple requests.
+        val maxSize = TableSegment.MAXIMUM_BATCH_LENGTH * 8; // Sufficiently large to require multiple requests and throttling.
         val keyFamily = "a";
 
         Function<Integer, byte[]> getValue = keyId -> {

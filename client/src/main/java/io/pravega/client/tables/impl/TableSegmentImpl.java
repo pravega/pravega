@@ -26,6 +26,7 @@ import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.OrderedProcessor;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.Retry;
@@ -36,7 +37,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
@@ -61,6 +63,8 @@ import org.slf4j.LoggerFactory;
 class TableSegmentImpl implements TableSegment {
     // region Members
 
+    private static final int MAX_GET_KEY_BATCH_SIZE = TableSegment.MAXIMUM_BATCH_LENGTH / (TableSegment.MAXIMUM_KEY_LENGTH + TableSegment.MAXIMUM_VALUE_LENGTH);
+    private static final int MAX_GET_CONCURRENT_REQUESTS = 5;
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
     private final String segmentName;
     @Getter
@@ -141,24 +145,38 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public CompletableFuture<List<TableSegmentEntry>> get(@NonNull Iterator<ByteBuf> keys) {
         val wireKeys = rawKeysToWireCommand(keys);
-        val result = Collections.synchronizedList(new ArrayList<TableSegmentEntry>(wireKeys.size()));
+        val resultBuilder = new GetResultBuilder(wireKeys);
+        CompletableFuture<Void> result;
+        if (wireKeys.size() <= MAX_GET_KEY_BATCH_SIZE) {
+            // The entire request can be satisfied using a single call.
+            result = fetchSlice(resultBuilder);
+        } else {
+            // The request has to be split into multiple calls and then combined.
+            val processor = new OrderedProcessor<Void>(MAX_GET_CONCURRENT_REQUESTS, this.connectionFactory.getInternalExecutor());
+            val futures = new ArrayList<CompletableFuture<Void>>();
+            int index = 0;
+            while (index < wireKeys.size()) {
+                final int sliceStart = index;
+                final int sliceLength = Math.min(MAX_GET_KEY_BATCH_SIZE, wireKeys.size() - sliceStart);
+                futures.add(processor.execute(() -> fetchSlice(resultBuilder.slice(sliceStart, sliceStart + sliceLength))));
+                //futures.add(fetchSlice(resultBuilder.slice(index, index + sliceLength)));
+                index += sliceLength;
+            }
 
-        // The server-side will truncate the result if it exceeds the maximum response size. In that case, the contract
-        // between the client and server dictates that we issue subsequent requests for the remaining keys. This is the
-        // only way we can handle such a case since we do not know the size of the entries that are about to be returned
-        // and therefore we cannot pre-partition the keys.
-        // TODO: consider optimizing (https://github.com/pravega/pravega/issues/4936).
-        return Futures.loop(
-                () -> result.size() < wireKeys.size(),
-                () -> execute((state, requestId) -> {
-                    val requestKeys = result.isEmpty() ? wireKeys : wireKeys.subList(result.size(), wireKeys.size());
-                    val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), requestKeys);
+            result = Futures.allOf(futures);
+            result.thenRun(processor::close);
+        }
 
-                    return sendRequest(request, state, WireCommands.TableRead.class)
-                            .thenAccept(reply -> fromWireCommand(reply.getEntries(), result::add));
-                }),
-                this.connectionFactory.getInternalExecutor())
-                .thenApply(v -> result);
+        return result.thenApply(v -> resultBuilder.get());
+    }
+
+    private CompletableFuture<Void> fetchSlice(GetResultBuilder resultBuilder) {
+        return execute((state, requestId) -> {
+            val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), resultBuilder.getWireKeys());
+
+            return sendRequest(request, state, WireCommands.TableRead.class)
+                    .thenAccept(reply -> fromWireCommand(reply.getEntries(), resultBuilder::add));
+        });
     }
 
     @Override
@@ -528,6 +546,58 @@ class TableSegmentImpl implements TableSegment {
                 "Too many items. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_KEY_COUNT, count);
         Preconditions.checkArgument(serializationLength <= TableSegment.MAXIMUM_BATCH_LENGTH,
                 "Batch serialization too big. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_LENGTH, serializationLength);
+    }
+
+    //endregion
+
+    //region GetResultBuilder
+
+    /**
+     * Helps build the result for get() calls.
+     */
+    @ThreadSafe
+    private static class GetResultBuilder {
+        @Getter
+        private final List<WireCommands.TableKey> wireKeys;
+        @GuardedBy("entries")
+        private final TableSegmentEntry[] entries;
+        private final int startIndex;
+        private final int endIndex;
+        @GuardedBy("entries")
+        private int index;
+
+        GetResultBuilder(List<WireCommands.TableKey> wireKeys) {
+            this(wireKeys, new TableSegmentEntry[wireKeys.size()], 0, wireKeys.size());
+        }
+
+        private GetResultBuilder(List<WireCommands.TableKey> wireKeys, TableSegmentEntry[] entries, int startIndex, int endIndex) {
+            Preconditions.checkArgument(startIndex >= 0 && startIndex < endIndex && endIndex <= entries.length);
+            this.wireKeys = wireKeys;
+            this.entries = entries;
+            this.startIndex = startIndex;
+            this.index = startIndex;
+            this.endIndex = endIndex;
+        }
+
+        GetResultBuilder slice(int startIndex, int endIndex) {
+            synchronized (this.entries) {
+                Preconditions.checkArgument(this.startIndex == 0 && this.endIndex == this.entries.length);
+                return new GetResultBuilder(this.wireKeys.subList(startIndex, endIndex), this.entries, startIndex, endIndex);
+            }
+        }
+
+        void add(TableSegmentEntry e) {
+            synchronized (this.entries) {
+                Preconditions.checkElementIndex(this.index, this.endIndex);
+                this.entries[this.index++] = e;
+            }
+        }
+
+        List<TableSegmentEntry> get() {
+            synchronized (this.entries) {
+                return Arrays.asList(this.entries);
+            }
+        }
     }
 
     //endregion

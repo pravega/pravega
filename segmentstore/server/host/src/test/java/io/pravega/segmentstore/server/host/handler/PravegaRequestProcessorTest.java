@@ -14,7 +14,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -412,7 +411,7 @@ public class PravegaRequestProcessorTest {
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
 
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
-                                                                                                                       txnid), "", -1L));
+                txnid), "", -1L));
     }
 
     @Test(timeout = 20000)
@@ -447,7 +446,7 @@ public class PravegaRequestProcessorTest {
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
         return new MergeStreamSegmentResult(100, 100, attributes);
     }
-    
+
     private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
 
         Map<UUID, Long> attributes = new HashMap<>();
@@ -618,11 +617,11 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
 
         assertThrows("seal() is implemented.",
-                     () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
+                () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
+                ex -> ex instanceof UnsupportedOperationException);
         assertThrows("merge() is implemented.",
-                     () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
+                () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
+                ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test(timeout = 20000)
@@ -811,8 +810,8 @@ public class PravegaRequestProcessorTest {
         WireCommands.TableKey keyResponse = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()),
                 WireCommands.TableKey.NOT_EXISTS);
         order.verify(connection).send(new WireCommands.TableRead(2, tableSegmentName,
-                                                                 new WireCommands.TableEntries(
-                                                                         singletonList(new AbstractMap.SimpleImmutableEntry<>(keyResponse, WireCommands.TableValue.EMPTY)))));
+                new WireCommands.TableEntries(
+                        singletonList(new AbstractMap.SimpleImmutableEntry<>(keyResponse, WireCommands.TableValue.EMPTY)))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
 
         // Update a value to a key.
@@ -825,44 +824,8 @@ public class PravegaRequestProcessorTest {
         TableEntry expectedEntry = TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), 0L);
         processor.readTable(new WireCommands.ReadTable(4, tableSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableRead(4, tableSegmentName,
-                                                                 getTableEntries(singletonList(expectedEntry))));
+                getTableEntries(singletonList(expectedEntry))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
-
-        // Read the value of multiple keys, but the result is truncated due to it size exceeding the max allowed for a
-        // Wire Command.
-        int estimatedSize = 0;
-        val allKeys = new ArrayList<byte[]>();
-        val expectedReadKeys = new ArrayList<BufferView>();
-        while (estimatedSize < 2 * PravegaRequestProcessor.MAX_TABLE_RESPONSE_SIZE) {
-            int keyId = allKeys.size();
-            val keyData = new byte[Integer.BYTES];
-            BitConverter.writeInt(keyData, 0, keyId);
-            allKeys.add(keyData);
-            val valueData = new byte[TableStore.MAXIMUM_VALUE_LENGTH];
-            BitConverter.writeInt(valueData, 0, keyId);
-
-            entry = TableEntry.unversioned(new ByteArraySegment(keyData), new ByteArraySegment(valueData));
-            processor.updateTableEntries(new WireCommands.UpdateTableEntries(keyId, tableSegmentName, "",
-                    getTableEntries(singletonList(entry)), -1L));
-            order.verify(connection).send(any());
-            recorderMockOrder.verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
-
-            estimatedSize += entry.getKey().getKey().getLength() + entry.getValue().getLength();
-            if (estimatedSize < PravegaRequestProcessor.MAX_TABLE_RESPONSE_SIZE) {
-                expectedReadKeys.add(new ByteArraySegment(keyData));
-            }
-        }
-
-        // After updating them, request all the keys but verify that only the first half (give or take) is returned; the
-        // rest would have exceeded the maximum response size and thus have been truncated out.
-        val requestKeys = allKeys.stream()
-                .map(k -> new WireCommands.TableKey(wrappedBuffer(k), WireCommands.TableKey.NO_VERSION))
-                .collect(Collectors.toList());
-        processor.readTable(new WireCommands.ReadTable(5, tableSegmentName, "", requestKeys));
-        val expectedTruncatedResponse = tableStore.get(tableSegmentName, expectedReadKeys, PravegaRequestProcessor.TIMEOUT).join();
-        order.verify(connection).send(new WireCommands.TableRead(5, tableSegmentName,
-                getTableEntries(expectedTruncatedResponse)));
-        recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(expectedReadKeys.size()), any());
     }
 
     @Test
