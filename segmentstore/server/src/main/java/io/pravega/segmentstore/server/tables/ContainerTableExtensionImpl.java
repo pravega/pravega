@@ -26,7 +26,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -438,10 +437,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 });
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newHashIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
-                                                                                  @NonNull GetBucketReader<T> createBucketReader,
-                                                                                  @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
-        Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
     @SuppressWarnings("unchecked")
     public <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newDeltaIterator(@NonNull String segmentName, long fromPosition, @NonNull Duration fetchTimeout) {
         return this.segmentContainer
@@ -458,7 +453,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
                         return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
-                                item.getKey(),
+                                item.getKey().serialize(),
                                 Collections.singletonList((T) item.getValue())));
                     };
                     val iterator = TableEntryDeltaIterator.<IteratorItem<T>>builder()
@@ -477,12 +472,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 }, this.executor);
     }
 
-    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, BufferView serializedState,
-                                                                              @NonNull Duration fetchTimeout,
-                                                                              @NonNull GetBucketReader<T> createBucketReader) {
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newHashIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
+                                                                                  @NonNull GetBucketReader<T> createBucketReader,
+                                                                                  @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
+        Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
         UUID fromHash;
         try {
-            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
+            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorStateImpl.deserialize(args.getSerializedState()).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
             throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
@@ -500,7 +496,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(args.getFetchTimeout()))
                         .thenApply(result -> {
                             result = translateItems(result, segmentInfo, true, translateItem);
-                            return new IteratorItemImpl<>(new IteratorState(bucket.getHash()).serialize(), result);
+                            return new IteratorItemImpl<>(new IteratorStateImpl(bucket.getHash()).serialize(), result);
                         });
 
         // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.

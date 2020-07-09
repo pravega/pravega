@@ -326,7 +326,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         Map<BufferView, TableEntry> result = new HashMap<>();
         for (val item : entries) {
             TableEntry entry = item.getEntries().iterator().next();
-            DeltaIteratorState state = DeltaIteratorState.deserialize(item.getState().array());
+            DeltaIteratorState state = DeltaIteratorState.deserialize(item.getState().getCopy());
             if (state.isDeletionRecord() && result.containsKey(entry.getKey().getKey())) {
                 result.remove(entry.getKey().getKey());
             } else {
