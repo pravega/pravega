@@ -12,7 +12,7 @@ package io.pravega.test.system;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
