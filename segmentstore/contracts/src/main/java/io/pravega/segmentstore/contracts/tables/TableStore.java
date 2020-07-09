@@ -154,7 +154,7 @@ public interface TableStore {
      *                           {@link TableKey#version hasVersion} returns true for at least one of the items in the list,
      *                           then this will perform an atomic Conditional Update. If {@link TableEntry#key}
      *                           {@link TableKey#version} hasVersion} returns false for ALL items in the list, then this
-     *                           will perform an Unconditional update.
+     *                           will just be conditioned on the tableSegmentOffset value.
      * @param tableSegmentOffset The expected offset of the TableSegment used for conditional (expected matches actual) appends.
      * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
@@ -200,7 +200,7 @@ public interface TableStore {
      * @param keys               A Collection of {@link TableKey} instances to remove. If {@link TableKey#hasVersion()} returns
      *                           true for at least one of the TableKeys in this collection, then this will perform an atomic
      *                           Conditional Update (Removal). If {@link TableKey#hasVersion()} returns false for ALL items in
-     *                           the collection, then this will perform an Unconditional Update (Removal).
+     *                           the collection, then this just be conditioned on the tableSegmentOffset value.
      * @param tableSegmentOffset The expected offset of the TableSegment used for conditional (expected matches actual) appends.
      * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation failed,
