@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import lombok.Builder;
 import lombok.Getter;
@@ -75,7 +76,7 @@ public class DeltaIteratorState implements IteratorState {
      * @return As new instance of the IteratorState class.
      */
     @SneakyThrows(IOException.class)
-    public static DeltaIteratorState deserialize(byte[] data) {
+    public static DeltaIteratorState deserialize(BufferView data) {
         return SERIALIZER.deserialize(data);
     }
 

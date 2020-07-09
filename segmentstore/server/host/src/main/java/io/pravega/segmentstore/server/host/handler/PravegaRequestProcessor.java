@@ -845,7 +845,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                 return  false;
                             }
                             TableEntry entry = e.getEntries().iterator().next();
-                            DeltaIteratorState state = DeltaIteratorState.deserialize(e.getState().array());
+                            DeltaIteratorState state = DeltaIteratorState.deserialize(e.getState());
                             // Store all TableEntries.
                             val k = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()), entry.getKey().getVersion());
                             val v = new WireCommands.TableValue(toByteBuf(entry.getValue()));
