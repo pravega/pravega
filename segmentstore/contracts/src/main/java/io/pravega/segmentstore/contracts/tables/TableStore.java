@@ -235,6 +235,12 @@ public interface TableStore {
     /**
      * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given position.
      *
+     * The entryDeltaIterator directly traverses the underlying contents of the TableSegment and deserializes the read bytes into
+     * {@link TableEntry}s. The bounds of the iteration (start and end positions) are determined prior to instantiation of the underlying
+     * iterator, and are fixed for the duration of the iteration. The 'actual' startPosition is determined by the max
+     * of the fromPosition and the observed {@link TableAttributes#COMPACTION_OFFSET}. Every TableEntry appended to the TableSegment
+     * will be returned (including deletions).
+     *
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
      * @param segmentName       The name of the Table Segment to iterate over.

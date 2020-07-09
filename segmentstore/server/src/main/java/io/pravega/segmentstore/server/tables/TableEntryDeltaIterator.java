@@ -110,6 +110,9 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     }
 
     private synchronized CompletableFuture<Void> fetchNextTableEntriesBatch() {
+        if (this.currentEntry != null) {
+            return CompletableFuture.completedFuture(null);
+        }
         return toEntries(currentBatchOffset)
                 .thenAccept(entries -> {
                     if (!entries.isEmpty()) {

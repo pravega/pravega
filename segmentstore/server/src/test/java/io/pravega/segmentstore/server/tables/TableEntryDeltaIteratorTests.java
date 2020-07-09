@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  * Unit tests for the {@link TableEntryDeltaIterator} class. It tests various scenarios, without consideration of compaction.
  */
 @Slf4j
-public class TableEntryIteratorTests extends ThreadPooledTestSuite {
+public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
