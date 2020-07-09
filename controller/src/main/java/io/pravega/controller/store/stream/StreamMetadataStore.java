@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -803,27 +805,6 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return set of hosts owning some txn.
      */
     CompletableFuture<Set<String>> listHostsOwningTxn();
-
-    /**
-     * Adds specified request in the host's task index. 
-     * This is idempotent operation.
-     *
-     * @param hostId      Host identifier.
-     * @param id          Unique id used while adding task to index.
-     * @param request     Request to index.
-     * @return            A future when completed will indicate that the task is indexed for the given host.
-     */
-    CompletableFuture<Void> addRequestToIndex(final String hostId, final String id, final ControllerEvent request);
-
-    /**
-     * Removes the index for task identified by `id` in host task index for host identified by `hostId`
-     * This is idempotent operation.
-     *
-     * @param hostId Node whose child is to be removed.
-     * @param id     Unique id used while adding task to index.
-     * @return Future which when completed will indicate that the task has been removed from index.
-     */
-    CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
 
     /**
      * Returns a map of pending tasks that were created by the host but their corresponding event was probably not posted.
