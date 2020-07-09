@@ -135,8 +135,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        val iteratorArgs = IteratorArgs
+                .builder()
+                .fetchTimeout(TIMEOUT)
+                .serializedState(new ByteArraySegment("INVALID".getBytes()))
+                .build();
         AssertExtensions.assertThrows("Invalid entryIterator state.",
-                () -> context.ext.entryIterator(SEGMENT_NAME, new ByteArraySegment("INVALID".getBytes()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                () -> context.ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IllegalDataFormatException);
     }
 
@@ -706,12 +711,17 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
-        val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
+        val emptyIteratorArgs = IteratorArgs
+                .builder()
+                .serializedState(new IteratorState(KeyHasher.MAX_HASH).serialize())
+                .fetchTimeout(TIMEOUT)
+                .build();
         // Check that invalid serializer state is handled properly.
-        val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, new IteratorState(KeyHasher.MAX_HASH).serialize(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, emptyIteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);
-        Assert.assertTrue("No entries is returned.", actualEmptyEntries.size() == 0);
+        Assert.assertTrue("Unexpected entries returned.", actualEmptyEntries.size() == 0);
 
+        val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);

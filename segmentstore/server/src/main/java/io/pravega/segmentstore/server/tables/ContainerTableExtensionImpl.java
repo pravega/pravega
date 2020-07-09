@@ -253,7 +253,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return remove(segmentName, keys, true, NO_OFFSET, timeout);
     }
 
-    private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+    public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         return remove(segmentName, keys, true, tableSegmentOffset, timeout);
     }
 
@@ -276,11 +276,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             () -> commit(toRemove, this.serializer::serializeRemoval, segment, tableSegmentOffset, timer.getRemaining()), timer);
                 }, this.executor)
                 .thenRun(Runnables.doNothing());
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
-        return remove(segmentName, keys, NO_OFFSET, timeout);
     }
 
     @Override
