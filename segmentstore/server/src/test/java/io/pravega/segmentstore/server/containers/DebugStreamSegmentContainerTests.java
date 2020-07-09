@@ -74,7 +74,6 @@ import java.util.concurrent.ScheduledExecutorService;
  * Tests for DebugStreamSegmentContainer class.
  */
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
-
     private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating the length for a segment
     private static final int MAX_SEGMENT_LENGTH = 10100; // Used in randomly generating the length for a segment
     private static final int CONTAINER_ID = 1234567;
