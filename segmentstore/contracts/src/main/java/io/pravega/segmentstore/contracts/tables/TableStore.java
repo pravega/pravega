@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -28,8 +27,7 @@ import java.util.concurrent.CompletableFuture;
  * Conditional vs Unconditional Updates
  * * The {@link #put(String, List, Duration)} and {@link #remove(String, Collection, Duration)} methods support conditional
  * updates.
- *
- * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#key}.{@link TableKey#version hasVerion()} true,
+ * * If at least one of the {@link TableEntry} instances in the {@link #put} call has {@link TableEntry#key}.{@link TableKey#hasVersion} true,
  * or if at least one of the {@link TableKey} instances in the remove() call has {@link TableKey#hasVersion()} true, then
  * the operation will perform a Conditional Update. If the "hasVersion()" method returns false for ALL the items in the
  * respective collections, then the operation will perform an Unconditional Update.
@@ -41,29 +39,34 @@ import java.util.concurrent.CompletableFuture;
  * will be atomically checked-and-applied.
  * * Unconditional Updates (insert, update, remove) will take effect regardless of what the current Key version exists in
  * the Table Segment.
+ *
+ * Sorted vs Non-Sorted Table Segments:
+ * * All Table Segments are a Hash-Table-like data structure, where Keys are mapped to Values.
+ * * Non-Sorted Table Segments provide no ordering guarantees for {@link #keyIterator} or {@link #entryIterator}.
+ * * Sorted Table Segments store additional information about the Keys and will return results for {@link #keyIterator}
+ * or {@link #entryIterator} in lexicographic bitwise order. All other contracts are identical to the Non-Sorted variant.
+ * * Sorted Table Segments will require additional storage space to store the ordered Keys and may require additional
+ * processing time to maintain the said data structure. This extra storage space is proportional to the number and length
+ * of Keys, but not the size of the values.
+ * * Sorted Table Segments do not support conditional Table Segment Deletion {@link #deleteSegment(String, boolean, Duration)}
+ * with `true` passed as the second argument.
+ * * Sorted Table Segments Key Iterators ({@link #keyIterator}) will not return Key Versions. Versions can still be
+ * retrieved for individual Keys using {@link #get} or using the Entry Iterator {@link #entryIterator}.
  */
-@Beta
 public interface TableStore {
     /**
-     * Gets a value indicating the maximum length of any Table Entry Key supported by this TableStore implementation.
-     *
-     * @return The maximum length of any key, in bytes.
+     * Gets a value indicating the maximum length of any Table Entry Key supported by the TableStore.
      */
-    default int maximumKeyLength() {
-        return 8192;
-    }
+    int MAXIMUM_KEY_LENGTH = 8192;
 
     /**
-     * Gets a value indicating the maximum length of any Table Entry Value supported by this TableStore Implementation.
-     *
-     * @return The maximum length of any value, in bytes.
+     * Gets a value indicating the maximum length of any Table Entry Value supported by the TableStore.
      */
-    default int maximumValueLength() {
-        return 1040384; // 1MB - maximumKeyLength();
-    }
+    int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 
     /**
-     * Creates a new Segment and marks it as a Table Segment.
+     * Creates a new Segment and marks it as a Table Segment. This will be a non-sorted Table Segment.
+     * See {@link #createSegment(String, boolean, Duration)} (invoked with sorted:=false).
      * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
      *
      * @param segmentName The name of the Table Segment to create.
@@ -74,13 +77,32 @@ public interface TableStore {
      * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
      * </ul>
      */
-    CompletableFuture<Void> createSegment(String segmentName, Duration timeout);
+    default CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+        return createSegment(segmentName, false, timeout);
+    }
+
+    /**
+     * Creates a new Segment and marks it as a Table Segment.
+     * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
+     *
+     * @param segmentName The name of the Table Segment to create.
+     * @param sorted      EXPERIMENTAL. If true, the created Table Segment will be a Sorted Table Segment, otherwise it
+     *                    will be a plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
+     * </ul>
+     */
+    CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout);
 
     /**
      * Deletes an existing Table Segment.
      *
      * @param segmentName The name of the Table Segment to delete.
-     * @param mustBeEmpty If true, the Table Segment will only be deleted if it is empty (contains no keys).
+     * @param mustBeEmpty If true, the Table Segment will only be deleted if it is empty (contains no keys). This is not
+     *                    supported on Sorted Table Segments.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:
@@ -125,7 +147,7 @@ public interface TableStore {
      * Inserts new or updates existing Table Entries into the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to insert/update the Table Entries.
-     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key} {@link TableKey#version hasVersion}
+     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key} {@link TableKey#hasVersion}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
      *                    Update. If {@link TableEntry#key} {@link TableKey#version} hasVersion} returns false for ALL items in the list, then this
      *                    will perform an Unconditional update.
@@ -135,8 +157,8 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.</li>
-     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #maximumKeyLength()}.</li>
-     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #maximumValueLength()}.</li>
+     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #MAXIMUM_KEY_LENGTH}.</li>
+     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #MAXIMUM_VALUE_LENGTH}.</li>
      * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#key} {@link TableKey#hasVersion() hasVersion() } is true and
      * {@link TableEntry#key} {@link TableKey#version} does not match the Table Entry's Key current Table Version. </li>
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
@@ -157,7 +179,7 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #maximumKeyLength()}.
+     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #MAXIMUM_KEY_LENGTH}.
      * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#version}
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
@@ -176,7 +198,7 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If any of the items in "keys" exceeds {@link #maximumKeyLength()}.
+     * <li>{@link TableKeyTooLongException} If any of the items in "keys" exceeds {@link #MAXIMUM_KEY_LENGTH}.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
@@ -195,11 +217,8 @@ public interface TableStore {
      * or not, it is completely transparent to the caller and it will still iterate through all the {@link TableKey}s in
      * the table.
      *
-     * @param segmentName     The name of the Table Segment to iterate over.
-     * @param serializedState (Optional) A {@link BufferView} representing the serialized form of the State. This can be
-     *                        obtained from {@link IteratorItem#getState()}. If provided, the iteration will resume from
-     *                        where it left off, otherwise it will start from the beginning.
-     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param args        Arguments for the Iterator.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableKey} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -209,18 +228,15 @@ public interface TableStore {
      * </ul>
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args);
 
     /**
      * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment.
-     *
+     * <p>
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
-     * @param segmentName     The name of the Table Segment to iterate over.
-     * @param serializedState (Optional) A {@link BufferView} representing the serialized form of the State. This can be
-     *                        obtained from {@link IteratorItem#getState()}. If provided, the iteration will resume from
-     *                        where it left off, otherwise it will start from the beginning.
-     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param args        Arguments for the Iterator.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableEntry} instances in the Table. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
@@ -230,7 +246,7 @@ public interface TableStore {
      * </ul>
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args);
 
     /**
      * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given position.

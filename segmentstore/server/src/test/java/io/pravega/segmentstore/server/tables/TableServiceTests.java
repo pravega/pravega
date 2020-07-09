@@ -11,9 +11,11 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -66,6 +68,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static final int KEY_COUNT = 1000;
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 32;
+    private static final String TABLE_SEGMENT_NAME_PREFIX = "TableSegment_";
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     @Rule
     public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -254,11 +258,16 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             }
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
-            iteratorFutures.add(tableStore.entryIterator(segmentName, null, TIMEOUT)
+            iteratorFutures.add(tableStore.entryIterator(segmentName, IteratorArgs.builder().fetchTimeout(TIMEOUT).build())
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
-                                .thenApply(v -> result);
+                                .thenApply(v -> {
+                                    if (isSorted(segmentName)) {
+                                        checkSortedOrder(result);
+                                    }
+                                    return result;
+                                });
                     }));
             // For simplicity, always start from beginning of TableSegment.
             offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
@@ -331,6 +340,15 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             }
         }
         return new ArrayList<>(result.values());
+    }
+
+    private void checkSortedOrder(List<TableEntry> entries) {
+        if (entries.size() > 0) {
+            for (int i = 1; i < entries.size(); i++) {
+                int c = KEY_COMPARATOR.compare(entries.get(i - 1).getKey().getKey(), entries.get(i).getKey().getKey());
+                AssertExtensions.assertLessThan("", 0, c);
+            }
+        }
     }
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
@@ -434,21 +452,31 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(store.createSegment(segmentName, TIMEOUT));
+            boolean sorted = isSorted(i);
+            futures.add(store.createSegment(segmentName, sorted, TIMEOUT));
         }
 
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return segmentNames;
     }
 
+    private boolean isSorted(int segmentIndex) {
+        return segmentIndex % 2 == 0;
+    }
+
+    private boolean isSorted(String segmentName) {
+        assert segmentName.startsWith(TABLE_SEGMENT_NAME_PREFIX) : segmentName;
+        return isSorted(Integer.parseInt(segmentName.substring(TABLE_SEGMENT_NAME_PREFIX.length())));
+    }
+
     private static String getSegmentName(int i) {
-        return "TableSegment_" + i;
+        return TABLE_SEGMENT_NAME_PREFIX + i;
     }
 
     private ServiceBuilder createBuilder() throws Exception {
         val builder = ServiceBuilder.newInMemoryBuilder(this.configBuilder.build())
-                                    .withStorageFactory(setup -> this.storageFactory)
-                                    .withDataLogFactory(setup -> this.durableDataLogFactory);
+                .withStorageFactory(setup -> this.storageFactory)
+                .withDataLogFactory(setup -> this.durableDataLogFactory);
         try {
             builder.initialize();
         } catch (Throwable ex) {

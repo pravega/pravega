@@ -10,7 +10,7 @@
 package io.pravega.client.security.auth;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.JwtBody;
 import org.junit.Test;
