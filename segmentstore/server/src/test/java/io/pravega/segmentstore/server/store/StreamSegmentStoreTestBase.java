@@ -55,7 +55,6 @@ import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
-import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
@@ -80,7 +79,6 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,7 +121,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
     private StorageFactory readOnlyStorageFactory = null;
-    private ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = DataRecoveryTestUtils.createExecutorService(100);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -227,7 +225,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Delete container metadata segment and attribute index segment for each container Id from the persistent storage.
             for (int containerId = 0; containerId < containerCount; containerId++) {
-                deleteContainerMetadataSegments(tier2, containerId);
+                DataRecoveryTestUtils.deleteContainerMetadataSegments(tier2, containerId);
             }
 
             // List all segments from the long term storage.
@@ -270,38 +268,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 Services.stopAsync(localContainer, executorService).join();
                 localContainer.close();
             }
-        }
-    }
-
-    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
-        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
-        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        es.setRemoveOnCancelPolicy(true);
-        return es;
-    }
-
-    /**
-     * Deletes container-metadata segment and attribute index segment for the given container Id.
-     * @param tier2         Long term storage to delete the segments from.
-     * @param containerId   Id of the container for which the segments has to be deleted.
-     */
-    private void deleteContainerMetadataSegments(Storage tier2, int containerId) {
-        deleteSegment(tier2, "_system/containers/metadata_" + containerId);
-        deleteSegment(tier2, "_system/containers/metadata_" + containerId + "$attributes.index");
-    }
-
-    /**
-     * Deletes the segment with given segment name from the given long term storage.
-     * @param tier2         Long term storage to delete the segment from.
-     * @param segmentName   Name of the segment to be deleted.
-     */
-    private void deleteSegment(Storage tier2, String segmentName) {
-        try {
-            SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
-            tier2.delete(segmentHandle, TIMEOUT).join();
-        } catch (Throwable e) {
-            log.info("Error while deleting segment: {}", segmentName);
         }
     }
 

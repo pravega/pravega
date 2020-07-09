@@ -69,7 +69,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -118,7 +117,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
             .build();
-    private ScheduledExecutorService executorService = createExecutorService(100);
+    private ScheduledExecutorService executorService = DataRecoveryTestUtils.createExecutorService(100);
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
@@ -266,14 +265,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
             Services.stopAsync(localContainer, executorService).join();
         }
-    }
-
-    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
-        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
-        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        es.setRemoveOnCancelPolicy(true);
-        return es;
     }
 
     public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {

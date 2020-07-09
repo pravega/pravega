@@ -67,7 +67,6 @@ import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -118,7 +117,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * Recovery scenario: when data written to Pravega is already flushed to the long term storage.
  */
 @Slf4j
-public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
+public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofMillis(60000 * 1000);
 
     private static final int CONTAINER_COUNT = 1;
@@ -435,7 +434,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 240000)
-    public void testTier1Fail() throws Exception {
+    public void testDurableDataLogFail() throws Exception {
         int instanceId = 0;
 
         // Creating tier 2 only once here.
@@ -502,8 +501,7 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
         this.dataLogFactory.initialize();
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        deleteSegment("_system/containers/metadata_" + CONTAINER_ID, tier2);
-        deleteSegment("_system/containers/metadata_" + CONTAINER_ID + "$attributes.index", tier2);
+        DataRecoveryTestUtils.deleteContainerMetadataSegments(tier2, CONTAINER_ID);
 
         // List all segments from the long term storage
         Map<Integer, List<SegmentProperties>> segmentsToCreate = DataRecoveryTestUtils.listAllSegments(tier2, CONTAINER_COUNT);
@@ -540,17 +538,11 @@ public class DataWriteTier1FailDataRecoveryTest extends ThreadPooledTestSuite {
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
     }
 
-    private void deleteSegment(String segmentName, Storage tier2) {
-        SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
-        tier2.delete(segmentHandle, TIMEOUT).join();
-    }
-
     public void createScopeStream(Controller controller, String scopeName, String streamName) {
         try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
              StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
-            boolean createScopeStatus = streamManager.createScope(scopeName);
-
-            boolean createStreamStatus = streamManager.createStream(scopeName, streamName, config);
+            streamManager.createScope(scopeName);
+            streamManager.createStream(scopeName, streamName, config);
         }
     }
 

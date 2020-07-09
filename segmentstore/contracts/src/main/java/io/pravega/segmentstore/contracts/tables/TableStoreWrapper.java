@@ -11,6 +11,8 @@ package io.pravega.segmentstore.contracts.tables;
 
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -23,15 +25,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public class TableStoreWrapper implements TableStore {
     private final TableStore tableStore;
+
+    @Getter(AccessLevel.PUBLIC)
     private HashSet<String> segments;
 
     public TableStoreWrapper(TableStore tableStore) {
         this.tableStore = tableStore;
         this.segments = new HashSet<>();
-    }
-
-    public HashSet<String> getSegments() {
-        return this.segments;
     }
 
     @Override

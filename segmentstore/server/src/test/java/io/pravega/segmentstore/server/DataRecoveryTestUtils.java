@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -157,7 +158,31 @@ public class DataRecoveryTestUtils {
         }
     }
 
-    private static ArrayView getTableKey(String segmentName) {
+    public static ArrayView getTableKey(String segmentName) {
         return new ByteArraySegment(segmentName.getBytes(Charsets.UTF_8));
+    }
+
+    /**
+     * Deletes container-metadata segment and attribute index segment for the given container Id.
+     * @param tier2         Long term storage to delete the segments from.
+     * @param containerId   Id of the container for which the segments has to be deleted.
+     */
+    public static void deleteContainerMetadataSegments(Storage tier2, int containerId) {
+        deleteSegment(tier2, "_system/containers/metadata_" + containerId);
+        deleteSegment(tier2, "_system/containers/metadata_" + containerId + "$attributes.index");
+    }
+
+    /**
+     * Deletes the segment with given segment name from the given long term storage.
+     * @param tier2         Long term storage to delete the segment from.
+     * @param segmentName   Name of the segment to be deleted.
+     */
+    public static void deleteSegment(Storage tier2, String segmentName) {
+        try {
+            SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
+            tier2.delete(segmentHandle, TIMEOUT).join();
+        } catch (Throwable e) {
+            log.info("Error while deleting segment: {}", segmentName);
+        }
     }
 }

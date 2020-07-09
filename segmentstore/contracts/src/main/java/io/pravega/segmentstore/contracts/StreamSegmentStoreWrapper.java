@@ -10,6 +10,9 @@
 package io.pravega.segmentstore.contracts;
 
 import io.pravega.common.util.BufferView;
+import lombok.AccessLevel;
+import lombok.Getter;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
@@ -23,15 +26,13 @@ import java.util.concurrent.CompletableFuture;
 public class StreamSegmentStoreWrapper implements StreamSegmentStore {
 
     private final StreamSegmentStore streamSegmentStore;
+
+    @Getter(AccessLevel.PUBLIC)
     private HashSet<String> segments;
 
     public StreamSegmentStoreWrapper(StreamSegmentStore streamSegmentStore) {
         this.streamSegmentStore = streamSegmentStore;
         this.segments = new HashSet<>();
-    }
-
-    public HashSet<String> getSegments() {
-        return this.segments;
     }
 
     @Override
