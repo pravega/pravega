@@ -30,7 +30,7 @@ class KeyFamilySerializer {
      * {@link TableSegment#MAXIMUM_KEY_LENGTH} do not exceed the server-side limits.
      */
     @VisibleForTesting
-    static final int MAX_KEY_FAMILY_LENGTH = 2096;
+    static final int MAX_KEY_FAMILY_LENGTH = 2048;
     /**
      * A prefix added to every Key Family serialization. This is encoded in the key itself. See
      * {@link #MAX_KEY_FAMILY_LENGTH} for constraints.

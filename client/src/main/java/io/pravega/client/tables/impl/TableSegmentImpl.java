@@ -147,6 +147,7 @@ class TableSegmentImpl implements TableSegment {
         // between the client and server dictates that we issue subsequent requests for the remaining keys. This is the
         // only way we can handle such a case since we do not know the size of the entries that are about to be returned
         // and therefore we cannot pre-partition the keys.
+        // TODO: consider optimizing (https://github.com/pravega/pravega/issues/4936).
         return Futures.loop(
                 () -> result.size() < wireKeys.size(),
                 () -> execute((state, requestId) -> {

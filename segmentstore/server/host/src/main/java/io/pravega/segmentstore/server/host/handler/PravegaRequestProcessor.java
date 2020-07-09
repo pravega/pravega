@@ -719,6 +719,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(values -> {
                     // NOTE: getTableEntriesCommand will truncate the result to prevent it from exceeding MAX_TABLE_RESPONSE_SIZE.
                     // In such a situation, not all requested items will be returned to the caller; only the head of the list will.
+                    // TODO: consider optimizing (https://github.com/pravega/pravega/issues/4936).
                     WireCommands.TableEntries response = getTableEntriesCommand(readTable.getRequestId(), keys, values);
                     connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, response));
                     this.tableStatsRecorder.getKeys(readTable.getSegment(), response.getEntries().size(), timer.getElapsed());
