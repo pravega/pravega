@@ -36,6 +36,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -139,12 +141,23 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public CompletableFuture<List<TableSegmentEntry>> get(@NonNull Iterator<ByteBuf> keys) {
         val wireKeys = rawKeysToWireCommand(keys);
-        return execute((state, requestId) -> {
-            val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), wireKeys);
+        val result = Collections.synchronizedList(new ArrayList<TableSegmentEntry>(wireKeys.size()));
 
-            return sendRequest(request, state, WireCommands.TableRead.class)
-                    .thenApply(reply -> fromWireCommand(reply.getEntries()));
-        });
+        // The server-side will truncate the result if it exceeds the maximum response size. In that case, the contract
+        // between the client and server dictates that we issue subsequent requests for the remaining keys. This is the
+        // only way we can handle such a case since we do not know the size of the entries that are about to be returned
+        // we we cannot pre-partition the keys.
+        return Futures.loop(
+                () -> result.size() < wireKeys.size(),
+                () -> execute((state, requestId) -> {
+                    val requestKeys = result.isEmpty() ? wireKeys : wireKeys.subList(result.size(), wireKeys.size());
+                    val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), requestKeys);
+
+                    return sendRequest(request, state, WireCommands.TableRead.class)
+                            .thenAccept(reply -> fromWireCommand(reply.getEntries(), result::add));
+                }),
+                this.connectionFactory.getInternalExecutor())
+                .thenApply(v -> result);
     }
 
     @Override
@@ -421,10 +434,22 @@ class TableSegmentImpl implements TableSegment {
      * @return A List of {@link TableSegmentEntry} instances.
      */
     private List<TableSegmentEntry> fromWireCommand(WireCommands.TableEntries reply) {
-        return reply.getEntries()
-                .stream()
-                .map(this::fromWireCommand)
-                .collect(Collectors.toList());
+        val result = new ArrayList<TableSegmentEntry>(reply.getEntries().size());
+        fromWireCommand(reply, result::add);
+        return result;
+    }
+
+    /**
+     * Deserializes the {@link TableSegmentEntry} instances from a {@link WireCommands.TableEntries} and invokes the given
+     * callback, in order, for each of them.
+     *
+     * @param reply    The {@link WireCommands.TableEntries}.
+     * @param callback A {@link Consumer} that will be invoked for each deserialized {@link TableSegmentEntry}.
+     */
+    private void fromWireCommand(WireCommands.TableEntries reply, Consumer<TableSegmentEntry> callback) {
+        for (val e : reply.getEntries()) {
+            callback.accept(fromWireCommand(e));
+        }
     }
 
     /**

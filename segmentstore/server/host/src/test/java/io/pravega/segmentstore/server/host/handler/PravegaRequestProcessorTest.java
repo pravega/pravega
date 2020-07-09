@@ -14,6 +14,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -826,6 +827,42 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.TableRead(4, tableSegmentName,
                                                                  getTableEntries(singletonList(expectedEntry))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
+
+        // Read the value of multiple keys, but the result is truncated due to it size exceeding the max allowed for a
+        // Wire Command.
+        int estimatedSize = 0;
+        val allKeys = new ArrayList<byte[]>();
+        val expectedReadKeys = new ArrayList<BufferView>();
+        while (estimatedSize < 2 * PravegaRequestProcessor.MAX_TABLE_RESPONSE_SIZE) {
+            int keyId = allKeys.size();
+            val keyData = new byte[Integer.BYTES];
+            BitConverter.writeInt(keyData, 0, keyId);
+            allKeys.add(keyData);
+            val valueData = new byte[TableStore.MAXIMUM_VALUE_LENGTH];
+            BitConverter.writeInt(valueData, 0, keyId);
+
+            entry = TableEntry.unversioned(new ByteArraySegment(keyData), new ByteArraySegment(valueData));
+            processor.updateTableEntries(new WireCommands.UpdateTableEntries(keyId, tableSegmentName, "",
+                    getTableEntries(singletonList(entry)), -1L));
+            order.verify(connection).send(any());
+            recorderMockOrder.verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(false), any());
+
+            estimatedSize += entry.getKey().getKey().getLength() + entry.getValue().getLength();
+            if (estimatedSize < PravegaRequestProcessor.MAX_TABLE_RESPONSE_SIZE) {
+                expectedReadKeys.add(new ByteArraySegment(keyData));
+            }
+        }
+
+        // After updating them, request all the keys but verify that only the first half (give or take) is returned; the
+        // rest would have exceeded the maximum response size and thus have been truncated out.
+        val requestKeys = allKeys.stream()
+                .map(k -> new WireCommands.TableKey(wrappedBuffer(k), WireCommands.TableKey.NO_VERSION))
+                .collect(Collectors.toList());
+        processor.readTable(new WireCommands.ReadTable(5, tableSegmentName, "", requestKeys));
+        val expectedTruncatedResponse = tableStore.get(tableSegmentName, expectedReadKeys, PravegaRequestProcessor.TIMEOUT).join();
+        order.verify(connection).send(new WireCommands.TableRead(5, tableSegmentName,
+                getTableEntries(expectedTruncatedResponse)));
+        recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(expectedReadKeys.size()), any());
     }
 
     @Test

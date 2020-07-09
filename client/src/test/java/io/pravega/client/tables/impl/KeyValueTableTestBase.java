@@ -18,6 +18,7 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -393,8 +394,43 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testLargeEntryBatchRetrieval() {
-        // TODO
+        val maxSize = TableSegment.MAXIMUM_BATCH_LENGTH * 4; // Sufficiently large to require multiple requests.
+        val keyFamily = "a";
 
+        Function<Integer, byte[]> getValue = keyId -> {
+            val result = new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH];
+            BitConverter.writeInt(result, 0, keyId + 1);
+            return result;
+        };
+
+        @Cleanup
+        val kvt = createKeyValueTable(new ByteArraySerializer(), new ByteArraySerializer());
+
+        // Update the entries one-by-one to make sure we do not exceed the max lengths at this step.
+        int estimatedSize = 0;
+        val allKeys = new ArrayList<byte[]>();
+        while (estimatedSize < maxSize) {
+            int keyId = allKeys.size();
+            val key = new byte[KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH];
+            BitConverter.writeInt(key, 0, keyId);
+            val value = getValue.apply(keyId);
+            val e = new AbstractMap.SimpleImmutableEntry<>(key, value);
+            kvt.put(keyFamily, key, value).join();
+            estimatedSize += e.getKey().length + e.getValue().length;
+            allKeys.add(key);
+        }
+
+        // Bulk-get all the keys. This should work regardless of the size of the data returned; the KeyValueTable and
+        // TableSegment internally should break down the requests and handle this properly.
+        val getResult = kvt.getAll(keyFamily, allKeys).join();
+        Assert.assertEquals("Unexpected number of keys returned.", allKeys.size(), getResult.size());
+        for (int keyId = 0; keyId < allKeys.size(); keyId++) {
+            val r = getResult.get(keyId);
+            val expectedKey = allKeys.get(keyId);
+            Assert.assertArrayEquals("Unexpected key at index " + keyId, expectedKey, r.getKey().getKey());
+            val expectedValue = getValue.apply(keyId);
+            Assert.assertArrayEquals("Unexpected value at index " + keyId, expectedValue, r.getValue());
+        }
     }
 
     @Test

@@ -164,6 +164,41 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link TableSegmentImpl#get} method when the response coming back from the server is truncated.
+     * Connection reset failures are not tested here; they're checked in {@link #testReconnect()}.
+     */
+    @Test
+    public void testGetTruncated() throws Exception {
+        val requestKeys = Arrays.asList(100L, 200L, 300L, 400L, 500L);
+        val expectedEntries = Arrays.asList(
+                versionedEntry(requestKeys.get(0), "one hundred", 1L),
+                versionedEntry(requestKeys.get(1), "two hundred", 2L),
+                versionedEntry(requestKeys.get(2), "three hundred", 3L),
+                versionedEntry(requestKeys.get(3), "four hundred", 3L),
+                null); // This key does not exist.
+        val expectedWireKeys = toWireKeys(requestKeys.stream().map(this::buf).map(TableSegmentKey::unversioned).collect(Collectors.toList()));
+
+        @Cleanup
+        val context = new TestContext();
+
+        // Successful operation.
+        val getResult = context.segment.get(requestKeys.stream().map(this::buf).iterator());
+        for (int i = 0; i < expectedEntries.size(); i++) {
+            val expectedSentKeys = expectedWireKeys.subList(i, expectedWireKeys.size());
+            val wireCommand = (WireCommands.ReadTable) context.getConnection().getLastSentWireCommand();
+            checkWireCommand(expectedSentKeys, wireCommand.getKeys());
+
+            val returnedKeys = Collections.singletonList(requestKeys.get(i));
+            val returnedEntries = Collections.singletonList(expectedEntries.get(i));
+            val replyWireEntries = toWireEntries(returnedEntries, returnedKeys);
+            context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), replyWireEntries));
+        }
+
+        val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+        AssertExtensions.assertListEquals("Unexpected return value", expectedEntries, actualEntries, this::entryEquals);
+    }
+
+    /**
      * Tests the {@link TableSegmentImpl#keyIterator} method.
      * Connection reset failures are not tested here; they're checked in {@link #testReconnect()}.
      */

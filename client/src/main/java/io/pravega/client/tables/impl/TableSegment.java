@@ -66,6 +66,8 @@ public interface TableSegment extends AutoCloseable {
     int MAXIMUM_BATCH_KEY_COUNT = 256;
     /**
      * Maximum total serialization length of all keys and values for any given request.
+     * See io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor.MAX_TABLE_RESPONSE_SIZE for the server-side
+     * equivalent.
      */
     int MAXIMUM_BATCH_LENGTH = WireCommands.MAX_WIRECOMMAND_SIZE - 8192;
 

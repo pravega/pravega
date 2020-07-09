@@ -95,7 +95,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.val;
@@ -114,7 +113,6 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.stream.Collectors.toList;
 
 /**
  * A Processor for all non-append operations on the Pravega SegmentStore Service.
@@ -124,6 +122,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
+    /**
+     * The maximum amount of data we can send in a single response. This must be set to a value slightly lower than
+     * {@link WireCommands#MAX_WIRECOMMAND_SIZE} to prevent the connection from being terminated due to overflowing frame lengths.
+     * Since we cannot accurately estimate the response size, we reserve 8KB for any overhead that cannot be calculated
+     * from the data that we have available ({@link WireCommands.TableKey} and {@link WireCommands.TableValue}).
+     * See {@link io.pravega.client.tables.impl.TableSegment#MAXIMUM_BATCH_LENGTH} for the client-side equivalent.
+     */
+    @VisibleForTesting
+    static final int MAX_TABLE_RESPONSE_SIZE = WireCommands.MAX_WIRECOMMAND_SIZE - 8192;
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
@@ -710,8 +717,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         val timer = new Timer();
         tableStore.get(segment, keys, TIMEOUT)
                 .thenAccept(values -> {
-                    connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntriesCommand(keys, values)));
-                    this.tableStatsRecorder.getKeys(readTable.getSegment(), keys.size(), timer.getElapsed());
+                    // NOTE: getTableEntriesCommand will truncate the result to prevent it from exceeding MAX_TABLE_RESPONSE_SIZE.
+                    // In such a situation, not all requested will be returned to the caller; only the head of the list will.
+                    WireCommands.TableEntries response = getTableEntriesCommand(readTable.getRequestId(), keys, values);
+                    connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, response));
+                    this.tableStatsRecorder.getKeys(readTable.getSegment(), response.getEntries().size(), timer.getElapsed());
                 })
                 .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e))
                 .whenComplete((r, ex) -> readTable.release());
@@ -813,25 +823,36 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return args.build();
     }
 
-    private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
+    private WireCommands.TableEntries getTableEntriesCommand(long requestId, final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
-        final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
-                IntStream.range(0, resultEntries.size())
-                         .mapToObj(i -> {
-                             TableEntry resultTableEntry = resultEntries.get(i);
-                             if (resultTableEntry == null) { // no entry for key at index i.
-                                 BufferView k = inputKeys.get(i); // key for which the read result was null.
-                                 val keyWireCommand = new WireCommands.TableKey(toByteBuf(k), TableKey.NOT_EXISTS);
-                                 return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
-                             } else {
-                                 TableEntry te = resultEntries.get(i);
-                                 TableKey k = te.getKey();
-                                 val keyWireCommand = new WireCommands.TableKey(toByteBuf(k.getKey()), k.getVersion());
-                                 val valueWireCommand = new WireCommands.TableValue(toByteBuf(te.getValue()));
-                                 return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
+        val entries = new ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(resultEntries.size());
+        int resultSize = 0;
+        for (int i = 0; i < resultEntries.size(); i++) {
+            TableEntry resultTableEntry = resultEntries.get(i);
+            WireCommands.TableKey resultKey;
+            WireCommands.TableValue resultValue;
 
-                             }
-                         }).collect(toList());
+            if (resultTableEntry == null) { // no entry for key at index i.
+                BufferView k = inputKeys.get(i); // key for which the read result was null.
+                resultKey = new WireCommands.TableKey(toByteBuf(k), TableKey.NOT_EXISTS);
+                resultValue = WireCommands.TableValue.EMPTY;
+            } else {
+                TableEntry te = resultEntries.get(i);
+                TableKey k = te.getKey();
+                resultKey = new WireCommands.TableKey(toByteBuf(k.getKey()), k.getVersion());
+                resultValue = new WireCommands.TableValue(toByteBuf(te.getValue()));
+            }
+
+            // Only add the entry if we're not going to exceed the max response size.
+            resultSize += resultKey.size() + resultValue.size();
+            if (resultSize >= MAX_TABLE_RESPONSE_SIZE) {
+                log.info(requestId, "Truncating response due to max response size reached. Returning {} out of {} items.",
+                        entries.size(), resultEntries.size());
+                break;
+            }
+
+            entries.add(new AbstractMap.SimpleImmutableEntry<>(resultKey, resultValue));
+        }
 
         return new WireCommands.TableEntries(entries);
     }
