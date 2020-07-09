@@ -12,7 +12,6 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
