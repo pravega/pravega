@@ -88,7 +88,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         return this.currentBatchOffset >= (this.startOffset + this.maxLength);
     }
 
-    private CompletableFuture<Map.Entry<DeltaIteratorState, TableEntry>> getNextEntry() {
+    private synchronized CompletableFuture<Map.Entry<DeltaIteratorState, TableEntry>> getNextEntry() {
         val entry = getNextEntryFromBatch();
         if (entry != null) {
             return CompletableFuture.completedFuture(entry);
@@ -110,9 +110,6 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     }
 
     private synchronized CompletableFuture<Void> fetchNextTableEntriesBatch() {
-        if (this.currentEntry != null) {
-            return CompletableFuture.completedFuture(null);
-        }
         return toEntries(currentBatchOffset)
                 .thenAccept(entries -> {
                     if (!entries.isEmpty()) {
