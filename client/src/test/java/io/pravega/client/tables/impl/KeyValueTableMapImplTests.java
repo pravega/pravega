@@ -98,9 +98,15 @@ public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
             val value = getValue(keyId, iteration.get());
             val map = kvt.getMapFor(keyFamily);
 
-            // putIfAbsent should work when the key doesn't exist.
-            val result = map.putIfAbsent(key, value);
-            Assert.assertEquals(value, result);
+            if (keyId % 2 == 0) {
+                // putIfAbsent should work when the key doesn't exist.
+                val result = map.putIfAbsent(key, value);
+                Assert.assertEquals(value, result);
+            } else {
+                // put should return null when the key doesn't exist.
+                val result = map.put(key, value);
+                Assert.assertNull(result);
+            }
             expectedValues.put(keyFamily, key, value);
 
             // ... and should have no effect when it already does.
