@@ -1595,6 +1595,11 @@ public final class WireCommands {
         public boolean isTokenExpired() {
             return errorCode == ErrorCode.TOKEN_EXPIRED;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
