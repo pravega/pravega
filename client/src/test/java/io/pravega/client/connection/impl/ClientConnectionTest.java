@@ -13,14 +13,16 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import java.util.List;
 import java.util.UUID;
+import java.util.Vector;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
@@ -34,7 +36,15 @@ public class ClientConnectionTest {
 
     private static class ReplyProcessor extends FailingReplyProcessor {
         AtomicBoolean falure = new AtomicBoolean(false);
+        List<Reply> replies = new Vector<>();
 
+        public void process(Reply reply) {
+            if (reply.isFailure()) {
+                falure.set(true);
+            }
+            replies.add(reply);
+        }
+        
         @Override
         public void processingFailure(Exception error) {
             falure.set(true);
@@ -42,11 +52,6 @@ public class ClientConnectionTest {
 
         @Override
         public void connectionDropped() {
-            falure.set(true);
-        }
-
-        @Override
-        public void authTokenCheckFailed(AuthTokenCheckFailed authTokenCheckFailed) {
             falure.set(true);
         }
     }
@@ -78,22 +83,69 @@ public class ClientConnectionTest {
         assertFalse(processor.falure.get());
     }
 
-        @Test
-        public void testAppendThrows() throws Exception {
-            ReplyProcessor processor = new ReplyProcessor(); 
-            @Cleanup
-            MockServer server = new MockServer();
-            server.start();
-            @Cleanup
-            InlineExecutor executor = new InlineExecutor();
-            @Cleanup
-            ClientConnection clientConnection = TcpClientConnection
-                .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
-                .join();
-            clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
-            clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
-            server.sendReply(new WireCommands.AuthTokenCheckFailed(1, "Injected error"));
-            AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
-        }
+    @Test
+    public void testAppendThrows() throws Exception {
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        ClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
+        clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
+        server.sendReply(new WireCommands.AuthTokenCheckFailed(1, "Injected error"));
+        AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
+    }
 
+    @Test
+    public void testAppend() throws Exception {
+        byte[] payload = new byte[100];
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        ClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        for (int i = 0; i < 100; i++) {
+            clientConnection.send(new Append("segment", writerId, i, new Event(Unpooled.wrappedBuffer(payload)), 1));
+            server.sendReply(new WireCommands.DataAppended(i, writerId, i, i - 1, i * 100));
+        }
+        AssertExtensions.assertEventuallyEquals(100, () -> processor.replies.size(), 5000);
+        assertFalse(processor.falure.get());
+    }
+    
+    @Test
+    public void testAckProcessingFailure() throws Exception {
+        byte[] payload = new byte[100];
+        ReplyProcessor processor = new ReplyProcessor() {
+            public void process(Reply reply) {
+                throw new RuntimeException("Injected error");
+            }
+        };
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        ClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        clientConnection.send(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
+        server.sendReply(new WireCommands.DataAppended(1, writerId, 1, 0, 100));
+        AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
+    }
+    
 }
