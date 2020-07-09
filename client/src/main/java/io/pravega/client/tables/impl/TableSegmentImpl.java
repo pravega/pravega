@@ -146,7 +146,7 @@ class TableSegmentImpl implements TableSegment {
         // The server-side will truncate the result if it exceeds the maximum response size. In that case, the contract
         // between the client and server dictates that we issue subsequent requests for the remaining keys. This is the
         // only way we can handle such a case since we do not know the size of the entries that are about to be returned
-        // we we cannot pre-partition the keys.
+        // and therefore we cannot pre-partition the keys.
         return Futures.loop(
                 () -> result.size() < wireKeys.size(),
                 () -> execute((state, requestId) -> {
