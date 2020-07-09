@@ -411,7 +411,7 @@ public class PravegaRequestProcessorTest {
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
 
         order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, NameUtils.getTransactionNameFromId(streamSegmentName,
-                txnid), "", -1L));
+                                                                                                                       txnid), "", -1L));
     }
 
     @Test(timeout = 20000)
@@ -617,11 +617,11 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
 
         assertThrows("seal() is implemented.",
-                () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
-                ex -> ex instanceof UnsupportedOperationException);
+                     () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
+                     ex -> ex instanceof UnsupportedOperationException);
         assertThrows("merge() is implemented.",
-                () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
-                ex -> ex instanceof UnsupportedOperationException);
+                     () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
+                     ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test(timeout = 20000)
@@ -810,8 +810,8 @@ public class PravegaRequestProcessorTest {
         WireCommands.TableKey keyResponse = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()),
                 WireCommands.TableKey.NOT_EXISTS);
         order.verify(connection).send(new WireCommands.TableRead(2, tableSegmentName,
-                new WireCommands.TableEntries(
-                        singletonList(new AbstractMap.SimpleImmutableEntry<>(keyResponse, WireCommands.TableValue.EMPTY)))));
+                                                                 new WireCommands.TableEntries(
+                                                                         singletonList(new AbstractMap.SimpleImmutableEntry<>(keyResponse, WireCommands.TableValue.EMPTY)))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
 
         // Update a value to a key.
@@ -824,7 +824,7 @@ public class PravegaRequestProcessorTest {
         TableEntry expectedEntry = TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), 0L);
         processor.readTable(new WireCommands.ReadTable(4, tableSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableRead(4, tableSegmentName,
-                getTableEntries(singletonList(expectedEntry))));
+                                                                 getTableEntries(singletonList(expectedEntry))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
     }
 
