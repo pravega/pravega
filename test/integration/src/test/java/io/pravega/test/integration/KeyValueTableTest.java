@@ -16,6 +16,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -90,7 +91,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         this.controller = controllerWrapper.getController();
 
         //4. Create Scope
-        this.isScopeCreated = this.controller.createScope(SCOPE).get();
+        this.controller.createScope(SCOPE).get();
         ClientConfig clientConfig = ClientConfig.builder().build();
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
@@ -113,7 +114,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateListKeyValueTable() {
-        Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
@@ -165,7 +165,6 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
      */
     @Test
     public void testCreateDeleteKeyValueTable() {
-        Assert.assertTrue(isScopeCreated);
         val kvt1 = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
@@ -195,10 +194,15 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
     @Override
     protected KeyValueTable<Integer, String> createKeyValueTable() {
+        return createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
+    }
+
+    @Override
+    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         val kvt = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
-        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER,
+        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), keySerializer, valueSerializer,
                 KeyValueTableClientConfiguration.builder().build());
     }
 
