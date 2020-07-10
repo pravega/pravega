@@ -61,6 +61,7 @@ public abstract class AbstractService implements Service {
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
+    protected static final String TLS = "tls://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
@@ -389,10 +390,6 @@ public abstract class AbstractService implements Service {
                         .withApiGroup("rbac.authorization.k8s.io")
                         .build())
                 .build();
-    }
-
-    private V1Deployment getPravegaOperatorDeployment() {
-         return getPravegaOperatorDeployment(false);
     }
 
     private V1Deployment getPravegaOperatorDeployment(boolean secure) {

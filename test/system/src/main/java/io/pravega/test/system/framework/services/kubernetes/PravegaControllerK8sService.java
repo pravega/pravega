@@ -84,10 +84,11 @@ public class PravegaControllerK8sService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
+        String prefix = secure ? TLS : TCP;
         return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
                                                        .thenApply(statuses -> statuses.stream()
-                                                                                     .flatMap(s -> Stream.of(URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
-                                                                                                             URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
+                                                                                     .flatMap(s -> Stream.of(URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
+                                                                                                             URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
                                                                                      .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-controller", t));
     }
