@@ -7,10 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util;
+package io.pravega.common.concurrent;
 
-import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -36,9 +34,9 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 /**
- * Unit tests for the OrderedItemProcessor class.
+ * Unit tests for the {@link OrderedProcessor} class.
  */
-public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
+public class OrderedProcessorTests extends ThreadPooledTestSuite {
     private static final int CAPACITY = 10;
     private static final Function<Integer, Integer> TRANSFORMER = i -> i + 1;
 
@@ -70,13 +68,14 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
         val resultFutures = new ArrayList<CompletableFuture<Integer>>();
         @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, executorService());
+        val p = new TestProcessor(CAPACITY, executorService());
         for (int i = 0; i < CAPACITY; i++) {
-            resultFutures.add(p.process(i));
-            Assert.assertTrue("Item has not been immediately processed when under capacity: " + i, processedItems.contains(i));
+            val item = i;
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
+            Assert.assertTrue("Item has not been immediately processed when under capacity: " + i, processedItems.contains(item));
         }
 
-        // Finish up half the futures. We need a Semaphore so that we know when the OrderedItemProcessor actually
+        // Finish up half the futures. We need a Semaphore so that we know when the OrderedProcessor actually
         // finished cleaning up after these completed tasks, as that happens asynchronously inside the processor and we
         // don't really have a hook into it, except by sub-classing it and intercepting 'executionComplete'.
         val half = CAPACITY / 2;
@@ -93,7 +92,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         // Now add even more and make sure we are under capacity.
         for (int i = 0; i < CAPACITY / 2; i++) {
             val item = CAPACITY + i;
-            resultFutures.add(p.process(item));
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
             Assert.assertTrue("Item has not been immediately processed when under capacity: " + item, processedItems.contains(item));
         }
 
@@ -139,13 +138,14 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
         val resultFutures = new ArrayList<CompletableFuture<Integer>>();
         @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, executorService());
+        val p = new TestProcessor(CAPACITY, executorService());
 
         // Fill up to capacity, and beyond.
         for (int i = 0; i < itemCount; i++) {
-            resultFutures.add(p.process(i));
+            val item = i;
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
             if (i >= CAPACITY) {
-                Assert.assertFalse("Item has been immediately processed when over capacity: " + i, processedItems.contains(i));
+                Assert.assertFalse("Item has been immediately processed when over capacity: " + i, processedItems.contains(item));
             }
         }
 
@@ -160,63 +160,53 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testFailures() {
+    public void testFailures() throws Exception {
         final int itemCount = 2 * CAPACITY;
+        val failedIndex = CAPACITY / 2;
         val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
-        val processFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Integer>>());
+        val failedFuture = new CompletableFuture<Integer>();
         Function<Integer, CompletableFuture<Integer>> itemProcessor = i -> {
             if (!processedItems.add(i)) {
                 Assert.fail("Duplicate item detected: " + i);
             }
 
-            CompletableFuture<Integer> result = new CompletableFuture<>();
-            processFutures.add(result);
-            return result;
+            if (i == failedIndex) {
+                return failedFuture;
+            }
+            return CompletableFuture.completedFuture(i);
         };
 
         val resultFutures = new ArrayList<CompletableFuture<Integer>>();
         @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, executorService());
+        val p = new TestProcessor(CAPACITY, executorService());
 
         // Fill up to capacity, and beyond.
         for (int i = 0; i < itemCount; i++) {
-            resultFutures.add(p.process(i));
+            val item = i;
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
         }
 
         // Fail an item.
-        val failedIndex = CAPACITY / 2;
-        processFutures.get(failedIndex).completeExceptionally(new IntentionalException());
-        AssertExtensions.assertThrows(
-                "Failed item did not have its result failed as well.",
-                resultFutures.get(failedIndex)::join,
-                ex -> ex instanceof IntentionalException);
-
-        // Verify all queued-up items have been failed, but none of the initial ones (that have already begun processing)
-        for (int i = CAPACITY; i < itemCount; i++) {
-            AssertExtensions.assertThrows(
-                    "Queued-up item did not fail when a previous item failed.",
-                    resultFutures.get(i)::join,
-                    ex -> ex instanceof OrderedItemProcessor.ProcessingException && ex.getCause() instanceof IntentionalException);
-        }
-
-        for (int i = 0; i < CAPACITY; i++) {
-            if (i != failedIndex) {
-                Assert.assertFalse("Already-processing future was completed as well.", resultFutures.get(i).isDone());
+        failedFuture.completeExceptionally(new IntentionalException());
+        AssertExtensions.assertEventuallyEquals("Unexpected result size", itemCount, processedItems::size, 10, 10000);
+        for (int i = 0; i < resultFutures.size(); i++) {
+            val rf = resultFutures.get(i);
+            if (i == failedIndex) {
+                AssertExtensions.assertThrows(
+                        "Failed item did not have its result failed as well.",
+                        rf::join,
+                        ex -> ex instanceof IntentionalException);
+            } else {
+                Assert.assertEquals("Unexpected completion.", i, (int) resultFutures.get(i).join());
             }
         }
-
-        // Verify we can't add anything else ...
-        AssertExtensions.assertThrows(
-                "failure did not cause OrderedItemProcessor to close.",
-                () -> p.process(Integer.MAX_VALUE),
-                ex -> ex instanceof ObjectClosedException);
     }
 
     /**
      * Tests that closing does cancel all pending items, except the processing ones.
      */
     @Test
-    public void testClose() throws Exception {
+    public void testClose() {
         final int itemCount = 2 * CAPACITY;
         val processedItems = Collections.synchronizedCollection(new HashSet<Integer>());
         val processFuture = new CompletableFuture<Integer>();
@@ -230,28 +220,33 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
 
         val resultFutures = new ArrayList<CompletableFuture<Integer>>();
         @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, executorService());
+        val p = new TestProcessor(CAPACITY, executorService());
 
         // Fill up to capacity, and beyond.
         for (int i = 0; i < itemCount; i++) {
-            resultFutures.add(p.process(i));
+            val item = i;
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
         }
 
-        val closeFuture = CompletableFuture.runAsync(p::close, executorService());
+        p.close();
 
-        // Verify none of the items have been completed (or cancelled for that matter).
-        for (CompletableFuture<Integer> f : resultFutures) {
-            Assert.assertFalse("Future was completed after close() was called.", f.isDone());
+        // Verify all the items still pending have been cancelled, but not the ones currently executing.
+        for (int i = 0; i < resultFutures.size(); i++) {
+            val f = resultFutures.get(i);
+            if (i < CAPACITY) {
+                Assert.assertFalse(f.isDone());
+            } else {
+                Assert.assertTrue("Future not cancelled.", f.isCancelled());
+            }
         }
 
-        Assert.assertFalse("close() returned even if there are pending operations to complete.", closeFuture.isDone());
-        processFuture.complete(0);
+        // Verify that the in-flight items can still be completed.
+        processFuture.complete(10);
 
-        // This will ensure that all result futures are completed.
-        Futures.allOf(resultFutures).join();
-
-        // This will ensure that the close() method returns.
-        closeFuture.join();
+        for (int i = 0; i < CAPACITY; i++) {
+            val f = resultFutures.get(i);
+            Assert.assertEquals(10, (int) f.join());
+        }
     }
 
     /**
@@ -263,10 +258,11 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         Supplier<Integer> nextIndex = new AtomicInteger()::incrementAndGet;
         Function<Integer, CompletableFuture<Integer>> itemProcessor = i -> CompletableFuture.completedFuture(nextIndex.get());
         @Cleanup
-        val p = new TestProcessor(CAPACITY, itemProcessor, executorService());
+        val p = new TestProcessor(CAPACITY, executorService());
         val resultFutures = new ArrayList<CompletableFuture<Integer>>(itemCount);
         for (int i = 0; i < itemCount; i++) {
-            resultFutures.add(p.process(i));
+            val item = i;
+            resultFutures.add(p.execute(() -> itemProcessor.apply(item)));
         }
 
         // Verify they have been executed in order.
@@ -276,13 +272,13 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static class TestProcessor extends OrderedItemProcessor<Integer, Integer> {
+    private static class TestProcessor extends OrderedProcessor<Integer> {
         @Getter
         @Setter
         Runnable executionCompleteCallback;
 
-        TestProcessor(int capacity, Function<Integer, CompletableFuture<Integer>> processor, Executor executor) {
-            super(capacity, processor, executor);
+        TestProcessor(int capacity, Executor executor) {
+            super(capacity, executor);
         }
 
         @Override
