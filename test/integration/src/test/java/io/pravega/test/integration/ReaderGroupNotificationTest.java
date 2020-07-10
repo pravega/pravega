@@ -300,8 +300,6 @@ public class ReaderGroupNotificationTest {
                                 segmentNotifier.pollNow();
                                 SegmentNotification initialSegmentNotification = notificationResults.poll();
                                 log.info("notification={}", initialSegmentNotification);
-                                assertNotNull(initialSegmentNotification);
-                                assertEquals(1, initialSegmentNotification.getNumOfReaders());
                                 readerGroup.resetReaderGroup(readerGroupConfig);
                                 readerGroup.readerOffline("readerId", null);
                                 long segmentSize = streamSegments.getSegments().size();
