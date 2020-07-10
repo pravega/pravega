@@ -54,6 +54,21 @@ public class IoBufferTest {
     }
     
     @Test
+    public void testMedium() throws IOException {
+        TestInputStream in = new TestInputStream();
+        IoBuffer buffer = new IoBuffer();
+        in.numAvailable = 10;
+        ByteBuf buf = buffer.getBuffOfSize(in, 4);
+        assertEquals(buf.readableBytes(), 4);
+        in.numAvailable = 6;
+        buf = buffer.getBuffOfSize(in, 10);
+        assertEquals(buf.readableBytes(), 10);
+        in.numAvailable = 2;
+        in.atEof = true;
+        AssertExtensions.assertThrows(EOFException.class, () -> buffer.getBuffOfSize(in, 4));
+    }
+    
+    @Test
     public void testLong() throws IOException {
         TestInputStream in = new TestInputStream();
         IoBuffer buffer = new IoBuffer();
