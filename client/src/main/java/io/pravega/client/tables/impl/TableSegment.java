@@ -16,6 +16,7 @@ import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -56,9 +57,17 @@ public interface TableSegment extends AutoCloseable {
 
     /**
      * The maximum length of a Table Segment Value.
-     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_VALUE_LENGTH().
+     * Synchronized with io.pravega.segmentstore.contracts.tables.TableStore.MAXIMUM_VALUE_LENGTH.
      */
     int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
+    /**
+     * Maximum number of Entries that can be updated, removed or retrieved with a single request.
+     */
+    int MAXIMUM_BATCH_KEY_COUNT = 256;
+    /**
+     * Maximum total serialization length of all keys and values for any given request.
+     */
+    int MAXIMUM_BATCH_LENGTH = WireCommands.MAX_WIRECOMMAND_SIZE - 8192;
 
     /**
      * Inserts a new or updates an existing Table Entry into this Table Segment.
