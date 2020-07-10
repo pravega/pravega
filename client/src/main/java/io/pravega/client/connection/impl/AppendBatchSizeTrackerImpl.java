@@ -9,6 +9,7 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
@@ -30,14 +31,19 @@ import java.util.function.Supplier;
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
 public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
-    private static final double NANOS_PER_MILLI = AbstractTimer.NANOS_TO_MILLIS;
     
     // This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
-    private static final int MAX_BATCH_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_MAX_BATCH_SIZE",
+    @VisibleForTesting
+    static final int MAX_BATCH_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_MAX_BATCH_SIZE",
                                                                  2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
-    private static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
-    private static final int BASE_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_SIZE", 0);
-    private static final double OUTSTANDING_FRACTION = 1.0 / EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
+    @VisibleForTesting
+    static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
+    @VisibleForTesting
+    static final int BASE_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_SIZE", 0);
+    @VisibleForTesting
+    static final double OUTSTANDING_FRACTION = 1.0 / EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
+    
+    private static final double NANOS_PER_MILLI = AbstractTimer.NANOS_TO_MILLIS;
     
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
