@@ -11,6 +11,7 @@ package io.pravega.client.tables.impl;
 
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTable;
@@ -60,6 +61,11 @@ public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
         return this.keyValueTable;
     }
 
+    @Override
+    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+        return new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, keySerializer, valueSerializer);
+    }
+
     @Before
     public void setup() throws Exception {
         super.setup();
@@ -69,7 +75,7 @@ public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
         this.controller.createKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).build());
         this.segmentFactory = new MockTableSegmentFactory(getSegmentCount(), executorService());
-        this.keyValueTable = new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, KEY_SERIALIZER, VALUE_SERIALIZER);
+        this.keyValueTable = createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
     }
 
     @After
