@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -117,6 +118,14 @@ public class ClientFactoryTest {
         assertEquals(writerConfig, txnWriter.getConfig());
         val txnWriter2 = clientFactory.createTransactionalEventWriter( "stream1", new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, txnWriter2.getConfig());
+    }
+    
+    @Test
+    public void testGetters() {
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("scope", controllerClient, connectionFactory);
+        assertNotNull(clientFactory.getConnectionPool());
+        assertNotNull(clientFactory.getController());
     }
     
 }
