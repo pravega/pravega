@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -540,7 +541,8 @@ public final class WireCommands {
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
-        AppendBlock(UUID writerId, ByteBuf data) {
+        @VisibleForTesting
+        public AppendBlock(UUID writerId, ByteBuf data) {
             this.writerId = writerId;
             this.data = data;
         }

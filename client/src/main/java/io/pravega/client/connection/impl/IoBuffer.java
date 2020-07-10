@@ -9,6 +9,7 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.MathHelpers;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 /**
  * This is a utility class for repeatedly reading data from an input stream, that tries to buffer data in a way that minimizes allocations.
@@ -27,6 +30,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 @NotThreadSafe
 class IoBuffer {
     private final int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private ByteBuffer buffer = null;
     
     private ByteBuf sliceOut(int size) {
@@ -45,6 +50,11 @@ class IoBuffer {
         if (size > maxBufferSize) {
             throw new IllegalArgumentException("Requested buffer size " + size + " is larger than maximum allowed"
                     + maxBufferSize);
+        }
+        if (size == 0) {
+            // Technically this should not need to be special cased per the Javadoc of InputStrem, 
+            // but ByteArrayInputStream has a bug that makes this needed.
+            return Unpooled.EMPTY_BUFFER;
         }
         if (buffer == null) {
             int bufferSize = MathHelpers.minMax(in.available(), size, maxBufferSize);
