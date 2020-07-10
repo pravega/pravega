@@ -159,7 +159,6 @@ class TableSegmentImpl implements TableSegment {
                 final int sliceStart = index;
                 final int sliceLength = Math.min(MAX_GET_KEY_BATCH_SIZE, wireKeys.size() - sliceStart);
                 futures.add(processor.execute(() -> fetchSlice(resultBuilder.slice(sliceStart, sliceStart + sliceLength))));
-                //futures.add(fetchSlice(resultBuilder.slice(index, index + sliceLength)));
                 index += sliceLength;
             }
 
