@@ -60,6 +60,8 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
 
     protected abstract KeyValueTable<Integer, String> createKeyValueTable();
 
+    protected abstract <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer);
+
     protected int getKeyFamilyCount() {
         return DEFAULT_KEY_FAMILY_COUNT;
     }
@@ -73,7 +75,7 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
     }
 
     private int getKeysWithoutKeyFamily() {
-        return getKeyFamilyCount() * getKeysPerKeyFamily();
+        return Math.min(TableSegment.MAXIMUM_BATCH_KEY_COUNT, getKeyFamilyCount() * getKeysPerKeyFamily());
     }
 
     protected void forEveryKey(BiConsumer<String, Integer> handler) {
