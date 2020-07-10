@@ -415,6 +415,9 @@ public abstract class AbstractService implements Service {
                                                                                       .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED")
                                                                         .withValue(secure.toString())
+                                                                        .build(),
+                                                                new V1EnvVarBuilder().withName("TLS_ENABLED_FOR_SEGMENT_STORE")
+                                                                        .withValue(secure.toString())
                                                                         .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)
