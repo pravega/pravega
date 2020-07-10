@@ -9,11 +9,13 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +24,8 @@ public class FlowClientConnection implements ClientConnection {
 
     @Getter
     private final String connectionName;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ClientConnection channel;
     @Getter
     private final int flowId;

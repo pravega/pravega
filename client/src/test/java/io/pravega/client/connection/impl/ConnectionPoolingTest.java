@@ -60,6 +60,7 @@ import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ConnectionPoolingTest {
@@ -163,6 +164,93 @@ public class ConnectionPoolingTest {
     }
 
     @Test
+    public void testNonPooling() throws Exception {
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
+                                          + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .maxConnectionsPerSegmentStore(1)
+                .build();
+        @Cleanup
+        SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(clientConfig, 1);
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, factory);
+
+        ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);
+        FailingReplyProcessor rp = new FailingReplyProcessor() {
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void segmentRead(WireCommands.SegmentRead data) {
+                msgRead.add(data);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        };
+
+        Flow flow1 = new Flow(1, 0);
+        @Cleanup
+        ClientConnection connection1 = connectionPool.getClientConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
+
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
+
+        WireCommands.SegmentRead msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
+        assertEquals(1, connectionPool.getActiveChannels().size()); 
+
+        // create a second connection, since not using a flow.
+        @Cleanup
+        ClientConnection connection2 = connectionPool.getClientConnection(new PravegaNodeUri("localhost", port), rp).join();
+
+        Flow flow2 = new Flow(2, 0);
+        // send data over connection2 and verify.
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
+
+        assertEquals(1, connectionPool.getActiveChannels().size()); 
+        assertEquals(2, factory.getOpenSocketCount());
+        
+        // send data over connection1 and verify.
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
+
+        // send data over connection2 and verify.
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
+
+        // close a client connection, this should not close the channel.
+        connection2.close();
+        assertThrows(ConnectionFailedException.class, () -> connection2.send(readRequestGenerator.apply(flow2.asLong())));
+        // verify we are able to send data over connection1.
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
+
+        // close connection1
+        connection1.close();
+        assertThrows(ConnectionFailedException.class, () -> connection1.send(readRequestGenerator.apply(flow2.asLong())));
+        AssertExtensions.assertEventuallyEquals(0, () -> {
+            connectionPool.pruneUnusedConnections();
+            return factory.getOpenSocketCount();
+        }, 10000);
+        assertEquals(0, connectionPool.getActiveChannels().size()); 
+    }
+    
+    @Test
     public void testConnectionPooling() throws Exception {
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
@@ -206,6 +294,7 @@ public class ConnectionPoolingTest {
 
         WireCommands.SegmentRead msg = msgRead.take();
         assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
+        assertEquals(1, connectionPool.getActiveChannels().size()); 
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
@@ -217,6 +306,9 @@ public class ConnectionPoolingTest {
         msg = msgRead.take();
         assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
 
+        assertEquals(1, connectionPool.getActiveChannels().size()); 
+        assertEquals(1, factory.getOpenSocketCount());
+        
         // send data over connection1 and verify.
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
         msg = msgRead.take();
@@ -242,7 +334,101 @@ public class ConnectionPoolingTest {
             connectionPool.pruneUnusedConnections();
             return factory.getOpenSocketCount();
         }, 10000);
+        assertEquals(0, connectionPool.getActiveChannels().size()); 
+    }
+    
+    @Test
+    public void testPoolBalancing() throws Exception {
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
+                                          + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .maxConnectionsPerSegmentStore(2)
+                .build();
+        @Cleanup
+        SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(clientConfig, 1);
+        @Cleanup
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, factory);
 
+        ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);
+        FailingReplyProcessor rp = new FailingReplyProcessor() {
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void segmentRead(WireCommands.SegmentRead data) {
+                msgRead.add(data);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        };
+
+        Flow flow1 = new Flow(1, 0);
+        @Cleanup
+        ClientConnection connection1 = connectionPool.getClientConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
+
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
+
+        WireCommands.SegmentRead msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
+        
+        assertEquals(1, factory.getOpenSocketCount());
+
+        // create a second connection, since the max number of connections is 2 this should not reuse the same connection.
+        Flow flow2 = new Flow(2, 0);
+        @Cleanup
+        ClientConnection connection2 = connectionPool.getClientConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
+
+        // send data over connection2 and verify.
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
+        
+        assertEquals(2, factory.getOpenSocketCount());
+        assertNotEquals(((FlowClientConnection) connection1).getChannel(),
+                        ((FlowClientConnection) connection2).getChannel());
+
+        // create a second connection, since the max number of connections is 2 this should reuse the same connection.
+        Flow flow3 = new Flow(3, 0);
+        @Cleanup
+        ClientConnection connection3 = connectionPool.getClientConnection(flow3, new PravegaNodeUri("localhost", port), rp).join();
+
+        // send data over connection3 and verify.
+        connection3.send(readRequestGenerator.apply(flow3.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow3.asLong()), msg);
+        
+        assertEquals(2, factory.getOpenSocketCount());
+        
+        assertEquals(((FlowClientConnection) connection1).getChannel(),
+                     ((FlowClientConnection) connection3).getChannel());
+        
+        Flow flow4 = new Flow(3, 0);
+        @Cleanup
+        ClientConnection connection4 = connectionPool.getClientConnection(flow4, new PravegaNodeUri("localhost", port), rp).join();
+
+        // send data over connection3 and verify.
+        connection3.send(readRequestGenerator.apply(flow4.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(flow4.asLong()), msg);
+        
+        assertEquals(2, factory.getOpenSocketCount());
+        assertEquals(2, connectionPool.getActiveChannels().size()); 
+        
+        assertNotEquals(((FlowClientConnection) connection3).getChannel(),
+                        ((FlowClientConnection) connection4).getChannel());
+        assertEquals(((FlowClientConnection) connection2).getChannel(),
+                     ((FlowClientConnection) connection4).getChannel());
     }
 
     @Test
@@ -287,7 +473,9 @@ public class ConnectionPoolingTest {
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
         ClientConnection connection2 = connectionPool.getClientConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
-
+        assertEquals(1, factory.getOpenSocketCount());
+        assertEquals(1, connectionPool.getActiveChannels().size()); 
+        
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
         connection2.send(readRequestGenerator.apply(flow2.asLong()));
 
@@ -303,6 +491,7 @@ public class ConnectionPoolingTest {
             connectionPool.pruneUnusedConnections();
             return factory.getOpenSocketCount();
         }, 10000);
+        assertEquals(0, connectionPool.getActiveChannels().size()); 
     }
 
 }
