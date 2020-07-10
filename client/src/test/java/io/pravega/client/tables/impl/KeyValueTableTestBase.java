@@ -394,11 +394,11 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testLargeEntryBatchRetrieval() {
-        val maxSize = TableSegment.MAXIMUM_BATCH_LENGTH * 5; // Sufficiently large to require multiple requests and throttling.
+        val keyCount = TableSegment.MAXIMUM_BATCH_KEY_COUNT;
         val keyFamily = "a";
 
         Function<Integer, byte[]> getValue = keyId -> {
-            val result = new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH];
+            val result = new byte[Long.BYTES];
             BitConverter.writeInt(result, 0, keyId + 1);
             return result;
         };
@@ -407,16 +407,12 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         val kvt = createKeyValueTable(new ByteArraySerializer(), new ByteArraySerializer());
 
         // Update the entries one-by-one to make sure we do not exceed the max lengths at this step.
-        int estimatedSize = 0;
         val allKeys = new ArrayList<byte[]>();
-        while (estimatedSize < maxSize) {
-            int keyId = allKeys.size();
+        for (int keyId = 0; keyId < keyCount; keyId++) {
             val key = new byte[KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH];
             BitConverter.writeInt(key, 0, keyId);
             val value = getValue.apply(keyId);
-            val e = new AbstractMap.SimpleImmutableEntry<>(key, value);
             kvt.put(keyFamily, key, value).join();
-            estimatedSize += e.getKey().length + e.getValue().length;
             allKeys.add(key);
         }
 
