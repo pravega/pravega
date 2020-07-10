@@ -250,16 +250,6 @@ public class ReaderGroupNotificationTest {
         groupManager.createReaderGroup("reader", readerGroupConfig);
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("reader");
-        
-        val notificationResults = new ArrayBlockingQueue<SegmentNotification>(10);
-
-        //Add segment event listener
-        Listener<SegmentNotification> l1 = notification -> {
-            log.info("Number of Segments: {}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
-            notificationResults.add(notification);
-        };
-        SegmentNotifier segmentNotifier = (SegmentNotifier) readerGroup.getSegmentNotifier(executor);
-        segmentNotifier.registerListener(l1);
 
         long start = System.currentTimeMillis();
         log.info("Segments found as: {}", controller.getCurrentSegments(SCOPE, streamName).get());
@@ -299,9 +289,19 @@ public class ReaderGroupNotificationTest {
                                     assertNotNull(result);
                                     assertTrue(result.getEvent().equals("data"));
                                 }
+                                val notificationResults = new ArrayBlockingQueue<SegmentNotification>(10);
+                                //Add segment event listener
+                                Listener<SegmentNotification> l1 = notification -> {
+                                    log.info("Number of Segments: {}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
+                                    notificationResults.add(notification);
+                                };
+                                SegmentNotifier segmentNotifier = (SegmentNotifier) readerGroup.getSegmentNotifier(executor);
+                                segmentNotifier.registerListener(l1);
                                 segmentNotifier.pollNow();
                                 SegmentNotification initialSegmentNotification = notificationResults.poll();
                                 log.info("notification={}", initialSegmentNotification);
+                                assertNotNull(initialSegmentNotification);
+                                assertEquals(1, initialSegmentNotification.getNumOfReaders());
                                 readerGroup.resetReaderGroup(readerGroupConfig);
                                 readerGroup.readerOffline("readerId", null);
                                 long segmentSize = streamSegments.getSegments().size();
