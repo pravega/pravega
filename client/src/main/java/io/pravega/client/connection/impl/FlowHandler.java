@@ -25,7 +25,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,8 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     private ClientConnection channel; //Final (set in factory after construction)
     @Getter
     private final MetricNotifier metricNotifier;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final KeepAliveTask keepAliveTask = new KeepAliveTask();
     private ScheduledFuture<?> keepAliveFuture; //Final (set in factory after construction)
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
@@ -61,7 +65,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         FlowHandler flowHandler = new FlowHandler(location, updateMetric);
         return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {
             flowHandler.channel = connection;
-            flowHandler.keepAliveFuture = connectionFactory.getInternalExecutor().scheduleWithFixedDelay(flowHandler.keepAliveTask, 20, 10, TimeUnit.SECONDS);
+            flowHandler.keepAliveFuture = connectionFactory.getInternalExecutor().scheduleAtFixedRate(flowHandler.keepAliveTask, 20, 10, TimeUnit.SECONDS);
             try {
                 connection.send(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
             } catch (ConnectionFailedException e) {
@@ -108,7 +112,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
      * Close a flow. This is invoked when the ClientConnection is closed.
      * @param clientConnection Client Connection.
      */
-    public void closeFlow(FlowClientConnection clientConnection) {
+    void closeFlow(FlowClientConnection clientConnection) {
         int flow = clientConnection.getFlowId();
         log.info("Closing Flow {} for endpoint {}", flow, clientConnection.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
@@ -167,7 +171,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     @Override
     public void process(Reply cmd) {
         log.debug("{} processing reply {} with flow {}", location, cmd, Flow.from(cmd.getRequestId()));
-
+        setRecentMessage();
         if (cmd instanceof WireCommands.Hello) {
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
                 try {
@@ -259,17 +263,29 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         return closed.get();
     }
 
-    private final class KeepAliveTask implements Runnable {
+    @VisibleForTesting
+    final class KeepAliveTask implements Runnable {
+        private AtomicInteger concurrentlyRunning = new AtomicInteger(0);
         @Override
         public void run() {
             try {
                 if (!recentMessage.getAndSet(false) && !closed.get()) {
+                    int running = concurrentlyRunning.getAndIncrement();
+                    if (running > 0) {
+                        handleError(new TimeoutException("KeepAliveTask: Connection write was blocked for too long."));
+                    }
                     channel.send(new WireCommands.KeepAlive());
+                    concurrentlyRunning.decrementAndGet();
                 }
             } catch (Exception e) {
-                log.warn("Failed to send KeepAlive to {}. Closing this connection.", location, e);
-                close();
+                handleError(e);
             }
+        }
+        
+        @VisibleForTesting
+        void handleError(Exception e) {
+            log.warn("Failed to send KeepAlive to {}. Closing this connection.", location, e);
+            close();
         }
     }
 
