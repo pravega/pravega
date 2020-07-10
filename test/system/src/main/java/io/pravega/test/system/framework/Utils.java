@@ -89,7 +89,7 @@ public class Utils {
         }
     }
 
-    public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName, Boolean secure) {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
@@ -97,13 +97,16 @@ public class Utils {
                 return new PravegaControllerDockerService(serviceName, zkUri);
             case KUBERNETES:
             default:
-                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties());
+                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties(), secure);
         }
-
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
         return createPravegaControllerService(zkUri, "controller");
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
+        return createPravegaControllerService(zkUri, serviceName, false);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
