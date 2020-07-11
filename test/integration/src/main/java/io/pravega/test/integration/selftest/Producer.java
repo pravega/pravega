@@ -125,7 +125,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
                                                        try { 
                                                            return executeOperation(op);
                                                        } catch (TxnFailedException ex) {
-                                                           throw new CompletionException(ex); 
+                                                           return Futures.failedFuture(ex);
                                                        }
                                                    }, this.executorService);
                 } else {

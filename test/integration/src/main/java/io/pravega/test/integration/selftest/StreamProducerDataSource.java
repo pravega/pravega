@@ -265,7 +265,7 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
         try {
             return this.store.deleteStream(name, this.config.getTimeout());
         } catch (TxnFailedException ex) {
-            throw new CompletionException(ex);
+            return Futures.failedFuture(ex);
         }
     }
 

@@ -26,7 +26,7 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
      * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
      * Note that transactions can only be open for {@link EventWriterConfig#transactionTimeoutTime}.
      * 
-     * @throws TxnFailedException This exception could be thrown on beginTxn
+     * @throws TxnFailedException The Transaction is no longer in state {@link Transaction.Status#OPEN}
      * @return A transaction through which multiple events can be written atomically.
      */
     Transaction<Type> beginTxn() throws TxnFailedException;
@@ -35,7 +35,7 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
      * Returns a previously created transaction.
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
-     * @throws TxnFailedException This exception could be thrown on getTxn
+     * @throws TxnFailedException The Transaction is no longer in state {@link Transaction.Status#OPEN}
      * @return Transaction object with given UUID
      */
     Transaction<Type> getTxn(UUID transactionId) throws TxnFailedException;

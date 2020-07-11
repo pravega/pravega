@@ -525,7 +525,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         try {
              return txn.checkStatus();
         } catch (Exception ex) {
-             throw new CompletionException(ex);
+             return Futures.failedFuture(ex);
         }
     }
 

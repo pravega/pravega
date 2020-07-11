@@ -90,7 +90,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
         try {
             return run();
         } catch (TxnFailedException ex) {
-            throw new RuntimeException(ex);
+            return Futures.failedFuture(ex);
         }
     }
 
