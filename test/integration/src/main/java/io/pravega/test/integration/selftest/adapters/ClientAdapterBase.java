@@ -153,7 +153,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) throws TxnFailedException {
         ensureRunning();
         String parentName = NameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
@@ -171,7 +171,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) throws TxnFailedException {
         ensureRunning();
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
@@ -210,19 +210,23 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) throws TxnFailedException {
         ensureRunning();
         return CompletableFuture.supplyAsync(() -> {
-            TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
-            UUID txnId = writer.beginTxn().getTxnId();
-            String txnName = NameUtils.getTransactionNameFromId(parentStream, txnId);
-            this.transactionIds.put(txnName, txnId);
-            return txnName;
+            try {
+               TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
+               UUID txnId = writer.beginTxn().getTxnId();
+               String txnName = NameUtils.getTransactionNameFromId(parentStream, txnId);
+               this.transactionIds.put(txnName, txnId);
+               return txnName;
+            } catch (TxnFailedException ex) {
+               throw new CompletionException(ex);
+            }
         }, this.testExecutor);
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException {
         ensureRunning();
         String parentStream = NameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
@@ -240,7 +244,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException {
         ensureRunning();
         String parentStream = NameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
@@ -249,6 +253,8 @@ abstract class ClientAdapterBase extends StoreAdapter {
                 UUID txnId = getTransactionId(transactionName);
                 Transaction<byte[]> txn = writer.getTxn(txnId);
                 txn.abort();
+            } catch (TxnFailedException ex) {
+                throw new CompletionException(ex);
             } finally {
                 this.transactionIds.remove(transactionName);
             }

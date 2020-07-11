@@ -305,7 +305,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertTrue(result);
     }
 
-    private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) {
+    private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) throws TxnFailedException {
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", streamName, new JavaSerializer<>(),
                 config);

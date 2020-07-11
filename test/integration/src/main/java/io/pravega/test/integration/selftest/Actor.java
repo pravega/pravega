@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -81,8 +82,16 @@ abstract class Actor extends AbstractService implements AutoCloseable {
         notifyStarted();
         this.runTask = Futures
                 .delayedFuture(INITIAL_DELAY, this.executorService)
-                .thenCompose(v -> run());
+                .thenCompose(v -> runWithException());
         this.runTask.whenComplete((r, ex) -> stopAsync());
+    }
+
+    private CompletableFuture<Void> runWithException() {
+        try {
+            return run();
+        } catch(TxnFailedException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Override
@@ -119,7 +128,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     /**
      * Executes the role of this Actor.
      */
-    protected abstract CompletableFuture<Void> run();
+    protected abstract CompletableFuture<Void> run() throws TxnFailedException;
 
     /**
      * Gets a value indicating the Id to use in logging for this Actor.

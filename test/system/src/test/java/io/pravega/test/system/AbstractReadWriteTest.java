@@ -23,6 +23,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -502,7 +504,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     private CompletableFuture<Void> checkTxnStatus(Transaction<String> txn, int eventsWritten) {
         testState.committingTxn.add(txn.getTxnId());
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
-            Transaction.Status status = txn.checkStatus();
+            Transaction.Status status = this.checkStatusThrowing(txn);
             log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
                 testState.incrementTotalWrittenEvents(eventsWritten);
@@ -517,6 +519,14 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
             return CompletableFuture.completedFuture(null);
         }, executorService);
+    }
+
+    private Transaction.Status checkStatusThrowing(Transaction<String> txn) {
+        try {
+             return txn.checkStatus();
+        } catch (Exception ex) {
+             throw new CompletionException(ex);
+        }
     }
 
     private <T> int readEvents(EventStreamReader<T> reader, int limit) {

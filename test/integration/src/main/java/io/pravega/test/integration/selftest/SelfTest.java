@@ -17,6 +17,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;

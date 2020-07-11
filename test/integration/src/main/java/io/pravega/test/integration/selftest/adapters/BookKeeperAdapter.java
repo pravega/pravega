@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -192,17 +193,17 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) throws TxnFailedException {
         throw new UnsupportedOperationException("createTransaction() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException {
         throw new UnsupportedOperationException("mergeTransaction() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException {
         throw new UnsupportedOperationException("abortTransaction() is not supported on " + this.logId);
     }
 

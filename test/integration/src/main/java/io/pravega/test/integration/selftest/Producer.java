@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.Map;
@@ -120,7 +121,12 @@ class Producer<T extends ProducerUpdate> extends Actor {
                 CompletableFuture<Void> waitOn = op.getWaitOn();
                 if (waitOn != null) {
                     result = Futures.exceptionallyExpecting(waitOn, ex -> true, null)
-                            .thenComposeAsync(v -> executeOperation(op), this.executorService);
+                            .thenComposeAsync(v -> {
+                                                   try { 
+                                                       return executeOperation(op);
+                                                   } catch(TxnFailedException ex) {
+                                                       throw new CompletionException(ex); 
+                                                   }}  , this.executorService);
                 } else {
                     result = executeOperation(op);
                 }
@@ -179,7 +185,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
     /**
      * Executes the given operation.
      */
-    private CompletableFuture<Void> executeOperation(ProducerOperation<T> operation) {
+    private CompletableFuture<Void> executeOperation(ProducerOperation<T> operation) throws TxnFailedException {
         OperationExecutor e = this.executors.get(operation.getType());
         Preconditions.checkArgument(e != null, "Unsupported Operation Type: %s.", operation.getType());
         return e.execute(operation);
@@ -199,7 +205,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
          * @param operation The {@link ProducerOperation} to execute.
          * @return A CompletableFuture that will be completed when the operation execution completes.
          */
-        CompletableFuture<Void> execute(ProducerOperation<T> operation) {
+        CompletableFuture<Void> execute(ProducerOperation<T> operation) throws TxnFailedException {
             StoreAdapter.Feature requiredFeature = getFeature();
             if (requiredFeature != null) {
                 requiredFeature.ensureSupported(Producer.this.store, getOperationName());
@@ -231,7 +237,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
          * @param operation The {@link ProducerOperation} to execute.
          * @return A CompletableFuture that will be completed when the operation execution completes.
          */
-        protected abstract CompletableFuture<Void> executeInternal(ProducerOperation<T> operation);
+        protected abstract CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException;
 
         @SneakyThrows
         private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
@@ -258,7 +264,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             return Producer.this.store.createTransaction(operation.getTarget(), Producer.this.config.getTimeout())
                     .thenAccept(operation::setResult);
         }
@@ -280,7 +286,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
 
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
@@ -300,7 +306,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
@@ -320,7 +326,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             Event event = (Event) operation.getUpdate();
             operation.setLength(event.getSerialization().getLength());
             return Producer.this.store.append(operation.getTarget(), event, Producer.this.config.getTimeout());
@@ -342,7 +348,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             return Producer.this.store.sealStream(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
@@ -359,7 +365,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             TableUpdate update = (TableUpdate) operation.getUpdate();
             return Producer.this.store.updateTableEntry(operation.getTarget(), update.getKey(), update.getValue(), update.getVersion(), Producer.this.config.getTimeout())
                     .thenAccept(operation::setResult);
@@ -378,7 +384,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) throws TxnFailedException {
             TableUpdate update = (TableUpdate) operation.getUpdate();
             return Producer.this.store.removeTableEntry(operation.getTarget(), update.getKey(), update.getVersion(), Producer.this.config.getTimeout());
         }

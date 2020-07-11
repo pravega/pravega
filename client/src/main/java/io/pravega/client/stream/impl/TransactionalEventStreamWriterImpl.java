@@ -133,7 +133,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         }
 
         @Override
-        public void abort() {
+        public void abort() throws TxnFailedException {
             log.info("Abort transaction {}", txId);
             if (!closed.get()) {
                 pinger.stopPing(txId);
@@ -144,15 +144,15 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
-                getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
+                getAndHandleExceptions(controller.abortTransaction(stream, txId), TxnFailedException::new);
                 closed.set(true);
             }
         }
 
         @Override
-        public Status checkStatus() {
+        public Status checkStatus() throws TxnFailedException {
             log.info("Check transaction status {}", txId);
-            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), TxnFailedException::new);
         }
 
         @Override
@@ -176,9 +176,9 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     }
 
     @Override
-    public Transaction<Type> beginTxn() {
+    public Transaction<Type> beginTxn() throws TxnFailedException {
         TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
-                RuntimeException::new);
+                TxnFailedException::new);
         log.info("Transaction {} created", txnSegments.getTxnId());
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
@@ -198,16 +198,16 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     }
 
     @Override
-    public Transaction<Type> getTxn(UUID txId) {
+    public Transaction<Type> getTxn(UUID txId) throws TxnFailedException {
         // check if the transaction is open.
-        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), TxnFailedException::new);
         if (status != Status.OPEN) {
             return new TransactionImpl<>(writerId, txId, controller, stream);
         }
 
         // get the segments corresponding to the transaction.
         StreamSegments segments = getAndHandleExceptions(
-                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getEpoch(txId)), RuntimeException::new);
+                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getEpoch(txId)), TxnFailedException::new);
         assert segments != null : "Epoch segments returned is null";
         Preconditions.checkState(segments.getSegments().size() > 0, "There should be at least 1 epoch segment");
 

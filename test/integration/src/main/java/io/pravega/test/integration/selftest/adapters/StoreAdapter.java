@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
@@ -63,7 +64,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the Event is appended.
      */
-    public abstract CompletableFuture<Void> append(String streamName, Event event, Duration timeout);
+    public abstract CompletableFuture<Void> append(String streamName, Event event, Duration timeout) throws TxnFailedException;
 
     /**
      * Creates a new StoreReader that can read from this Store.
@@ -86,7 +87,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @return A CompletableFuture that will be completed when the operation is complete and will contain the name of the
      * Transaction.
      */
-    public abstract CompletableFuture<String> createTransaction(String parentStream, Duration timeout);
+    public abstract CompletableFuture<String> createTransaction(String parentStream, Duration timeout) throws TxnFailedException;
 
     /**
      * Merges a Transaction.
@@ -95,7 +96,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
+    public abstract CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException;
 
     /**
      * Aborts a Transaction.
@@ -104,7 +105,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout);
+    public abstract CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException;
 
     /**
      * Seals a Stream.
@@ -122,7 +123,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> deleteStream(String streamName, Duration timeout);
+    public abstract CompletableFuture<Void> deleteStream(String streamName, Duration timeout) throws TxnFailedException;
 
     //endregion
 
