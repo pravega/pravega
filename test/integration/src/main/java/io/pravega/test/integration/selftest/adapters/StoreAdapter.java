@@ -62,6 +62,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param streamName The name of the Stream to append to.
      * @param event      The Event to append.
      * @param timeout    Timeout for the operation.
+     * @throws TxnFailedException The exception thrown when an error occurs with the use of transaction
      * @return A CompletableFuture that will be completed when the Event is appended.
      */
     public abstract CompletableFuture<Void> append(String streamName, Event event, Duration timeout) throws TxnFailedException;
@@ -84,6 +85,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * Creates a new Transaction.
      * @param parentStream The Stream on which to create a transaction.
      * @param timeout Timeout for the operation.
+     * @throws TxnFailedException The exception thrown when an error occurs with the use of transaction
      * @return A CompletableFuture that will be completed when the operation is complete and will contain the name of the
      * Transaction.
      */
@@ -94,6 +96,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      *
      * @param transactionName The Transaction to merge.
      * @param timeout         Timeout for the operation.
+     * @throws TxnFailedException The exception thrown when an error occurs with the use of transaction
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
     public abstract CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException;
@@ -103,6 +106,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      *
      * @param transactionName The Transaction to abort.
      * @param timeout         Timeout for the operation.
+     * @throws TxnFailedException The exception thrown when an error occurs with the use of transaction
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
     public abstract CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException;
@@ -121,6 +125,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      *
      * @param streamName The Stream to delete.
      * @param timeout    Timeout for the operation.
+     * @throws TxnFailedException The exception thrown when an error occurs with the use of transaction
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
     public abstract CompletableFuture<Void> deleteStream(String streamName, Duration timeout) throws TxnFailedException;

@@ -122,11 +122,12 @@ class Producer<T extends ProducerUpdate> extends Actor {
                 if (waitOn != null) {
                     result = Futures.exceptionallyExpecting(waitOn, ex -> true, null)
                             .thenComposeAsync(v -> {
-                                                   try { 
-                                                       return executeOperation(op);
-                                                   } catch(TxnFailedException ex) {
-                                                       throw new CompletionException(ex); 
-                                                   }}  , this.executorService);
+                                                       try { 
+                                                           return executeOperation(op);
+                                                       } catch (TxnFailedException ex) {
+                                                           throw new CompletionException(ex); 
+                                                       }
+                                                   }, this.executorService);
                 } else {
                     result = executeOperation(op);
                 }

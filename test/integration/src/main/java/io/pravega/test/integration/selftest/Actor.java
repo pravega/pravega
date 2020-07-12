@@ -89,7 +89,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     private CompletableFuture<Void> runWithException() {
         try {
             return run();
-        } catch(TxnFailedException ex) {
+        } catch (TxnFailedException ex) {
             throw new RuntimeException(ex);
         }
     }
