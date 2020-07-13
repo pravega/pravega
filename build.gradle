@@ -555,17 +555,10 @@ project('test:integration') {
 
     /**
      * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool .
+     * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
      */
     task startInteractiveDemo(type: JavaExec) {
         main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-        systemProperties System.getProperties()
-        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
-    }
-
-    task startChatDemo(type: JavaExec) {
-        main = "io.pravega.test.integration.demo.ChatService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         systemProperties System.getProperties()
