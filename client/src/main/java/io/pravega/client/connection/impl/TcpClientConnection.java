@@ -190,11 +190,11 @@ public class TcpClientConnection implements ClientConnection {
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
                 try {
-                    onClose.run();
                     socket.close();
                 } catch (IOException e1) {
                     log.warn("Failed to close socket while failing.", e1);
                 }
+                onClose.run();
                 throw Exceptions.sneakyThrow(e);
             }
         }, executor);
