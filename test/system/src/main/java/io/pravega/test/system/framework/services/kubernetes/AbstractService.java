@@ -11,40 +11,13 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1Container;
-import io.kubernetes.client.openapi.models.V1ContainerBuilder;
-import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
-import io.kubernetes.client.openapi.models.V1Deployment;
-import io.kubernetes.client.openapi.models.V1DeploymentBuilder;
-import io.kubernetes.client.openapi.models.V1DeploymentSpecBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarSourceBuilder;
-import io.kubernetes.client.openapi.models.V1LabelSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
-import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionSpecBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionStatus;
-import io.kubernetes.client.openapi.models.V1beta1PolicyRuleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1Role;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
-import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1RoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.*;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -71,9 +44,8 @@ public abstract class AbstractService implements Service {
     static final int BOOKKEEPER_PORT = 3181;
     static final String NAMESPACE = "default";
 
-    static final String PRAVEGA_OPERATOR = "pravega-operator";
     static final String CUSTOM_RESOURCE_GROUP_PRAVEGA = "pravega.pravega.io";
-    static final String CUSTOM_RESOURCE_VERSION_PRAVEGA = "v1alpha1";
+    static final String CUSTOM_RESOURCE_VERSION_PRAVEGA = "v1beta1";
     static final String CUSTOM_RESOURCE_API_VERSION = CUSTOM_RESOURCE_GROUP_PRAVEGA + "/" + CUSTOM_RESOURCE_VERSION_PRAVEGA;
     static final String CUSTOM_RESOURCE_PLURAL_PRAVEGA = "pravegaclusters";
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
@@ -84,14 +56,23 @@ public abstract class AbstractService implements Service {
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
-    private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
-    private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
+    //private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
 
+    static final String BOOKKEEPER_ID = "pravega-bk";
+    static final String CUSTOM_RESOURCE_GROUP_BOOKKEEPER = "bookkeeper.pravega.io";
+    static final String CUSTOM_RESOURCE_VERSION_BOOKKEEPER = "v1alpha1";
+    static final String CUSTOM_RESOURCE_API_VERSION_BOOKKEEPER = CUSTOM_RESOURCE_GROUP_BOOKKEEPER + "/" + CUSTOM_RESOURCE_VERSION_BOOKKEEPER;
+    static final String CUSTOM_RESOURCE_PLURAL_BOOKKEEPER = "bookkeeperclusters";
+    static final String CUSTOM_RESOURCE_KIND_BOOKKEEPER = "BookkeeperCluster";
+    static final String CONFIG_MAP_BOOKKEEPER = "bk-config-map";
+    private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
+    private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
+    private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
+    private static final String LEDGERDIRECTORIES = "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3";
     final K8sClient k8sClient;
     private final String id;
 
@@ -105,55 +86,22 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
-    return k8sClient.createCRD(getPravegaCRD())
-                        .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
-                        .thenCompose(v -> k8sClient.createClusterRole(getPravegaOperatorClusterRole()))
-                        .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
-                        .thenCompose(v -> k8sClient.createClusterRoleBinding(getPravegaOperatorClusterRoleBinding()))
-                        //deploy pravega operator.
-                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment()))
-                        // wait until pravega operator is running, only one instance of operator is running.
-                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", PRAVEGA_OPERATOR, 1))
-                        // request operator to deploy zookeeper nodes.
-                        .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                                                                                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                                                                                getPravegaDeployment(zkUri.getAuthority(),
-                                                                                                   controllerCount,
-                                                                                                   segmentStoreCount,
-                                                                                                   bookieCount, props)));
+    CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount,ImmutableMap<String, String> props) {
+    return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
+            NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+            getPravegaOnlyDeployment(zkUri.getAuthority(),
+                    controllerCount,
+                    segmentStoreCount,
+                    props));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
-        // generate BookkeeperSpec.
-        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-
+    private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
-        
-        final String bookkeeperImg = DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME;
         final String pravegaImg = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
-        final Map<String, Object> bookkeeperImgSpec;
         final Map<String, Object> pravegaImgSpec;
 
-        if (IS_OPERATOR_VERSION_ABOVE_040) {
-            bookkeeperImgSpec = ImmutableMap.of("repository", bookkeeperImg);
-            pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
-        } else {
-            bookkeeperImgSpec = getImageSpec(bookkeeperImg, PRAVEGA_BOOKKEEPER_VERSION);
-            pravegaImgSpec = getImageSpec(pravegaImg, PRAVEGA_VERSION);
-        }
-        
-        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", bookkeeperImgSpec)
-                .put("replicas", bookieCount)
-                .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
-                .put("storage", ImmutableMap.builder()
-                        .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
-                        .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
-                        .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
-                        .build())
-                .put("autoRecovery", true)
-                .build();
+         pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
 
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                 .put("segmentStoreReplicas", segmentStoreCount)
@@ -163,66 +111,30 @@ public abstract class AbstractService implements Service {
                 .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                 .put("options", props)
                 .put("image", pravegaImgSpec)
-                .put("tier2", tier2Spec())
+                .put("longtermStorage", tier2Spec())
                 .build();
 
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
+                //.put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
+                .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec))
                 .build();
     }
-
-    /**
-     * As upgrade has been included in operator 0.4.0 a few changes have been included in
-     * the Pravega Cluster Spec like the image tag field for Pravega and Bookeeper has
-     * been replaced by a single version field which indicates the version for both the
-     * Pravega and Bookeeper components. Hence determining whether the operator version to
-     * be used for running the System Tests is below 0.4.0 or not is crucial.
-     *
-     * @return true if operator version used is greater or equal to 0.4.0, false otherwise.
-     */
-    private static boolean isOperatorVersionAbove040() {
-        String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
-        if (!pravegaOperatorTag.equals("latest")) {
-            String version = pravegaOperatorTag.substring(0, pravegaOperatorTag.lastIndexOf("."));
-            float v = Float.parseFloat(version);
-            if (v < 0.4) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
+    protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec) {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
-                .put("bookkeeper", bookkeeperSpec)
+                .put("bookkeeperUri", BOOKKEEPER_ID+"-"+BOOKKEEPER_LABEL+"-headless"+":"+BOOKKEEPER_PORT)
                 .put("pravega", pravegaSpec)
                 .build();
-
-        if (IS_OPERATOR_VERSION_ABOVE_040) {
-            return ImmutableMap.<String, Object>builder()
-                    .putAll(commonEntries)
-                    .put("version", PRAVEGA_VERSION)
-                    .build();
-        }
-        return commonEntries;
-
+        return ImmutableMap.<String, Object>builder()
+                .putAll(commonEntries)
+                .put("version", PRAVEGA_VERSION)
+                .build();
     }
 
-    /**
-     * Helper method to create the Pravega Cluster Spec which specifies just those values in the
-     * spec which need to be patched. Other values remain same as were specified at the time of
-     * deployment.
-     * @param service Name of the service to be patched (bookkeeper/ segment store/ controller).
-     * @param replicaCount Number of replicas.
-     * @param component Name of the component (pravega/ bookkeeper).
-     *
-     * @return the new Pravega Cluster Spec containing the values that need to be patched.
-     */
     protected static Map<String, Object> buildPatchedPravegaClusterSpec(String service, int replicaCount, String component) {
 
         final Map<String, Object> componentSpec = ImmutableMap.<String, Object>builder()
@@ -293,139 +205,77 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private V1beta1CustomResourceDefinition getPravegaCRD() {
-
-        return new V1beta1CustomResourceDefinitionBuilder()
-                .withApiVersion("apiextensions.k8s.io/v1beta1")
-                .withKind("CustomResourceDefinition")
-                .withMetadata(new V1ObjectMetaBuilder().withName("pravegaclusters.pravega.pravega.io").build())
-                .withSpec(new V1beta1CustomResourceDefinitionSpecBuilder()
-                                  .withGroup(CUSTOM_RESOURCE_GROUP_PRAVEGA)
-                                  .withNames(new V1beta1CustomResourceDefinitionNamesBuilder()
-                                                     .withKind(CUSTOM_RESOURCE_KIND_PRAVEGA)
-                                                     .withListKind("PravegaClusterList")
-                                                     .withPlural(CUSTOM_RESOURCE_PLURAL_PRAVEGA)
-                                                     .withSingular("pravegacluster")
-                                                     .build())
-                                  .withScope("Namespaced")
-                                  .withVersion(CUSTOM_RESOURCE_VERSION_PRAVEGA)
-                                  .withNewSubresources()
-                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
-                                  .endSubresources()
-                                  .build())
-                .build();
-
+    CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
+        return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
+                 // request operator to deploy bookkeeper nodes.
+                .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER,
+                        NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
+                        getBookkeeperDeployment(zkUri.getAuthority(),
+                                bookieCount,
+                                props)));
     }
 
-    private V1beta1Role getPravegaOperatorRole() {
-        return new V1beta1RoleBuilder()
-                .withKind("Role")
-                .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                .withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR).build())
-                .withRules(new V1beta1PolicyRuleBuilder().withApiGroups(CUSTOM_RESOURCE_GROUP_PRAVEGA)
-                                                         .withResources("*")
-                                                         .withVerbs("*")
-                                                         .build(),
-                           new V1beta1PolicyRuleBuilder().withApiGroups("")
-                                                         .withResources("pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets")
-                                                         .withVerbs("*")
-                                                         .build(),
-                           new V1beta1PolicyRuleBuilder().withApiGroups("apps")
-                                                         .withResources("deployments", "daemonsets", "replicasets", "statefulsets")
-                                                         .withVerbs("*")
-                                                         .build())
+    private V1ConfigMap getBookkeeperOperatorConfigMap() {
+        Map<String,String>  dataMap = new HashMap<>();
+        dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
+        dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
+        return new V1ConfigMapBuilder().withApiVersion("v1")
+                .withKind("ConfigMap")
+                .withMetadata(new V1ObjectMeta().name(CONFIG_MAP_BOOKKEEPER))
+                .withData(dataMap)
                 .build();
     }
-
-    private V1beta1ClusterRole getPravegaOperatorClusterRole() {
-        return new V1beta1ClusterRoleBuilder()
-                .withKind("ClusterRole")
-                .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                .withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR).build())
-                .withRules(new V1beta1PolicyRuleBuilder().withApiGroups("")
-                                .withResources("nodes")
-                                .withVerbs("get", "watch", "list")
-                                .build(),
-                        new V1beta1PolicyRuleBuilder().withApiGroups("admissionregistration.k8s.io")
-                                .withResources("*")
-                                .withVerbs("*")
-                                .build())
-                .build();
-    }
-
-    private V1beta1RoleBinding getPravegaOperatorRoleBinding() {
-        return new V1beta1RoleBindingBuilder().withKind("RoleBinding")
-                                              .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                                              .withMetadata(new V1ObjectMetaBuilder()
-                                                                    .withName("default-account-pravega-operator")
-                                                                    .build())
-                                              .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")
-                                                                                       .withName(NAMESPACE)
-                                                                                       .withNamespace(NAMESPACE)
-                                                                                       .build())
-                                              .withRoleRef(new V1beta1RoleRefBuilder().withKind("Role")
-                                                                                      .withName(PRAVEGA_OPERATOR)
-                                                                                      .withApiGroup("rbac.authorization.k8s.io")
-                                                                                      .build())
-                                              .build();
-    }
-
-    private V1beta1ClusterRoleBinding getPravegaOperatorClusterRoleBinding() {
-        return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
-                .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                .withMetadata(new V1ObjectMetaBuilder()
-                        .withName("default-account-pravega-operator")
+    private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
+        // generate BookkeeperSpec.
+        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
+        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, BOOKKEEPER_VERSION))
+                .put("replicas", bookieCount)
+                .put("version", BOOKKEEPER_VERSION)
+                .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                .put("storage", ImmutableMap.builder()
+                        .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
+                        .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
+                        .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
                         .build())
-                .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")
-                        .withName(NAMESPACE)
-                        .withNamespace(NAMESPACE)
-                        .build())
-                .withRoleRef(new V1beta1RoleRefBuilder().withKind("ClusterRole")
-                        .withName(PRAVEGA_OPERATOR)
-                        .withApiGroup("rbac.authorization.k8s.io")
+                .put("envVars", CONFIG_MAP_BOOKKEEPER)
+                .put("zookeeperUri", zkLocation)
+                .put("autoRecovery", true)
+                .put("options", ImmutableMap.builder()  .put("journalDirectories", JOURNALDIRECTORIES)
+                        .put("ledgerDirectories", LEDGERDIRECTORIES)
                         .build())
                 .build();
-    }
 
-    private V1Deployment getPravegaOperatorDeployment() {
-        V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        .withImage(PRAVEGA_OPERATOR_IMAGE)
-                                                        .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
-                                                        .withCommand(PRAVEGA_OPERATOR)
-                                                        // start the pravega-operator in test mode to disable minimum replica count check.
-                                                        .withArgs("-test")
-                                                        .withImagePullPolicy(IMAGE_PULL_POLICY)
-                                                        .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
-                                                                                      .withValueFrom(new V1EnvVarSourceBuilder()
-                                                                                                             .withFieldRef(new V1ObjectFieldSelectorBuilder()
-                                                                                                                                   .withFieldPath("metadata.namespace")
-                                                                                                                                   .build())
-                                                                                                             .build())
-                                                                                      .build(),
-                                                                 new V1EnvVarBuilder().withName("OPERATOR_NAME")
-                                                                                      .withValue(PRAVEGA_OPERATOR)
-                                                                                      .build())
-                                                        .build();
-        return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)
-                                                                               .withNamespace(NAMESPACE)
-                                                                               .build())
-                                        .withKind("Deployment")
-                                        .withApiVersion("apps/v1")
-                                        .withSpec(new V1DeploymentSpecBuilder().withMinReadySeconds(MIN_READY_SECONDS)
-                                                                               .withReplicas(1)
-                                                                               .withSelector(new V1LabelSelectorBuilder()
-                                                                                                     .withMatchLabels(ImmutableMap.of("name", PRAVEGA_OPERATOR))
-                                                                                                     .build())
-                                                                               .withTemplate(new V1PodTemplateSpecBuilder()
-                                                                                                     .withMetadata(new V1ObjectMetaBuilder()
-                                                                                                                           .withLabels(ImmutableMap.of("name", PRAVEGA_OPERATOR))
-                                                                                                                           .build())
-                                                                                                     .withSpec(new V1PodSpecBuilder()
-                                                                                                                       .withContainers(container)
-                                                                                                                       .build())
-                                                                                                     .build())
-                                                                               .build())
-                                        .build();
+        log.info("zk authority: {}", zkLocation);
+        log.info("bookkeeperSpec: ");
+        bookkeeperSpec.forEach((k, v) -> System.out.println((k + ":" + v)));
+
+        return ImmutableMap.<String, Object>builder()
+                .put("apiVersion", CUSTOM_RESOURCE_API_VERSION_BOOKKEEPER)
+                .put("kind", CUSTOM_RESOURCE_KIND_BOOKKEEPER)
+                .put("metadata", ImmutableMap.of("name", BOOKKEEPER_ID, "namespace", NAMESPACE))
+                .put("spec", bookkeeperSpec)
+                .build();
+    }
+    /**
+     * Helper method to create the BK Cluster Spec which specifies just those values in the
+     * spec which need to be patched. Other values remain same as were specified at the time of
+     * deployment.
+     * @param service Name of the service to be patched (bookkeeper/ segment store/ controller).
+     * @param replicaCount Number of replicas.
+     *
+     * @return the new Pravega Cluster Spec containing the values that need to be patched.
+     */
+    protected static Map<String, Object> buildPatchedBookkeeperClusterSpec(String service, int replicaCount) {
+
+        return ImmutableMap.<String, Object>builder()
+                .put("apiVersion", CUSTOM_RESOURCE_API_VERSION_BOOKKEEPER)
+                .put("kind", CUSTOM_RESOURCE_KIND_BOOKKEEPER)
+                .put("metadata", ImmutableMap.of("name", BOOKKEEPER_ID, "namespace", NAMESPACE))
+                .put("spec", ImmutableMap.builder()
+                        .put(service, replicaCount)
+                        .build())
+                .build();
+
     }
 
     @Override

@@ -55,7 +55,7 @@ public class ZookeeperK8sService extends AbstractService {
 
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
-    private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
+    private static final String CUSTOM_RESOURCE_PLURAL = "zookeeperclusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
@@ -68,21 +68,13 @@ public class ZookeeperK8sService extends AbstractService {
 
     @Override
     public void start(boolean wait) {
-        Futures.getAndHandleExceptions(k8sClient.createCRD(getZKOperatorCRD())
-                                                .thenCompose(v -> k8sClient.createClusterRole(getClusterRole()))
-                                                .thenCompose(v -> k8sClient.createClusterRoleBinding(getClusterRoleBinding()))
-                                                // deploy zk operator.
-                                                .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getDeployment()))
-                                                // wait until zk operator is running, only one instance of operator is running.
-                                                .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, 1))
-                                                // request operator to deploy zookeeper nodes.
-                                                .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION,
-                                                                                                        NAMESPACE, CUSTOM_RESOURCE_PLURAL,
-                                                                                                        getZookeeperDeployment(getID(), DEFAULT_INSTANCE_COUNT))),
-                                       t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
+        Futures.getAndHandleExceptions(k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION,
+                NAMESPACE, CUSTOM_RESOURCE_PLURAL,
+                getZookeeperDeployment(getID(), DEFAULT_INSTANCE_COUNT)),
+                t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), DEFAULT_INSTANCE_COUNT),
-                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));
+                    t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));
         }
     }
 
@@ -240,6 +232,7 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
                                          .put("replicas", clusterSize)
+                                         .put("persistence",ImmutableMap.of("reclaimPolicy", "Delete"))
                                          .build())
                 .build();
     }

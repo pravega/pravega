@@ -12,33 +12,14 @@ package io.pravega.test.system.framework.kubernetes;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import io.kubernetes.client.PodLogs;
 import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiCallback;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.Configuration;
-import io.kubernetes.client.PodLogs;
-import io.kubernetes.client.openapi.apis.ApiextensionsV1beta1Api;
-import io.kubernetes.client.openapi.apis.AppsV1Api;
-import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.apis.CustomObjectsApi;
-import io.kubernetes.client.openapi.apis.RbacAuthorizationV1beta1Api;
-import io.kubernetes.client.openapi.models.V1ContainerState;
-import io.kubernetes.client.openapi.models.V1ContainerStateTerminated;
-import io.kubernetes.client.openapi.models.V1ContainerStatus;
-import io.kubernetes.client.openapi.models.V1DeleteOptions;
-import io.kubernetes.client.openapi.models.V1Deployment;
-import io.kubernetes.client.openapi.models.V1Namespace;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.openapi.models.V1Pod;
-import io.kubernetes.client.openapi.models.V1PodList;
-import io.kubernetes.client.openapi.models.V1PodStatus;
-import io.kubernetes.client.openapi.models.V1ServiceAccount;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.openapi.models.V1beta1Role;
-import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
+import io.kubernetes.client.openapi.apis.*;
+import io.kubernetes.client.openapi.models.*;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.PatchUtils;
 import io.kubernetes.client.util.Watch;
@@ -47,6 +28,10 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.TestFrameworkException;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -62,9 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
@@ -498,6 +480,21 @@ public class K8sClient {
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
+    /**
+     * Create ConfigMap.
+     * @param namespace The namespace where the ConfigMap should be created.
+     * @param binding The cluster ConfigMap.
+     * @return A future indicating the status of the ConfigMap operation.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap binding) {
+        CoreV1Api api = new CoreV1Api();
+        //V1ConfigMap api = new V1ConfigMap ();
+        K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createConfigMap");
+        api.createNamespacedConfigMapAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        //api.createNamespacedConfigMap(namespace, binding, PRETTY_PRINT, callback);
+        return exceptionallyExpecting(callback.getFuture(), isConflict, null);
+    }
     /**
      * A method which returns a completed future once a given Pod has completed execution. This is useful to track test execution.
      * This method uses a Watch to track the status of the pod. The maximum wait time is based on the retry configuration.
