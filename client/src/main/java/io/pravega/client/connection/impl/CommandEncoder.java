@@ -156,7 +156,7 @@ public class CommandEncoder {
     }
     
     /**
-     * Write/flush Multi session's buffered data to network channel buffer by iterating over all the pending sessions .
+     * Write/flush multi session's buffered data to network channel buffer by iterating over all the pending sessions .
      */
     private void flushAllToBuffer() {
         if (!pendingWrites.isEmpty()) {
