@@ -170,7 +170,9 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     @Override
     public void process(Reply cmd) {
-        log.debug("{} processing reply {} with flow {}", location, cmd, Flow.from(cmd.getRequestId()));
+        if (log.isDebugEnabled()) {
+            log.debug("{} processing reply {} with flow {}", location, cmd, Flow.from(cmd.getRequestId()));
+        }
         setRecentMessage();
         if (cmd instanceof WireCommands.Hello) {
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
