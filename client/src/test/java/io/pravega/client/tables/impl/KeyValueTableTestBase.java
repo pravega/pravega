@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
@@ -17,13 +18,18 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -35,8 +41,6 @@ import org.junit.Test;
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
-    protected boolean isScopeCreated;
-
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
      * - {@link KeyValueTable#putIfAbsent}
@@ -44,7 +48,6 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyConditionalInserts() {
-        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -77,7 +80,6 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyUpdates() {
-        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -124,7 +126,6 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testSingleKeyUnconditionalRemovals() {
-        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -189,7 +190,6 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
      */
     @Test
     public void testMultiKeyOperations() {
-        Assert.assertTrue(isScopeCreated);
         val versions = new Versions();
         @Cleanup
         val kvt = createKeyValueTable();
@@ -301,9 +301,136 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         checkValues(iteration.get(), versions, kvt);
     }
 
+    /**
+     * Verifies that overflowing (larger than limit) {@link TableEntry} instances are rejected.
+     */
+    @Test
+    public void testLargeKeyValueUpdates() {
+        val rnd = new Random(0);
+        val limitKey = new byte[KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH];
+        val limitValue = new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH];
+        rnd.nextBytes(limitKey);
+        rnd.nextBytes(limitValue);
+        @Cleanup
+        val kvt = createKeyValueTable(new ByteArraySerializer(), new ByteArraySerializer());
+        kvt.put(null, limitKey, limitValue).join();
+        val resultValue = kvt.get(null, limitKey).join().getValue();
+        Assert.assertArrayEquals("Unexpected value returned (no key family).", limitValue, resultValue);
+
+        kvt.put("abc", limitKey, limitValue).join();
+        val resultValue2 = kvt.get("abc", limitKey).join().getValue();
+        Assert.assertArrayEquals("Unexpected value returned (with key family).", limitValue, resultValue);
+
+        // Max Key Length exceeded.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected a rejection of a key that is too long.",
+                () -> kvt.put(null, new byte[limitKey.length + 1], limitValue),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Max Value Length exceeded.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected a rejection of a value that is too long.",
+                () -> kvt.put(null, limitKey, new byte[limitValue.length + 1]),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    /**
+     * Verifies that overflowing a single {@link TableSegment} limits are rejected. No batch updates, removals or retrievals
+     * may exceed the {@link TableSegment#MAXIMUM_BATCH_KEY_COUNT} or {@link TableSegment#MAXIMUM_BATCH_LENGTH} limits.
+     */
+    @Test
+    public void testLargeBatchUpdates() {
+        val rnd = new Random(0);
+
+        @Cleanup
+        val kvt = createKeyValueTable(new ByteArraySerializer(), new ByteArraySerializer());
+
+        // Exceeding by batch count.
+        val getBatchCountExceeded = IntStream.range(0, TableSegment.MAXIMUM_BATCH_KEY_COUNT + 1)
+                .mapToObj(i -> new byte[]{(byte) i})
+                .collect(Collectors.toList());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Get batch exceeded max count.",
+                () -> kvt.getAll("a", getBatchCountExceeded),
+                ex -> ex instanceof IllegalArgumentException);
+
+        val putBatchCountExceeded = getBatchCountExceeded.stream()
+                .map(a -> (Map.Entry<byte[], byte[]>) new AbstractMap.SimpleImmutableEntry<>(a, a))
+                .collect(Collectors.toList());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Put batch exceeded max count.",
+                () -> kvt.putAll("a", putBatchCountExceeded),
+                ex -> ex instanceof IllegalArgumentException);
+
+        val removeBatchCountExceeded = getBatchCountExceeded.stream().map(TableKey::unversioned).collect(Collectors.toList());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Remove batch exceeded max count.",
+                () -> kvt.removeAll("a", removeBatchCountExceeded),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Exceed by serialization size.
+        // It is impossible to exceed the serialization size for retrievals or removals (due to the max key constraint),
+        // so the only request we can verify is the update one.
+        val limitValue = new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH];
+        rnd.nextBytes(limitValue);
+        val putBatchSizeExceeded = new ArrayList<Map.Entry<byte[], byte[]>>();
+        int estimatedSize = 0;
+        while (estimatedSize < TableSegment.MAXIMUM_BATCH_LENGTH) {
+            val k = new byte[KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH];
+            rnd.nextBytes(k);
+            val e = new AbstractMap.SimpleImmutableEntry<>(k, limitValue);
+            putBatchSizeExceeded.add(e);
+            estimatedSize += e.getKey().length + e.getValue().length;
+        }
+
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Put batch exceeded max size.",
+                () -> kvt.putAll("a", putBatchSizeExceeded),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    /**
+     * Verify that multi-get retrieval from a single segment of keys totalling more than the limit(s) works correctly.
+     */
+    @Test
+    public void testLargeEntryBatchRetrieval() {
+        val keyCount = TableSegment.MAXIMUM_BATCH_KEY_COUNT;
+        val keyFamily = "a";
+
+        Function<Integer, byte[]> getValue = keyId -> {
+            val result = new byte[Long.BYTES];
+            BitConverter.writeInt(result, 0, keyId + 1);
+            return result;
+        };
+
+        @Cleanup
+        val kvt = createKeyValueTable(new ByteArraySerializer(), new ByteArraySerializer());
+
+        // Update the entries one-by-one to make sure we do not exceed the max lengths at this step.
+        val allKeys = new ArrayList<byte[]>();
+        for (int keyId = 0; keyId < keyCount; keyId++) {
+            val key = new byte[KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH];
+            BitConverter.writeInt(key, 0, keyId);
+            val value = getValue.apply(keyId);
+            kvt.put(keyFamily, key, value).join();
+            allKeys.add(key);
+        }
+
+        // Bulk-get all the keys. This should work regardless of the size of the data returned; the KeyValueTable and
+        // TableSegment internally should break down the requests and handle this properly.
+        val getResult = kvt.getAll(keyFamily, allKeys).join();
+        Assert.assertEquals("Unexpected number of keys returned.", allKeys.size(), getResult.size());
+        for (int keyId = 0; keyId < allKeys.size(); keyId++) {
+            val r = getResult.get(keyId);
+            val expectedKey = allKeys.get(keyId);
+            Assert.assertArrayEquals("Unexpected key at index " + keyId, expectedKey, r.getKey().getKey());
+            val expectedValue = getValue.apply(keyId);
+            Assert.assertArrayEquals("Unexpected value at index " + keyId, expectedValue, r.getValue());
+        }
+    }
+
     @Test
     public void testIterators() {
-        Assert.assertTrue(isScopeCreated);
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);
