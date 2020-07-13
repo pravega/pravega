@@ -10,9 +10,11 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -65,6 +67,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static final int KEY_COUNT = 1000;
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 32;
+    private static final String TABLE_SEGMENT_NAME_PREFIX = "TableSegment_";
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     @Rule
     public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -136,7 +140,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     public void testEndToEnd() throws Exception {
         val rnd = new Random(0);
         ArrayList<String> segmentNames;
-        HashMap<HashedArray, EntryData> keyInfo;
+        HashMap<BufferView, EntryData> keyInfo;
 
         // Phase 1: Create some segments and update some data (unconditionally).
         log.info("Starting Phase 1");
@@ -235,28 +239,33 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void check(HashMap<HashedArray, EntryData> keyInfo, TableStore tableStore) throws Exception {
+    private void check(HashMap<BufferView, EntryData> keyInfo, TableStore tableStore) throws Exception {
         val bySegment = keyInfo.entrySet().stream()
-                               .collect(Collectors.groupingBy(e -> e.getValue().segmentName));
+                .collect(Collectors.groupingBy(e -> e.getValue().segmentName));
 
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
-        val expectedResult = new ArrayList<Map.Entry<HashedArray, EntryData>>();
+        val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
-            val keys = new ArrayList<ArrayView>();
+            val keys = new ArrayList<BufferView>();
             for (val se : e.getValue()) {
                 keys.add(se.getKey());
                 expectedResult.add(se);
             }
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
-            iteratorFutures.add(tableStore.entryIterator(segmentName, null, TIMEOUT)
+            iteratorFutures.add(tableStore.entryIterator(segmentName, IteratorArgs.builder().fetchTimeout(TIMEOUT).build())
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
-                                .thenApply(v -> result);
+                                .thenApply(v -> {
+                                    if (isSorted(segmentName)) {
+                                        checkSortedOrder(result);
+                                    }
+                                    return result;
+                                });
                     }));
         }
 
@@ -272,8 +281,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 // Deleted keys will be returned as nulls.
                 Assert.assertNull("Not expecting a value for a deleted Key", actual);
             } else {
-                Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
-                Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
+                Assert.assertEquals("Unexpected value for non-deleted Key.", expectedEntry.getValue(), actual.getValue());
+                Assert.assertEquals("Unexpected key for non-deleted Key.", expectedKey, actual.getKey().getKey());
                 Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
             }
         }
@@ -292,6 +301,15 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     }
 
+    private void checkSortedOrder(List<TableEntry> entries) {
+        if (entries.size() > 0) {
+            for (int i = 1; i < entries.size(); i++) {
+                int c = KEY_COMPARATOR.compare(entries.get(i - 1).getKey().getKey(), entries.get(i).getKey().getKey());
+                AssertExtensions.assertLessThan("", 0, c);
+            }
+        }
+    }
+
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
         val updateResult = updates.entrySet().stream()
                                   .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
@@ -304,7 +322,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private HashMap<String, ArrayList<TableEntry>> generateUpdates(HashMap<HashedArray, EntryData> keyInfo, boolean conditional, Random rnd) {
+    private HashMap<String, ArrayList<TableEntry>> generateUpdates(HashMap<BufferView, EntryData> keyInfo, boolean conditional, Random rnd) {
         val result = new HashMap<String, ArrayList<TableEntry>>();
         for (val e : keyInfo.entrySet()) {
             val ed = e.getValue();
@@ -320,7 +338,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private HashMap<String, ArrayList<TableKey>> generateRemovals(HashMap<HashedArray, EntryData> keyInfo, boolean conditional) {
+    private HashMap<String, ArrayList<TableKey>> generateRemovals(HashMap<BufferView, EntryData> keyInfo, boolean conditional) {
         val result = new HashMap<String, ArrayList<TableKey>>();
         for (val e : keyInfo.entrySet()) {
             val ed = e.getValue();
@@ -336,7 +354,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     }
 
     private void acceptUpdates(Map<String, ArrayList<TableEntry>> updatesBySegment, Map<String, List<Long>> versionsBySegment,
-                               Map<HashedArray, EntryData> keyInfo) {
+                               Map<BufferView, EntryData> keyInfo) {
         Assert.assertEquals(updatesBySegment.size(), versionsBySegment.size());
         for (val e : updatesBySegment.entrySet()) {
             val updates = e.getValue();
@@ -344,23 +362,23 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             Assert.assertEquals(updates.size(), versions.size());
             for (int i = 0; i < updates.size(); i++) {
                 val u = updates.get(i);
-                val ki = keyInfo.get(new HashedArray(u.getKey().getKey()));
+                val ki = keyInfo.get(u.getKey().getKey());
                 ki.setValue(u.getValue(), versions.get(i));
             }
         }
     }
 
-    private void acceptRemovals(HashMap<String, ArrayList<TableKey>> removals, HashMap<HashedArray, EntryData> keyInfo) {
+    private void acceptRemovals(HashMap<String, ArrayList<TableKey>> removals, HashMap<BufferView, EntryData> keyInfo) {
         for (val removeSet : removals.values()) {
             for (val r : removeSet) {
-                val ki = keyInfo.get(new HashedArray(r.getKey()));
+                val ki = keyInfo.get(r.getKey());
                 ki.deleteValue();
             }
         }
     }
 
-    private HashMap<HashedArray, EntryData> mapToSegments(ArrayList<HashedArray> keys, ArrayList<String> segments) {
-        val result = new HashMap<HashedArray, EntryData>();
+    private HashMap<BufferView, EntryData> mapToSegments(ArrayList<BufferView> keys, ArrayList<String> segments) {
+        val result = new HashMap<BufferView, EntryData>();
         for (int i = 0; i < keys.size(); i++) {
             result.put(keys.get(i), new EntryData(segments.get(i % segments.size())));
         }
@@ -368,12 +386,12 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private HashedArray generateValue(Random rnd) {
+    private BufferView generateValue(Random rnd) {
         return generateData(0, MAX_VALUE_LENGTH, rnd);
     }
 
-    private ArrayList<HashedArray> generateKeys(Random rnd) {
-        val result = new ArrayList<HashedArray>(KEY_COUNT);
+    private ArrayList<BufferView> generateKeys(Random rnd) {
+        val result = new ArrayList<BufferView>(KEY_COUNT);
         for (int i = 0; i < KEY_COUNT; i++) {
             result.add(generateData(1, MAX_KEY_LENGTH, rnd));
         }
@@ -381,10 +399,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private HashedArray generateData(int minLength, int maxLength, Random rnd) {
+    private BufferView generateData(int minLength, int maxLength, Random rnd) {
         byte[] keyData = new byte[Math.max(minLength, rnd.nextInt(maxLength))];
         rnd.nextBytes(keyData);
-        return new HashedArray(keyData);
+        return new ByteArraySegment(keyData);
     }
 
     private ArrayList<String> createSegments(TableStore store) throws Exception {
@@ -393,21 +411,31 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(store.createSegment(segmentName, TIMEOUT));
+            boolean sorted = isSorted(i);
+            futures.add(store.createSegment(segmentName, sorted, TIMEOUT));
         }
 
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return segmentNames;
     }
 
+    private boolean isSorted(int segmentIndex) {
+        return segmentIndex % 2 == 0;
+    }
+
+    private boolean isSorted(String segmentName) {
+        assert segmentName.startsWith(TABLE_SEGMENT_NAME_PREFIX) : segmentName;
+        return isSorted(Integer.parseInt(segmentName.substring(TABLE_SEGMENT_NAME_PREFIX.length())));
+    }
+
     private static String getSegmentName(int i) {
-        return "TableSegment_" + i;
+        return TABLE_SEGMENT_NAME_PREFIX + i;
     }
 
     private ServiceBuilder createBuilder() throws Exception {
         val builder = ServiceBuilder.newInMemoryBuilder(this.configBuilder.build())
-                                    .withStorageFactory(setup -> this.storageFactory)
-                                    .withDataLogFactory(setup -> this.durableDataLogFactory);
+                .withStorageFactory(setup -> this.storageFactory)
+                .withDataLogFactory(setup -> this.durableDataLogFactory);
         try {
             builder.initialize();
         } catch (Throwable ex) {
@@ -421,9 +449,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static class EntryData {
         final String segmentName;
         private final AtomicLong version = new AtomicLong(TableKey.NOT_EXISTS);
-        private final AtomicReference<ArrayView> value = new AtomicReference<>(null);
+        private final AtomicReference<BufferView> value = new AtomicReference<>(null);
 
-        void setValue(ArrayView value, long version) {
+        void setValue(BufferView value, long version) {
             this.value.set(value);
             this.version.set(version);
         }
@@ -436,7 +464,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             return this.version.get() == TableKey.NOT_EXISTS;
         }
 
-        ArrayView getValue() {
+        BufferView getValue() {
             return this.value.get();
         }
 

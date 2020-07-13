@@ -11,13 +11,15 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import java.io.IOException;
-import java.io.InputStream;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import java.util.Collection;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -37,8 +39,9 @@ import lombok.val;
  */
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
-    static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
-    static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+    static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+    static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;
     private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;
@@ -59,63 +62,46 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableEntry} collection into the given byte array, without explicitly recording the
+     * Serializes the given {@link TableEntry} collection into a {@link BufferView}, without explicitly recording the
      * versions for each entry.
      *
      * @param entries A Collection of {@link TableEntry} to serialize.
-     * @param target  The byte array to serialize into.
+     * @return A {@link BufferView} representing the serialization of the given entries.
      */
-    void serializeUpdate(@NonNull Collection<TableEntry> entries, byte[] target) {
-        int offset = 0;
-        for (TableEntry e : entries) {
-            offset = serializeUpdate(e, target, offset, TableKey.NO_VERSION);
-        }
+    BufferView serializeUpdate(@NonNull Collection<TableEntry> entries) {
+        return serializeUpdate(entries, e -> TableKey.NO_VERSION);
     }
 
-    /**
-     * Serializes the given {@link TableEntry} to the given byte array.
-     *
-     * @param entry        The {@link TableEntry} to serialize.
-     * @param target       The byte array to serialize to.
-     * @param targetOffset The first offset within the byte array to serialize at.
-     * @param version      The version to serialize. This will be encoded in the {@link Header}.
-     * @return The first offset in the given byte array after the serialization.
-     */
-    private int serializeUpdate(@NonNull TableEntry entry, byte[] target, int targetOffset, long version) {
+    private BufferView serializeUpdate(@NonNull Collection<TableEntry> entries, Function<TableKey, Long> getVersion) {
+        val builder = BufferView.builder(entries.size() * 3);
+        entries.forEach(e -> serializeUpdate(e, getVersion, builder::add));
+        Preconditions.checkArgument(builder.getLength() <= MAX_BATCH_SIZE, "Update batch size cannot exceed %s. Given %s.", MAX_BATCH_SIZE, builder.getLength());
+        return builder.build();
+    }
+
+    private void serializeUpdate(@NonNull TableEntry entry, Function<TableKey, Long> getVersion, Consumer<BufferView> acceptBuffer) {
         val key = entry.getKey().getKey();
         val value = entry.getValue();
         Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
         int serializationLength = getUpdateLength(entry);
         Preconditions.checkArgument(serializationLength <= MAX_SERIALIZATION_LENGTH, "Key+Value serialization too large.");
-        Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
 
         // Serialize Header.
-        targetOffset = writeHeader(target, targetOffset, key.getLength(), value.getLength(), version);
-
-        // Key
-        System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
-        targetOffset += key.getLength();
-
-        // Value.
-        System.arraycopy(value.array(), value.arrayOffset(), target, targetOffset, value.getLength());
-        targetOffset += value.getLength();
-
-        return targetOffset;
+        acceptBuffer.accept(serializeHeader(key.getLength(), value.getLength(), getVersion.apply(entry.getKey())));
+        acceptBuffer.accept(key);
+        acceptBuffer.accept(value);
     }
 
     /**
-     * Serializes the given {@link TableEntry} collection into the given byte array, explicitly recording the versions
+     * Serializes the given {@link TableEntry} collection into a {@link BufferView}, explicitly recording the versions
      * for each entry ({@link TableKey#getVersion()}). This should be used for {@link TableEntry} instances that were
      * previously read from the Table Segment as only in that case does the version accurately reflect the entry's version.
      *
      * @param entries A Collection of {@link TableEntry} to serialize.
-     * @param target  The byte array to serialize into.
+     * @return A {@link BufferView} representing the serialization of the given entries.
      */
-    void serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries, byte[] target) {
-        int offset = 0;
-        for (TableEntry e : entries) {
-            offset = serializeUpdate(e, target, offset, e.getKey().getVersion());
-        }
+    BufferView serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries) {
+        return serializeUpdate(entries, TableKey::getVersion);
     }
 
     //endregion
@@ -133,38 +119,24 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableKey} collection for removal into the given byte array.
+     * Serializes the given {@link TableKey} collection for removal into a {@link BufferView}.
      *
-     * @param keys   A Collection of {@link TableKey} to serialize for removals.
-     * @param target The byte array to serialize into.
+     * @param keys A Collection of {@link TableKey} to serialize for removals.
+     * @return A {@link BufferView} representing the serialization of the given keys.
      */
-    void serializeRemoval(@NonNull Collection<TableKey> keys, byte[] target) {
-        int offset = 0;
-        for (TableKey e : keys) {
-            offset = serializeRemoval(e, target, offset);
-        }
+    BufferView serializeRemoval(@NonNull Collection<TableKey> keys) {
+        val builder = BufferView.builder(keys.size() * 2);
+        keys.forEach(k -> serializeRemoval(k, builder::add));
+        return builder.build();
     }
 
-    /**
-     * Serializes the given {@link TableKey} for removal into the given array.
-     *
-     * @param tableKey     The {@link TableKey} to serialize.
-     * @param target       The byte array to serialize to.
-     * @param targetOffset The first offset within the byte array to serialize at.
-     * @return The first offset in the given byte array after the serialization.
-     */
-    private int serializeRemoval(@NonNull TableKey tableKey, byte[] target, int targetOffset) {
+    private void serializeRemoval(@NonNull TableKey tableKey, Consumer<BufferView> acceptBuffer) {
         val key = tableKey.getKey();
         Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
-        int serializationLength = getRemovalLength(tableKey);
-        Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
 
         // Serialize Header. Not caring about explicit versions since we do not reinsert removals upon compaction.
-        targetOffset = writeHeader(target, targetOffset, key.getLength(), NO_VALUE, TableKey.NO_VERSION);
-
-        // Key
-        System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
-        return targetOffset + key.getLength();
+        acceptBuffer.accept(serializeHeader(key.getLength(), NO_VALUE, TableKey.NO_VERSION));
+        acceptBuffer.accept(key);
     }
 
     //endregion
@@ -172,44 +144,28 @@ class EntrySerializer {
     //region Headers
 
     /**
-     * Reads the Entry's Header from the given {@link ArrayView}.
+     * Reads the Entry's Header from the given {@link BufferView.Reader}.
      *
-     * @param input The {@link ArrayView} to read from.
+     * @param input The {@link BufferView.Reader} to read from.
      * @return The Entry Header.
      * @throws SerializationException If an invalid header was detected.
      */
-    Header readHeader(@NonNull ArrayView input) throws SerializationException {
-        byte version = input.get(VERSION_POSITION);
-        int keyLength = BitConverter.readInt(input, KEY_POSITION);
-        int valueLength = BitConverter.readInt(input, VALUE_POSITION);
-        long entryVersion = BitConverter.readLong(input, ENTRY_VERSION_POSITION);
+    Header readHeader(@NonNull BufferView.Reader input) throws SerializationException {
+        byte version = input.readByte();
+        int keyLength = input.readInt();
+        int valueLength = input.readInt();
+        long entryVersion = input.readLong();
         validateHeader(keyLength, valueLength);
         return new Header(version, keyLength, valueLength, entryVersion);
     }
 
-    /**
-     * Reads the Entry's Header from the given {@link InputStream}.
-     *
-     * @param input The {@link InputStream} to read from.
-     * @return The Entry Header.
-     * @throws IOException If an invalid header was detected or another IOException occurred.
-     */
-    Header readHeader(@NonNull InputStream input) throws IOException {
-        byte version = (byte) input.read();
-        int keyLength = BitConverter.readInt(input);
-        int valueLength = BitConverter.readInt(input);
-        long entryVersion = BitConverter.readLong(input);
-        validateHeader(keyLength, valueLength);
-        return new Header(version, keyLength, valueLength, entryVersion);
-    }
-
-    private int writeHeader(byte[] target, int targetOffset, int keyLength, int valueLength, long entryVersion) {
-        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
-        targetOffset++;
-        targetOffset += BitConverter.writeInt(target, targetOffset, keyLength);
-        targetOffset += BitConverter.writeInt(target, targetOffset, valueLength);
-        targetOffset += BitConverter.writeLong(target, targetOffset, entryVersion);
-        return targetOffset;
+    private BufferView serializeHeader(int keyLength, int valueLength, long entryVersion) {
+        byte[] data = new byte[HEADER_LENGTH];
+        data[VERSION_POSITION] = CURRENT_SERIALIZATION_VERSION;
+        BitConverter.writeInt(data, KEY_POSITION, keyLength);
+        BitConverter.writeInt(data, VALUE_POSITION, valueLength);
+        BitConverter.writeLong(data, ENTRY_VERSION_POSITION, entryVersion);
+        return new ByteArraySegment(data);
     }
 
     private void validateHeader(int keyLength, int valueLength) throws SerializationException {

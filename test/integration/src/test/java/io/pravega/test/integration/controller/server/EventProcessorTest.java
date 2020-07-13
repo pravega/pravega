@@ -23,7 +23,7 @@ import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.concurrent.Futures;
@@ -541,7 +541,7 @@ public class EventProcessorTest {
 
         // wait until at least one event is read from queue2 
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> {
-            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+            while (output2.size() < 10) {
                 Integer entry = queue1.poll();
                 if (entry != null) {
                     log.info("entry read from queue 1: {}", entry);
@@ -552,7 +552,7 @@ public class EventProcessorTest {
                 }
             }
         }), CompletableFuture.runAsync(() -> {
-            while (queue1EntriesFound.get() + queue2EntriesFound.get() < 10) {
+            while (output2.size() < 10) {
                 Integer entry = queue2.poll();
                 if (entry != null) {
                     log.info("entry read from queue 2: {}", entry);

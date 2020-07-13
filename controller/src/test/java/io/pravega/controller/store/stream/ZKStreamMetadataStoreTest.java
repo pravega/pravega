@@ -13,6 +13,10 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.ZKScope;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.task.TxnResource;
@@ -83,9 +87,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
 
         Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
-        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertEquals("List streams in scope", 1, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
-        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
+        assertFalse("List streams in scope", streamInScope.containsKey(stream2));
     }
 
     @Test

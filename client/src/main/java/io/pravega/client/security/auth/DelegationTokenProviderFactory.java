@@ -11,7 +11,7 @@ package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import lombok.NonNull;
 
 /**

@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
@@ -225,6 +227,45 @@ public class SegmentSelectorTest {
 
         assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
         assertFutureThrows("Writer Future", writerFuture, t -> t instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testSealedStream() {
+        final Segment segment0 = new Segment(scope, streamName, 0);
+        final Segment segment1 = new Segment(scope, streamName, 1);
+        final CompletableFuture<Void> writerFuture = new CompletableFuture<>();
+
+        // Setup Mock.
+        SegmentOutputStream s0Writer = Mockito.mock(SegmentOutputStream.class);
+        SegmentOutputStream s1Writer = Mockito.mock(SegmentOutputStream.class);
+        when(s0Writer.getUnackedEventsOnSeal())
+                .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
+
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
+                .thenReturn(s0Writer);
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), any(DelegationTokenProvider.class)))
+                .thenReturn(s1Writer);
+
+        Controller controller = Mockito.mock(Controller.class);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.5);
+        addNewSegment(segments, 1, 0.5, 1.0);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        //trigger refresh.
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
+
+        //simulate controller returning empty result since the stream is sealed..
+        when(controller.getSuccessors(segment0))
+                .thenReturn(CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap(), "")));
+
+        assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
+        assertFutureThrows("Writer Future", writerFuture, t -> t instanceof IllegalStateException);
     }
 
     @Test

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.HashedArray;
+import io.pravega.common.util.BufferView;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,9 +36,8 @@ class BucketUpdate {
     /**
      * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
      */
-    @Getter
-    private final Collection<KeyInfo> existingKeys;
-    private final Map<HashedArray, KeyUpdate> updatedKeys;
+    private final Map<BufferView, KeyInfo> existingKeys;
+    private final Map<BufferView, KeyUpdate> updatedKeys;
 
     /**
      * The bucket offset, or -1 if no such offset (i.e., if everything in this bucket was deleted).
@@ -60,6 +59,13 @@ class BucketUpdate {
     }
 
     /**
+     * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
+     */
+    Collection<KeyInfo> getExistingKeys() {
+        return this.existingKeys.values();
+    }
+
+    /**
      * Gets a collection of {@link KeyUpdate} instances recorded in this Bucket Update.
      */
     Collection<KeyUpdate> getKeyUpdates() {
@@ -67,12 +73,22 @@ class BucketUpdate {
     }
 
     /**
-     * Gets a value indicating whether the Key represented by the given {@link HashedArray} is recorded as being updated.
+     * Gets a value indicating whether the Key represented by the given {@link BufferView} previously existed in the index.
+     *
+     * @param key The Key to check
+     * @return True if existed before, false otherwise.
+     */
+    boolean keyExists(BufferView key) {
+        return this.existingKeys.containsKey(key);
+    }
+
+    /**
+     * Gets a value indicating whether the Key represented by the given {@link BufferView} is recorded as being updated.
      *
      * @param key The Key to check.
      * @return True if updated, false otherwise.
      */
-    boolean isKeyUpdated(HashedArray key) {
+    boolean isKeyUpdated(BufferView key) {
         return this.updatedKeys.containsKey(key);
     }
 
@@ -92,8 +108,8 @@ class BucketUpdate {
         @NonNull
         @Getter
         private final TableBucket bucket;
-        private final Map<HashedArray, KeyInfo> existingKeys = new HashMap<>();
-        private final Map<HashedArray, KeyUpdate> updatedKeys = new HashMap<>();
+        private final Map<BufferView, KeyInfo> existingKeys = new HashMap<>();
+        private final Map<BufferView, KeyUpdate> updatedKeys = new HashMap<>();
 
         /**
          * Records an existing Key that is relevant to this Bucket Update.
@@ -125,7 +141,7 @@ class BucketUpdate {
          */
         BucketUpdate build() {
             // Exclude updated keys that have smaller versions than existing keys.
-            ArrayList<HashedArray> toRemove = new ArrayList<>();
+            ArrayList<BufferView> toRemove = new ArrayList<>();
             long bucketOffset = -1;
             for (KeyUpdate u : this.updatedKeys.values()) {
                 KeyInfo existingKey = this.existingKeys.get(u.getKey());
@@ -152,7 +168,7 @@ class BucketUpdate {
                         .max().orElse(-1);
             }
 
-            return new BucketUpdate(this.bucket, Collections.unmodifiableCollection(this.existingKeys.values()),
+            return new BucketUpdate(this.bucket, Collections.unmodifiableMap(this.existingKeys),
                     Collections.unmodifiableMap(this.updatedKeys), bucketOffset);
         }
     }
@@ -170,7 +186,7 @@ class BucketUpdate {
          * The Key.
          */
         @NonNull
-        private final HashedArray key;
+        private final BufferView key;
 
         /**
          * The offset at which the key exists in the Segment.
@@ -182,7 +198,7 @@ class BucketUpdate {
          */
         private final long version;
 
-        KeyInfo(@NonNull HashedArray key, long offset, long version) {
+        KeyInfo(@NonNull BufferView key, long offset, long version) {
             Preconditions.checkArgument(version <= offset, "version (%s) cannot be lower than offset (%s).", version, offset);
             this.key = key;
             this.offset = offset;
@@ -233,12 +249,12 @@ class BucketUpdate {
         /**
          * Creates a new instance of the KeyUpdate class.
          *
-         * @param key     A {@link HashedArray} representing the Key that is updated.
+         * @param key     A {@link BufferView} representing the Key that is updated.
          * @param offset  The offset in the Segment where the update is serialized.
          * @param version The computed version of the Key to update (based on explicit version and current offset).
          * @param deleted True if the Key has been deleted via this update, false otherwise.
          */
-        KeyUpdate(HashedArray key, long offset, long version, boolean deleted) {
+        KeyUpdate(BufferView key, long offset, long version, boolean deleted) {
             super(key, offset, version);
             Preconditions.checkArgument(!(isCopied() && deleted), "A KeyUpdate cannot be both copied and deleted at the same time.");
             this.deleted = deleted;

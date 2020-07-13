@@ -24,7 +24,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
@@ -75,7 +75,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
         StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
-        Preconditions.checkArgument(segments.getSegments().size() == 1, "Stream is configured with more than one segment");
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();
