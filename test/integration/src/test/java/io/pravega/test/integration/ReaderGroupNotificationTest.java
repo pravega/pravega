@@ -269,11 +269,9 @@ public class ReaderGroupNotificationTest {
                     throw new IllegalStateException(e);
                 });
         try {
-            Thread.sleep(2000);
             scale(controller, SCOPE, streamName, 1, 1, threadPoolExecutor);
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            log.error("Interrupted: ", e);
+        } catch (Exception e) {
+            log.error("Scaling Interrupted: ", e);
         }
         Retry.withExpBackoff(10, 10, 100, 10000)
                 .retryingOn(IllegalStateException.class)
@@ -281,7 +279,7 @@ public class ReaderGroupNotificationTest {
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, streamName)
                         .thenAccept(streamSegments -> {
                             try {
-                                Thread.sleep(1000);
+                                Thread.sleep(0);
                                 EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                                         ReaderConfig.builder().initialAllocationDelay(0).build());
                                 for (int i = 0; i < NUM_EVENTS; i++) {
@@ -304,7 +302,7 @@ public class ReaderGroupNotificationTest {
                                 readerGroup.readerOffline("readerId", null);
                                 long segmentSize = streamSegments.getSegments().size();
                                 log.info("segment_size={}", segmentSize);
-                                if (segmentSize > 3) {
+                                if (segmentSize == 10) {
                                     log.info("success");
                                     return;
                                 }
@@ -317,7 +315,7 @@ public class ReaderGroupNotificationTest {
                 .whenComplete((r, ex) -> {
                         if (ex != null) {
                             log.error("Failure: ", ex);
-                            Assert.fail(String.format("Unexpected error occurred running this test. %s", ex));
+                            Assert.fail(String.format("Test failed due to: %s", ex.getMessage()));
                         }
                 }).get();
     }
