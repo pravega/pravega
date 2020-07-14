@@ -17,6 +17,8 @@ import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
+import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
@@ -33,6 +35,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ClientConnectionTest {
 
@@ -166,13 +169,18 @@ public class ClientConnectionTest {
             .join();
         UUID writerId = new UUID(1, 2);
         clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        server.getReadCommands().take(); //clear setup.
         ArrayList<Append> appends = new ArrayList<>();
         appends.add(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
         appends.add(new Append("segment", writerId, 2, new Event(Unpooled.wrappedBuffer(payload2)), 1));
         CompletableFuture<Exception> future = new CompletableFuture<Exception>();
         clientConnection.sendAsync(appends, e -> future.complete(e));
         assertNull(future.join());
-        AssertExtensions.assertEventuallyEquals(2, () -> server.getReadCommands().size(), 5000);
+        assertEquals(AppendBlock.class, server.getReadCommands().take().getClass());
+        assertEquals(AppendBlockEnd.class, server.getReadCommands().take().getClass());
+        assertEquals(AppendBlock.class, server.getReadCommands().take().getClass());
+        assertEquals(AppendBlockEnd.class, server.getReadCommands().take().getClass());
+        assertTrue(server.getReadCommands().isEmpty());
         assertFalse(processor.falure.get());
     }
 
