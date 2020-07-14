@@ -247,7 +247,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                 totalBytesWritten += bytesWritten;
                 length -= bytesWritten;
             }
-            channel.force(false);
+            channel.force(true);
         } catch (IOException e) {
             throw convertExeption(handle.getChunkName(), "doWrite", e);
         }
@@ -275,7 +275,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                         offset += bytesTransferred;
                         length -= bytesTransferred;
                     }
-                    targetChannel.force(false);
+                    targetChannel.force(true);
                     Files.delete(sourcePath);
                     totalBytesConcated += length;
                     offset += length;

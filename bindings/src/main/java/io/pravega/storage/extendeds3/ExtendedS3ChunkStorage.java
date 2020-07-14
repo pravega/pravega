@@ -19,6 +19,7 @@ import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
+import com.emc.object.s3.request.AbortMultipartUploadRequest;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
@@ -109,7 +110,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
         try {
             try (InputStream reader = client.readObjectStream(config.getBucket(),
-                    config.getPrefix() + handle.getChunkName(), Range.fromOffsetLength(fromOffset, length))) {
+                    getObjectPath(handle.getChunkName()), Range.fromOffsetLength(fromOffset, length))) {
                 if (reader == null) {
                     throw new ChunkNotFoundException(handle.getChunkName(), "Chunk not found");
                 }
@@ -127,8 +128,9 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         try {
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(), config.getPrefix() + handle.getChunkName());
-            client.putObject(this.config.getBucket(), this.config.getPrefix() + handle.getChunkName(),
+            val objectPath = getObjectPath(handle.getChunkName());
+            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(), objectPath);
+            client.putObject(this.config.getBucket(), objectPath,
                     Range.fromOffsetLength(offset, length), data);
             return length;
         } catch (Exception e) {
@@ -139,12 +141,14 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     @Override
     public int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
         int totalBytesConcatenated = 0;
+        String targetPath = getObjectPath(chunks[0].getName());
+        String uploadId = null;
+        boolean isCompleted = false;
         try {
             int partNumber = 1;
 
             SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-            String targetPath = config.getPrefix() + chunks[0].getName();
-            String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
+            uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
 
             // check whether the target exists
             if (!checkExists(chunks[0].getName())) {
@@ -156,11 +160,11 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
                 if (0 != chunks[i].getLength()) {
                     val sourceHandle = chunks[i];
                     S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
-                            config.getPrefix() + sourceHandle.getName());
+                            getObjectPath(sourceHandle.getName()));
                     long objectSize = metadataResult.getContentLength(); // in bytes
                     Preconditions.checkState(objectSize >= chunks[i].getLength());
                     CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
-                            config.getPrefix() + sourceHandle.getName(),
+                            getObjectPath(sourceHandle.getName()),
                             config.getBucket(),
                             targetPath,
                             uploadId,
@@ -175,9 +179,15 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             //Close the upload
             client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                     targetPath, uploadId).withParts(partEtags));
+            isCompleted = true;
+
             // Delete all source objects.
             for (int i = 1; i < chunks.length; i++) {
-                client.deleteObject(config.getBucket(), config.getPrefix() + chunks[i].getName());
+                try {
+                    client.deleteObject(config.getBucket(), getObjectPath(chunks[i].getName()));
+                } catch (Exception e) {
+                    log.warn("Could not delete source chunk - chunk={}.", chunks[i].getName(), e);
+                }
             }
         } catch (RuntimeException e) {
             // Make spotbugs happy. Wants us to catch RuntimeException in a separate catch block.
@@ -185,6 +195,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             throw convertException(chunks[0].getName(), "doConcat", e);
         } catch (Exception e) {
             throw convertException(chunks[0].getName(), "doConcat", e);
+        } finally {
+            if (!isCompleted && null != uploadId) {
+                client.abortMultipartUpload(new AbortMultipartUploadRequest(config.getBucket(), targetPath, uploadId));
+            }
         }
         return totalBytesConcatenated;
     }
@@ -205,12 +219,79 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     private void setPermission(ChunkHandle handle, Permission permission) {
-        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getPrefix() + handle.getChunkName());
+        AccessControlList acl = client.getObjectAcl(config.getBucket(), getObjectPath(handle.getChunkName()));
         acl.getGrants().clear();
         acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
 
         client.setObjectAcl(
-                new SetObjectAclRequest(config.getBucket(), config.getPrefix() + handle.getChunkName()).withAcl(acl));
+                new SetObjectAclRequest(config.getBucket(), getObjectPath(handle.getChunkName())).withAcl(acl));
+    }
+
+    @Override
+    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+        try {
+            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
+                    getObjectPath(chunkName));
+
+            ChunkInfo information = ChunkInfo.builder()
+                    .name(chunkName)
+                    .length(result.getContentLength())
+                    .build();
+
+            return information;
+        } catch (Exception e) {
+            throw convertException(chunkName, "doGetInfo", e);
+        }
+    }
+
+    @Override
+    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+        try {
+            if (!client.listObjects(config.getBucket(), getObjectPath(chunkName)).getObjects().isEmpty()) {
+                throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
+            }
+
+            S3ObjectMetadata metadata = new S3ObjectMetadata();
+            metadata.setContentLength((long) 0);
+
+            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null);
+
+            AccessControlList acl = new AccessControlList();
+            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+            request.setAcl(acl);
+
+            if (config.isUseNoneMatch()) {
+                request.setIfNoneMatch("*");
+            }
+            client.putObject(request);
+
+            return ChunkHandle.writeHandle(chunkName);
+        } catch (Exception e) {
+            throw convertException(chunkName, "doCreate", e);
+        }
+    }
+
+    @Override
+    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+        try {
+            client.getObjectMetadata(config.getBucket(), getObjectPath(chunkName));
+            return true;
+        } catch (S3Exception e) {
+            if (e.getErrorCode().equals("NoSuchKey")) {
+                return false;
+            } else {
+                throw convertException(chunkName, "checkExists", e);
+            }
+        }
+    }
+
+    @Override
+    protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
+        try {
+            client.deleteObject(config.getBucket(), getObjectPath(handle.getChunkName()));
+        } catch (Exception e) {
+            throw convertException(handle.getChunkName(), "doDelete", e);
+        }
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e)  {
@@ -242,9 +323,6 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             }
         }
 
-        //if (e instanceof IndexOutOfBoundsException) {
-        //    return new ArrayIndexOutOfBoundsException(e.getMessage());
-        //}
         if (retValue == null) {
             retValue = new ChunkStorageException(chunkName, message, e);
         }
@@ -252,72 +330,8 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         return retValue;
     }
 
-    @Override
-    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
-        try {
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                    config.getPrefix() + chunkName);
-
-            ChunkInfo information = ChunkInfo.builder()
-                    .name(chunkName)
-                    .length(result.getContentLength())
-                    .build();
-
-            return information;
-        } catch (Exception e) {
-            throw convertException(chunkName, "doGetInfo", e);
-        }
-    }
-
-    @Override
-    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
-        try {
-            if (!client.listObjects(config.getBucket(), config.getPrefix() + chunkName).getObjects().isEmpty()) {
-                throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
-            }
-
-            S3ObjectMetadata metadata = new S3ObjectMetadata();
-            metadata.setContentLength((long) 0);
-
-            PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getPrefix() + chunkName, null);
-
-            AccessControlList acl = new AccessControlList();
-            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
-            request.setAcl(acl);
-
-            if (config.isUseNoneMatch()) {
-                request.setIfNoneMatch("*");
-            }
-            client.putObject(request);
-
-            return ChunkHandle.writeHandle(chunkName);
-        } catch (Exception e) {
-            throw convertException(chunkName, "doCreate", e);
-        }
-    }
-
-    @Override
-    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
-        try {
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                    config.getPrefix() + chunkName);
-            return true;
-        } catch (S3Exception e) {
-            if (e.getErrorCode().equals("NoSuchKey")) {
-                return false;
-            } else {
-                throw convertException(chunkName, "checkExists", e);
-            }
-        }
-    }
-
-    @Override
-    protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
-        try {
-            client.deleteObject(config.getBucket(), config.getPrefix() + handle.getChunkName());
-        } catch (Exception e) {
-            throw convertException(handle.getChunkName(), "doDelete", e);
-        }
+    private String getObjectPath(String objectName) {
+        return config.getPrefix() + objectName;
     }
 
     //endregion

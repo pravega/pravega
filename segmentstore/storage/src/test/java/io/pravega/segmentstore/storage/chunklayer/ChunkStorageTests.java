@@ -325,6 +325,69 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test concat operation for non-existent chunks.
+     */
+    @Test
+    public void testConcatNotExists() throws Exception {
+        String existingChunkName = "test";
+        ChunkHandle existingChunkHandle = chunkStorage.create(existingChunkName);
+        try {
+            AssertExtensions.assertThrows(
+                    " concat should throw ChunkNotFoundException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                               ConcatArgument.builder().name(existingChunkName).length(0).build(),
+                               ConcatArgument.builder().name("NonExistent").length(1).build()
+                            }
+                    ),
+                    ex -> ex instanceof ChunkNotFoundException);
+            AssertExtensions.assertThrows(
+                    " concat should throw ChunkNotFoundException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name("NonExistent").length(0).build(),
+                                    ConcatArgument.builder().name(existingChunkName).length(0).build(),
+                            }
+                    ),
+                    ex -> ex instanceof ChunkNotFoundException);
+        } catch (UnsupportedOperationException e) {
+            // The storage provider may not have native concat.
+        } finally {
+            chunkStorage.delete(existingChunkHandle);
+        }
+    }
+
+    /**
+     * Test operations on open handles when underlying chunk is deleted.
+     */
+    @Test
+    public void testDeleteAfterOpen() throws Exception {
+        String testChunkName = "test";
+        ChunkHandle writeHandle = chunkStorage.create(testChunkName);
+        ChunkHandle readHandle = chunkStorage.openRead(testChunkName);
+        chunkStorage.delete(writeHandle);
+        byte[] bufferRead = new byte[10];
+        AssertExtensions.assertThrows(
+                " read should throw ChunkNotFoundException.",
+                () -> chunkStorage.read(readHandle, 0, 10, bufferRead, 0),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+        AssertExtensions.assertThrows(
+                " write should throw ChunkNotFoundException.",
+                () -> chunkStorage.write(writeHandle, 0, 1, new ByteArrayInputStream(new byte[1])),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+        AssertExtensions.assertThrows(
+                " truncate should throw ChunkNotFoundException.",
+                () -> chunkStorage.truncate(writeHandle, 0),
+                ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
+                        || ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                " setReadOnly should throw ChunkNotFoundException.",
+                () -> chunkStorage.setReadOnly(writeHandle, false),
+                ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
+                        || ex instanceof UnsupportedOperationException);
+    }
+
+    /**
      * Test one simple concat operation.
      */
     @Test
@@ -478,7 +541,7 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
     }
 
     private void testNotExists(String chunkName) throws Exception {
-        assertEquals(Boolean.FALSE, chunkStorage.exists(chunkName));
+        assertFalse(chunkStorage.exists(chunkName));
 
         AssertExtensions.assertThrows(
                 " getInfo should throw exception.",

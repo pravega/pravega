@@ -94,8 +94,8 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
 
         @After
         public void after() throws Exception {
-            testContext.tearDown();
             super.after();
+            testContext.tearDown();
         }
 
         @Override

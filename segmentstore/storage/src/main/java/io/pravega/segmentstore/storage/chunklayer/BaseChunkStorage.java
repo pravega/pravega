@@ -392,7 +392,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
-        Preconditions.checkArgument(offset > 0, "handle must not be readonly");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
 
         long traceId = LoggerHelpers.traceEnter(log, "truncate", handle.getChunkName());
 

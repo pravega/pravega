@@ -39,6 +39,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.ipc.RemoteException;
 
 /***
  *  {@link ChunkStorage} for HDFS based storage.
@@ -106,7 +107,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
                     this.fileSystem.close();
                     this.fileSystem = null;
                 } catch (IOException e) {
-                    log.warn("Could not close the HDFS filesystem: {}.", e);
+                    log.warn("Could not close the HDFS filesystem.", e);
                 }
             }
         }
@@ -116,8 +117,8 @@ class HDFSChunkStorage extends BaseChunkStorage {
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
         try {
-            FileStatus last = fileSystem.getFileStatus(getFilePath(chunkName));
-            ChunkInfo result = ChunkInfo.builder().name(chunkName).length(last.getLen()).build();
+            FileStatus status = fileSystem.getFileStatus(getFilePath(chunkName));
+            ChunkInfo result = ChunkInfo.builder().name(chunkName).length(status.getLen()).build();
             return result;
         } catch (IOException e) {
             throw convertException(chunkName, "doGetInfo", e);
@@ -170,23 +171,15 @@ class HDFSChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
-        try {
-            FileStatus status = fileSystem.getFileStatus(getFilePath(chunkName));
-        } catch (IOException e) {
-            throw convertException(chunkName, "doOpenRead", e);
-        }
+        checkFileExists(chunkName, "doOpenRead");
         return ChunkHandle.readHandle(chunkName);
     }
 
     @Override
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
-        try {
-            FileStatus status = fileSystem.getFileStatus(getFilePath(chunkName));
-            return ChunkHandle.writeHandle(chunkName);
-        } catch (IOException e) {
-            throw convertException(chunkName, "doOpenWrite", e);
-        }
+        checkFileExists(chunkName, "doOpenWrite");
+        return ChunkHandle.writeHandle(chunkName);
     }
 
     @Override
@@ -279,8 +272,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
 
-        // FileSystem has a bad habit of caching Clients/Instances based on target URI. We do not like this, since we
-        // want to own our implementation so that when we close it, we don't interfere with others.
+        // We do not want FileSystem to cache Clients/Instances based on target URI.
         conf.set("fs.hdfs.impl.disable.cache", "true");
         if (!this.config.isReplaceDataNodesOnFailure()) {
             // Default is DEFAULT, so we only set this if we want it disabled.
@@ -321,6 +313,14 @@ class HDFSChunkStorage extends BaseChunkStorage {
         return new Path(getPathPrefix(chunkName));
     }
 
+    private void checkFileExists(String chunkName, String message) throws ChunkStorageException {
+        try {
+            fileSystem.getFileStatus(getFilePath(chunkName));
+        } catch (IOException e) {
+            throw convertException(chunkName, message, e);
+        }
+    }
+
     /**
      * Determines whether the given FileStatus indicates the file is read-only.
      *
@@ -331,7 +331,10 @@ class HDFSChunkStorage extends BaseChunkStorage {
         return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
-    private ChunkStorageException convertException(String chunkName, String message, IOException e) throws ChunkStorageException {
+    private ChunkStorageException convertException(String chunkName, String message, IOException e) {
+        if (e instanceof RemoteException) {
+            e = ((org.apache.hadoop.ipc.RemoteException) e).unwrapRemoteException();
+        }
         if (e instanceof FileNotFoundException) {
             return new ChunkNotFoundException(chunkName, message, e);
         }

@@ -107,6 +107,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
     //endregion
 
+
     //region Storage implementation
 
     /**

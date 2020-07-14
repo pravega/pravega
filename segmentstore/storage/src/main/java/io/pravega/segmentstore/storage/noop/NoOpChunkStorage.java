@@ -129,11 +129,13 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException, UnsupportedOperationException {
+    protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
         int total = 0;
         for (ConcatArgument chunk : chunks) {
             val chunkData = chunkMetadata.get(chunk.getName());
-            Preconditions.checkState(null != chunkData);
+            if (null == chunkData) {
+                throw new ChunkNotFoundException(chunk.getName(), "NoOpChunkStorage::doConcat");
+            }
             Preconditions.checkState(chunkData.length >= chunk.getLength());
             total += chunk.getLength();
         }
@@ -148,7 +150,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
+    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException {
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doTruncate");
@@ -161,7 +163,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         Preconditions.checkNotNull(null != handle, "handle");
         Preconditions.checkNotNull(handle.getChunkName(), "handle");
         String chunkName = handle.getChunkName();

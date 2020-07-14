@@ -17,6 +17,7 @@ public class ExtendedS3SegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
+
     @Override
     public String getSegmentName() {
         return segmentName;
