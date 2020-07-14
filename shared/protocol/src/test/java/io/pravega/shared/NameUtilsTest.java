@@ -13,6 +13,7 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -53,6 +54,12 @@ public class NameUtilsTest {
         String scopedName = NameUtils.getScopedKeyValueTableName(scope, kvt);
         Assert.assertTrue(scopedName.startsWith(scope));
         Assert.assertTrue(scopedName.endsWith(kvt));
+        val tokens = NameUtils.extractScopedNameTokens(scopedName);
+        Assert.assertEquals(2, tokens.size());
+        Assert.assertEquals(scope, tokens.get(0));
+        Assert.assertEquals(kvt, tokens.get(1));
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens(scope), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
