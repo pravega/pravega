@@ -63,7 +63,6 @@ public class InteractiveDemo {
         }
     }
 
-
     private static void processCommand(String line, InteractiveConfig config) {
         if (Strings.isNullOrEmpty(line.trim())) {
             return;
@@ -82,7 +81,6 @@ public class InteractiveDemo {
                 break;
         }
     }
-
 
     private static void execCommand(Parser.Command pc) {
         try {

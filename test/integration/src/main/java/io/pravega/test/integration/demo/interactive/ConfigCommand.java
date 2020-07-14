@@ -16,6 +16,7 @@ import lombok.val;
 
 abstract class ConfigCommand extends Command {
     static final String COMPONENT = "config";
+    private static final String PAIR_SEPARATOR = "=";
 
     ConfigCommand(CommandArgs args) {
         super(args);
@@ -38,7 +39,7 @@ abstract class ConfigCommand extends Command {
             ensureMinArgCount(1);
             val newValues = new HashMap<String, String>();
             getCommandArgs().getArgs().forEach(s -> {
-                String[] items = s.split("=");
+                String[] items = s.split(PAIR_SEPARATOR);
                 Preconditions.checkArgument(items.length == 2, "Invalid name=value pair: '%s'.", s);
                 Preconditions.checkArgument(!Strings.isNullOrEmpty(items[0]) && !Strings.isNullOrEmpty(items[1]),
                         "Invalid name=value pair: '%s'.", s);
@@ -65,7 +66,7 @@ abstract class ConfigCommand extends Command {
         @Override
         public void execute() {
             Preconditions.checkArgument(getCommandArgs().getArgs().size() == 0, "Not expecting any arguments.");
-            getCommandArgs().getConfig().getAll().forEach((name, value) -> output("\t%s=%s", name, value));
+            getCommandArgs().getConfig().getAll().forEach((name, value) -> output("\t%s%s%s", name, PAIR_SEPARATOR, value));
         }
 
         public static CommandDescriptor descriptor() {

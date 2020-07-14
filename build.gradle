@@ -554,7 +554,7 @@ project('test:integration') {
     }
 
     /**
-     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool .
+     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool.
      * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
      */
     task startInteractiveDemo(type: JavaExec) {
