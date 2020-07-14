@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import lombok.Getter;
 
 /**
@@ -18,7 +18,7 @@ import lombok.Getter;
 public class KeyNotExistsException extends ConditionalTableUpdateException {
     private static final long serialVersionUID = 1L;
     @Getter
-    private final ArrayView key;
+    private final BufferView key;
 
     /**
      * Creates a new instance of the KeyNotExistsException class.
@@ -26,7 +26,7 @@ public class KeyNotExistsException extends ConditionalTableUpdateException {
      * @param segmentName The name of the affected Table Segment.
      * @param key         The Key that does not exist.
      */
-    public KeyNotExistsException(String segmentName, ArrayView key) {
+    public KeyNotExistsException(String segmentName, BufferView key) {
         super(segmentName, "Key does not exist.");
         this.key = key;
     }
