@@ -94,11 +94,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
 
     @VisibleForTesting
     protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
-        try {
-            return FileChannel.open(path, openOption);
-        } catch (NoSuchFileException e) {
-            throw new FileNotFoundException(path.toString());
-        }
+        return FileChannel.open(path, openOption);
     }
 
     @VisibleForTesting

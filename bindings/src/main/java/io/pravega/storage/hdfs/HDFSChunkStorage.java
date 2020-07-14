@@ -118,8 +118,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
         ensureInitializedAndNotClosed();
         try {
             FileStatus status = fileSystem.getFileStatus(getFilePath(chunkName));
-            ChunkInfo result = ChunkInfo.builder().name(chunkName).length(status.getLen()).build();
-            return result;
+            return ChunkInfo.builder().name(chunkName).length(status.getLen()).build();
         } catch (IOException e) {
             throw convertException(chunkName, "doGetInfo", e);
         }
@@ -162,7 +161,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
         try {
-            boolean retValue = this.fileSystem.delete(getFilePath(handle.getChunkName()), true);
+            this.fileSystem.delete(getFilePath(handle.getChunkName()), true);
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
@@ -319,16 +318,6 @@ class HDFSChunkStorage extends BaseChunkStorage {
         } catch (IOException e) {
             throw convertException(chunkName, message, e);
         }
-    }
-
-    /**
-     * Determines whether the given FileStatus indicates the file is read-only.
-     *
-     * @param fs The FileStatus to check.
-     * @return True or false.
-     */
-    private boolean isReadOnly(FileStatus fs) {
-        return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
     private ChunkStorageException convertException(String chunkName, String message, IOException e) {

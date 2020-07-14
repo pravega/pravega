@@ -18,11 +18,17 @@ import java.util.Set;
  * Utils for File System.
  */
 public class FileSystemUtils {
+    /**
+     * Set of PosixFilePermission for readonly file.
+     */
     public static final Set<PosixFilePermission> READ_ONLY_PERMISSION = ImmutableSet.of(
             PosixFilePermission.OWNER_READ,
             PosixFilePermission.GROUP_READ,
             PosixFilePermission.OTHERS_READ);
 
+    /**
+     * Set of PosixFilePermission for writable file.
+     */
     public static final Set<PosixFilePermission> READ_WRITE_PERMISSION = ImmutableSet.of(
             PosixFilePermission.OWNER_WRITE,
             PosixFilePermission.OWNER_READ,
