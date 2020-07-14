@@ -150,9 +150,13 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         }
 
         @Override
-        public Status checkStatus() throws TxnFailedException {
-            log.info("Check transaction status {}", txId);
-            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), TxnFailedException::new);
+        public Status checkStatus() {
+            try { 
+                log.info("Check transaction status {}", txId);
+                return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), TxnFailedException::new);
+            } catch (TxnFailedException e) {
+                return Transaction.Status.ABORTED;
+            }
         }
 
         @Override

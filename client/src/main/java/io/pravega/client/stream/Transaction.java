@@ -100,8 +100,7 @@ public interface Transaction<Type> {
     /**
      * Gets the status of the transaction.
      *
-     *  @throws TxnFailedException The Transaction is no longer in state {@link Status#OPEN}
      *  @return Current status of the transaction
      */
-    Status checkStatus() throws TxnFailedException;
+    Status checkStatus();
 }
