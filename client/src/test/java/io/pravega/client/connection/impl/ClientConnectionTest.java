@@ -172,7 +172,7 @@ public class ClientConnectionTest {
         CompletableFuture<Exception> future = new CompletableFuture<Exception>();
         clientConnection.sendAsync(appends, e -> future.complete(e));
         assertNull(future.join());
-        assertEquals(2, server.getReadCommands().size());
+        AssertExtensions.assertEventuallyEquals(2, () -> server.getReadCommands().size(), 5000);
         assertFalse(processor.falure.get());
     }
 
