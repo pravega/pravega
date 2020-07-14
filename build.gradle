@@ -1027,12 +1027,14 @@ task javadocs(type: Javadoc) {
     ext.projects = [':client']
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
-    source = files(projects.collect {
-        project(it).sourceSets.main.allJava
-    })
-    classpath = files(projects.collect {
-        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
-    })
+
+    projects.collect {
+        dependsOn project(it).delombok
+
+        source += project(it).delombok.outputDir
+        classpath += project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    }
+
     failOnError = true
     exclude "**/impl/**"
     options.addBooleanOption("Xdoclint:all,-reference", true)
