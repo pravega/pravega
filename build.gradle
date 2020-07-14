@@ -416,9 +416,9 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
         compile project(':adapter')
-        compile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
-        compile "io.pravega:pravega-bindings-hdfs:${pravegaBindingsVersion}"
-        compile "io.pravega:pravega-bindings-extendeds3:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings-hdfs:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings-extendeds3:${pravegaBindingsVersion}"
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -717,9 +717,9 @@ project('standalone') {
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
         compile project(':adapter')
-        compile "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
-        compile "io.pravega:pravega-bindings-hdfs:${pravegaBindingsVersion}"
-        compile "io.pravega:pravega-bindings-extendeds3:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings-hdfs:${pravegaBindingsVersion}"
+        runtime "io.pravega:pravega-bindings-extendeds3:${pravegaBindingsVersion}"
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
