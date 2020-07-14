@@ -127,7 +127,7 @@ public class TcpClientConnection implements ClientConnection {
                     }
                     stop();
                 } catch (EOFException e) {
-                    log.info("Closing TcpConnection.Reader because end of input readched.");
+                    log.info("Closing TcpClientConnection.Reader because end of input reached.");
                     stop();
                 } catch (Exception e) {
                     log.warn("Error processing data from from server " + name, e);
@@ -262,7 +262,7 @@ public class TcpClientConnection implements ClientConnection {
         try {
             encoder.write(cmd);
         } catch (IOException e) {
-            log.warn("Error writing to connection", e.toString());
+            log.warn("Error writing to connection: {}", e.toString());
             close();
             throw new ConnectionFailedException(e);
         }
@@ -276,7 +276,7 @@ public class TcpClientConnection implements ClientConnection {
         try {
             encoder.write(append);
         } catch (IOException e) {
-            log.warn("Error writing to connection", e.toString());
+            log.warn("Error writing to connection: {}", e.toString());
             close();
             throw new ConnectionFailedException(e);
         }
@@ -306,7 +306,7 @@ public class TcpClientConnection implements ClientConnection {
             }
             callback.complete(null);
         } catch (IOException e) {
-            log.warn("Error writing to connection", e.toString());
+            log.warn("Error writing to connection: {}", e.toString());
             close();
             callback.complete(new ConnectionFailedException(e));
         }
