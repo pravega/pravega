@@ -12,15 +12,15 @@ import java.io.ByteArrayInputStream;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@Slf4j
 public class CertificateUtilsTests {
 
     private final static String TEST_CERT_PEM = "-----BEGIN CERTIFICATE-----" +
@@ -52,11 +52,41 @@ public class CertificateUtilsTests {
 
     @SneakyThrows
     @Test
+    public void testExtractCertsThrowsExceptionWhenFilePathIsBlank() {
+        AssertExtensions.assertThrows("Expected exception was not thrown",
+                () -> CertificateUtils.extractCerts(buildCertPath(null)), e -> e instanceof NullPointerException);
+        AssertExtensions.assertThrows("Expected exception was not thrown",
+                () -> CertificateUtils.extractCerts(buildCertPath("")), e -> e instanceof IllegalArgumentException);
+    }
+
+    @SneakyThrows
+    @Test
+    public void testCreateTruststoreThrowsExceptionWhenFilePathIsBlank() {
+        AssertExtensions.assertThrows("Expected exception was not thrown",
+                () -> CertificateUtils.createTrustStore(buildCertPath(null)), e -> e instanceof NullPointerException);
+        AssertExtensions.assertThrows("Expected exception was not thrown",
+                () -> CertificateUtils.createTrustStore(buildCertPath("")), e -> e instanceof IllegalArgumentException);
+    }
+
+    private String buildCertPath(String path) {
+        return path;
+    }
+
+    @SneakyThrows
+    @Test
     public void testCreateTrustStore() {
         X509Certificate[] certs = extractCerts();
         KeyStore trustStore = CertificateUtils.createTrustStore(certs);
         assertNotNull(trustStore);
         assertTrue(trustStore.containsAlias("0"));
+    }
+
+    @Test
+    public void testToString() {
+        X509Certificate[] certs = extractCerts();
+        String certsAsString = CertificateUtils.toString(certs);
+        assertTrue(certsAsString.contains("type=[X.509]"));
+        assertTrue(certsAsString.contains("subject=[CN=Test-Cert]"));
     }
 
     @SneakyThrows

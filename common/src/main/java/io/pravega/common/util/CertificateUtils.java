@@ -11,7 +11,6 @@ package io.pravega.common.util;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import lombok.NonNull;
-import lombok.experimental.UtilityClass;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -25,7 +24,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 
-@UtilityClass
 public class CertificateUtils {
 
     /**
@@ -39,7 +37,7 @@ public class CertificateUtils {
      * @throws NullPointerException if {@code certFilePath} is null
      * @throws IllegalArgumentException if {@code certFilePath} is empty
      */
-    public X509Certificate[] extractCerts(@NonNull String certFilePath)
+    public static X509Certificate[] extractCerts(String certFilePath)
             throws CertificateException, IOException {
         Exceptions.checkNotNullOrEmpty(certFilePath, "certFilePath");
 
@@ -49,7 +47,7 @@ public class CertificateUtils {
     }
 
     @VisibleForTesting
-    X509Certificate[] extractCerts(@NonNull InputStream certificateInputStream) throws CertificateException {
+    static X509Certificate[] extractCerts(@NonNull InputStream certificateInputStream) throws CertificateException {
         Collection<? extends Certificate> certificates = CertificateFactory.getInstance("X.509")
                 .generateCertificates(certificateInputStream);
         final X509Certificate[] result = new X509Certificate[certificates.size()];
@@ -61,8 +59,7 @@ public class CertificateUtils {
         return result;
     }
 
-    @VisibleForTesting
-    String toString(X509Certificate[] certificateChain) {
+    public static String toString(X509Certificate[] certificateChain) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < certificateChain.length; i++) {
             X509Certificate certificate = certificateChain[i];
@@ -89,13 +86,14 @@ public class CertificateUtils {
      * @throws NullPointerException if {@code certFilePath} is null
      * @throws IllegalArgumentException if {@code certFilePath} is empty
      */
-    public KeyStore createTrustStore(@NonNull String certFilePath)
+    public static KeyStore createTrustStore(String certFilePath)
             throws CertificateException, IOException, KeyStoreException, NoSuchAlgorithmException {
+        Exceptions.checkNotNullOrEmpty(certFilePath, "certFilePath");
         return createTrustStore(extractCerts(certFilePath));
     }
 
     @VisibleForTesting
-    KeyStore createTrustStore(X509Certificate[] certificateChain)
+    static KeyStore createTrustStore(X509Certificate[] certificateChain)
             throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
 
         final KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
