@@ -109,7 +109,7 @@ public abstract class AbstractService implements Service {
         return deployPravegaUsingOperator(zkUri, controllerCount, segmentStoreCount, bookieCount, props, false);
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, Boolean secure) {
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, boolean secure) {
     return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createClusterRole(getPravegaOperatorClusterRole()))
@@ -395,7 +395,7 @@ public abstract class AbstractService implements Service {
          return getPravegaOperatorDeployment(false);
     }
 
-    private V1Deployment getPravegaOperatorDeployment(Boolean secure) {
+    private V1Deployment getPravegaOperatorDeployment(boolean secure) {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
                                                         .withImage(PRAVEGA_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
@@ -414,10 +414,10 @@ public abstract class AbstractService implements Service {
                                                                                       .withValue(PRAVEGA_OPERATOR)
                                                                                       .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED")
-                                                                        .withValue(secure.toString())
+                                                                        .withValue(String.valueOf(secure))
                                                                         .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED_FOR_SEGMENT_STORE")
-                                                                        .withValue(secure.toString())
+                                                                        .withValue(String.valueOf(secure))
                                                                         .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)

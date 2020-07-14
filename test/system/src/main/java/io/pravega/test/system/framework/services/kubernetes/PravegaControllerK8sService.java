@@ -27,7 +27,7 @@ public class PravegaControllerK8sService extends AbstractService {
 
     private final URI zkUri;
     private final ImmutableMap<String, String> properties;
-    private final Boolean secure;
+    private final boolean secure;
 
     public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties) {
         super(id);
@@ -36,7 +36,7 @@ public class PravegaControllerK8sService extends AbstractService {
         this.secure = false;
     }
 
-    public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties, Boolean secure) {
+    public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties, boolean secure) {
         super(id);
         this.zkUri = zkUri;
         this.properties = properties;

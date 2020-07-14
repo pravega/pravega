@@ -89,7 +89,7 @@ public class Utils {
         }
     }
 
-    public static Service createPravegaControllerService(final URI zkUri, String serviceName, Boolean secure) {
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName, boolean secure) {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
