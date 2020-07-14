@@ -524,8 +524,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     private Transaction.Status checkStatusThrowing(Transaction<String> txn) {
         try {
              return txn.checkStatus();
-        } catch (Exception ex) {
-             return Futures.failedFuture(ex);
+        } catch (TxnFailedException ex) {
+             throw new TxnNotCompleteException();
         }
     }
 
