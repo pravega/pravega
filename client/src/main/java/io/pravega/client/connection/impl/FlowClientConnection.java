@@ -52,8 +52,9 @@ public class FlowClientConnection implements ClientConnection {
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         if (closed.get()) {
             callback.complete(new ConnectionFailedException("Connection is closed"));
+        } else {
+            channel.sendAsync(appends, callback);
         }
-        channel.sendAsync(appends, callback);
     }
 
     @Override

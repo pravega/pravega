@@ -182,7 +182,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * flows on the connection.
      */
     private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
-        return FlowHandler.openConnection(location, clientConfig, metricNotifier, connectionFactory);
+        return FlowHandler.openConnection(location, metricNotifier, connectionFactory);
     }
 
     @Override

@@ -11,7 +11,6 @@ package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -61,7 +60,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         this.metricNotifier = updateMetric;
     }
 
-    static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, ClientConfig clientConfig, MetricNotifier updateMetric, ConnectionFactory connectionFactory) {
+    static CompletableFuture<FlowHandler> openConnection(PravegaNodeUri location, MetricNotifier updateMetric, ConnectionFactory connectionFactory) {
         FlowHandler flowHandler = new FlowHandler(location, updateMetric);
         return connectionFactory.establishConnection(location, flowHandler).thenApply(connection -> {
             flowHandler.channel = connection;
@@ -118,7 +117,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         flowIdReplyProcessorMap.remove(flow);
         flowIDBatchSizeTrackerMap.remove(flow);
         if (flow == FLOW_DISABLED) {
-            // close the channel immediately since this netty channel will not be reused by other flows.
+            // close the channel immediately since this connection will not be reused by other flows.
             close();
         }
     }
@@ -267,7 +266,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     @VisibleForTesting
     final class KeepAliveTask implements Runnable {
-        private AtomicInteger concurrentlyRunning = new AtomicInteger(0);
+        private final AtomicInteger concurrentlyRunning = new AtomicInteger(0);
         @Override
         public void run() {
             try {

@@ -102,7 +102,7 @@ public class FlowHandlerTest {
         
         ClientConfig clientConfig = ClientConfig.builder().build();
         PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("testConnection", 0);
-        flowHandler = FlowHandler.openConnection(pravegaNodeUri, clientConfig, new TestMetricNotifier(), connectionFactory).join();
+        flowHandler = FlowHandler.openConnection(pravegaNodeUri, new TestMetricNotifier(), connectionFactory).join();
     }
     
     @After 
