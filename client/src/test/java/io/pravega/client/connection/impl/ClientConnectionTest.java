@@ -20,9 +20,11 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.Vector;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
@@ -148,4 +150,30 @@ public class ClientConnectionTest {
         AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
     }
     
+    @Test
+    public void testSendAsync() throws Exception {
+        byte[] payload = new byte[100];
+        byte[] payload2 = new byte[101];
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        ClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        ArrayList<Append> appends = new ArrayList<>();
+        appends.add(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
+        appends.add(new Append("segment", writerId, 2, new Event(Unpooled.wrappedBuffer(payload2)), 1));
+        CompletableFuture<Exception> future = new CompletableFuture<Exception>();
+        clientConnection.sendAsync(appends, e -> future.complete(e));
+        assertNull(future.join());
+        assertEquals(2, server.getReadCommands().size());
+        assertFalse(processor.falure.get());
+    }
+
 }
