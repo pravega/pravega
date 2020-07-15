@@ -271,7 +271,8 @@ class HDFSChunkStorage extends BaseChunkStorage {
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
 
-        // We do not want FileSystem to cache Clients/Instances based on target URI.
+        // We do not want FileSystem to cache clients/instances based on target URI.
+        // This allows us to close instances without affecting other clients/instances. This should not affect performance.
         conf.set("fs.hdfs.impl.disable.cache", "true");
         if (!this.config.isReplaceDataNodesOnFailure()) {
             // Default is DEFAULT, so we only set this if we want it disabled.
