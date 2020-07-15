@@ -544,17 +544,13 @@ public class ChunkedSegmentStorage implements Storage {
     /**
      * Adds a system log.
      *
-     * @param systemLogRecords  List of records to add.
+     * @param systemLogRecords
      * @param streamSegmentName Name of the segment.
      * @param offset            Offset at which new chunk was added.
      * @param oldChunkName      Name of the previous last chunk.
      * @param newChunkName      Name of the new last chunk.
      */
-    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords,
-                                    String streamSegmentName,
-                                    long offset,
-                                    String oldChunkName,
-                                    String newChunkName) {
+    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
                         .segmentName(streamSegmentName)
@@ -796,7 +792,8 @@ public class ChunkedSegmentStorage implements Storage {
      * @param segmentMetadata {@link SegmentMetadata} for the segment to defrag.
      * @param startChunkName  Name of the first chunk to start defragmentation.
      * @param lastChunkName   Name of the last chunk before which to stop defragmentation. (last chunk is not concatenated).
-     * @param chunksToDelete  Chunks to delete as a result of defrag opration.
+     * @param chunksToDelete  List of chunks to which names of chunks to be deleted are added. It is the responsibility
+     *                        of caller to garbage collect these chunks.
      * @throws ChunkStorageException In case of any chunk storage related errors.
      * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
