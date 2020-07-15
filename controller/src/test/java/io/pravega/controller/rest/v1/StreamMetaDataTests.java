@@ -23,6 +23,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
@@ -166,9 +167,12 @@ public class StreamMetaDataTests {
 
         retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
         retentionPolicyCommon.setValue(123L);
+        TimeBasedRetention timeRetention = new TimeBasedRetention();
+        retentionPolicyCommon.setTimeBasedRetention(timeRetention.days(123L).hours(0L).minutes(0L));
 
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
+        retentionPolicyCommon2.setTimeBasedRetention(null);
 
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
@@ -886,7 +890,7 @@ public class StreamMetaDataTests {
         assertEquals("StreamConfig: Scaling Policy: MinNumSegments",
                 expected.getScalingPolicy().getMinSegments(),
                 actual.getScalingPolicy().getMinSegments());
-        assertEquals("StreamConfig: Retention Policy",
+        assertEquals("StreamConfig: Retention Policy Type",
                 expected.getRetentionPolicy(),
                 actual.getRetentionPolicy());
     }

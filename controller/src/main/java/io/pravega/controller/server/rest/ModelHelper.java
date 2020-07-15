@@ -156,19 +156,19 @@ public class ModelHelper {
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
                     TimeBasedRetention timeRetention = new TimeBasedRetention();
-                    long millsecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
-                    long days = TimeUnit.DAYS.toDays(millsecs);
-                    long msInDays = TimeUnit.DAYS.convert(days, TimeUnit.MILLISECONDS);
-                    long hours = millsecs > msInDays ? TimeUnit.HOURS.toHours(millsecs - msInDays) : 0;
-                    long msInHrs = TimeUnit.HOURS.convert(hours, TimeUnit.MILLISECONDS);
-                    long msLeft = millsecs - (msInDays + msInHrs);
-                    long mins = msLeft > 0 ? TimeUnit.MINUTES.convert(msLeft, TimeUnit.MINUTES) : 0;
-                    if (days != 0 && hours == 0 && mins == 0) {
+                    long millisecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
+                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays();
+                    long daysInMs = Duration.ofDays(days).toMillis();
+                    long hours = millisecs == daysInMs ? 0 : TimeUnit.HOURS.toHours(millisecs - daysInMs);
+                    long hoursInMs = Duration.ofHours(hours).toMillis();
+                    long remainderMins = millisecs - (daysInMs + hoursInMs);
+                    long minutes = (millisecs == daysInMs || remainderMins == 0) ? 0 : TimeUnit.MINUTES.convert(remainderMins, TimeUnit.MINUTES);
+                    if (days != 0 && hours == 0 && minutes == 0) {
                         retentionConfig.setValue(days);
                     } else {
                         retentionConfig.setValue(0L);
                     }
-                    retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(mins));
+                    retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
                     break;
             }
         }
