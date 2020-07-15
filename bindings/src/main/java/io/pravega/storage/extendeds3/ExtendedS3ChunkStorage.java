@@ -129,7 +129,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         try {
             val objectPath = getObjectPath(handle.getChunkName());
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(), objectPath);
+            // Check object exists.
+            client.getObjectMetadata(config.getBucket(), objectPath);
+
+            // Put data.
             client.putObject(this.config.getBucket(), objectPath,
                     Range.fromOffsetLength(offset, length), data);
             return length;
@@ -315,7 +318,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
                     || errorCode.equals("InvalidArgument")
                     || errorCode.equals("MethodNotAllowed")
                     || s3Exception.getHttpCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
-                retValue =  new ChunkStorageException(chunkName, String.format("IllegalArgumentException", e));
+                retValue =  new ChunkStorageException(chunkName, "IllegalArgumentException", e);
             }
 
             if (errorCode.equals("AccessDenied")) {

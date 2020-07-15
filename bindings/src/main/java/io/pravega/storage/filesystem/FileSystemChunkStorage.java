@@ -11,7 +11,6 @@ package io.pravega.storage.filesystem;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.Timer;
 import io.pravega.segmentstore.storage.chunklayer.BaseChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkAlreadyExistsException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
@@ -136,7 +135,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
         return ChunkHandle.writeHandle(chunkName);
     }
 
-    public ChunkStorageException convertExeption(String chunkName, String message, Exception e) throws ChunkStorageException {
+    private ChunkStorageException convertExeption(String chunkName, String message, Exception e) {
         if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
             return new ChunkNotFoundException(chunkName, message, e);
         }
@@ -186,8 +185,6 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     @Override
     protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset)
             throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
-        Timer timer = new Timer();
-
         Path path = Paths.get(config.getRoot(), handle.getChunkName());
         try {
             long fileSize = getFileSize(path);
@@ -209,7 +206,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
                 readOffset += bytesRead;
-            } while (length != 0);
+            } while (length > 0);
             return totalBytesRead;
         } catch (IOException e) {
             throw convertExeption(handle.getChunkName(), "doRead", e);
@@ -218,8 +215,6 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
-        Timer timer = new Timer();
-
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException("Write called on a readonly handle of chunk " + handle.getChunkName());
         }
@@ -236,7 +231,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
             // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
             // the underlying InputStream, which is not desirable if it is to be reused.
             ReadableByteChannel sourceChannel = Channels.newChannel(data);
-            while (length != 0) {
+            while (length > 0) {
                 long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
                 assert bytesWritten > 0 : "Unable to make any progress transferring data.";
                 offset += bytesWritten;

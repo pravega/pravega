@@ -33,23 +33,28 @@ public class ExtendedS3TestContext {
     public final S3Config s3Config;
 
     public ExtendedS3TestContext() throws Exception {
-        String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
-        this.adapterConfig = ExtendedS3StorageConfig.builder()
-                .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
-                .with(ExtendedS3StorageConfig.BUCKET, bucketName)
-                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
-                .build();
-        s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
-        s3Proxy = new S3ProxyImpl(configUri, s3Config);
-        s3Proxy.start();
-        client = new S3JerseyClientWrapper(s3Config, s3Proxy);
-        client.createBucket(bucketName);
-        List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream()
-                .map(object -> new ObjectKey(object.getKey()))
-                .collect(Collectors.toList());
+        try {
+            String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
+            this.adapterConfig = ExtendedS3StorageConfig.builder()
+                    .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
+                    .with(ExtendedS3StorageConfig.BUCKET, bucketName)
+                    .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                    .build();
+            s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
+            s3Proxy = new S3ProxyImpl(configUri, s3Config);
+            s3Proxy.start();
+            client = new S3JerseyClientWrapper(s3Config, s3Proxy);
+            client.createBucket(bucketName);
+            List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream()
+                    .map(object -> new ObjectKey(object.getKey()))
+                    .collect(Collectors.toList());
 
-        if (!keys.isEmpty()) {
-            client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
+            if (!keys.isEmpty()) {
+                client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
+            }
+        } catch (Exception e) {
+            close();
+            throw e;
         }
     }
 
@@ -57,6 +62,8 @@ public class ExtendedS3TestContext {
         if (client != null) {
             client.destroy();
         }
-        s3Proxy.stop();
+        if (s3Proxy != null) {
+            s3Proxy.stop();
+        }
     }
 }
