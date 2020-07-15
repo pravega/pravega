@@ -163,7 +163,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         Preconditions.checkNotNull(null != handle, "handle");
         Preconditions.checkNotNull(handle.getChunkName(), "handle");
         String chunkName = handle.getChunkName();
@@ -172,7 +172,6 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
             throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doSetReadOnly");
         }
         chunkData.isReadonly = isReadOnly;
-        return false;
     }
 
     @Override

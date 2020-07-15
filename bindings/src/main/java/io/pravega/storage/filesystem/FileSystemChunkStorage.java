@@ -285,12 +285,11 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         Path path = null;
         try {
             path = Paths.get(config.getRoot(), handle.getChunkName());
             Files.setPosixFilePermissions(path, isReadOnly ? FileSystemUtils.READ_ONLY_PERMISSION : FileSystemUtils.READ_WRITE_PERMISSION);
-            return true;
         } catch (IOException e) {
             throw convertExeption(path.toString(), "doSetReadOnly", e);
         }

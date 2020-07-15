@@ -212,10 +212,9 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         try {
             setPermission(handle, isReadOnly ? Permission.READ : Permission.FULL_CONTROL);
-            return true;
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doSetReadOnly", e);
         }

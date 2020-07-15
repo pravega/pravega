@@ -202,10 +202,9 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         chunk.setReadOnly(isReadOnly);
-        return true;
     }
 
     @Override

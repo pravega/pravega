@@ -409,12 +409,11 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      *
      * @param handle     ChunkHandle of the chunk.
      * @param isReadonly True if chunk is set to be readonly.
-     * @return True if the operation was successful, false otherwise.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     @Override
-    final public boolean setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException {
+    final public void setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
@@ -422,11 +421,10 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         long traceId = LoggerHelpers.traceEnter(log, "setReadOnly", handle.getChunkName());
 
         // Call concrete implementation.
-        boolean retValue = doSetReadOnly(handle, isReadonly);
+        doSetReadOnly(handle, isReadonly);
 
         LoggerHelpers.traceLeave(log, "setReadOnly", traceId, handle.getChunkName());
 
-        return retValue;
     }
 
     /**
@@ -553,9 +551,8 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      *
      * @param handle     ChunkHandle of the chunk.
      * @param isReadOnly True if chunk is set to be readonly.
-     * @return True if the operation was successful, false otherwise.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
-    abstract protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException;
+    abstract protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException;
 }

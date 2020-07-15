@@ -249,10 +249,9 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         try {
             this.fileSystem.setPermission(getFilePath(handle.getChunkName()), isReadOnly ? READONLY_PERMISSION : READWRITE_PERMISSION);
-            return true;
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doSetReadOnly", e);
         }
