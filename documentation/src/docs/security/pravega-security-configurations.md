@@ -298,7 +298,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Type:|boolean|
    |Default:| `false`|
    |Valid values:|{`true`, `false`} |
-   |Old name:|`controller.auth.tlsEnabled` (deprecated) |
+   |Old name:|`autoScale.authEnabled` (deprecated) |
 
 * __<ins>autoScale.security.auth.token.signingKey.basis</ins>__
 
@@ -308,7 +308,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Type:|string|
    |Default: | `secret`|
    |Sample value:| `super-secret-key`  |
-   |Old name:|`controller.auth.tokenSigningKey` (deprecated) | 
+   |Old name:|`autoScale.tokenSigningKey` (deprecated) | 
 
 * __<ins>pravega.client.auth.loadDynamic</ins>__ 
 
