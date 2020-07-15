@@ -21,10 +21,10 @@ import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
 
 /**
- * RetentionConfigTimeBasedRetention
+ * TimeBasedRetention
  */
 
-public class RetentionConfigTimeBasedRetention   {
+public class TimeBasedRetention   {
   @JsonProperty("days")
   private Long days = null;
 
@@ -34,7 +34,7 @@ public class RetentionConfigTimeBasedRetention   {
   @JsonProperty("minutes")
   private Long minutes = null;
 
-  public RetentionConfigTimeBasedRetention days(Long days) {
+  public TimeBasedRetention days(Long days) {
     this.days = days;
     return this;
   }
@@ -53,7 +53,7 @@ public class RetentionConfigTimeBasedRetention   {
     this.days = days;
   }
 
-  public RetentionConfigTimeBasedRetention hours(Long hours) {
+  public TimeBasedRetention hours(Long hours) {
     this.hours = hours;
     return this;
   }
@@ -72,7 +72,7 @@ public class RetentionConfigTimeBasedRetention   {
     this.hours = hours;
   }
 
-  public RetentionConfigTimeBasedRetention minutes(Long minutes) {
+  public TimeBasedRetention minutes(Long minutes) {
     this.minutes = minutes;
     return this;
   }
@@ -100,10 +100,10 @@ public class RetentionConfigTimeBasedRetention   {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    RetentionConfigTimeBasedRetention retentionConfigTimeBasedRetention = (RetentionConfigTimeBasedRetention) o;
-    return Objects.equals(this.days, retentionConfigTimeBasedRetention.days) &&
-        Objects.equals(this.hours, retentionConfigTimeBasedRetention.hours) &&
-        Objects.equals(this.minutes, retentionConfigTimeBasedRetention.minutes);
+    TimeBasedRetention timeBasedRetention = (TimeBasedRetention) o;
+    return Objects.equals(this.days, timeBasedRetention.days) &&
+        Objects.equals(this.hours, timeBasedRetention.hours) &&
+        Objects.equals(this.minutes, timeBasedRetention.minutes);
   }
 
   @Override
@@ -115,7 +115,7 @@ public class RetentionConfigTimeBasedRetention   {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class RetentionConfigTimeBasedRetention {\n");
+    sb.append("class TimeBasedRetention {\n");
     
     sb.append("    days: ").append(toIndentedString(days)).append("\n");
     sb.append("    hours: ").append(toIndentedString(hours)).append("\n");

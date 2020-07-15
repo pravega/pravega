@@ -17,7 +17,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import io.pravega.controller.server.rest.generated.model.RetentionConfigTimeBasedRetention;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
@@ -28,12 +28,10 @@ import javax.validation.constraints.*;
 
 public class RetentionConfig   {
   /**
-   * Indicates the type of the value.
+   * Indicates if retention is by space or time.
    */
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
-
-    LIMITED_TIME("LIMITED_TIME"),
 
     LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
@@ -67,7 +65,7 @@ public class RetentionConfig   {
   private Long value = null;
 
   @JsonProperty("timeBasedRetention")
-  private RetentionConfigTimeBasedRetention timeBasedRetention = null;
+  private TimeBasedRetention timeBasedRetention = null;
 
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
@@ -75,11 +73,11 @@ public class RetentionConfig   {
   }
 
   /**
-   * Indicates the type of the value.
+   * Indicates if retention is by space or time.
    * @return type
    **/
   @JsonProperty("type")
-  @ApiModelProperty(value = "Indicates the type of the value.")
+  @ApiModelProperty(value = "Indicates if retention is by space or time.")
   public TypeEnum getType() {
     return type;
   }
@@ -107,7 +105,7 @@ public class RetentionConfig   {
     this.value = value;
   }
 
-  public RetentionConfig timeBasedRetention(RetentionConfigTimeBasedRetention timeBasedRetention) {
+  public RetentionConfig timeBasedRetention(TimeBasedRetention timeBasedRetention) {
     this.timeBasedRetention = timeBasedRetention;
     return this;
   }
@@ -118,11 +116,11 @@ public class RetentionConfig   {
    **/
   @JsonProperty("timeBasedRetention")
   @ApiModelProperty(value = "")
-  public RetentionConfigTimeBasedRetention getTimeBasedRetention() {
+  public TimeBasedRetention getTimeBasedRetention() {
     return timeBasedRetention;
   }
 
-  public void setTimeBasedRetention(RetentionConfigTimeBasedRetention timeBasedRetention) {
+  public void setTimeBasedRetention(TimeBasedRetention timeBasedRetention) {
     this.timeBasedRetention = timeBasedRetention;
   }
 
