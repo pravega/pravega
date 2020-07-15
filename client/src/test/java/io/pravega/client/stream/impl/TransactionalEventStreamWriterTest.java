@@ -253,7 +253,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testTxnFailed() throws TxnFailedException {
+    public void testTxnFailed() {
         String scope = "scope";
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);

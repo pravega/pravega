@@ -13,7 +13,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
@@ -124,7 +123,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStream(String segmentName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> deleteStream(String segmentName, Duration timeout) {
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
                 .deleteStreamSegment(segmentName, timeout)
@@ -145,17 +144,17 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         throw new UnsupportedOperationException("createTransaction");
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         throw new UnsupportedOperationException("mergeTransaction");
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
         throw new UnsupportedOperationException("abortTransaction");
     }
 

@@ -13,10 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
@@ -249,7 +247,7 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
     }
 
     private CompletableFuture<Void> deleteStream(String name) {
-        return Futures.exceptionallyExpecting(this.deleteStreamThrowing(name, this.config.getTimeout()),
+        return Futures.exceptionallyExpecting(this.store.deleteStream(name, this.config.getTimeout()),
                 ex -> ex instanceof StreamSegmentNotExistsException,
                 null)
                 .thenRun(() -> postStreamDeletion(name));
@@ -258,14 +256,6 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
     private void postStreamDeletion(String name) {
         this.eventGenerators.remove(name);
         this.state.recordDeletedStream(name);
-    }
-
-    private CompletableFuture<Void> deleteStreamThrowing(String name, Duration timeout) {
-        try {
-            return this.store.deleteStream(name, this.config.getTimeout());
-        } catch (TxnFailedException ex) {
-            return Futures.failedFuture(ex);
-        }
     }
 
     //endregion

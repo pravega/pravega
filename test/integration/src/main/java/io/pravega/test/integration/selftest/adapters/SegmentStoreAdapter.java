@@ -17,7 +17,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.client.stream.TxnFailedException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -193,7 +192,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     //region Stream Operations
 
     @Override
-    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
         val au = Arrays.asList(
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1),
@@ -216,7 +215,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureRunning();
 
         // Generate a transaction name. This need not be the same as what the Client would do, but we need a unique
@@ -228,7 +227,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         String parentSegment = NameUtils.getParentStreamSegmentName(transactionName);
@@ -236,7 +235,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
         // At the SegmentStore level, aborting transactions means deleting their segments.
         ensureRunning();
         return this.deleteStream(transactionName, timeout);
@@ -249,7 +248,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) throws TxnFailedException {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         ensureRunning();
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }

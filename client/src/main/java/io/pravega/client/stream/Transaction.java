@@ -92,10 +92,8 @@ public interface Transaction<Type> {
 
     /**
      * Drops the transaction, causing all events written to it to be deleted.
-     *
-     * @throws TxnFailedException Error aborting transaction: FAILURE
      */
-    void abort() throws TxnFailedException;
+    void abort();
 
     /**
      * Gets the status of the transaction.

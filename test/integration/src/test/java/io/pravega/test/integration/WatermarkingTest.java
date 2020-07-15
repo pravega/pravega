@@ -533,7 +533,7 @@ public class WatermarkingTest {
         AtomicInteger count = new AtomicInteger(0);
         return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
             AtomicLong currentTime = new AtomicLong();
-            Transaction<Long> txn = this.beginTxnThrowing(writer);
+            Transaction<Long> txn = writer.beginTxn();
             return CompletableFuture.runAsync(() -> {
                 try {
                     for (int i = 0; i < 10; i++) {
@@ -546,14 +546,6 @@ public class WatermarkingTest {
                 }
             });
         }, 1000L, executorService), executorService);
-    }
-
-    private Transaction<Long> beginTxnThrowing(TransactionalEventStreamWriter<Long> writer) {
-            try {
-                return writer.beginTxn();
-            } catch (TxnFailedException ex) {
-                throw new CompletionException(ex);
-            }
     }
 
     private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
