@@ -43,6 +43,7 @@ public class ClientConnectionTest {
         AtomicBoolean falure = new AtomicBoolean(false);
         List<Reply> replies = new Vector<>();
 
+        @Override
         public void process(Reply reply) {
             if (reply.isFailure()) {
                 falure.set(true);
@@ -133,6 +134,7 @@ public class ClientConnectionTest {
     public void testAckProcessingFailure() throws Exception {
         byte[] payload = new byte[100];
         ReplyProcessor processor = new ReplyProcessor() {
+            @Override
             public void process(Reply reply) {
                 throw new RuntimeException("Injected error");
             }

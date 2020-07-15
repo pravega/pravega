@@ -20,9 +20,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ class MockServer implements AutoCloseable {
     @Getter
     private final LinkedBlockingQueue<WireCommand> readCommands = new LinkedBlockingQueue<>();
     private final ReusableLatch started = new ReusableLatch(false);
-    private final AtomicReference<OutputStream> outputStream = new AtomicReference<OutputStream>();
+    private final CompletableFuture<OutputStream> outputStream = new CompletableFuture<OutputStream>();
     
     MockServer() {
         this.port = TestUtils.getAvailableListenPort();
@@ -56,7 +56,7 @@ class MockServer implements AutoCloseable {
             started.release();
             @Cleanup
             Socket s = ss.accept();
-            outputStream.set(s.getOutputStream());
+            outputStream.complete(s.getOutputStream());
             @Cleanup
             InputStream stream = s.getInputStream();
             IoBuffer buffer = new IoBuffer();
@@ -72,7 +72,7 @@ class MockServer implements AutoCloseable {
     public void sendReply(WireCommand cmd) throws IOException {
         ByteBuf buffer = Unpooled.buffer(8);
         CommandEncoder.writeMessage(cmd, buffer);
-        OutputStream os = outputStream.get();
+        OutputStream os = outputStream.join();
         buffer.readBytes(os, buffer.readableBytes());
         os.flush();
     }
