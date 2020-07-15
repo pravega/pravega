@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -58,6 +59,8 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
     private final ScheduledExecutorService executor;
+    @GuardedBy("this")
+    private BiConsumer<Long, Integer> appendCallback;
 
     SegmentMock(ScheduledExecutorService executor) {
         this(new StreamSegmentMetadata("Mock", 0, 0), executor);
@@ -75,10 +78,17 @@ class SegmentMock implements DirectSegmentAccess {
     /**
      * Gets the number of attributes that match the given filter.
      */
-    int getAttributeCount(BiPredicate<UUID, Long> tester) {
-        synchronized (this) {
-            return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
-        }
+    synchronized int getAttributeCount(BiPredicate<UUID, Long> tester) {
+        return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
+    }
+
+    /**
+     * Sets a callback that will be invoked (synchronously) every time a successful call to {@link #append} completes.
+     *
+     * @param appendCallback The callback to register.
+     */
+    synchronized void setAppendCallback(BiConsumer<Long, Integer> appendCallback) {
+        this.appendCallback = appendCallback;
     }
 
     @Override
@@ -87,6 +97,7 @@ class SegmentMock implements DirectSegmentAccess {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constructing the test data.
             long offset;
+            BiConsumer<Long, Integer> appendCallback;
             synchronized (this) {
                 offset = this.contents.size();
                 try {
@@ -101,7 +112,13 @@ class SegmentMock implements DirectSegmentAccess {
                 }
 
                 this.metadata.setLength(this.contents.size());
+                appendCallback = this.appendCallback;
             }
+
+            if (appendCallback != null) {
+                appendCallback.accept(offset, data.getLength());
+            }
+
             return offset;
         }, this.executor);
     }

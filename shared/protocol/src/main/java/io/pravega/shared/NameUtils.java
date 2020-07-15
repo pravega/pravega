@@ -12,6 +12,7 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -92,7 +93,12 @@ public final class NameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
-    
+
+    /**
+     * This is used in composing segment name for a table segment used for a KeyValueTable
+     */
+    private static final String KVTABLE_SUFFIX = "_kvtable";
+
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
@@ -292,6 +298,50 @@ public final class NameUtils {
      */
     public static String getScopedStreamName(String scope, String streamName) {
         return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Compose and return scoped Key-Value Table name.
+     *
+     * @param scope scope to be used in scoped Key-Value Table name.
+     * @param streamName Key-Value Table name to be used in Scoped Key-Value Table name.
+     * @return scoped Key-Value Table name.
+     */
+    public static String getScopedKeyValueTableName(String scope, String streamName) {
+        return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
+     *
+     * @param scope scope to be used in the ScopedTableSegment name
+     * @param kvTableName kvTable name to be used in ScopedTableSegment name.
+     * @param segmentId segment id to be used in ScopedStreamSegment name.
+     * @return fully qualified TableSegmentName for a TableSegment that is part of the KeyValueTable.
+     */
+    public static String getQualifiedTableSegmentName(String scope, String kvTableName, long segmentId) {
+        int segmentNumber = getSegmentNumber(segmentId);
+        int epoch = getEpoch(segmentId);
+        StringBuffer sb = getScopedStreamNameInternal(scope, kvTableName + KVTABLE_SUFFIX);
+        sb.append('/');
+        sb.append(segmentNumber);
+        sb.append(EPOCH_DELIMITER);
+        sb.append(epoch);
+        return sb.toString();
+    }
+
+    /**
+     * Returns a list representing the components of a scoped Stream/Key-Value Table name.
+     *
+     * @param scopedName The scoped name.
+     * @return A list containing the components. If the scoped name was properly formatted, this list should have
+     * two elements: element index 0 has the scope name and element index 1 has the stream name.
+     * @throws IllegalStateException If 'scopedName' is not in the form 'scope/name`.
+     */
+    public static List<String> extractScopedNameTokens(String scopedName) {
+        String[] tokens = scopedName.split("/");
+        Preconditions.checkArgument(tokens.length == 2, "Unexpected format for '%s'. Expected format '<scope-name>/<name>'.", scopedName);
+        return Arrays.asList(tokens);
     }
 
     /**
@@ -525,6 +575,15 @@ public final class NameUtils {
         Preconditions.checkNotNull(name);
         Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
+    }
+
+    /**
+     * Validates a user-created Key-Value Table name.
+     * @param name User supplied Key-Value Table name to validate.
+     * @return The name, if valid.
+     */
+    public static String validateUserKeyValueTableName(String name) {
+        return validateUserStreamName(name); // Currently, the same rules apply as for Streams.
     }
 
     /**

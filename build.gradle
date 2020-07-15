@@ -240,6 +240,7 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(path: ':common', configuration: 'testRuntime')
     }
 }
 
@@ -320,7 +321,7 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
-        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion    
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
     javadoc {
         dependsOn delombok
@@ -550,6 +551,18 @@ project('test:integration') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         systemProperties System.getProperties()
+    }
+
+    /**
+     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool.
+     * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
+     */
+    task startInteractiveDemo(type: JavaExec) {
+        main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
     }
 }
 
@@ -1020,12 +1033,14 @@ task javadocs(type: Javadoc) {
     ext.projects = [':client']
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
-    source = files(projects.collect {
-        project(it).sourceSets.main.allJava
-    })
-    classpath = files(projects.collect {
-        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
-    })
+
+    projects.collect {
+        dependsOn project(it).delombok
+
+        source += project(it).delombok.outputDir
+        classpath += project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    }
+
     failOnError = true
     exclude "**/impl/**"
     options.addBooleanOption("Xdoclint:all,-reference", true)
