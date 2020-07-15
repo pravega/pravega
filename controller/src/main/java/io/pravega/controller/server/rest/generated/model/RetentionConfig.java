@@ -17,6 +17,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.pravega.controller.server.rest.generated.model.RetentionConfigTimeBasedRetention;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.*;
@@ -27,10 +28,12 @@ import javax.validation.constraints.*;
 
 public class RetentionConfig   {
   /**
-   * Gets or Sets type
+   * Indicates the type of the value.
    */
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
+
+    LIMITED_TIME("LIMITED_TIME"),
 
     LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
@@ -63,17 +66,20 @@ public class RetentionConfig   {
   @JsonProperty("value")
   private Long value = null;
 
+  @JsonProperty("timeBasedRetention")
+  private RetentionConfigTimeBasedRetention timeBasedRetention = null;
+
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
     return this;
   }
 
   /**
-   * Get type
+   * Indicates the type of the value.
    * @return type
    **/
   @JsonProperty("type")
-  @ApiModelProperty(value = "")
+  @ApiModelProperty(value = "Indicates the type of the value.")
   public TypeEnum getType() {
     return type;
   }
@@ -101,6 +107,25 @@ public class RetentionConfig   {
     this.value = value;
   }
 
+  public RetentionConfig timeBasedRetention(RetentionConfigTimeBasedRetention timeBasedRetention) {
+    this.timeBasedRetention = timeBasedRetention;
+    return this;
+  }
+
+  /**
+   * Get timeBasedRetention
+   * @return timeBasedRetention
+   **/
+  @JsonProperty("timeBasedRetention")
+  @ApiModelProperty(value = "")
+  public RetentionConfigTimeBasedRetention getTimeBasedRetention() {
+    return timeBasedRetention;
+  }
+
+  public void setTimeBasedRetention(RetentionConfigTimeBasedRetention timeBasedRetention) {
+    this.timeBasedRetention = timeBasedRetention;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -112,12 +137,13 @@ public class RetentionConfig   {
     }
     RetentionConfig retentionConfig = (RetentionConfig) o;
     return Objects.equals(this.type, retentionConfig.type) &&
-        Objects.equals(this.value, retentionConfig.value);
+        Objects.equals(this.value, retentionConfig.value) &&
+        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, value);
+    return Objects.hash(type, value, timeBasedRetention);
   }
 
 
@@ -128,6 +154,7 @@ public class RetentionConfig   {
     
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    value: ").append(toIndentedString(value)).append("\n");
+    sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
     sb.append("}");
     return sb.toString();
   }

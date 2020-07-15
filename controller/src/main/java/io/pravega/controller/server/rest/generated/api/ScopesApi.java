@@ -49,7 +49,7 @@ public class ScopesApi  {
          String implClass = servletContext.getInitParameter("ScopesApi.implementation");
          if (implClass != null && !"".equals(implClass.trim())) {
             try {
-               delegate = (ScopesApiService) Class.forName(implClass).getConstructor().newInstance();
+               delegate = (ScopesApiService) Class.forName(implClass).newInstance();
             } catch (Exception e) {
                throw new RuntimeException(e);
             }

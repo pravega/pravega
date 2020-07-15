@@ -60,6 +60,12 @@ public class ModelHelper {
                     retentionPolicy = RetentionPolicy.byTime(
                             Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
                     break;
+                case LIMITED_TIME:
+                    Duration retentionDuration = Duration.ofDays(createStreamRequest.getRetentionPolicy().getTimeBasedRetention().getDays())
+                            .plusHours(createStreamRequest.getRetentionPolicy().getTimeBasedRetention().getHours())
+                            .plusMillis(createStreamRequest.getRetentionPolicy().getTimeBasedRetention().getMinutes());
+                    retentionPolicy = RetentionPolicy.byTime(retentionDuration);
+                    break;
             }
         }
         return StreamConfiguration.builder()

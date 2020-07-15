@@ -442,12 +442,26 @@ definitions:
     properties:
       type:
         type: string
+        description: Indicates if retention is by space or time and time granularity.
         enum:
-        - LIMITED_DAYS
-        - LIMITED_SIZE_MB
+        - LIMITED_DAYS  # Time based retention in number of days only, maintained for backward compatibility, use LIMITED_TIME instead
+        - LIMITED_TIME  # Time based retention at days, hours and mins granularity. Value should be specified in timeBasedRetention field.
+        - LIMITED_SIZE_MB  # Space based retention
       value:
         type: integer
         format: int64
+      timeBasedRetention:
+        type: object
+        properties:
+            days:
+              type: integer
+              format: int64
+            hours:
+              type: integer
+              format: int64
+            minutes:
+              type: integer
+              format: int64
   StreamState:
     type: object
     properties:
