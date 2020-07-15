@@ -151,12 +151,8 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public Status checkStatus() {
-            try {
-                log.info("Check transaction status {}", txId);
-                return Futures.getThrowingException(controller.checkTransactionStatus(stream, txId));
-            } catch (RuntimeException e) {
-                return Transaction.Status.ABORTED;
-            }
+            log.info("Check transaction status {}", txId);
+            return Futures.getThrowingException(controller.checkTransactionStatus(stream, txId));
         }
 
         @Override
