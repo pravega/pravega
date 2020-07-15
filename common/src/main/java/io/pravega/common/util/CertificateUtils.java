@@ -101,7 +101,7 @@ public class CertificateUtils {
 
         int i = 0;
         for (X509Certificate cert: certificateChain) {
-            String alias = i++ + "";
+            String alias = String.valueOf(i++);
             trustStore.setCertificateEntry(alias, cert);
         }
         return trustStore;
