@@ -355,6 +355,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
+            if (cmd instanceof WireCommands.ReleasableCommand) {
+                ((WireCommands.ReleasableCommand) cmd).release();
+            }
         }
         return Optional.ofNullable(processor);
     }

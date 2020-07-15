@@ -25,8 +25,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -543,32 +543,20 @@ public class FuturesTests {
     }
 
     @Test
-    public void testOnTimeoutWithCallback() {
-        AtomicInteger count = new AtomicInteger(0);
-
-        // 1. Verify when future completes successfully, the callback is not called.
+    public void testCompleteOn() {
         val successfulFuture = new CompletableFuture<Integer>();
-        val executor = Executors.newScheduledThreadPool(1);
-        Futures.onTimeout(successfulFuture, Duration.ofSeconds(1), executor, e -> count.getAndIncrement());
-        successfulFuture.complete(0);
-        Assert.assertEquals(count.get(), 0);
+        Executor executor = Executors.newSingleThreadExecutor();
+        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executor);
+        successfulFuture.complete(1);
+        Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());
 
-        // 2. Verify after timeout the attached callback is actually called
         val failedFuture = new CompletableFuture<Integer>();
-        Futures.onTimeout(failedFuture, Duration.ofSeconds(0), executor, e -> count.getAndIncrement());
-        executor.shutdown();
-        try {
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            Assert.fail();
-        }
-        Assert.assertTrue(executor.isShutdown());
-        Assert.assertTrue(failedFuture.isCompletedExceptionally());
+        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executor);
+        failedFuture.completeExceptionally(new IntentionalException());
         AssertExtensions.assertSuppliedFutureThrows(
-                "timeout future should fail with TimeoutException",
-                () -> failedFuture,
-                ex -> ex instanceof TimeoutException);
-        Assert.assertEquals(count.get(), 1);
+                "Failed future throws exception.",
+                () -> failedResult,
+                ex -> ex instanceof IntentionalException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
