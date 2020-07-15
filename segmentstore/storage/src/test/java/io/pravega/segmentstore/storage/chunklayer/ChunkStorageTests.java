@@ -314,14 +314,11 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 chunkStorage.concat(new ConcatArgument[]{ConcatArgument.fromChunkInfo(chunkInfoA), ConcatArgument.fromChunkInfo(chunkInfoB)});
                 ChunkInfo chunkInfoAAfterConcat = chunkStorage.getInfo(chunknameA);
                 assertEquals(chunkInfoA.getLength() + chunkInfoB.getLength(), chunkInfoAAfterConcat.getLength());
-                assertFalse(chunkStorage.exists(handleB.getChunkName()));
             }
         }
         // delete
         chunkStorage.delete(handleA);
-        if (!(chunkStorage.supportsConcat() || chunkStorage.supportsAppend())) {
-            chunkStorage.delete(handleB);
-        }
+        chunkStorage.delete(handleB);
     }
 
     /**

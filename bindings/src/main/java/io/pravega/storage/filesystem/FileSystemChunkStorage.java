@@ -267,7 +267,6 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
                         length -= bytesTransferred;
                     }
                     targetChannel.force(true);
-                    Files.delete(sourcePath);
                     totalBytesConcated += length;
                     offset += length;
                 }

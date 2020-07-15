@@ -183,15 +183,6 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                     targetPath, uploadId).withParts(partEtags));
             isCompleted = true;
-
-            // Delete all source objects.
-            for (int i = 1; i < chunks.length; i++) {
-                try {
-                    client.deleteObject(config.getBucket(), getObjectPath(chunks[i].getName()));
-                } catch (Exception e) {
-                    log.warn("Could not delete source chunk - chunk={}.", chunks[i].getName(), e);
-                }
-            }
         } catch (RuntimeException e) {
             // Make spotbugs happy. Wants us to catch RuntimeException in a separate catch block.
             // Error message is REC_CATCH_EXCEPTION: Exception is caught when Exception is not thrown

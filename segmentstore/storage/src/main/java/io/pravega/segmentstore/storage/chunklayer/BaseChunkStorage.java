@@ -424,7 +424,6 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         doSetReadOnly(handle, isReadonly);
 
         LoggerHelpers.traceLeave(log, "setReadOnly", traceId, handle.getChunkName());
-
     }
 
     /**

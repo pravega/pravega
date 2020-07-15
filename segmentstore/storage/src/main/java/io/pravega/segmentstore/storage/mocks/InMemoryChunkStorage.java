@@ -188,7 +188,6 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
                 for (InMemoryChunkData inMemoryChunkData : chunk.getInMemoryChunkDataList()) {
                     targetChunk.append(inMemoryChunkData.getData());
                 }
-                delete(ChunkHandle.writeHandle(source.getName()));
                 total += chunks[i].getLength();
             }
             return total;

@@ -125,6 +125,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);
+
         return length;
     }
 
@@ -142,9 +143,6 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
 
         val targetChunkData = chunkMetadata.get(chunks[0].getName());
         targetChunkData.length = total;
-        for (int i = 1; i < chunks.length; i++) {
-            chunkMetadata.remove(chunks[i].getName());
-        }
 
         return total;
     }

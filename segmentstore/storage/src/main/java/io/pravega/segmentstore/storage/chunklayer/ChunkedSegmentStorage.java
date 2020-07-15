@@ -544,13 +544,17 @@ public class ChunkedSegmentStorage implements Storage {
     /**
      * Adds a system log.
      *
-     * @param systemLogRecords
+     * @param systemLogRecords  List of records to add.
      * @param streamSegmentName Name of the segment.
      * @param offset            Offset at which new chunk was added.
      * @param oldChunkName      Name of the previous last chunk.
      * @param newChunkName      Name of the new last chunk.
      */
-    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
+    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords,
+                                    String streamSegmentName,
+                                    long offset,
+                                    String oldChunkName,
+                                    String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
                         .segmentName(streamSegmentName)
@@ -682,14 +686,18 @@ public class ChunkedSegmentStorage implements Storage {
                 txn.delete(sourceSegment);
 
                 // Finally defrag immediately.
+                ArrayList<String> chunksToDelete = new ArrayList<>();
                 if (shouldDefrag() && null != targetLastChunk) {
-                    defrag(txn, targetSegmentMetadata, targetLastChunk.getName(), null);
+                    defrag(txn, targetSegmentMetadata, targetLastChunk.getName(), null, chunksToDelete);
                 }
 
                 targetSegmentMetadata.checkInvariants();
 
                 // Finally commit transaction.
                 txn.commit();
+
+                // Collect garbage.
+                collectGarbage(chunksToDelete);
 
                 // Update the read index.
                 readIndexCache.remove(sourceSegment);
@@ -788,10 +796,15 @@ public class ChunkedSegmentStorage implements Storage {
      * @param segmentMetadata {@link SegmentMetadata} for the segment to defrag.
      * @param startChunkName  Name of the first chunk to start defragmentation.
      * @param lastChunkName   Name of the last chunk before which to stop defragmentation. (last chunk is not concatenated).
+     * @param chunksToDelete  Chunks to delete as a result of defrag opration.
      * @throws ChunkStorageException In case of any chunk storage related errors.
      * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
-    private void defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName) throws StorageMetadataException, ChunkStorageException {
+    private void defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
+                        String startChunkName,
+                        String lastChunkName,
+                        ArrayList<String> chunksToDelete)
+            throws StorageMetadataException, ChunkStorageException {
         // The algorithm is actually very simple.
         // It tries to concat all small chunks using appends first.
         // Then it tries to concat remaining chunks using concat if available.
@@ -845,6 +858,11 @@ public class ChunkedSegmentStorage implements Storage {
                     int length = chunkStorage.concat(concatArgs);
                 } else {
                     concatUsingAppend(concatArgs);
+                }
+
+                // Delete chunks.
+                for (int i = 1; i < chunksToConcat.size(); i++) {
+                    chunksToDelete.add(chunksToConcat.get(i).getName());
                 }
 
                 // Set the pointers
