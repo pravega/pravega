@@ -661,8 +661,6 @@ public class PravegaRequestProcessorTest {
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
         order.verify(connection).send(wireCommandsCaptor.capture());
-        //processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, tableSegmentName, "", cmd, WireCommands.NULL_TABLE_SEGMENT_OFFSET));
-        //order.verify(connection).send(any());
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(1), eq(true), any());
 
         List<Long> keyVersions = ((WireCommands.TableEntriesUpdated) wireCommandsCaptor.getAllValues().get(0)).getUpdatedVersions();
@@ -715,7 +713,7 @@ public class PravegaRequestProcessorTest {
                 recorderMock, new PassingTokenVerifier(), false);
 
         // Generate keys.
-        ArrayList<ArrayView> keys = generateKeys(2, rnd);
+        ArrayList<ArrayView> keys = generateKeys(3, rnd);
 
         // Create a table segment and add data.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
@@ -728,13 +726,13 @@ public class PravegaRequestProcessorTest {
 
         // Remove a Table Key
         WireCommands.TableKey key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), 0L));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, tableSegmentName, "", singletonList(key), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, tableSegmentName));
         verify(recorderMock).removeKeys(eq(tableSegmentName), eq(1), eq(true), any());
 
         // Test with non-existent key.
         key = new WireCommands.TableKey(toByteBuf(e1.getKey().getKey()), 0L);
-        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), 0L));
+        processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, tableSegmentName, "", singletonList(key), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, tableSegmentName, ""));
 
         long segmentLength = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();

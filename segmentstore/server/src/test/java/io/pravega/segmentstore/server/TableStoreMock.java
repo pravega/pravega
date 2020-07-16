@@ -102,6 +102,12 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return CompletableFuture.runAsync(() -> getTableData(segmentName).remove(keys), this.executor);
+    }
+
+    @Override
     public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return CompletableFuture.supplyAsync(() -> getTableData(segmentName).get(keys), this.executor);

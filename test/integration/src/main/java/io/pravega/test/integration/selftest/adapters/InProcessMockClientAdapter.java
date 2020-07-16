@@ -289,6 +289,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+            throw new UnsupportedOperationException("remove");
+        }
+
+        @Override
         public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
             throw new UnsupportedOperationException("get");
         }
