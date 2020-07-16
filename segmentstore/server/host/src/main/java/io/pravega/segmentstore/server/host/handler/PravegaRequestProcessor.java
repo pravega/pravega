@@ -655,12 +655,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.put(segment, entries, TIMEOUT)
+        tableStore.put(segment, entries, updateTableEntries.getTableSegmentOffset(), TIMEOUT)
                 .thenAccept(versions -> {
                     connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
                     this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e))
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, updateTableEntries.getTableSegmentOffset(), operation, e))
                 .whenComplete((r, ex) -> updateTableEntries.release());
     }
 
@@ -687,12 +687,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.remove(segment, keys, TIMEOUT)
+        tableStore.remove(segment, keys, removeTableKeys.getTableSegmentOffset(), TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
                     this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e))
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, removeTableKeys.getTableSegmentOffset(), operation, e))
                 .whenComplete((r, ex) -> removeTableKeys.release());
     }
 

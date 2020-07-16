@@ -168,7 +168,7 @@
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
-        				  "value": "SERVER_OPTS=\"-Dcontroller.zk.url=master.mesos:2181\" \"-Dcontroller.service.rpc.listener.port=9090\" \"-Dcontroller.service.rest.listener.port=9091\" \"-Dlog.level=INFO\""
+        				  "value": "SERVER_OPTS=\"-Dcontroller.zk.connect.uri=master.mesos:2181\" \"-Dcontroller.service.rpc.listener.port=9090\" \"-Dcontroller.service.rest.listener.port=9091\" \"-Dlog.level=INFO\""
                         },
                         { "key": "env",
                           "value": "JAVA_OPTS=-Xmx512m"
