@@ -14,11 +14,6 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -49,7 +44,6 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -59,7 +53,6 @@ import org.junit.rules.Timeout;
 /**
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
-@Slf4j
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
@@ -114,7 +107,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testInvalidIteratorState() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val iteratorArgs = IteratorArgs
                 .builder()
@@ -195,7 +188,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testOffsetAcceptingMethods() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
@@ -694,7 +687,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
         val emptyIteratorArgs = IteratorArgs
                 .builder()
-                .serializedState(new IteratorState(KeyHasher.MAX_HASH).serialize())
+                .serializedState(new IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
                 .fetchTimeout(TIMEOUT)
                 .build();
         // Check that invalid serializer state is handled properly.
