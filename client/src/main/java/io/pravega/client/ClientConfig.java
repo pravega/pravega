@@ -15,6 +15,7 @@ import io.pravega.client.stream.impl.Credentials;
 import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -109,13 +110,11 @@ public class ClientConfig implements Serializable {
     private final MetricListener metricListener;
 
     /**
-     * An optional property representing whether the current run is for testing purpose. By default this property is
-     * not enabled.
-     *
-     * If this property is set, the request timeout to segmentstore is set to a very large value(3600s) in order to not
-     * mask any bugs. By default the request timeout in real application is set to 30s.
+     * Timeout for the segment store requests. The default value is set to 30s, which is considered to be a
+     * reasonable timeout for most cases.
+     * It is advisable to set this property to be a large value in the testing in order to not mask any bugs.
      */
-    private final boolean enableTesting;
+    private final Duration serverRequestTimeout;
 
     /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
@@ -173,7 +172,7 @@ public class ClientConfig implements Serializable {
 
         private boolean deriveTlsEnabledFromControllerURI = true;
 
-        private boolean enableTesting = false;
+        private Duration enableTesting = Duration.ofSeconds(30);
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -199,8 +198,8 @@ public class ClientConfig implements Serializable {
             return this;
         }
 
-        public ClientConfigBuilder enableTesting(boolean value) {
-            this.enableTesting = value;
+        public ClientConfigBuilder serverRequestTimeout(Duration value) {
+            this.serverRequestTimeout = value;
             return this;
         }
 
@@ -213,7 +212,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, enableTesting);
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener, serverRequestTimeout);
         }
 
         /**

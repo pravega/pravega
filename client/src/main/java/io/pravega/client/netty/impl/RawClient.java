@@ -49,8 +49,6 @@ public class RawClient implements AutoCloseable {
     private final Flow flow = Flow.create();
     private final ConnectionFactory connectionFactory;
 
-    private final boolean isTesting;
-
     private final class ResponseProcessor extends FailingReplyProcessor {
 
         @Override
@@ -91,7 +89,6 @@ public class RawClient implements AutoCloseable {
         this.segmentId = null;
         this.connectionFactory = connectionFactory;
         this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
-        this.isTesting = this.connectionFactory.getClientConfig().isEnableTesting();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -100,7 +97,6 @@ public class RawClient implements AutoCloseable {
         this.connectionFactory = connectionFactory;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
                                     .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
-        this.isTesting = this.connectionFactory.getClientConfig().isEnableTesting();
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -140,11 +136,7 @@ public class RawClient implements AutoCloseable {
     }
 
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
-        if (this.isTesting) {
-            return sendRequest(requestId, request, Duration.ofSeconds(3600));
-        } else {
-            return sendRequest(requestId, request, Duration.ofSeconds(30));
-        }
+        return sendRequest(requestId, request, connectionFactory.getClientConfig().getServerRequestTimeout());
     }
 
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request,

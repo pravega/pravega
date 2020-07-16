@@ -28,6 +28,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -158,7 +159,7 @@ public class Utils {
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
-                               .enableTesting(true)
+                               .serverRequestTimeout(Duration.ofSeconds(3600))
                                .build();
         }
 

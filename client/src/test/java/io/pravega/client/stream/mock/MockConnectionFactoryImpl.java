@@ -18,6 +18,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -31,7 +32,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
 
     private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "testClientInternal");
-    private ClientConfig clientConfig = ClientConfig.builder().enableTesting(true).build();
+    private ClientConfig clientConfig = ClientConfig.builder().serverRequestTimeout(Duration.ofSeconds(3600)).build();
     private boolean ownsExecutor = true;
 
     public void setExecutor(ScheduledExecutorService executor) {
