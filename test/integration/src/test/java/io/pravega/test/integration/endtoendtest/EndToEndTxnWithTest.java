@@ -219,9 +219,9 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
-        AssertExtensions.assertThrows("high timeout period not honoured",
+        AssertExtensions.assertThrows("lease value too large, max value is 120000",
                 () -> createTxn(clientFactory, highTimeoutConfig, "test"),
-                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
+                e -> e instanceof IllegalArgumentException);
     }
 
     @Test(timeout = 20000)

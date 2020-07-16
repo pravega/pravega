@@ -34,7 +34,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.shared.NameUtils.getEpoch;
 
 /**
@@ -145,7 +144,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
-                getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
+                Futures.getThrowingException(controller.abortTransaction(stream, txId));
                 closed.set(true);
             }
         }
@@ -153,7 +152,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         @Override
         public Status checkStatus() {
             log.info("Check transaction status {}", txId);
-            return getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+            return Futures.getThrowingException(controller.checkTransactionStatus(stream, txId));
         }
 
         @Override
@@ -178,8 +177,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
     @Override
     public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
-                RuntimeException::new);
+        TxnSegments txnSegments = Futures.getThrowingException(controller.createTransaction(stream, config.getTransactionTimeoutTime()));
         log.info("Transaction {} created", txnSegments.getTxnId());
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
@@ -201,14 +199,14 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     @Override
     public Transaction<Type> getTxn(UUID txId) {
         // check if the transaction is open.
-        Status status = getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+        Status status = Futures.getThrowingException(controller.checkTransactionStatus(stream, txId));
         if (status != Status.OPEN) {
             return new TransactionImpl<>(writerId, txId, controller, stream);
         }
 
         // get the segments corresponding to the transaction.
-        StreamSegments segments = getAndHandleExceptions(
-                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getEpoch(txId)), RuntimeException::new);
+        StreamSegments segments = Futures.getThrowingException(
+                controller.getEpochSegments(stream.getScope(), stream.getStreamName(), getEpoch(txId)));
         assert segments != null : "Epoch segments returned is null";
         Preconditions.checkState(segments.getSegments().size() > 0, "There should be at least 1 epoch segment");
 
