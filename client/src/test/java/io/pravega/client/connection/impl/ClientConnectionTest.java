@@ -9,9 +9,11 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.ClientConfig;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommand;
@@ -34,6 +36,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -128,6 +131,70 @@ public class ClientConnectionTest {
         }
         AssertExtensions.assertEventuallyEquals(100, () -> processor.replies.size(), 5000);
         assertFalse(processor.falure.get());
+    }
+    
+    @Test
+    public void testFailedSendAppend() throws Exception {
+        byte[] payload = new byte[100];
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        server.getOutputStream().join().close();
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
+            clientConnection.send(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
+        });
+        assertTrue(clientConnection.toString(), clientConnection.isClosed());
+    }
+    
+    @Test
+    public void testFailedSendSetup() throws Exception {
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        server.getOutputStream().join().close();
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
+            clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        });
+        assertTrue(clientConnection.toString(), clientConnection.isClosed());
+    }
+    
+    @Test
+    public void testFailedSendAsync() throws Exception {
+        byte[] payload = new byte[100];
+        ReplyProcessor processor = new ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+            .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+            .join();
+        UUID writerId = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        server.getOutputStream().join().close();
+        CompletableFuture<Exception> future = new CompletableFuture<>();
+        List<Append> events = ImmutableList.of(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
+        clientConnection.sendAsync(events, e -> future.complete(e));
+        assertNotNull(future.join());
     }
     
     @Test

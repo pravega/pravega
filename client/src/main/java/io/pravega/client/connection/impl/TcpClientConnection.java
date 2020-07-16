@@ -105,6 +105,7 @@ public class TcpClientConnection implements ClientConnection {
             thread.start();
         }
         
+        @Override
         public void run() {
             IoBuffer buffer = new IoBuffer();
             while (!stop.get()) {
@@ -296,6 +297,11 @@ public class TcpClientConnection implements ClientConnection {
                 onClose.run();
             }
         }
+    }
+    
+    @VisibleForTesting
+    boolean isClosed() {
+        return closed.get();
     }
 
     @Override

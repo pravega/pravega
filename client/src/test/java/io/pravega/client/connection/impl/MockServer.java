@@ -29,13 +29,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j 
 class MockServer implements AutoCloseable {
-    @Getter
     private final int port;
     private final Thread thread;
     private final AtomicBoolean stop = new AtomicBoolean(false);
     @Getter
     private final LinkedBlockingQueue<WireCommand> readCommands = new LinkedBlockingQueue<>();
     private final ReusableLatch started = new ReusableLatch(false);
+    @Getter
     private final CompletableFuture<OutputStream> outputStream = new CompletableFuture<OutputStream>();
     
     MockServer() {
