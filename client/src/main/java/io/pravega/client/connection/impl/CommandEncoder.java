@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
@@ -49,6 +50,11 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 @Slf4j
 @RequiredArgsConstructor
 public class CommandEncoder {
+    
+    @VisibleForTesting
+    static final int MAX_QUEUED_EVENTS = 500;
+    @VisibleForTesting
+    static final int MAX_QUEUED_SIZE = 1024 * 1024; // 1MB
     
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
@@ -71,9 +77,9 @@ public class CommandEncoder {
     private final ByteBuf buffer = Unpooled.buffer(1024 * 1024);
 
     @RequiredArgsConstructor
-    private final class Session {
-        private static final int MAX_EVENTS = 500;
-        private static final int MAX_DATA_SIZE = 1024 * 1024; // 1MB
+    @VisibleForTesting
+    final class Session {
+        @Getter
         private final UUID id;
         private final long requestId;
         private final List<ByteBuf> pendingList = new ArrayList<>();
@@ -102,8 +108,9 @@ public class CommandEncoder {
          *
          * @param data  data bytes.
          * @param out   Network channel buffer.
+         * @throws IOException If the write to the outputstream fails
          */
-        private void write(ByteBuf data) {
+        private void write(ByteBuf data) throws IOException {
             pendingWrites.putIfAbsent(id, this);
             if (data.readableBytes() > 0) {
                 pendingBytes += data.readableBytes();
@@ -116,11 +123,13 @@ public class CommandEncoder {
          * Check the overflow condition and flush if required.
          *
          * @param out   Network channel buffer.
+         * @throws IOException If the write to the outputstream fails
          */
-        private void conditionalFlush() {
-            if ((pendingBytes > MAX_DATA_SIZE) || (eventCount > MAX_EVENTS)) {
+        private void conditionalFlush() throws IOException {
+            if ((pendingBytes > MAX_QUEUED_SIZE) || (eventCount > MAX_QUEUED_EVENTS)) {
                 breakCurrentAppend();
-                flushToBuffer();
+                flushAllToBuffer();
+                flushBuffer();
             }
         }
 
@@ -236,12 +245,13 @@ public class CommandEncoder {
         buffer.clear();
     }
     
-    private void validateAppend(Append append, Session session) {
+    @VisibleForTesting
+    static void validateAppend(Append append, Session session) {
         if (append.getEventCount() <= 0) {
             throw new InvalidMessageException("Invalid eventCount : " + append.getEventCount() +
                     " in the append for Writer id: " + append.getWriterId());
         }
-        if (session == null || !session.id.equals(append.getWriterId())) {
+        if (session == null || !session.getId().equals(append.getWriterId())) {
             throw new InvalidMessageException("Sending appends without setting up the append. Append Writer id: " + append.getWriterId());
         }
         if (append.getEventNumber() <= session.lastEventNumber) {

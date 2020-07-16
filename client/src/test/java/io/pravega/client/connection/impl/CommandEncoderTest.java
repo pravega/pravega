@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
@@ -25,7 +26,9 @@ import java.util.ArrayList;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -309,4 +312,60 @@ public class CommandEncoderTest {
         assertEquals(0, blockEnd.getData().readableBytes());
         assertEquals(3, blockEnd.getNumEvents());
     }
+    
+    @Test
+    public void testAppendSizeQueuedBreak() throws IOException {
+        AppendBatchSizeTracker batchSizeTracker = new FixedBatchSizeTracker(100);
+        DecodingOutputStream output = new DecodingOutputStream();
+        CommandEncoder commandEncoder = new CommandEncoder(x -> batchSizeTracker, null, output);
+        UUID writerId1 = UUID.randomUUID();
+        WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId1, "seg", "");
+        commandEncoder.write(setupAppend);
+        assertEquals(output.decoded.remove(0), setupAppend);
+        UUID writerId2 = UUID.randomUUID();
+        setupAppend = new WireCommands.SetupAppend(0, writerId2, "seg", "");
+        commandEncoder.write(setupAppend);
+        assertEquals(output.decoded.remove(0), setupAppend);
+        
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[40]);
+        WireCommands.Event event = new WireCommands.Event(data);
+        Append append1 = new Append("seg", writerId1, 1, event, 0);
+        commandEncoder.write(append1);
+        
+        Append appendOther1 = new Append("seg", writerId2, 101, event, 0);
+        WireCommands.Event largeEvent = new WireCommands.Event(Unpooled.wrappedBuffer(new byte[CommandEncoder.MAX_QUEUED_SIZE]));
+        Append appendOther2 = new Append("seg", writerId2, 102, largeEvent, 0);
+        commandEncoder.write(appendOther1);        
+        commandEncoder.write(appendOther2);
+        
+        AppendBlock block = (AppendBlock) output.decoded.remove(0);
+        assertEquals(108, block.getData().readableBytes());
+        AppendBlockEnd blockEnd = (AppendBlockEnd) output.decoded.remove(0);
+        assertEquals(writerId1, blockEnd.getWriterId());
+        assertEquals(48, blockEnd.getSizeOfWholeEvents());
+        assertEquals(0, blockEnd.getData().readableBytes());
+        assertEquals(1, blockEnd.getNumEvents());
+        
+        block = (AppendBlock) output.decoded.remove(0);
+        assertEquals(CommandEncoder.MAX_QUEUED_SIZE + 48 + 8, block.getData().readableBytes());
+        blockEnd = (AppendBlockEnd) output.decoded.remove(0);
+        assertEquals(writerId2, blockEnd.getWriterId());
+        assertEquals(CommandEncoder.MAX_QUEUED_SIZE + 48 + 8, blockEnd.getSizeOfWholeEvents());
+        assertEquals(0, blockEnd.getData().readableBytes());
+        assertEquals(2, blockEnd.getNumEvents());
+    }
+    
+    @Test
+    public void testValidateAppend() {
+        UUID writerId = UUID.randomUUID();
+        ByteBuf data = Unpooled.wrappedBuffer(new byte[40]);
+        WireCommands.Event event = new WireCommands.Event(data);
+        assertThrows(InvalidMessageException.class, () -> CommandEncoder.validateAppend(new Append("", writerId, 1, event, 1), null));
+        CommandEncoder.Session s = Mockito.mock(CommandEncoder.Session.class);
+        Mockito.doReturn(writerId).when(s).getId();
+        CommandEncoder.validateAppend(new Append("", writerId, 1, event, 1), s);
+        assertThrows(InvalidMessageException.class, () -> CommandEncoder.validateAppend(new Append("", writerId, -1, event, 1), s));
+        assertThrows(IllegalArgumentException.class, () -> CommandEncoder.validateAppend(new Append("", writerId, 1, event, 132, 1), s));
+    }
+    
 }
