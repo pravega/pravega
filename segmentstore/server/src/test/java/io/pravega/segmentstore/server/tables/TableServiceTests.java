@@ -197,6 +197,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             val updates = generateUpdates(keyInfo, true, rnd);
             val updateVersions = executeUpdates(updates, tableStore);
             acceptUpdates(updates, updateVersions, keyInfo);
+
+            val offsetConditionedUpdates = generateUpdates(keyInfo, true, rnd);
+            val offsetUpdateVersions = executeOffsetConditionalUpdates(offsetConditionedUpdates, -1L, tableStore);
+            acceptUpdates(offsetConditionedUpdates, offsetUpdateVersions, keyInfo);
             log.info("Finished conditional updates.");
 
             // Check.
@@ -206,6 +210,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             val removals = generateRemovals(keyInfo, true);
             executeRemovals(removals, tableStore);
             acceptRemovals(removals, keyInfo);
+
+            val offsetConditionedRemovals = generateRemovals(keyInfo, true);
+            executeOffsetConditonalRemovals(offsetConditionedRemovals, -1L, tableStore);
+            acceptRemovals(offsetConditionedRemovals, keyInfo);
             log.info("Finished conditional removes.");
 
             // Check.
@@ -314,6 +322,23 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         val updateResult = updates.entrySet().stream()
                                   .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
         return Futures.allOfWithResults(updateResult).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private Map<String, List<Long>> executeOffsetConditionalUpdates(HashMap<String, ArrayList<TableEntry>> updates,
+                                                                    long tableSegmentOffset,
+                                                                    TableStore tableStore) throws Exception {
+        val updateResult = updates.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), tableSegmentOffset, TIMEOUT)));
+        return Futures.allOfWithResults(updateResult).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private void executeOffsetConditonalRemovals(HashMap<String, ArrayList<TableKey>> removals,
+                                                 long tableSegmentOffset,
+                                                 TableStore tableStore) throws Exception {
+        val updateResult = removals.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), tableSegmentOffset, TIMEOUT)));
+        Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
     }
 
     private void executeRemovals(HashMap<String, ArrayList<TableKey>> removals, TableStore tableStore) throws Exception {

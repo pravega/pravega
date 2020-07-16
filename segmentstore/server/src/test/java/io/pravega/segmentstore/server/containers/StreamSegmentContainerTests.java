@@ -249,7 +249,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         i == 0 ? AttributeUpdateType.Replace : AttributeUpdateType.ReplaceIfEquals, i + 1, i));
                 RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                 long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
-                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT).thenApply(length -> {
+                val append = (i % 2 == 0) ? context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT) :
+                        context.container.append(segmentName, lengths.get(segmentName), appendData, attributeUpdates, TIMEOUT);
+                opFutures.add(append.thenApply(length -> {
                     assertEquals(expectedLength, length.longValue());
                     return null;
                 }));
@@ -1716,6 +1718,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testForSegment() throws Exception {
         UUID attributeId1 = UUID.randomUUID();
         UUID attributeId2 = UUID.randomUUID();
+        UUID attributeId3 = UUID.randomUUID();
         @Cleanup
         val context = createContext();
         context.container.startAsync().awaitRunning();
@@ -1730,17 +1733,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             val dsa = context.container.forSegment(segmentName, TIMEOUT).join();
             dsa.append(new ByteArraySegment(appendData), Collections.singleton(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
             dsa.updateAttributes(Collections.singleton(new AttributeUpdate(attributeId2, AttributeUpdateType.None, 2L)), TIMEOUT).join();
+            dsa.append(new ByteArraySegment(appendData), Collections.singleton(new AttributeUpdate(attributeId3, AttributeUpdateType.None, 3L)), dsa.getInfo().getLength(), TIMEOUT).join();
             dsa.seal(TIMEOUT).join();
             dsa.truncate(1, TIMEOUT).join();
 
             // Check metadata.
             val info = dsa.getInfo();
             Assert.assertEquals("Unexpected name.", segmentName, info.getName());
-            Assert.assertEquals("Unexpected length.", appendData.length, info.getLength());
+            Assert.assertEquals("Unexpected length.", 2 * appendData.length, info.getLength());
             Assert.assertEquals("Unexpected startOffset.", 1, info.getStartOffset());
-            Assert.assertEquals("Unexpected attribute count.", 2, info.getAttributes().keySet().stream().filter(id -> !AUTO_ATTRIBUTES.contains(id)).count());
+            Assert.assertEquals("Unexpected attribute count.", 3, info.getAttributes().keySet().stream().filter(id -> !AUTO_ATTRIBUTES.contains(id)).count());
             Assert.assertEquals("Unexpected attribute 1.", 1L, (long) info.getAttributes().get(attributeId1));
             Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
+            Assert.assertEquals("Unexpected attribute 2.", 3L, (long) info.getAttributes().get(attributeId3));
             Assert.assertTrue("Unexpected isSealed.", info.isSealed());
 
             // Check written data.
