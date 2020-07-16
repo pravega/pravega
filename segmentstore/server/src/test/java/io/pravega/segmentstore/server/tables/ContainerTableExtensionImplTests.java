@@ -16,6 +16,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -67,6 +68,7 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -76,6 +78,7 @@ import org.junit.rules.Timeout;
 /**
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
+@Slf4j
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
@@ -122,6 +125,24 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 "Segment not deleted.",
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
+     * Tests to make sure that any invalid state passed to an iterator during instantiation is handled accordingly.
+     */
+    @Test
+    public void testInvalidIteratorState() {
+        @Cleanup
+        val context = new TestContext();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        val iteratorArgs = IteratorArgs
+                .builder()
+                .fetchTimeout(TIMEOUT)
+                .serializedState(new ByteArraySegment("INVALID".getBytes()))
+                .build();
+        AssertExtensions.assertThrows("Invalid entryIterator state.",
+                () -> context.ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof IllegalDataFormatException);
     }
 
     /**
@@ -185,6 +206,37 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 "seal() is implemented.",
                 () -> context.ext.seal(SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    /**
+     * Tests operations that currently accept an offset argument, and whether they fail expectedly.
+     */
+    @Test
+    public void testOffsetAcceptingMethods() {
+        @Cleanup
+        val context = new TestContext();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        val key1 = new ByteArraySegment("key1".getBytes());
+        val key2 = new ByteArraySegment("key2".getBytes());
+        val value = new ByteArraySegment("value".getBytes());
+        val v1 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key1, value)), TIMEOUT).join();
+
+        // key1 is present.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #1.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        val length = context.segment().getInfo().getLength();
+        // The SegmentMock used does not process appends via the OperationProcessor so conditional appends are not processed accurately.
+        // Instead just make sure that this 'conditional' append still appends.
+        val v2 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), length, TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Invalid entry ordering.", v1.get(0), v2.get(0));
+        // Remove k1.
+        context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
+        //// Make sure its been removed.
+        val entries = context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join();
+        Assert.assertTrue(entries.size() == 1);
     }
 
     /**
@@ -659,6 +711,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
+        val emptyIteratorArgs = IteratorArgs
+                .builder()
+                .serializedState(new IteratorState(KeyHasher.MAX_HASH).serialize())
+                .fetchTimeout(TIMEOUT)
+                .build();
+        // Check that invalid serializer state is handled properly.
+        val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, emptyIteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);
+        Assert.assertTrue("Unexpected entries returned.", actualEmptyEntries.size() == 0);
+
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
