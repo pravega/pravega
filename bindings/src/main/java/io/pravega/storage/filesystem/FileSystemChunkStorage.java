@@ -215,10 +215,6 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
-        if (handle.isReadOnly()) {
-            throw new IllegalArgumentException("Write called on a readonly handle of chunk " + handle.getChunkName());
-        }
-
         Path path = Paths.get(config.getRoot(), handle.getChunkName());
 
         long totalBytesWritten = 0;

@@ -161,7 +161,11 @@ class HDFSChunkStorage extends BaseChunkStorage {
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
         try {
-            this.fileSystem.delete(getFilePath(handle.getChunkName()), true);
+            val path = getFilePath(handle.getChunkName());
+            if (!this.fileSystem.delete(path, true)) {
+                // File was not deleted. Check if exists.
+                checkFileExists(handle.getChunkName(), "doDelete");
+            }
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
@@ -177,8 +181,17 @@ class HDFSChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         ensureInitializedAndNotClosed();
-        checkFileExists(chunkName, "doOpenWrite");
-        return ChunkHandle.writeHandle(chunkName);
+        try {
+            val status = fileSystem.getFileStatus(getFilePath(chunkName));
+            if (status.getPermission().getUserAction() == FsAction.READ) {
+                return ChunkHandle.readHandle(chunkName);
+            } else {
+                return ChunkHandle.writeHandle(chunkName);
+            }
+        } catch (IOException e) {
+            throw convertException(chunkName, "doOpenWrite", e);
+        }
+
     }
 
     @Override
@@ -321,6 +334,9 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     private ChunkStorageException convertException(String chunkName, String message, IOException e) {
+        if (e instanceof ChunkStorageException) {
+            return (ChunkStorageException) e;
+        }
         if (e instanceof RemoteException) {
             e = ((org.apache.hadoop.ipc.RemoteException) e).unwrapRemoteException();
         }

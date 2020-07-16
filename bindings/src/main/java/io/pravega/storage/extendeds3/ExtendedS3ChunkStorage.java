@@ -93,7 +93,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         if (!checkExists(chunkName)) {
-            throw new ChunkNotFoundException(chunkName, "Chunk not found");
+            throw new ChunkNotFoundException(chunkName, "doOpenRead");
         }
         return ChunkHandle.readHandle(chunkName);
     }
@@ -101,9 +101,13 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     @Override
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
         if (!checkExists(chunkName)) {
-            throw new ChunkNotFoundException(chunkName, "Chunk not found");
+            throw new ChunkNotFoundException(chunkName, "doOpenWrite");
         }
-        return ChunkHandle.writeHandle(chunkName);
+
+        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getPrefix() + chunkName);
+        boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+
+        return new ChunkHandle(chunkName, !canWrite);
     }
 
     @Override
@@ -112,7 +116,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             try (InputStream reader = client.readObjectStream(config.getBucket(),
                     getObjectPath(handle.getChunkName()), Range.fromOffsetLength(fromOffset, length))) {
                 if (reader == null) {
-                    throw new ChunkNotFoundException(handle.getChunkName(), "Chunk not found");
+                    throw new ChunkNotFoundException(handle.getChunkName(), "doRead");
                 }
 
                 int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
@@ -126,7 +130,6 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException {
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
@@ -155,7 +158,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
             // check whether the target exists
             if (!checkExists(chunks[0].getName())) {
-                throw new ChunkNotFoundException(chunks[0].getName(), "Target segment does not exist");
+                throw new ChunkNotFoundException(chunks[0].getName(), "doConcat - Target segment does not exist");
             }
 
             //Copy the parts
@@ -281,6 +284,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     @Override
     protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
         try {
+            // check whether the chunk exists
+            if (!checkExists(handle.getChunkName())) {
+                throw new ChunkNotFoundException(handle.getChunkName(), "doDelete");
+            }
             client.deleteObject(config.getBucket(), getObjectPath(handle.getChunkName()));
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);

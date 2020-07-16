@@ -85,8 +85,9 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
 
     @Override
     protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
-        if (chunks.containsKey(chunkName)) {
-            return new ChunkHandle(chunkName, false);
+        InMemoryChunk chunk = getInMemoryChunk(chunkName);
+        if (null != chunk) {
+            return new ChunkHandle(chunkName, chunk.isReadOnly);
         }
         throw new ChunkNotFoundException(chunkName, "InMemoryChunkStorage::doOpenWrite");
     }
@@ -127,16 +128,15 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws IndexOutOfBoundsException, ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         long oldLength = chunk.getLength();
+        if (chunk.isReadOnly) {
+            throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
+        }
         if (offset != chunk.getLength()) {
             throw new IndexOutOfBoundsException("Attempt to write at wrong offset");
         }
         if (length == 0) {
             throw new IndexOutOfBoundsException("Attempt to write 0 bytes");
         }
-        if (chunk.isReadOnly) {
-            throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
-        }
-
         ByteArrayOutputStream out = new ByteArrayOutputStream(length);
         byte[] bytes = new byte[length];
         int totalBytesRead = 0;

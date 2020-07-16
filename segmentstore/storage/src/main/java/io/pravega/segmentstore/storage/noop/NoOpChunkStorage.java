@@ -87,7 +87,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doOpenWrite");
         }
-        return ChunkHandle.writeHandle(chunkName);
+        return new ChunkHandle(chunkName, chunkData.isReadonly);
     }
 
     @Override
@@ -117,11 +117,11 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doWrite");
         }
-        if (offset != chunkData.length) {
-            throw new IndexOutOfBoundsException("");
-        }
         if (chunkData.isReadonly) {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
+        }
+        if (offset != chunkData.length) {
+            throw new IndexOutOfBoundsException("");
         }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);

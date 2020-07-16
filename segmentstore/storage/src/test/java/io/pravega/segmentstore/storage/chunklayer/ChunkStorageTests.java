@@ -318,7 +318,11 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         }
         // delete
         chunkStorage.delete(handleA);
-        chunkStorage.delete(handleB);
+        try {
+            chunkStorage.delete(handleB);
+        } catch (ChunkNotFoundException e) {
+            // chunkStorage may have natively deleted it as part of concat Eg. HDFS.
+        }
     }
 
     /**
@@ -382,6 +386,11 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 () -> chunkStorage.setReadOnly(writeHandle, false),
                 ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
                         || ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                " delete should throw ChunkNotFoundException.",
+                () -> chunkStorage.delete(writeHandle),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+
     }
 
     /**
@@ -467,6 +476,10 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
 
         chunkStorage.setReadOnly(hWrite, true);
+
+        ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName);
+        assertTrue(hWrite2.isReadOnly());
+
         chunkStorage.setReadOnly(hWrite, false);
         bytesWritten = chunkStorage.write(hWrite, 1, 1, new ByteArrayInputStream(new byte[1]));
         assertEquals(1, bytesWritten);
@@ -573,6 +586,11 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 " read should throw exception.",
                 () -> chunkStorage.read(ChunkHandle.writeHandle(chunkName), 0, 1, new byte[1], 0),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
+
+        AssertExtensions.assertThrows(
+                " delete should throw exception.",
+                () -> chunkStorage.delete(ChunkHandle.writeHandle(chunkName)),
                 ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
     }
 
