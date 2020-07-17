@@ -14,10 +14,13 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
-
+import com.fasterxml.jackson.annotation.JsonCreator;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import javax.validation.constraints.*;
 
 /**
  * CreateStreamRequest
@@ -101,8 +104,8 @@ public class CreateStreamRequest   {
     }
     CreateStreamRequest createStreamRequest = (CreateStreamRequest) o;
     return Objects.equals(this.streamName, createStreamRequest.streamName) &&
-            Objects.equals(this.scalingPolicy, createStreamRequest.scalingPolicy) &&
-            Objects.equals(this.retentionPolicy, createStreamRequest.retentionPolicy);
+        Objects.equals(this.scalingPolicy, createStreamRequest.scalingPolicy) &&
+        Objects.equals(this.retentionPolicy, createStreamRequest.retentionPolicy);
   }
 
   @Override
@@ -134,3 +137,4 @@ public class CreateStreamRequest   {
     return o.toString().replace("\n", "\n    ");
   }
 }
+
