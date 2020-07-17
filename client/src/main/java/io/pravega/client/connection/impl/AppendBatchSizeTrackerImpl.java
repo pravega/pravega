@@ -37,7 +37,7 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     static final int MAX_BATCH_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_MAX_BATCH_SIZE",
                                                                  2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
     @VisibleForTesting
-    static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", AbstractTimer.NANOS_TO_MILLIS / 2);
+    static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", 0);
     @VisibleForTesting
     static final int BASE_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_SIZE", 0);
     @VisibleForTesting
