@@ -210,6 +210,9 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         int bytesWritten = chunkStorage.write(chunkHandle, 0, length, new ByteArrayInputStream(writeBuffer));
         assertEquals(length, bytesWritten);
 
+        // Should be able to write 0 bytes.
+        chunkStorage.write(chunkHandle, length, 0, new ByteArrayInputStream(new byte[0]));
+
         byte[] readBuffer = new byte[writeBuffer.length];
 
         AssertExtensions.assertThrows(
@@ -246,6 +249,42 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 " read should throw exception.",
                 () -> chunkStorage.read(chunkHandle, 0, length, readBuffer, length),
                 ex -> ex instanceof IndexOutOfBoundsException);
+
+        AssertExtensions.assertThrows(
+                " read should throw exception.",
+                () -> chunkStorage.read(chunkHandle, 11, 1, readBuffer, 0),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Write exceptions.
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, 0, -1, new ByteArrayInputStream(writeBuffer)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, -1, 0, new ByteArrayInputStream(writeBuffer)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, 0, 0, new ByteArrayInputStream(writeBuffer)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, 0, 0, null),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, 0, length + 1, new ByteArrayInputStream(writeBuffer)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(chunkHandle, 11, length, new ByteArrayInputStream(writeBuffer)),
+                ex -> ex instanceof IllegalArgumentException);
 
         chunkStorage.delete(chunkHandle);
     }
@@ -314,14 +353,83 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 chunkStorage.concat(new ConcatArgument[]{ConcatArgument.fromChunkInfo(chunkInfoA), ConcatArgument.fromChunkInfo(chunkInfoB)});
                 ChunkInfo chunkInfoAAfterConcat = chunkStorage.getInfo(chunknameA);
                 assertEquals(chunkInfoA.getLength() + chunkInfoB.getLength(), chunkInfoAAfterConcat.getLength());
-                assertFalse(chunkStorage.exists(handleB.getChunkName()));
             }
         }
         // delete
         chunkStorage.delete(handleA);
-        if (!(chunkStorage.supportsConcat() || chunkStorage.supportsAppend())) {
+        try {
             chunkStorage.delete(handleB);
+        } catch (ChunkNotFoundException e) {
+            // chunkStorage may have natively deleted it as part of concat Eg. HDFS.
         }
+    }
+
+    /**
+     * Test concat operation for non-existent chunks.
+     */
+    @Test
+    public void testConcatNotExists() throws Exception {
+        String existingChunkName = "test";
+        ChunkHandle existingChunkHandle = chunkStorage.create(existingChunkName);
+        try {
+            AssertExtensions.assertThrows(
+                    " concat should throw ChunkNotFoundException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                               ConcatArgument.builder().name(existingChunkName).length(0).build(),
+                               ConcatArgument.builder().name("NonExistent").length(1).build()
+                            }
+                    ),
+                    ex -> ex instanceof ChunkNotFoundException);
+            AssertExtensions.assertThrows(
+                    " concat should throw ChunkNotFoundException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name("NonExistent").length(0).build(),
+                                    ConcatArgument.builder().name(existingChunkName).length(0).build(),
+                            }
+                    ),
+                    ex -> ex instanceof ChunkNotFoundException);
+        } catch (UnsupportedOperationException e) {
+            // The storage provider may not have native concat.
+        } finally {
+            chunkStorage.delete(existingChunkHandle);
+        }
+    }
+
+    /**
+     * Test operations on open handles when underlying chunk is deleted.
+     */
+    @Test
+    public void testDeleteAfterOpen() throws Exception {
+        String testChunkName = "test";
+        ChunkHandle writeHandle = chunkStorage.create(testChunkName);
+        ChunkHandle readHandle = chunkStorage.openRead(testChunkName);
+        chunkStorage.delete(writeHandle);
+        byte[] bufferRead = new byte[10];
+        AssertExtensions.assertThrows(
+                " read should throw ChunkNotFoundException.",
+                () -> chunkStorage.read(readHandle, 0, 10, bufferRead, 0),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+        AssertExtensions.assertThrows(
+                " write should throw ChunkNotFoundException.",
+                () -> chunkStorage.write(writeHandle, 0, 1, new ByteArrayInputStream(new byte[1])),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+        AssertExtensions.assertThrows(
+                " truncate should throw ChunkNotFoundException.",
+                () -> chunkStorage.truncate(writeHandle, 0),
+                ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
+                        || ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                " setReadOnly should throw ChunkNotFoundException.",
+                () -> chunkStorage.setReadOnly(writeHandle, false),
+                ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
+                        || ex instanceof UnsupportedOperationException);
+        AssertExtensions.assertThrows(
+                " delete should throw ChunkNotFoundException.",
+                () -> chunkStorage.delete(writeHandle),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName));
+
     }
 
     /**
@@ -407,6 +515,10 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
 
         chunkStorage.setReadOnly(hWrite, true);
+
+        ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName);
+        assertTrue(hWrite2.isReadOnly());
+
         chunkStorage.setReadOnly(hWrite, false);
         bytesWritten = chunkStorage.write(hWrite, 1, 1, new ByteArrayInputStream(new byte[1]));
         assertEquals(1, bytesWritten);
@@ -478,7 +590,7 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
     }
 
     private void testNotExists(String chunkName) throws Exception {
-        assertEquals(Boolean.FALSE, chunkStorage.exists(chunkName));
+        assertFalse(chunkStorage.exists(chunkName));
 
         AssertExtensions.assertThrows(
                 " getInfo should throw exception.",
@@ -514,6 +626,76 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 " read should throw exception.",
                 () -> chunkStorage.read(ChunkHandle.writeHandle(chunkName), 0, 1, new byte[1], 0),
                 ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
+
+        AssertExtensions.assertThrows(
+                " delete should throw exception.",
+                () -> chunkStorage.delete(ChunkHandle.writeHandle(chunkName)),
+                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
+    }
+
+    @Test
+    public void testInvalidName() {
+        String emptyChunkName = "";
+
+        AssertExtensions.assertThrows(
+                " getInfo should throw exception.",
+                () -> chunkStorage.getInfo(emptyChunkName),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " openRead should throw exception.",
+                () -> chunkStorage.openRead(emptyChunkName),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " openWrite should throw exception.",
+                () -> chunkStorage.openWrite(emptyChunkName),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " getInfo should throw exception.",
+                () -> chunkStorage.getInfo(emptyChunkName),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(ChunkHandle.writeHandle(emptyChunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " setReadOnly should throw exception.",
+                () -> chunkStorage.setReadOnly(ChunkHandle.writeHandle(emptyChunkName), false),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " read should throw exception.",
+                () -> chunkStorage.read(ChunkHandle.writeHandle(emptyChunkName), 0, 1, new byte[1], 0),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " delete should throw exception.",
+                () -> chunkStorage.delete(ChunkHandle.writeHandle(emptyChunkName)),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " concat should throw ChunkNotFoundException.",
+                () -> chunkStorage.concat(
+                        new ConcatArgument[]{
+                                ConcatArgument.builder().name(emptyChunkName).length(0).build(),
+                                ConcatArgument.builder().name("NonExistent").length(1).build()
+                        }
+                ),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
+
+        AssertExtensions.assertThrows(
+                " concat should throw ChunkNotFoundException.",
+                () -> chunkStorage.concat(
+                        new ConcatArgument[]{
+                                ConcatArgument.builder().name("test").length(0).build(),
+                                ConcatArgument.builder().name(emptyChunkName).length(0).build(),
+                        }
+                ),
+                ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
     }
 
 }

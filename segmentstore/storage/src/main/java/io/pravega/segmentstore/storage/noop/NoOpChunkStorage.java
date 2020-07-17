@@ -87,7 +87,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doOpenWrite");
         }
-        return ChunkHandle.writeHandle(chunkName);
+        return new ChunkHandle(chunkName, chunkData.isReadonly);
     }
 
     @Override
@@ -96,11 +96,13 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doRead");
         }
-
-        if (fromOffset >= chunkData.length || fromOffset + length > chunkData.length) {
+        if (fromOffset >= chunkData.length) {
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
+                    "current size of chunk (%d).", fromOffset, chunkData.length));
+        }
+        if (fromOffset + length > chunkData.length) {
             throw new IndexOutOfBoundsException("fromOffset");
         }
-
         if (fromOffset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
@@ -117,38 +119,38 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doWrite");
         }
-        if (offset != chunkData.length) {
-            throw new IndexOutOfBoundsException("");
-        }
         if (chunkData.isReadonly) {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
         }
+        if (offset != chunkData.length) {
+            throw new IllegalArgumentException(String.format("fileSize (%d) did not match offset (%d) for chunk %s", chunkData.length, offset, handle.getChunkName()));
+        }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);
+
         return length;
     }
 
     @Override
-    protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException, UnsupportedOperationException {
+    protected int doConcat(ConcatArgument[] chunks) throws ChunkStorageException {
         int total = 0;
         for (ConcatArgument chunk : chunks) {
             val chunkData = chunkMetadata.get(chunk.getName());
-            Preconditions.checkState(null != chunkData);
+            if (null == chunkData) {
+                throw new ChunkNotFoundException(chunk.getName(), "NoOpChunkStorage::doConcat");
+            }
             Preconditions.checkState(chunkData.length >= chunk.getLength());
             total += chunk.getLength();
         }
 
         val targetChunkData = chunkMetadata.get(chunks[0].getName());
         targetChunkData.length = total;
-        for (int i = 1; i < chunks.length; i++) {
-            chunkMetadata.remove(chunks[i].getName());
-        }
 
         return total;
     }
 
     @Override
-    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
+    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException {
         ChunkData chunkData = chunkMetadata.get(handle.getChunkName());
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doTruncate");
@@ -161,7 +163,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         Preconditions.checkNotNull(null != handle, "handle");
         Preconditions.checkNotNull(handle.getChunkName(), "handle");
         String chunkName = handle.getChunkName();
@@ -170,7 +172,6 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
             throw new ChunkNotFoundException(chunkName, "NoOpChunkStorage::doSetReadOnly");
         }
         chunkData.isReadonly = isReadOnly;
-        return false;
     }
 
     @Override

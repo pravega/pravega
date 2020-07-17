@@ -187,9 +187,8 @@ public interface ChunkStorage extends AutoCloseable {
      *
      * @param handle     ChunkHandle of the storage object.
      * @param isReadonly True if chunk is set to be readonly.
-     * @return True if the operation was successful, false otherwise.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
-    boolean setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException;
+    void setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException;
 }

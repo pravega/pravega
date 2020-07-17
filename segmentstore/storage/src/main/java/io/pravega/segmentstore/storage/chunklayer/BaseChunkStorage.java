@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -101,7 +102,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
     final public boolean exists(String chunkName) throws ChunkStorageException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
+        checkChunkName(chunkName);
 
         long traceId = LoggerHelpers.traceEnter(log, "exists", chunkName);
 
@@ -124,7 +125,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
     final public ChunkHandle create(String chunkName) throws ChunkStorageException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
+        checkChunkName(chunkName);
 
         long traceId = LoggerHelpers.traceEnter(log, "create", chunkName);
         Timer timer = new Timer();
@@ -154,7 +155,9 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
+        checkChunkName(handle.getChunkName());
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
+
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle.getChunkName());
         Timer timer = new Timer();
 
@@ -180,10 +183,10 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
-    final public ChunkHandle openRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    final public ChunkHandle openRead(String chunkName) throws ChunkStorageException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
+        checkChunkName(chunkName);
 
         long traceId = LoggerHelpers.traceEnter(log, "openRead", chunkName);
 
@@ -204,10 +207,10 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
-    final public ChunkHandle openWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    final public ChunkHandle openWrite(String chunkName) throws ChunkStorageException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
+        checkChunkName(chunkName);
 
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", chunkName);
 
@@ -228,10 +231,10 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws IllegalArgumentException If argument is invalid.
      */
     @Override
-    final public ChunkInfo getInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    final public ChunkInfo getInfo(String chunkName) throws ChunkStorageException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkNotNull(chunkName);
+        checkChunkName(chunkName);
         long traceId = LoggerHelpers.traceEnter(log, "getInfo", chunkName);
 
         // Call concrete implementation.
@@ -260,6 +263,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle");
+        checkChunkName(handle.getChunkName());
         Preconditions.checkArgument(null != buffer, "buffer");
         Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative");
         Preconditions.checkArgument(length >= 0 && length <= buffer.length, "length");
@@ -303,6 +307,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
+        checkChunkName(handle.getChunkName());
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
         Preconditions.checkArgument(null != data, "data must not be null");
         Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
@@ -368,9 +373,11 @@ public abstract class BaseChunkStorage implements ChunkStorage {
 
         Preconditions.checkArgument(null != chunks[0], "target chunk must not be null");
         Preconditions.checkArgument(chunks[0].getLength() >= 0, "target chunk lenth must be non negative.");
+        checkChunkName(chunks[0].getName());
 
         for (int i = 1; i < chunks.length; i++) {
             Preconditions.checkArgument(null != chunks[i], "source chunk must not be null");
+            checkChunkName(chunks[i].getName());
             Preconditions.checkArgument(chunks[i].getLength() >= 0, "source chunk lenth must be non negative.");
             Preconditions.checkArgument(!chunks[i].getName().equals(chunks[0].getName()), "source chunk is same as target");
             Preconditions.checkArgument(!chunks[i].getName().equals(chunks[i - 1].getName()), "duplicate chunk found");
@@ -391,8 +398,9 @@ public abstract class BaseChunkStorage implements ChunkStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
+        checkChunkName(handle.getChunkName());
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
-        Preconditions.checkArgument(offset > 0, "handle must not be readonly");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
 
         long traceId = LoggerHelpers.traceEnter(log, "truncate", handle.getChunkName());
 
@@ -409,24 +417,22 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      *
      * @param handle     ChunkHandle of the chunk.
      * @param isReadonly True if chunk is set to be readonly.
-     * @return True if the operation was successful, false otherwise.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
     @Override
-    final public boolean setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException {
+    final public void setReadOnly(ChunkHandle handle, boolean isReadonly) throws ChunkStorageException, UnsupportedOperationException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
+        checkChunkName(handle.getChunkName());
 
         long traceId = LoggerHelpers.traceEnter(log, "setReadOnly", handle.getChunkName());
 
         // Call concrete implementation.
-        boolean retValue = doSetReadOnly(handle, isReadonly);
+        doSetReadOnly(handle, isReadonly);
 
         LoggerHelpers.traceLeave(log, "setReadOnly", traceId, handle.getChunkName());
-
-        return retValue;
     }
 
     /**
@@ -446,7 +452,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException;
 
     /**
      * Creates a new chunk.
@@ -456,7 +462,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException;
 
     /**
      * Determines whether named chunk exists in underlying storage.
@@ -466,7 +472,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected boolean checkExists(String chunkName) throws ChunkStorageException;
 
     /**
      * Deletes a chunk.
@@ -475,7 +481,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected void doDelete(ChunkHandle handle) throws ChunkStorageException;
 
     /**
      * Opens chunk for Read.
@@ -485,7 +491,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException;
 
     /**
      * Opens chunk for Write (or modifications).
@@ -495,7 +501,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */
-    abstract protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException;
+    abstract protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException;
 
     /**
      * Reads a range of bytes from the underlying chunk.
@@ -511,7 +517,7 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws NullPointerException      If the parameter is null.
      * @throws IndexOutOfBoundsException If the index is out of bounds.
      */
-    abstract protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException;
+    abstract protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException;
 
     /**
      * Writes the given data to the chunk.
@@ -522,9 +528,10 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @param data   An InputStream representing the data to write.
      * @return int Number of bytes written.
      * @throws ChunkStorageException     Throws ChunkStorageException in case of I/O related exceptions.
-     * @throws IndexOutOfBoundsException Throws IndexOutOfBoundsException in case of invalid index.
+     * @throws IndexOutOfBoundsException If the index is out of bounds.
+     * @throws IllegalArgumentException Throws IllegalArgumentException in case of invalid index.
      */
-    abstract protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException;
+    abstract protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException;
 
     /**
      * Concatenates two or more chunks using storage native functionality. (Eg. Multipart upload.)
@@ -546,16 +553,26 @@ public abstract class BaseChunkStorage implements ChunkStorage {
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
-    abstract protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException;
+    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Sets readonly attribute for the chunk.
      *
      * @param handle     ChunkHandle of the chunk.
      * @param isReadOnly True if chunk is set to be readonly.
-     * @return True if the operation was successful, false otherwise.
      * @throws ChunkStorageException         Throws ChunkStorageException in case of I/O related exceptions.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      */
-    abstract protected boolean doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException;
+    abstract protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException;
+
+    /**
+     * Validate chunk name.
+     * @param chunkName Chunk name.
+     */
+    private void checkChunkName(String chunkName) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(chunkName), "chunk name must not be null or empty");
+    }
+
 }
