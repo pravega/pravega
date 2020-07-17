@@ -135,7 +135,7 @@ public class ClientConnectionTest {
     
     @Test
     public void testFailedSendAppend() throws Exception {
-        byte[] payload = new byte[100];
+        byte[] payload = new byte[TcpClientConnection.TCP_BUFFER_SIZE + 1];
         ReplyProcessor processor = new ReplyProcessor();
         @Cleanup
         MockServer server = new MockServer();
@@ -155,7 +155,7 @@ public class ClientConnectionTest {
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
     }
     
-    @Test
+    @Test(timeout = 15000)
     public void testFailedSendSetup() throws Exception {
         ReplyProcessor processor = new ReplyProcessor();
         @Cleanup
@@ -167,17 +167,19 @@ public class ClientConnectionTest {
         TcpClientConnection clientConnection = TcpClientConnection
             .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
             .join();
-        UUID writerId = new UUID(1, 2);
         server.getOutputStream().join().close();
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
-            clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+            for (int i=0; i < 100; i++) {
+                clientConnection.send(new WireCommands.KeepAlive());
+                Thread.sleep(100);
+            }
         });
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
     }
     
     @Test
     public void testFailedSendAsync() throws Exception {
-        byte[] payload = new byte[100];
+        byte[] payload = new byte[TcpClientConnection.TCP_BUFFER_SIZE + 1];
         ReplyProcessor processor = new ReplyProcessor();
         @Cleanup
         MockServer server = new MockServer();
