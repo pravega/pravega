@@ -76,6 +76,16 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testSortedTableSegment() {
+        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
+        val segment = context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "entryDeltaIterator threw an UnsupportedOperationException on a sorted TableSegment.",
+                () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
+                ex -> ex instanceof UnsupportedOperationException);
+    }
+
+    @Test
     public void testEmptyIterator() throws Exception {
         val empty = TableEntryDeltaIterator.empty();
         val next = empty.getNext().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

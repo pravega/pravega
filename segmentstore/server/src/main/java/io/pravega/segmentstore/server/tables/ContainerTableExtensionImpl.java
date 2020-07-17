@@ -469,6 +469,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .forSegment(segmentName, fetchTimeout)
                 .thenComposeAsync(segment -> {
                     SegmentProperties properties = segment.getInfo();
+                    if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
+                        throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
+                    }
                     long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
                     // All of the most recent keys will exist beyond the compactionOffset.
                     long startOffset = Math.max(fromPosition, compactionOffset);

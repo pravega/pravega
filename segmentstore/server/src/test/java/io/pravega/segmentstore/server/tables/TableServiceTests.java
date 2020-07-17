@@ -255,6 +255,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
+        // Delta Iteration does not support sorted TableSegments.
+        val unsortedIteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val offsetIteratorFutures = new ArrayList<CompletableFuture<List<IteratorItem<TableEntry>>>>();
         val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
@@ -266,7 +268,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             }
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
-            iteratorFutures.add(tableStore.entryIterator(segmentName, IteratorArgs.builder().fetchTimeout(TIMEOUT).build())
+            CompletableFuture<List<TableEntry>> future = tableStore.entryIterator(segmentName, IteratorArgs.builder().fetchTimeout(TIMEOUT).build())
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
@@ -276,14 +278,18 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                                     }
                                     return result;
                                 });
-                    }));
-            // For simplicity, always start from beginning of TableSegment.
-            offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
-                    .thenCompose(ei -> {
-                        val result = new ArrayList<IteratorItem<TableEntry>>();
-                        return ei.forEachRemaining(i -> result.add(i), executorService())
-                                .thenApply(v -> result);
-                    }));
+                    });
+            iteratorFutures.add(future);
+            if (!isSorted(segmentName)) {
+                unsortedIteratorFutures.add(future);
+                // For simplicity, always start from beginning of TableSegment.
+                offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
+                        .thenCompose(ei -> {
+                            val result = new ArrayList<IteratorItem<TableEntry>>();
+                            return ei.forEachRemaining(i -> result.add(i), executorService())
+                                    .thenApply(v -> result);
+                        }));
+            }
         }
 
         // Check search results.
@@ -310,6 +316,20 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 .flatMap(List::stream)
                 .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
                 .collect(Collectors.toList());
+        val expectedIteratorResults = actualResults.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
+        // These lists are used to compare non-delta based iteration with delta based iteration.
+        val actualUnsortedIteratorResults = Futures.allOfWithResults(unsortedIteratorFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .stream()
+                .flatMap(List::stream)
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
+        val expectedUnsortedIteratorResults = actualUnsortedIteratorResults.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
         val actualOffsetIteratorList = Futures.allOfWithResults(offsetIteratorFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                 .stream()
                 .flatMap(List::stream)
@@ -318,13 +338,8 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
                 .collect(Collectors.toList());
 
-        val expectedIteratorResults = actualResults.stream()
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
-                .collect(Collectors.toList());
-
         AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntry::equals);
-        for (val entry : expectedIteratorResults) {
+        for (val entry : expectedUnsortedIteratorResults) {
             Assert.assertNotNull("Missing expected TableEntry from deltaEntryIterator()", actualOffsetIteratorResults.contains(entry));
         }
 
