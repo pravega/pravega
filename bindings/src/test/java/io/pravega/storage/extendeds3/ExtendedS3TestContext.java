@@ -58,6 +58,18 @@ public class ExtendedS3TestContext {
         }
     }
 
+    public ExtendedS3TestContext(S3JerseyClient client) throws Exception {
+        String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
+        this.adapterConfig = ExtendedS3StorageConfig.builder()
+                .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
+                .with(ExtendedS3StorageConfig.BUCKET, bucketName)
+                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
+                .build();
+        s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
+        s3Proxy = null;
+        this.client = client;
+    }
+
     public void close() throws Exception {
         if (client != null) {
             client.destroy();

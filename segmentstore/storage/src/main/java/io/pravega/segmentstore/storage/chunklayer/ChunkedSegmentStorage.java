@@ -519,7 +519,7 @@ public class ChunkedSegmentStorage implements Storage {
             chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
             txn.update(chunkWrittenMetadata);
             txn.update(segmentMetadata);
-        } catch (IndexOutOfBoundsException e) {
+        } catch (IllegalArgumentException e) {
             try {
                 throw new BadOffsetException(segmentMetadata.getName(), chunkStorage.getInfo(chunkHandle.getChunkName()).getLength(), offset);
             } catch (ChunkStorageException cse) {

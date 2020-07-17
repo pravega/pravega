@@ -303,7 +303,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(FileSystemUtils.READ_WRITE_PERMISSION);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(FileSystemWrapper.READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         Path parent = path.getParent();
@@ -367,14 +367,14 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemUtils.READ_ONLY_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_ONLY_PERMISSION);
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void doUnseal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemUtils.READ_WRITE_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_WRITE_PERMISSION);
         LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }

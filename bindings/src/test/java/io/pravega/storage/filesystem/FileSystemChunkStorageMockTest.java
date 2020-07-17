@@ -10,25 +10,24 @@
 package io.pravega.storage.filesystem;
 
 import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
-import lombok.Getter;
-import lombok.Setter;
+import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
+import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.mockito.ArgumentCaptor;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.nio.channels.spi.AbstractInterruptibleChannel;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,6 +55,88 @@ public class FileSystemChunkStorageMockTest {
     }
 
     @Test
+    public void testWithNonRegularFile() throws Exception {
+        String chunkName = "test";
+
+        FileChannel channel = mock(FileChannel.class);
+        fixChannelMock(channel);
+
+        FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
+        when(fileSystemWrapper.exists(any())).thenReturn(true);
+        when(fileSystemWrapper.isRegularFile(any())).thenReturn(false);
+
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
+        AssertExtensions.assertThrows(
+                " openRead should throw ChunkStorageException.",
+                () -> testStorage.openRead(chunkName),
+                ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
+
+        AssertExtensions.assertThrows(
+                " openRead should throw ChunkStorageException.",
+                () -> testStorage.openWrite(chunkName),
+                ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
+    }
+
+    @Test
+    public void testWithRandomException() throws Exception {
+        String chunkName = "test";
+
+        FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
+        when(fileSystemWrapper.getFileSize(any())).thenThrow(new IOException("Random"));
+        when(fileSystemWrapper.getFileChannel(any(), any())).thenThrow(new IOException("Random"));
+        when(fileSystemWrapper.setPermissions(any(), any())).thenThrow(new IOException("Random"));
+        when(fileSystemWrapper.createDirectories(any())).thenThrow(new IOException("Random"));
+        doThrow(new IOException("Random")).when(fileSystemWrapper).delete(any());
+
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
+        AssertExtensions.assertThrows(
+                " doDelete should throw ChunkStorageException.",
+                () -> testStorage.doDelete(ChunkHandle.writeHandle(chunkName)),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " doSetReadOnly should throw ChunkStorageException.",
+                () -> testStorage.doSetReadOnly(ChunkHandle.writeHandle(chunkName), false),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " doGetInfo should throw ChunkStorageException.",
+                () -> testStorage.doGetInfo(chunkName),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " create should throw ChunkStorageException.",
+                () -> testStorage.doCreate(chunkName),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> testStorage.write(ChunkHandle.writeHandle(chunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " read should throw exception.",
+                () -> testStorage.read(ChunkHandle.writeHandle(chunkName), 0, 1, new byte[1], 0),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+        AssertExtensions.assertThrows(
+                " concat should throw exception.",
+                () -> testStorage.concat(new ConcatArgument[]{
+                                ConcatArgument.builder().name("A").length(0).build(),
+                                ConcatArgument.builder().name("B").length(1).build()
+                        }),
+                ex -> ex instanceof ChunkStorageException
+                        && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
+
+    }
+
+    @Test
     public void doReadTest() throws Exception {
         doReadTest(0, 1);
 
@@ -67,16 +148,19 @@ public class FileSystemChunkStorageMockTest {
     }
 
     private void doReadTest(int index, int bufferSize) throws Exception {
+        String chunkName = "test";
+
         // Set up mocks.
         FileChannel channel = mock(FileChannel.class);
         fixChannelMock(channel);
-        String segmentName = "test";
 
-        Executor executor = mock(Executor.class);
+        FileSystemWrapper fileSystemWrapper = mock(FileSystemWrapper.class);
+        when(fileSystemWrapper.getFileChannel(any(), any())).thenReturn(channel);
+        when(fileSystemWrapper.getFileSize(any())).thenReturn(2L * bufferSize);
 
-        TestFileSystemStorage testStorage = new TestFileSystemStorage(storageConfig, channel);
-        testStorage.setSizeToReturn(2L * bufferSize);
-        ChunkHandle handle = ChunkHandle.readHandle(segmentName);
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
+
+        ChunkHandle handle = ChunkHandle.readHandle(chunkName);
 
         // Force two reads.
         ArgumentCaptor<Long> expectedArgs = ArgumentCaptor.forClass(Long.class);
@@ -100,31 +184,5 @@ public class FileSystemChunkStorageMockTest {
         Field closeLockField = AbstractInterruptibleChannel.class.getDeclaredField("closeLock");
         closeLockField.setAccessible(true);
         closeLockField.set(mockFileChannel, new Object());
-    }
-
-    /**
-     * Test Class.
-     */
-    private static class TestFileSystemStorage extends FileSystemChunkStorage {
-        private final FileChannel channel;
-
-        @Getter
-        @Setter
-        private long sizeToReturn;
-
-        public TestFileSystemStorage(FileSystemStorageConfig config, FileChannel channel) {
-            super(config);
-            this.channel = channel;
-        }
-
-        @Override
-        protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
-            return channel;
-        }
-
-        @Override
-        protected long getFileSize(Path path) throws IOException {
-            return sizeToReturn;
-        }
     }
 }

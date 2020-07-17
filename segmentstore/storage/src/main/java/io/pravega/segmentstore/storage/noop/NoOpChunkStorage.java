@@ -96,11 +96,13 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
         if (null == chunkData) {
             throw new ChunkNotFoundException(handle.getChunkName(), "NoOpChunkStorage::doRead");
         }
-
-        if (fromOffset >= chunkData.length || fromOffset + length > chunkData.length) {
+        if (fromOffset >= chunkData.length) {
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
+                    "current size of chunk (%d).", fromOffset, chunkData.length));
+        }
+        if (fromOffset + length > chunkData.length) {
             throw new IndexOutOfBoundsException("fromOffset");
         }
-
         if (fromOffset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
@@ -121,7 +123,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
         }
         if (offset != chunkData.length) {
-            throw new IndexOutOfBoundsException("");
+            throw new IllegalArgumentException(String.format("fileSize (%d) did not match offset (%d) for chunk %s", chunkData.length, offset, handle.getChunkName()));
         }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);

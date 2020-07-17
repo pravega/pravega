@@ -114,7 +114,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try {
             FileStatus status = fileSystem.getFileStatus(getFilePath(chunkName));
@@ -125,7 +125,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try {
             Path fullPath = getFilePath(chunkName);
@@ -144,7 +144,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExists(String chunkName) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try {
             // Try accessing file.
@@ -158,7 +158,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
+    protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try {
             val path = getFilePath(handle.getChunkName());
@@ -172,14 +172,14 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         checkFileExists(chunkName, "doOpenRead");
         return ChunkHandle.readHandle(chunkName);
     }
 
     @Override
-    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try {
             val status = fileSystem.getFileStatus(getFilePath(chunkName));
@@ -201,7 +201,8 @@ class HDFSChunkStorage extends BaseChunkStorage {
         try (FSDataInputStream stream = this.fileSystem.open(getFilePath(handle.getChunkName()))) {
             stream.readFully(fromOffset, buffer, bufferOffset, length);
         } catch (EOFException e) {
-            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the current size of chunk.", fromOffset));
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
+                    "current size of chunk.", fromOffset));
         } catch (IOException e) {
             throw convertException(handle.getChunkName(), "doRead", e);
         }
@@ -209,12 +210,13 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException {
+    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
         ensureInitializedAndNotClosed();
         try (FSDataOutputStream stream = this.fileSystem.append(getFilePath(handle.getChunkName()))) {
             if (stream.getPos() != offset) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
-                throw new IndexOutOfBoundsException();
+                throw new IllegalArgumentException(String.format("fileSize (%d) did not match offset (%d) for chunk %s",
+                        stream.getPos(), offset, handle.getChunkName()));
             }
 
             if (length == 0) {
@@ -257,11 +259,6 @@ class HDFSChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean doTruncate(ChunkHandle handle, long offset) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException(getClass().getName() + " does not support chunk truncation.");
-    }
-
-    @Override
     protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         try {
             this.fileSystem.setPermission(getFilePath(handle.getChunkName()), isReadOnly ? READONLY_PERMISSION : READWRITE_PERMISSION);
@@ -281,7 +278,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
         Configuration conf = new Configuration();
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
-        conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+        conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
 
         // We do not want FileSystem to cache clients/instances based on target URI.
         // This allows us to close instances without affecting other clients/instances. This should not affect performance.

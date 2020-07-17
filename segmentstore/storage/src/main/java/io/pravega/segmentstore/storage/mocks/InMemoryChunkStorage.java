@@ -59,12 +59,12 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExists(String chunkName) {
         return chunks.containsKey(chunkName);
     }
 
     @Override
-    protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
+    protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         if (null == chunk) {
             throw new ChunkNotFoundException(handle.getChunkName(), "InMemoryChunkStorage::doDelete");
@@ -76,7 +76,7 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException {
         if (chunks.containsKey(chunkName)) {
             return new ChunkHandle(chunkName, true);
         }
@@ -84,7 +84,7 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(chunkName);
         if (null != chunk) {
             return new ChunkHandle(chunkName, chunk.isReadOnly);
@@ -93,10 +93,11 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
+    protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         if (fromOffset >= chunk.getLength()) {
-            throw new ChunkStorageException(handle.getChunkName(), "Attempt to read at wrong offset");
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
+                    "current size of chunk (%d).", fromOffset, chunk.getLength()));
         }
         if (length == 0) {
             throw new ChunkStorageException(handle.getChunkName(), "Attempt to read 0 bytes");
@@ -125,17 +126,17 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws IndexOutOfBoundsException, ChunkStorageException {
+    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         long oldLength = chunk.getLength();
         if (chunk.isReadOnly) {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
         }
         if (offset != chunk.getLength()) {
-            throw new IndexOutOfBoundsException("Attempt to write at wrong offset");
+            throw new IllegalArgumentException("Attempt to write at wrong offset");
         }
         if (length == 0) {
-            throw new IndexOutOfBoundsException("Attempt to write 0 bytes");
+            return 0;
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream(length);
         byte[] bytes = new byte[length];
@@ -195,13 +196,13 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     }
 
     @Override
-    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException, UnsupportedOperationException {
+    protected boolean doTruncate(ChunkHandle handle, long offset) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         return chunk.truncate(offset);
     }
 
     @Override
-    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException, UnsupportedOperationException {
+    protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         InMemoryChunk chunk = getInMemoryChunk(handle);
         chunk.setReadOnly(isReadOnly);
     }

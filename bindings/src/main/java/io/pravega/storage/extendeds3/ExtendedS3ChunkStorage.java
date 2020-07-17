@@ -91,7 +91,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //region implementation
 
     @Override
-    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenRead(String chunkName) throws ChunkStorageException {
         if (!checkExists(chunkName)) {
             throw new ChunkNotFoundException(chunkName, "doOpenRead");
         }
@@ -99,7 +99,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doOpenWrite(String chunkName) throws ChunkStorageException {
         if (!checkExists(chunkName)) {
             throw new ChunkNotFoundException(chunkName, "doOpenWrite");
         }
@@ -111,7 +111,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException, NullPointerException, IndexOutOfBoundsException {
+    protected int doRead(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) throws ChunkStorageException {
         try {
             try (InputStream reader = client.readObjectStream(config.getBucket(),
                     getObjectPath(handle.getChunkName()), Range.fromOffsetLength(fromOffset, length))) {
@@ -129,7 +129,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException, IndexOutOfBoundsException {
+    protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
@@ -201,11 +201,6 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean doTruncate(ChunkHandle handle, long offset) throws UnsupportedOperationException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     protected void doSetReadOnly(ChunkHandle handle, boolean isReadOnly) throws ChunkStorageException {
         try {
             setPermission(handle, isReadOnly ? Permission.READ : Permission.FULL_CONTROL);
@@ -224,7 +219,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException {
         try {
             S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
                     getObjectPath(chunkName));
@@ -241,7 +236,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
         try {
             if (!client.listObjects(config.getBucket(), getObjectPath(chunkName)).getObjects().isEmpty()) {
                 throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
@@ -268,7 +263,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected boolean checkExists(String chunkName) throws ChunkStorageException, IllegalArgumentException {
+    protected boolean checkExists(String chunkName) throws ChunkStorageException {
         try {
             client.getObjectMetadata(config.getBucket(), getObjectPath(chunkName));
             return true;
@@ -282,7 +277,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
-    protected void doDelete(ChunkHandle handle) throws ChunkStorageException, IllegalArgumentException {
+    protected void doDelete(ChunkHandle handle) throws ChunkStorageException {
         try {
             // check whether the chunk exists
             if (!checkExists(handle.getChunkName())) {
@@ -315,7 +310,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
                     || errorCode.equals("InvalidArgument")
                     || errorCode.equals("MethodNotAllowed")
                     || s3Exception.getHttpCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
-                retValue =  new ChunkStorageException(chunkName, "IllegalArgumentException", e);
+                throw new IllegalArgumentException(chunkName, e);
             }
 
             if (errorCode.equals("AccessDenied")) {
