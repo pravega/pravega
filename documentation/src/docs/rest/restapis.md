@@ -412,7 +412,12 @@ Create a new stream
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
   }
 }
 ```
@@ -433,7 +438,12 @@ Create a new stream
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
   }
 }
 ```
@@ -497,7 +507,12 @@ List streams within the given scope
     },
     "retentionPolicy" : {
       "type" : "string",
-      "value" : 0
+      "value" : 0,
+      "timeBasedRetention" : {
+        "days" : 0,
+        "hours" : 0,
+        "minutes" : 0
+      }
     }
   } ]
 }
@@ -561,7 +576,12 @@ Fetch the properties of an existing stream
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
   }
 }
 ```
@@ -634,7 +654,12 @@ Update configuration of an existing stream
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
   }
 }
 ```
@@ -655,7 +680,12 @@ Update configuration of an existing stream
   },
   "retentionPolicy" : {
     "type" : "string",
-    "value" : 0
+    "value" : 0,
+    "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    }
   }
 }
 ```
@@ -865,7 +895,8 @@ Updates the current state of the stream
 
 |Name|Description|Schema|
 |---|---|---|
-|**type**  <br>*optional*|**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
+|**timeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**type**  <br>*optional*|Indicates if retention is by space or time.  <br>**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
 |**value**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
@@ -951,6 +982,16 @@ Updates the current state of the stream
 |Name|Description|Schema|
 |---|---|---|
 |**streams**  <br>*optional*|**Example** : `[ "[streamproperty](#streamproperty)" ]`|< [StreamProperty](#streamproperty) > array|
+
+
+<a name="timebasedretention"></a>
+### TimeBasedRetention
+
+|Name|Description|Schema|
+|---|---|---|
+|**days**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**hours**  <br>*optional*|**Example** : `0`|integer (int64)|
+|**minutes**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
 
