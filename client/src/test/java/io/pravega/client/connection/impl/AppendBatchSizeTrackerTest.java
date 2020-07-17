@@ -64,8 +64,8 @@ public class AppendBatchSizeTrackerTest {
         AppendBatchSizeTrackerImpl tracker = new AppendBatchSizeTrackerImpl();
         for (int i = 0; i < 10000; i++) {
             tracker.recordAppend(i, size);
-            if (i % 100 == 0) {
-                tracker.recordAck(i);
+            if (i > 100) {
+                tracker.recordAck(i-100);
             }
         }
         assertTrue(tracker.getAppendBlockSize() >= size * 50);
