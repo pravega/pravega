@@ -116,7 +116,12 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
-        return CompletableFuture.completedFuture(this.createdScopes.get(scopeName).streams.containsKey(new StreamImpl(scopeName, streamName)));
+        MockScope mockScope = this.createdScopes.get(scopeName);
+        if (mockScope != null) {
+            return CompletableFuture.completedFuture(mockScope.streams.containsKey(new StreamImpl(scopeName, streamName)));
+        } else {
+            return CompletableFuture.completedFuture(false);
+        }
     }
 
     @Override
