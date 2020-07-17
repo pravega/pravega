@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rest;
 
-import com.google.common.base.Preconditions;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
@@ -62,8 +61,7 @@ public class ModelHelper {
                 case LIMITED_DAYS:
                     long retentionInDays = createStreamRequest.getRetentionPolicy().getValue();
                     TimeBasedRetention timeRetention = createStreamRequest.getRetentionPolicy().getTimeBasedRetention();
-                    Preconditions.checkNotNull(timeRetention, "TimeBasedRetention is null");
-                    Duration retentionDuration = (retentionInDays == 0) ?
+                    Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
                             Duration.ofDays(timeRetention.getDays())
                                     .plusHours(timeRetention.getHours())
                                     .plusMillis(timeRetention.getMinutes())
@@ -112,8 +110,7 @@ public class ModelHelper {
                 case LIMITED_DAYS:
                     long retentionInDays = updateStreamRequest.getRetentionPolicy().getValue();
                     TimeBasedRetention timeRetention = updateStreamRequest.getRetentionPolicy().getTimeBasedRetention();
-                    Preconditions.checkNotNull(timeRetention, "TimeBasedRetention is null");
-                    Duration retentionDuration = (retentionInDays == 0) ?
+                    Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
                          Duration.ofDays(timeRetention.getDays())
                                 .plusHours(timeRetention.getHours())
                                 .plusMillis(timeRetention.getMinutes())
