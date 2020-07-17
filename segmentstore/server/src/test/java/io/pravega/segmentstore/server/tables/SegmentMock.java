@@ -23,6 +23,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -93,6 +94,12 @@ class SegmentMock implements DirectSegmentAccess {
 
     @Override
     public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        // Similarly to the append below, we assume this is only for data construction, so offsets are not considered.
+        return append(data, attributeUpdates, WireCommands.NULL_TABLE_SEGMENT_OFFSET, timeout);
+    }
+
+    @Override
+    public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long tableSegmentOffset, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constructing the test data.
