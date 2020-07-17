@@ -91,7 +91,7 @@ public class ScaleMetadata   {
     }
     ScaleMetadata scaleMetadata = (ScaleMetadata) o;
     return Objects.equals(this.timestamp, scaleMetadata.timestamp) &&
-            Objects.equals(this.segmentList, scaleMetadata.segmentList);
+        Objects.equals(this.segmentList, scaleMetadata.segmentList);
   }
 
   @Override
@@ -122,3 +122,4 @@ public class ScaleMetadata   {
     return o.toString().replace("\n", "\n    ");
   }
 }
+
