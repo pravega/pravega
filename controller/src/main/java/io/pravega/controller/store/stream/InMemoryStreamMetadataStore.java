@@ -248,7 +248,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         String nextToken = continuationToken;
         int start = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
         for (Map.Entry<String, Integer> x : orderedScopes.entrySet()) {
-            if (x.getValue() >= start) {
+            if (x.getValue() > start) {
                 result.add(x.getKey());
                 nextToken = x.getValue().toString();
             }
