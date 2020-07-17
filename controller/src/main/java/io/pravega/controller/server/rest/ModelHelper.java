@@ -173,7 +173,7 @@ public class ModelHelper {
         return streamProperty;
     }
 
-    private static final RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {
+    private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {
         Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
                 Duration.ofDays(timeRetention.getDays())
                         .plusHours(timeRetention.getHours())

@@ -9,7 +9,12 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.controller.server.rest.generated.model.*;
+import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -89,7 +94,6 @@ public class ModelHelperTest {
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
-
     }
 
     @Test
