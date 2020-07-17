@@ -353,11 +353,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     private static class SegmentStoreStarter {
         private final int servicePort = TestUtils.getAvailableListenPort();
-        private ServiceBuilder serviceBuilder = null;
-        private StreamSegmentStoreWrapper streamSegmentStoreWrapper = null;
-        private AutoScaleMonitor monitor = null;
-        private TableStoreWrapper tableStoreWrapper = null;
-        private PravegaConnectionListener server = null;
+        private ServiceBuilder serviceBuilder;
+        private StreamSegmentStoreWrapper streamSegmentStoreWrapper;
+        private AutoScaleMonitor monitor;
+        private TableStoreWrapper tableStoreWrapper;
+        private PravegaConnectionListener server;
 
         SegmentStoreStarter(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
             if (storageFactory != null) {
@@ -471,7 +471,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         clientFactory.close();
 
         controllerStarter.close(); // Shut down the controller
-        controllerStarter = null;
 
         // Get names of all the segments created.
         HashSet<String> allSegments = new HashSet<>(this.segmentStoreStarter.streamSegmentStoreWrapper.getSegments());
@@ -560,6 +559,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             }
         }
         writer.flush();
+        writer.close();
     }
 
     private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
@@ -585,6 +585,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 Assert.fail("Error occurred while reading the events.");
             }
         }
+        reader.close();
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
