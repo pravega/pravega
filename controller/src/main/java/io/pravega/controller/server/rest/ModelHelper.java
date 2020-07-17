@@ -59,14 +59,8 @@ public class ModelHelper {
                             createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
-                    long retentionInDays = createStreamRequest.getRetentionPolicy().getValue();
-                    TimeBasedRetention timeRetention = createStreamRequest.getRetentionPolicy().getTimeBasedRetention();
-                    Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
-                            Duration.ofDays(timeRetention.getDays())
-                                    .plusHours(timeRetention.getHours())
-                                    .plusMillis(timeRetention.getMinutes())
-                                    :  Duration.ofDays(retentionInDays);
-                    retentionPolicy = RetentionPolicy.byTime(retentionDuration);
+                    retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                            createStreamRequest.getRetentionPolicy().getValue());
                     break;
             }
         }
@@ -108,14 +102,8 @@ public class ModelHelper {
                             updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
-                    long retentionInDays = updateStreamRequest.getRetentionPolicy().getValue();
-                    TimeBasedRetention timeRetention = updateStreamRequest.getRetentionPolicy().getTimeBasedRetention();
-                    Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
-                         Duration.ofDays(timeRetention.getDays())
-                                .plusHours(timeRetention.getHours())
-                                .plusMillis(timeRetention.getMinutes())
-                            :  Duration.ofDays(retentionInDays);
-                    retentionPolicy = RetentionPolicy.byTime(retentionDuration);
+                    retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                                                        updateStreamRequest.getRetentionPolicy().getValue());
                     break;
             }
         }
@@ -183,6 +171,15 @@ public class ModelHelper {
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         return streamProperty;
+    }
+
+    private static final RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {
+        Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
+                Duration.ofDays(timeRetention.getDays())
+                        .plusHours(timeRetention.getHours())
+                        .plusMinutes(timeRetention.getMinutes())
+                :  Duration.ofDays(retentionInDays);
+        return RetentionPolicy.byTime(retentionDuration);
     }
 
     private static long getMinsFromMillis(long millis, long hours, long daysInMs) {
