@@ -18,6 +18,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.store.InMemoryScope;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -40,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * In-memory stream store.
  */
 @Slf4j
-class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
+public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryStream> streams = new HashMap<>();
@@ -64,10 +67,14 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Executor executor;
 
-    InMemoryStreamMetadataStore(Executor executor) {
+    public InMemoryStreamMetadataStore(Executor executor) {
         super(new InMemoryHostIndex(), new InMemoryHostIndex());
         this.executor = executor;
         this.counter = new AtomicInt96();
+    }
+
+    public Map<String, InMemoryScope> getScopes() {
+        return scopes;
     }
 
     @Override
@@ -267,10 +274,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> {
                         HashMap<String, StreamConfiguration> result = new HashMap<>();
                         for (String stream : streams) {
+                            State state = getState(scopeName, stream, true, null, executor).join();
                             StreamConfiguration configuration = Futures.exceptionallyExpecting(
                                     getConfiguration(scopeName, stream, null, executor),
                                     e -> e instanceof StoreException.DataNotFoundException, null).join();
-                            if (configuration != null) {
+                            if (configuration != null && !state.equals(State.CREATING) && !state.equals(State.UNKNOWN)) {
                                 result.put(stream, configuration);
                             }
                         }

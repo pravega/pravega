@@ -16,6 +16,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.ZKScope;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
@@ -37,7 +40,7 @@ import java.util.stream.Collectors;
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
      * The controller will try to get current counter value from zookeeper. It then tries to update the value in store

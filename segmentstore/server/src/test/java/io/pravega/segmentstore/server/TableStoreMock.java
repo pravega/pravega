@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
@@ -16,6 +17,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -55,8 +57,9 @@ public class TableStoreMock implements TableStore {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(!sorted, "Sorted Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {
@@ -87,7 +90,19 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
+    public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return CompletableFuture.supplyAsync(() -> getTableData(segmentName).put(entries), this.executor);
+    }
+
+    @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return CompletableFuture.runAsync(() -> getTableData(segmentName).remove(keys), this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return CompletableFuture.runAsync(() -> getTableData(segmentName).remove(keys), this.executor);
     }
@@ -109,12 +124,12 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, BufferView serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
         throw new UnsupportedOperationException();
     }
 
