@@ -36,7 +36,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -135,7 +134,7 @@ public class ClientConnectionTest {
     
     @Test
     public void testFailedSendAppend() throws Exception {
-        byte[] payload = new byte[TcpClientConnection.TCP_BUFFER_SIZE + 1];
+        byte[] payload = new byte[100];
         ReplyProcessor processor = new ReplyProcessor();
         @Cleanup
         MockServer server = new MockServer();
@@ -150,7 +149,10 @@ public class ClientConnectionTest {
         clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
         server.getOutputStream().join().close();
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
-            clientConnection.send(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
+            for (int i = 0; i < 100; i++) {
+                clientConnection.send(new Append("segment", writerId, i, new Event(Unpooled.wrappedBuffer(payload)), 1));
+                Thread.sleep(100);
+            }
         });
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
     }
@@ -169,7 +171,7 @@ public class ClientConnectionTest {
             .join();
         server.getOutputStream().join().close();
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
-            for (int i=0; i < 100; i++) {
+            for (int i = 0; i < 100; i++) {
                 clientConnection.send(new WireCommands.KeepAlive());
                 Thread.sleep(100);
             }
@@ -177,9 +179,9 @@ public class ClientConnectionTest {
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
     }
     
-    @Test
+    @Test(timeout = 15000)
     public void testFailedSendAsync() throws Exception {
-        byte[] payload = new byte[TcpClientConnection.TCP_BUFFER_SIZE + 1];
+        byte[] payload = new byte[100];
         ReplyProcessor processor = new ReplyProcessor();
         @Cleanup
         MockServer server = new MockServer();
@@ -193,10 +195,18 @@ public class ClientConnectionTest {
         UUID writerId = new UUID(1, 2);
         clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
         server.getOutputStream().join().close();
-        CompletableFuture<Exception> future = new CompletableFuture<>();
-        List<Append> events = ImmutableList.of(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
-        clientConnection.sendAsync(events, e -> future.complete(e));
-        assertNotNull(future.join());
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
+            for (int i = 0; i < 100; i++) {
+                CompletableFuture<Exception> future = new CompletableFuture<>();
+                List<Append> events = ImmutableList.of(new Append("segment", writerId, i, new Event(Unpooled.wrappedBuffer(payload)), 1));
+                clientConnection.sendAsync(events, e -> future.complete(e));
+                Exception exception = future.join();
+                if (exception != null) {
+                    throw exception;
+                }
+                Thread.sleep(100);
+            }
+        });
     }
     
     @Test
