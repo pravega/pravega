@@ -169,7 +169,7 @@ public class ClientConnectionTest {
             .join();
         server.getOutputStream().join().close();
         AssertExtensions.assertThrows(ConnectionFailedException.class, () -> {
-            for (int i=0; i < 100; i++) {
+            for (int i = 0; i < 100; i++) {
                 clientConnection.send(new WireCommands.KeepAlive());
                 Thread.sleep(100);
             }
