@@ -14,7 +14,9 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import io.swagger.annotations.ApiModelProperty;
 
 /**

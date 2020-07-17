@@ -92,7 +92,10 @@ public class RetentionConfig   {
   }
 
   /**
-   * Get value
+   * Get Value
+   * Value Represents number of days when type=LIMITED_DAYS
+   * and retention size in MB when type=LIMITED_SIZE_MB
+   * If type=LIMITED_DAYS and value=0, timeBasedRetention has the retention time.
    * @return value
    **/
   @JsonProperty("value")
@@ -111,7 +114,7 @@ public class RetentionConfig   {
   }
 
   /**
-   * Get timeBasedRetention
+   * Get retention duration in days, hours and minutes.
    * @return timeBasedRetention
    **/
   @JsonProperty("timeBasedRetention")

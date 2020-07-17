@@ -146,18 +146,18 @@ public class ModelHelper {
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
                     TimeBasedRetention timeRetention = new TimeBasedRetention();
-                    long millisecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
+                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
                     long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays();
                     long daysInMs = Duration.ofDays(days).toMillis();
                     long hours = 0L, minutes = 0L;
-                    if (millisecs == daysInMs) {
+                    if (totalMilliSecs == daysInMs) {
                         // retention is specified only in days
                         hours = 0L;
                         minutes = 0L;
                         retentionConfig.setValue(days);
                     } else {
-                        hours = TimeUnit.MILLISECONDS.toHours(millisecs - daysInMs);
-                        minutes = getMinsFromMillis(millisecs, hours, daysInMs);
+                        hours = TimeUnit.MILLISECONDS.toHours(totalMilliSecs - daysInMs);
+                        minutes = getMinsFromMillis(totalMilliSecs, daysInMs, hours);
                         retentionConfig.setValue(0L);
                     }
                     retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
@@ -182,15 +182,22 @@ public class ModelHelper {
         return RetentionPolicy.byTime(retentionDuration);
     }
 
-    private static long getMinsFromMillis(long millis, long hours, long daysInMs) {
-        long remainderMillis = 0L;
+    /**
+     * This method takes total retention duration in milliseconds and
+     * computes minutes from remainder ms after subtracting (daysInMs + hoursInMs)
+     * @param totalDurationInMs retention duration in milliseconds
+     * @param daysInMs milliseconds for days in the retention duration
+     * @param hours hours in the retention duration. This absolute value not in ms.
+     * */
+    private static long getMinsFromMillis(long totalDurationInMs, long daysInMs, long hours) {
+        long remainderMs = 0L;
         if (hours > 0) {
             long hoursInMs = Duration.ofHours(hours).toMillis();
-            remainderMillis = millis - (daysInMs + hoursInMs);
+            remainderMs = totalDurationInMs - (daysInMs + hoursInMs);
         } else {
             // hours = 0
-            remainderMillis = millis - daysInMs;
+            remainderMs = totalDurationInMs - daysInMs;
         }
-        return TimeUnit.MILLISECONDS.toMinutes(remainderMillis);
+        return TimeUnit.MILLISECONDS.toMinutes(remainderMs);
     }
 }
