@@ -94,7 +94,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    private final int listStreamsInScopeLimit;
+    private final int pageLimit;
 
     public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
         this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
@@ -442,6 +442,126 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void listScopes(Controller.ScopesRequest request, StreamObserver<Controller.ScopesResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "listScopes");
+        log.info(requestTag.getRequestId(), "listScope called.");
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofScopes(),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ScopesResponse>> scopesFn = delegationToken -> controllerService
+                .listScopes(request.getContinuationToken().getToken(), pageLimit)
+                .thenApply(response -> {
+                    log.debug("All scopes in scope with continuation token: {}", response);
+                    return Controller.ScopesResponse
+                            .newBuilder().addAllScopes(response.getKey())
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                              .setToken(response.getValue()).build())
+                            .build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, scopesFn, responseObserver, requestTag);
+    }
+
+    @Override
+    public void checkScopeExists(ScopeInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "checkScopeExists");
+        String scope = request.getScope();
+        log.info(requestTag.getRequestId(), "checkScopeExists called for scope {}.", request);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofScope(scope),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ExistsResponse>> scopeFn = delegationToken -> controllerService
+                .getScope(scope)
+                .handle((response, e) -> {
+                    boolean exists;
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            exists = false;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        exists = true;
+                    }
+                    return Controller.ExistsResponse.newBuilder().setExists(exists).build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, scopeFn, responseObserver, requestTag);
+    }
+
+    @Override
+    public void checkStreamExists(StreamInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "checkScopeExists");
+        String scope = request.getScope();
+        String stream = request.getStream();
+        log.info(requestTag.getRequestId(), "checkStream exists called for {}/{}.", scope, stream);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofStreamInScope(scope, stream),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ExistsResponse>> streamFn = delegationToken -> controllerService
+                .getStream(scope, stream)
+                .handle((response, e) -> {
+                    boolean exists;
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            exists = false;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        exists = true;
+                    }
+                    return Controller.ExistsResponse
+                            .newBuilder().setExists(exists)
+                            .build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, streamFn, responseObserver, requestTag);
+    }
+
+    @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
@@ -466,7 +586,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         return result;
                 },
                 delegationToken -> controllerService
-                        .listStreams(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .listStreams(scopeName, request.getContinuationToken().getToken(), pageLimit)
                         .handle((response, ex) -> {
                             if (ex != null) {
                                 if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {

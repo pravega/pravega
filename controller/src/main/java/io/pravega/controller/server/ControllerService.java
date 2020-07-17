@@ -481,6 +481,17 @@ public class ControllerService {
     }
 
     /**
+     * List Scopes in cluster from continuation token and limit it to number of elements specified by limit parameter.
+     *
+     * @param token continuation token
+     * @param limit number of elements to return.  
+     * @return List of scopes.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listScopes(final String token, final int limit) {
+        return streamStore.listScopes(token, limit, executor);
+    }
+
+    /**
      * Retrieve a scope.
      *
      * @param scopeName Name of Scope.

@@ -21,6 +21,7 @@ import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
@@ -152,6 +153,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.getChildren(SCOPE_ROOT_PATH)
                 .thenApply(children -> children.stream().filter(x -> !x.equals(ZKScope.STREAMS_IN_SCOPE)).collect(Collectors.toList()));
+    }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
+        // Pagination not supported for zk based store. 
+        throw new UnsupportedOperationException();
     }
 
     @Override

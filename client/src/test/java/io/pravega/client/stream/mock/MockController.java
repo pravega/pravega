@@ -76,7 +76,36 @@ public class MockController implements Controller {
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
-    
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
+        return CompletableFuture.completedFuture(createdScopes.containsKey(scopeName));
+    }
+
+    @Override
+    public AsyncIterator<String> listScopes() {
+        Set<String> collect = createdScopes.keySet();
+        return new AsyncIterator<String>() {
+            Object lock = new Object();
+            @GuardedBy("lock")
+            Iterator<String> iterator = collect.iterator();
+            @Override
+            public CompletableFuture<String> getNext() {
+                String next;
+                synchronized (lock) {
+                    if (!iterator.hasNext()) {
+                        next = null;
+                    } else {
+                        next = iterator.next();
+                    }
+                }
+
+                return CompletableFuture.completedFuture(next);
+            }
+        };
+    }
+
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createScope(final String scopeName) {
@@ -137,6 +166,11 @@ public class MockController implements Controller {
 
         return createStreamInternal(scope, markStream, markStreamConfig)
                 .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
+        return null;
     }
 
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
