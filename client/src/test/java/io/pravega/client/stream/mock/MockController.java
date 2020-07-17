@@ -170,7 +170,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
-        return null;
+        return CompletableFuture.completedFuture(createdStreams.containsKey(new StreamImpl(scopeName, streamName)));
     }
 
     private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {

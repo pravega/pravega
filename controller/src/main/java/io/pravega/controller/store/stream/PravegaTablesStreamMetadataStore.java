@@ -223,9 +223,11 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken,
                                                                     int limit, Executor executor) {
-        return storeHelper.getKeysPaginated(SCOPES_TABLE, Unpooled.wrappedBuffer(Base64.getDecoder().decode(continuationToken)), limit)
+        return withCompletion(Futures.exceptionallyComposeExpecting(storeHelper.getKeysPaginated(SCOPES_TABLE, Unpooled.wrappedBuffer(Base64.getDecoder().decode(continuationToken)), limit)
                           .thenApply(result -> new ImmutablePair<>(result.getValue(),
-                                  Base64.getEncoder().encodeToString(result.getKey().array())));
+                                  Base64.getEncoder().encodeToString(result.getKey().array()))), DATA_NOT_FOUND_PREDICATE,
+                () -> storeHelper.createTable(SCOPES_TABLE).thenApply(v -> ImmutablePair.of(Collections.emptyList(), continuationToken))),
+                executor);
     }
 
 

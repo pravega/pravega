@@ -98,12 +98,15 @@ public abstract class ControllerServiceImplTest {
     @Test
     public void createScopeTests() {
         CreateScopeStatus status;
-
         // region createScope
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
         this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
         status = result1.get();
         assertEquals(status.getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertTrue(exists.get().getExists());
 
         ResultObserver<CreateScopeStatus> result2 = new ResultObserver<>();
         this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE2), result2);
@@ -281,6 +284,10 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         this.controllerService.createScope(ScopeInfo.newBuilder().setScope(SCOPE1).build(), result);
         Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkStreamExists(StreamInfo.newBuilder().setScope(SCOPE1).setStream(STREAM1).build(), exists);
+        assertFalse(exists.get().getExists());
 
         ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result1);
@@ -716,6 +723,33 @@ public abstract class ControllerServiceImplTest {
         AssertExtensions.assertThrows("Lease lower bound violated ",
                 resultObserver::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
+    }
+
+    @Test
+    public void testListScopes() {
+        ResultObserver<Controller.ScopesResponse> list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+        assertTrue(list.get().getScopesList().isEmpty());
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertFalse(exists.get().getExists());
+        
+        // region createScope
+        ResultObserver<CreateScopeStatus> create = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), create);
+        assertEquals(create.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+
+        assertTrue(list.get().getScopesList().contains(SCOPE1));
+
+        exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertTrue(exists.get().getExists());
     }
 
     @Test(timeout = 30000L)
