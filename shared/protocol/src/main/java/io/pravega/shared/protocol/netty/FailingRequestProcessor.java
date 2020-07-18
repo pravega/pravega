@@ -144,4 +144,9 @@ public class FailingRequestProcessor implements RequestProcessor {
         // This method intentionally left blank.
     }
 
+    @Override
+    public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
 }
