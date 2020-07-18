@@ -195,4 +195,9 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
         throw new IllegalStateException("Unexpected operation: " + tableEntriesRead);
     }
+
+    @Override
+    public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesDeltaRead);
+    }
 }
