@@ -84,4 +84,10 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean appendsDisabled;
+
+    /**
+     * Whether to perform extra validation for debug purposes.
+     */
+    @Getter
+    final private boolean debugEnabled;
 }

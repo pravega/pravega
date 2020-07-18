@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Longs;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -39,13 +40,14 @@ import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
  * The focus is on testing the ChunkedSegmentStorage implementation itself very thoroughly.
- * It uses either {@link NoOpChunkStorage} as {@link ChunkStorage}.
+ * It uses {@link NoOpChunkStorage} as {@link ChunkStorage}.
  */
 @Slf4j
 public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
@@ -651,7 +653,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test Read.
+     * Test Write.
      *
      * @throws Exception Exception if any.
      */
@@ -673,12 +675,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         int total = 10;
 
-        val hRead = testContext.storageManager.openRead(testSegmentName).get();
-
-        // Read all bytes at once.
-        byte[] output = new byte[total];
-        int bytesRead = testContext.storageManager.read(hRead, 0, output, 0, total, null).get();
-        Assert.assertEquals(total, bytesRead);
+        checkDataRead(testSegmentName, testContext, 0, total);
     }
 
     /**
@@ -1505,6 +1502,191 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestUtils.checkChunksExistInStorage(testContext.storageProvider, testContext.metadataStore, testSegmentName);
     }
 
+    /**
+     * Test read and write with multiple failovers.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testReadWriteWithMultipleFailovers() throws Exception {
+        String testSegmentName = "foo";
+        TestContext testContext = getTestContext();
+
+        // Create
+        testContext.storageManager.create(testSegmentName, null).get();
+
+        // Write some data.
+        long writeAt = 0;
+        long epoch = 42;
+        ArrayList<Long> lengths = new ArrayList<>();
+        for (int i = 1; i < 5; i++) {
+            // Create a new test context and initialize with new epoch.
+            val hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
+            testContext.storageManager.write(hWrite, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            writeAt += i;
+            lengths.add((long) i);
+
+            // Read in same epoch.
+            checkDataRead(testSegmentName, testContext, 0, writeAt);
+
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
+
+            // Fork the context.
+            val oldTestCotext = testContext;
+            testContext = TestContext.fork(oldTestCotext, epoch++);
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
+
+            // Fence out old store.
+            oldTestCotext.metadataStore.markFenced();
+
+            // Read in new epoch.
+            checkDataRead(testSegmentName, testContext, 0, writeAt);
+        }
+
+        int total = 10;
+
+        // Create a new test context and initialize with new epoch.
+        testContext = TestContext.fork(testContext, epoch++);
+
+        checkDataRead(testSegmentName, testContext, 0, total);
+    }
+
+    /**
+     * Test read and write with multiple failovers.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testReadWriteWithMultipleFailoversWithGarbage() throws Exception {
+        String testSegmentName = "foo";
+        TestContext testContext = getTestContext();
+
+        // Create
+        testContext.storageManager.create(testSegmentName, null).get();
+
+        // Write some data.
+        long writeAt = 0;
+        long epoch = 42;
+        SegmentHandle hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
+        ArrayList<Long> lengths = new ArrayList<>();
+        for (int i = 1; i < 5; i++) {
+            // Create a new test context and initialize with new epoch.
+            testContext.storageManager.write(hWrite, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            writeAt += i;
+            lengths.add((long) i);
+
+            // Read in same epoch.
+            checkDataRead(testSegmentName, testContext, 0, writeAt);
+
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
+
+            // Fork the context.
+            val oldTestCotext = testContext;
+            testContext = TestContext.fork(oldTestCotext, epoch++);
+            TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
+
+            // Make sure to open segment with new instance before writing garbage to old instance.
+            hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
+
+            // Write some garbage
+            oldTestCotext.storageManager.write(hWrite, writeAt, new ByteArrayInputStream(new byte[10]), 10, null).join();
+
+            // Fence out old store.
+            boolean exceptionThrown = false;
+            oldTestCotext.metadataStore.markFenced();
+
+            AssertExtensions.assertFutureThrows("conact() allowed for invalid parameters",
+                    oldTestCotext.storageManager.write(hWrite, writeAt + 10, new ByteArrayInputStream(new byte[10]), 10, null),
+                    ex -> ex instanceof StorageNotPrimaryException);
+            // Read in new epoch.
+            checkDataRead(testSegmentName, testContext, 0, writeAt);
+        }
+
+        int total = 10;
+
+        // Create a new test context and initialize with new epoch.
+        testContext = TestContext.fork(testContext, epoch++);
+
+        checkDataRead(testSegmentName, testContext, 0, total);
+    }
+
+    /**
+     * Test truncate, read and write with multiple failovers.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testTruncateWithMultipleFailoversWithGarbage() throws Exception {
+        String testSegmentName = "foo";
+        TestContext testContext = getTestContext();
+
+        // Create
+        testContext.storageManager.create(testSegmentName, null).get();
+
+        // Write some data.
+        long writeAt = 0;
+        long truncateAt = 0;
+        long epoch = 42;
+        SegmentHandle hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
+        ArrayList<Long> lengths = new ArrayList<>();
+        for (int i = 1; i < 5; i++) {
+            // Truncate and Read in same epoch.
+            testContext.storageManager.truncate(hWrite, truncateAt, null).get();
+            checkDataRead(testSegmentName, testContext, truncateAt, writeAt);
+            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, writeAt);
+
+            // Create a new test context and initialize with new epoch.
+            testContext.storageManager.write(hWrite, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            writeAt += i;
+            lengths.add((long) i);
+            TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, truncateAt, writeAt);
+            checkDataRead(testSegmentName, testContext, truncateAt, writeAt);
+
+            truncateAt++;
+
+            // Fork the context.
+            val oldTestCotext = testContext;
+            testContext = TestContext.fork(oldTestCotext, epoch++);
+
+            // Make sure to open segment with new instance before writing garbage to old instance.
+            hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
+
+            // Write some garbage
+            oldTestCotext.storageManager.write(hWrite, writeAt, new ByteArrayInputStream(new byte[10]), 10, null).join();
+
+            // Fence out old store.
+            boolean exceptionThrown = false;
+            oldTestCotext.metadataStore.markFenced();
+
+            AssertExtensions.assertFutureThrows("conact() allowed for invalid parameters",
+                    oldTestCotext.storageManager.write(hWrite, writeAt + 10, new ByteArrayInputStream(new byte[10]), 10, null),
+                    ex -> ex instanceof StorageNotPrimaryException);
+            // Read in new epoch.
+            checkDataRead(testSegmentName, testContext, truncateAt, writeAt);
+        }
+
+        int total = 10;
+
+        // Create a new test context and initialize with new epoch.
+        testContext = TestContext.fork(testContext, epoch++);
+
+        checkDataRead(testSegmentName, testContext, truncateAt, total);
+    }
+
+    private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
+        val hRead = testContext.storageManager.openRead(testSegmentName).get();
+
+        // Read all bytes at once.
+        long size = Math.toIntExact(length - offset);
+        byte[] output = new byte[Math.toIntExact(length - offset)];
+        int bufferOffset = 0;
+        int bytesRead = 0;
+        while (bytesRead < size) {
+            bytesRead += testContext.storageManager.read(hRead, offset, output, bufferOffset, Math.toIntExact(size), null).get();
+        }
+        Assert.assertEquals(size, bytesRead);
+    }
+
     private SegmentHandle populateSegment(TestContext testContext, String targetSegmentName, long maxChunkLength, int numberOfchunks) throws Exception {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(maxChunkLength); // Force rollover after each byte.
         // Create segment
@@ -1525,6 +1707,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     public static class TestContext {
         @Getter
+        protected ChunkedSegmentStorageConfig config;
+
+        @Getter
         protected ChunkStorage storageProvider;
 
         @Getter
@@ -1536,19 +1721,44 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         @Getter
         protected Executor executor;
 
+        protected TestContext() {
+        }
+
         public TestContext(Executor executor) throws Exception {
             this(executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }
 
         public TestContext(Executor executor, ChunkedSegmentStorageConfig config) throws Exception {
-            this.executor = Preconditions.checkNotNull(executor);
-            storageProvider = createChunkStorageProvider();
-            metadataStore = createMetadataStore();
             this.executor = executor;
+            this.config = config;
             storageProvider = createChunkStorageProvider();
             metadataStore = createMetadataStore();
             storageManager = new ChunkedSegmentStorage(storageProvider, metadataStore, this.executor, config);
             storageManager.initialize(1);
+        }
+
+        /**
+         * Creates a fork of current context with same chunk storage but forked metadata store.
+         * This simulates multiple segment store instances writing to same storage but different states. (Eg After failover)
+         */
+        public static TestContext fork(TestContext original, long epoch) throws Exception {
+            Preconditions.checkNotNull(original);
+            val forkedContext = new TestContext();
+            forkedContext.executor = Preconditions.checkNotNull(original.executor);
+            forkedContext.storageProvider = Preconditions.checkNotNull(original.storageProvider);
+            forkedContext.storageManager = Preconditions.checkNotNull(original.storageManager);
+            forkedContext.config = Preconditions.checkNotNull(original.config);
+            // This will create a copy of metadata store
+            forkedContext.metadataStore = InMemoryMetadataStore.clone((InMemoryMetadataStore) original.metadataStore);
+
+            // Use the same same chunk storage, but different metadata store to simulate multiple zombie instances
+            // writing to the same underlying storage.
+            forkedContext.storageManager = new ChunkedSegmentStorage(original.storageProvider,
+                    forkedContext.metadataStore,
+                    original.executor,
+                    original.config);
+            forkedContext.storageManager.initialize(epoch);
+            return forkedContext;
         }
 
         /**

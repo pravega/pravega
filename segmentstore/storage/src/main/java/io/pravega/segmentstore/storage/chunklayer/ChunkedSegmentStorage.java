@@ -229,11 +229,6 @@ public class ChunkedSegmentStorage implements Storage {
      * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
     private void claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws ChunkStorageException, StorageMetadataException {
-        // Claim ownership.
-        // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
-        // If this instance is no more owner, then transaction commit will fail.So it is still safe.
-        segmentMetadata.setOwnerEpoch(this.epoch);
-        segmentMetadata.setOwnershipChanged(true);
 
         // Get the last chunk
         String lastChunkName = segmentMetadata.getLastChunk();
@@ -244,23 +239,42 @@ public class ChunkedSegmentStorage implements Storage {
                     segmentMetadata.getName(),
                     lastChunk.getName(),
                     lastChunk.getLength());
-            ChunkInfo chunkInfo = chunkStorage.getInfo(lastChunkName);
-            Preconditions.checkState(chunkInfo != null);
-            Preconditions.checkState(lastChunk != null);
-            // Adjust its length;
-            if (chunkInfo.getLength() != lastChunk.getLength()) {
-                Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
-                // Whatever length you see right now is the final "sealed" length of the last chunk.
-                lastChunk.setLength(chunkInfo.getLength());
-                segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
-                txn.update(lastChunk);
-                log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
+            try {
+                ChunkInfo chunkInfo = chunkStorage.getInfo(lastChunkName);
+                Preconditions.checkState(chunkInfo != null);
+                Preconditions.checkState(lastChunk != null);
+                // Adjust its length;
+                if (chunkInfo.getLength() != lastChunk.getLength()) {
+                    Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
+                    // Whatever length you see right now is the final "sealed" length of the last chunk.
+                    lastChunk.setLength(chunkInfo.getLength());
+                    segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
+                    txn.update(lastChunk);
+                    log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
+                            logPrefix,
+                            segmentMetadata.getName(),
+                            lastChunk.getName(),
+                            chunkInfo.getLength());
+                }
+            } catch (ChunkNotFoundException e) {
+                // This probably means that this instance is fenced out and newer instance truncated this segment.
+                // Try a commit of unmodified data to fail fast.
+                log.debug("{} claimOwnership - Last chunk was missing, failing fast - segment={}, last chunk={}.",
                         logPrefix,
                         segmentMetadata.getName(),
-                        lastChunk.getName(),
-                        chunkInfo.getLength());
+                        lastChunk.getName());
+                txn.update(segmentMetadata);
+                txn.commit();
+                throw e;
             }
         }
+
+        // Claim ownership.
+        // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
+        // If this instance is no more owner, then transaction commit will fail.So it is still safe.
+        segmentMetadata.setOwnerEpoch(this.epoch);
+        segmentMetadata.setOwnershipChanged(true);
+
         // Update and commit
         // If This instance is fenced this update will fail.
         txn.update(segmentMetadata);
@@ -293,6 +307,7 @@ public class ChunkedSegmentStorage implements Storage {
                 // commit.
                 txn.commit();
 
+                checkChunksExist(txn, newSegmentMetatadata);
                 val retValue = SegmentStorageHandle.writeHandle(streamSegmentName);
                 Duration elapsed = timer.getElapsed();
                 log.debug("{} create - segment={}, rollingPolicy={}, latency={}.", logPrefix, streamSegmentName, rollingPolicy, elapsed.toMillis());
@@ -338,6 +353,7 @@ public class ChunkedSegmentStorage implements Storage {
                 segmentMetadata.checkInvariants();
                 checkNotSealed(streamSegmentName, segmentMetadata);
                 checkOwnership(streamSegmentName, segmentMetadata);
+                checkChunksExist(txn, segmentMetadata);
 
                 // Validate that offset is correct.
                 if ((segmentMetadata.getLength()) != offset) {
@@ -443,6 +459,7 @@ public class ChunkedSegmentStorage implements Storage {
                 // Post commit actions.
                 // Update the read index.
                 readIndexCache.addIndexEntries(streamSegmentName, newReadIndexEntries);
+                checkChunksExist(txn, segmentMetadata);
 
                 Duration elapsed = timer.getElapsed();
                 log.debug("{} write - segment={}, offset={}, length={}, latency={}.", logPrefix, handle.getSegmentName(), offset, length, elapsed.toMillis());
@@ -597,6 +614,7 @@ public class ChunkedSegmentStorage implements Storage {
                 // Validate preconditions.
                 checkSegmentExists(streamSegmentName, segmentMetadata);
                 checkOwnership(streamSegmentName, segmentMetadata);
+                checkChunksExist(txn, segmentMetadata);
 
                 // seal if it is not already sealed.
                 if (!segmentMetadata.isSealed()) {
@@ -635,10 +653,12 @@ public class ChunkedSegmentStorage implements Storage {
                 checkSegmentExists(targetSegmentName, targetSegmentMetadata);
                 targetSegmentMetadata.checkInvariants();
                 checkNotSealed(targetSegmentName, targetSegmentMetadata);
+                checkChunksExist(txn, targetSegmentMetadata);
 
                 SegmentMetadata sourceSegmentMetadata = (SegmentMetadata) txn.get(sourceSegment);
                 checkSegmentExists(sourceSegment, sourceSegmentMetadata);
                 sourceSegmentMetadata.checkInvariants();
+                checkChunksExist(txn, sourceSegmentMetadata);
 
                 // This is a critical assumption at this point which should not be broken,
                 Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
@@ -697,6 +717,7 @@ public class ChunkedSegmentStorage implements Storage {
 
                 // Update the read index.
                 readIndexCache.remove(sourceSegment);
+                checkChunksExist(txn, targetSegmentMetadata);
 
                 Duration elapsed = timer.getElapsed();
                 log.debug("{} concat - target={}, source={}, offset={}, latency={}.", logPrefix, targetHandle.getSegmentName(), sourceSegment, offset, elapsed.toMillis());
@@ -980,6 +1001,7 @@ public class ChunkedSegmentStorage implements Storage {
                 checkSegmentExists(streamSegmentName, segmentMetadata);
                 checkNotSealed(streamSegmentName, segmentMetadata);
                 checkOwnership(streamSegmentName, segmentMetadata);
+                checkChunksExist(txn, segmentMetadata);
 
                 if (segmentMetadata.getLength() < offset || segmentMetadata.getStartOffset() > offset) {
                     throw new IllegalArgumentException(String.format("offset %d is outside of valid range [%d, %d) for segment %s",
@@ -1045,12 +1067,13 @@ public class ChunkedSegmentStorage implements Storage {
                 }
 
                 // Finally commit.
-                txn.commit(chunksToDelete.size() == 0); // if layout did not change then commit with lazyWrite.
+                txn.commit();
 
                 collectGarbage(chunksToDelete);
 
                 // Update the read index by removing all entries below truncate offset.
                 readIndexCache.truncateReadIndex(streamSegmentName, segmentMetadata.getStartOffset());
+                checkChunksExist(txn, segmentMetadata);
 
                 Duration elapsed = timer.getElapsed();
                 log.debug("{} truncate - segment={}, offset={}, latency={}.", logPrefix, handle.getSegmentName(), offset, elapsed.toMillis());
@@ -1126,6 +1149,7 @@ public class ChunkedSegmentStorage implements Storage {
                 checkSegmentExists(streamSegmentName, segmentMetadata);
 
                 segmentMetadata.checkInvariants();
+                checkChunksExist(txn, segmentMetadata);
 
                 Preconditions.checkArgument(offset < segmentMetadata.getLength(), "Offset %s is beyond the last offset %s of the segment %s.",
                         offset, segmentMetadata.getLength(), streamSegmentName);
@@ -1228,6 +1252,7 @@ public class ChunkedSegmentStorage implements Storage {
                     throw new StreamSegmentNotExistsException(streamSegmentName);
                 }
                 segmentMetadata.checkInvariants();
+                checkChunksExist(txn, segmentMetadata);
 
                 val retValue = StreamSegmentInformation.builder()
                         .name(streamSegmentName)
@@ -1320,5 +1345,21 @@ public class ChunkedSegmentStorage implements Storage {
         Preconditions.checkState(null != this.metadataStore);
         Preconditions.checkState(0 != this.epoch);
         Preconditions.checkState(!closed.get());
+    }
+
+    private void checkChunksExist(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws StorageMetadataException, ChunkStorageException {
+        if (config.isDebugEnabled()) {
+            String current = segmentMetadata.getFirstChunk();
+            ArrayList<ChunkMetadata> list = new ArrayList<>();
+            while (null != current) {
+                val chunk = (ChunkMetadata) txn.get(current);
+                list.add(chunk);
+                current = chunk.getNextChunk();
+            }
+            for (val chunk : list) {
+                Preconditions.checkState(chunkStorage.exists(chunk.getName()), "missing chunk");
+            }
+            Preconditions.checkState(segmentMetadata.getChunkCount() == list.size(), "invalid chunk count");
+        }
     }
 }
