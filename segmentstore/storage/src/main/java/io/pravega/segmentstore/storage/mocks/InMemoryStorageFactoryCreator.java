@@ -12,19 +12,41 @@ package io.pravega.segmentstore.storage.mocks;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+import io.pravega.segmentstore.storage.StorageManagerLayoutType;
+import io.pravega.segmentstore.storage.StorageManagerType;
+import lombok.val;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
-    public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
-        InMemoryStorageFactory factory = new InMemoryStorageFactory(executor);
-        return factory;
+    public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
+        if (storageFactoryInfo.getStorageManagerType().equals(StorageManagerType.CHUNK_MANAGER)) {
+            val factory = new InMemorySimpleStorageFactory(executor, true);
+            return factory;
+        } else {
+            InMemoryStorageFactory factory = new InMemoryStorageFactory(executor);
+            return factory;
+        }
+
     }
 
     @Override
-    public String getName() {
-        return "INMEMORY";
+    public StorageFactoryInfo[] getStorageFactories() {
+        return new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("INMEMORY")
+                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
+                        .storageManagerType(StorageManagerType.NONE)
+                        .build(),
+                StorageFactoryInfo.builder()
+                        .name("INMEMORY")
+                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
+                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .build()
+        };
     }
 
 }

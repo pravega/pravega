@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -24,6 +25,7 @@ import org.junit.Test;
  * because user segment write operation is no-oped.
  */
 @Slf4j
+@Ignore
 public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTestBase {
 
     private NoOpStorageFactory storageFactory;
@@ -56,7 +58,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkStorage) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                 .withStorageFactory(setup -> this.storageFactory)
                 .withDataLogFactory(setup -> this.durableDataLogFactory);
@@ -69,7 +71,13 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     @Override
     @Test
     public void testEndToEnd() throws Exception {
-        endToEndProcess(false);
+        endToEndProcess(false, false);
+    }
+
+    @Override
+    @Test
+    public void testEndToEndWithChunkManager() throws Exception {
+        endToEndProcess(false, true);
     }
 
     /**
@@ -79,6 +87,12 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     @Override
     @Test
     public void testEndToEndWithFencing() throws Exception {
-        endToEndProcessWithFencing(false);
+        endToEndProcessWithFencing(false, false);
+    }
+
+    @Override
+    @Test
+    public void testEndToEndWithFencingWithChunkManager() throws Exception {
+        endToEndProcessWithFencing(true, true);
     }
 }

@@ -18,6 +18,8 @@ import io.pravega.segmentstore.server.CachePolicy;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import io.pravega.segmentstore.storage.StorageManagerLayoutType;
+import io.pravega.segmentstore.storage.StorageManagerType;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -52,6 +54,8 @@ public class ServiceConfig {
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
+    public static final Property<StorageManagerLayoutType> STORAGE_LAYOUT = Property.named("storageLayout", StorageManagerLayoutType.LEGACY);
+    public static final Property<StorageManagerType> STORAGE_MANAGER = Property.named("storageManager", StorageManagerType.NONE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
@@ -66,7 +70,6 @@ public class ServiceConfig {
     public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
-
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -234,6 +237,18 @@ public class ServiceConfig {
     private final StorageType storageImplementation;
 
     /**
+     * The Type of Storage Layout to use.
+     */
+    @Getter
+    private final StorageManagerLayoutType storageLayout;
+
+    /**
+     * The Type of Storage manager to use.
+     */
+    @Getter
+    private final StorageManagerType storageManager;
+
+    /**
      * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
      * Note that if this is set to 'true', then many other settings will not apply. The most important other one to set
      * is 'Storage Implementation'.
@@ -287,7 +302,6 @@ public class ServiceConfig {
 
     //endregion
 
-
     //region Constructor
 
     /**
@@ -331,6 +345,8 @@ public class ServiceConfig {
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageManagerLayoutType.class);
+        this.storageManager = properties.getEnum(STORAGE_MANAGER, StorageManagerType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
@@ -400,7 +416,6 @@ public class ServiceConfig {
                 .append(")")
                 .toString();
     }
-
 
     @SneakyThrows(UnknownHostException.class)
     private static String getHostAddress() {

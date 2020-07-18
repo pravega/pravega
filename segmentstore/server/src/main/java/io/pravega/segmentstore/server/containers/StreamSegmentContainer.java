@@ -64,6 +64,9 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -177,6 +180,29 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return builder.build();
     }
 
+    /**
+     * Initializes storage.
+     *
+     * @throws Exception
+     */
+    private void initializeStorage() throws Exception {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+
+        if (this.storage instanceof ChunkedSegmentStorage) {
+            ChunkedSegmentStorage storageManager = (ChunkedSegmentStorage) this.storage;
+
+            // Initialize storage metadata table segment
+            ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
+            Preconditions.checkNotNull(tableExtension);
+            String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
+
+            val metadata = new TableBasedMetadataStore(s, tableExtension);
+
+            // Bootstrap
+            storageManager.bootstrap(this.metadata.getContainerId(), metadata);
+        }
+    }
+
     //endregion
 
     //region AutoCloseable Implementation
@@ -253,7 +279,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> initializeSecondaryServices() {
-        this.storage.initialize(this.metadata.getContainerEpoch());
+        try {
+            initializeStorage();
+        } catch (Exception ex) {
+            doStop(ex);
+        }
         return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 

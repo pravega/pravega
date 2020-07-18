@@ -36,14 +36,18 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.StorageManagerLayoutType;
+import io.pravega.segmentstore.storage.StorageManagerType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
+
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -84,7 +88,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int segmentStoreCount;
     private int[] segmentStorePorts;
 
-
     /*ZK related variables*/
     private boolean isInProcZK;
     private int zkPort;
@@ -94,7 +97,6 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*HDFS related variables*/
     private boolean isInProcHDFS;
     private String hdfsUrl;
-
 
     /* SegmentStore configuration*/
     private int containerCount;
@@ -140,10 +142,10 @@ public class InProcPravegaCluster implements AutoCloseable {
             //Check TLS related parameters
             Preconditions.checkState(!enableTls ||
                             (!Strings.isNullOrEmpty(this.keyFile)
-                            && !Strings.isNullOrEmpty(this.certFile)
-                            && !Strings.isNullOrEmpty(this.jksKeyFile)
-                            && !Strings.isNullOrEmpty(this.jksTrustFile)
-                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
+                                    && !Strings.isNullOrEmpty(this.certFile)
+                                    && !Strings.isNullOrEmpty(this.jksKeyFile)
+                                    && !Strings.isNullOrEmpty(this.jksTrustFile)
+                                    && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {
@@ -159,7 +161,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Synchronized
     public void setControllerPorts(int[] controllerPorts) {
-        this.controllerPorts = Arrays.copyOf( controllerPorts, controllerPorts.length);
+        this.controllerPorts = Arrays.copyOf(controllerPorts, controllerPorts.length);
     }
 
     @Synchronized
@@ -170,6 +172,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /**
      * Kicks off the cluster creation. right now it can be done only once in lifetime of a process.
+     *
      * @throws Exception Exception thrown by ZK/HDFS etc.
      */
     @Synchronized
@@ -209,7 +212,6 @@ public class InProcPravegaCluster implements AutoCloseable {
         zkService.start();
     }
 
-
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
 
@@ -226,7 +228,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
-        for ( String path : pathsTobeCleaned ) {
+        for (String path : pathsTobeCleaned) {
             try {
                 zclient.delete().guaranteed().deletingChildrenIfNeeded()
                         .forPath(path);
@@ -280,6 +282,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
+                        .with(ServiceConfig.STORAGE_MANAGER, StorageManagerType.NONE)
+                        .with(ServiceConfig.STORAGE_LAYOUT, StorageManagerLayoutType.LEGACY)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.StorageType.INMEMORY :
                                 ServiceConfig.StorageType.FILESYSTEM))
@@ -289,12 +293,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
-                                                                                + controllerPorts[0])
-                                         .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
-                                         .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
-                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
-                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
+                                + controllerPorts[0])
+                        .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                        .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
+                        .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
+                        .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                        .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
@@ -421,14 +425,14 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Synchronized
     public void close() throws Exception {
         if (isInProcSegmentStore) {
-            for ( ServiceStarter starter : this.nodeServiceStarter ) {
+            for (ServiceStarter starter : this.nodeServiceStarter) {
                 starter.shutdown();
             }
         }
         if (isInProcController) {
-            for ( ControllerServiceMain controller : this.controllerServers ) {
-                    controller.stopAsync();
-                }
+            for (ControllerServiceMain controller : this.controllerServers) {
+                controller.stopAsync();
+            }
         }
 
         if (this.zkService != null) {
