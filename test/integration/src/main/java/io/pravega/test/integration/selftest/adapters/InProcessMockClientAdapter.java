@@ -307,5 +307,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
             throw new UnsupportedOperationException("entryIterator");
         }
+
+        @Override
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+            throw new UnsupportedOperationException("entryIterator");
+        }
     }
 }
