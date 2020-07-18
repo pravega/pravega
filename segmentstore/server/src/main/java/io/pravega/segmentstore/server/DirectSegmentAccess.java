@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines an API that can be used to get direct access to a Segment. This can be used instead of the SegmentContainer API
  * for short periods of time if a rapid sequence of operations is desired (since it caches the locations of the Segment and
- * it does not need to all the usual SegmentContainer and StreamSegment lookups on every invocation).
+ * it does not need to call the usual SegmentContainer and StreamSegment lookups on every invocation).
  */
 public interface DirectSegmentAccess {
     /**
