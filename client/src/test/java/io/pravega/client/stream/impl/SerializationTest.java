@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -285,7 +286,8 @@ public class SerializationTest {
     @Test
     public void testReaderGroupUpdates() throws Exception {
         ReaderGroupUpdateSerializer serializer = new ReaderGroupUpdateSerializer();
-        verify(serializer, new AddReader(createString()));
+        val segmentToOffsets = ImmutableMap.of(new SegmentWithRange(new Segment("scope", "stream", 0), 0.0, 1.0), 0L);
+        verify(serializer, new AddReader(createString(), segmentToOffsets));
         verify(serializer, new RemoveReader(createString(), createSegmentToLongMap()));
         verify(serializer, new ReleaseSegment(createString(), createSegment(), r.nextLong()));
         verify(serializer, new AcquireSegment(createString(), createSegment()));

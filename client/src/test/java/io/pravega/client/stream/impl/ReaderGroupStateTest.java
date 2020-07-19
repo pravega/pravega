@@ -60,10 +60,10 @@ public class ReaderGroupStateTest {
     @Test
     public void getRanking() throws Exception {
         assertTrue(readerState.getOnlineReaders().isEmpty());
-        AddReader addR1 = new ReaderGroupState.AddReader("r1");
+        AddReader addR1 = new ReaderGroupState.AddReader("r1", new HashMap<SegmentWithRange, Long>());
         addR1.applyTo(readerState, revision);
         assertEquals(1, readerState.getOnlineReaders().size());
-        AddReader addR2 = new ReaderGroupState.AddReader("r2");
+        AddReader addR2 = new ReaderGroupState.AddReader("r2", new HashMap<SegmentWithRange, Long>());
         addR2.applyTo(readerState, revision);
         assertEquals(2, readerState.getOnlineReaders().size());
         new ReaderGroupState.AcquireSegment("r1", getSegment("S1")).applyTo(readerState, revision);
@@ -105,7 +105,7 @@ public class ReaderGroupStateTest {
         SegmentWithRange sr2 = new SegmentWithRange(s2, 0, 1);
         assertEquals(Long.valueOf(1), p2.get(sr2));
         
-        AddReader addR1 = new ReaderGroupState.AddReader("r1");
+        AddReader addR1 = new ReaderGroupState.AddReader("r1", new HashMap<SegmentWithRange, Long>());
         addR1.applyTo(readerState, revision);
         AcquireSegment aquire = new ReaderGroupState.AcquireSegment("r1", getSegment("S1"));
         aquire.applyTo(readerState, revision);
@@ -166,7 +166,7 @@ public class ReaderGroupStateTest {
         assertEquals(configuredStreams, readerState.getStreamNames());
 
         //Simulate addition of a reader and assigning of segments to the reader.
-        new AddReader("reader1").applyTo(readerState, revision);
+        new AddReader("reader1", new HashMap<SegmentWithRange, Long>()).applyTo(readerState, revision);
         new ReaderGroupState.AcquireSegment("reader1", new Segment(SCOPE, "S1", 0)).applyTo(readerState, revision);
 
         // validate stream names

@@ -595,6 +595,7 @@ public class ReaderGroupState implements Revisioned {
     @EqualsAndHashCode(callSuper = false)
     static class AddReader extends ReaderGroupStateUpdate {
         private final String readerId;
+        private final Map<SegmentWithRange, Long> unassignedSegments;
 
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -606,6 +607,10 @@ public class ReaderGroupState implements Revisioned {
                 throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
             state.distanceToTail.putIfAbsent(readerId, Long.MAX_VALUE);
+            
+            for (Entry<SegmentWithRange, Long> entry : this.unassignedSegments.entrySet()) {
+                state.unassignedSegments.putIfAbsent(entry.getKey(), entry.getValue());
+            }
         }
         
         private static class AddReaderBuilder implements ObjectBuilder<AddReader> {
@@ -625,15 +630,34 @@ public class ReaderGroupState implements Revisioned {
 
             @Override
             protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00)
+                        .revision(1, this::write01, this::read01);
             }
 
             private void read00(RevisionDataInput in, AddReaderBuilder builder) throws IOException {
                 builder.readerId(in.readUTF());
+                builder.unassignedSegments(in.readMap(i -> new SegmentWithRange(Segment.fromScopedName(i.readUTF()),null), RevisionDataInput::readLong));
             }
 
             private void write00(AddReader object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.readerId);
+                out.writeMap(object.unassignedSegments,(o, segment) -> o.writeUTF(segment.getSegment().getScopedName()), RevisionDataOutput::writeLong);
+            }
+
+            private void read01(RevisionDataInput revisionDataInput, AddReaderBuilder builder) throws IOException {
+                Map<SegmentWithRange, Long> unassignedSegments = revisionDataInput.readMap(in -> new SegmentWithRange(Segment.fromScopedName(in.readUTF()),
+                                readRange(in)),
+                        RevisionDataInput::readLong);
+                builder.unassignedSegments(unassignedSegments);
+            }
+
+            private void write01(AddReader object, RevisionDataOutput revisionDataOutput) throws IOException {
+                ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> {
+                    out.writeUTF(s.getSegment().getScopedName());
+                    writeRange(out, s.getRange());
+                };
+                revisionDataOutput.writeMap(object.unassignedSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
+
             }
         }
     }

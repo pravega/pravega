@@ -230,6 +230,28 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }), InvalidStreamException::new);
     }
 
+    @VisibleForTesting
+    public static Map<SegmentWithRange, Long> getAllSegmentsForStreams(Controller controller, ReaderGroupConfig config) {
+        Map<Stream, StreamCut> streamToStreamCuts = config.getStartingStreamCuts();
+        final List<CompletableFuture<Map<Segment, Long>>> futures = new ArrayList<>(streamToStreamCuts.size());
+        streamToStreamCuts.entrySet().forEach(e -> {
+                  if (e.getValue().equals(StreamCut.UNBOUNDED)) {
+                      futures.add(controller.getCurrentSegments(e.getKey().getScope(), e.getKey().getStreamName()).thenApply( streamSegments -> {
+                          Map<Segment, Long> result = streamSegments.getSegments().stream().collect(Collectors.toMap(segment -> (Segment) segment, segment -> 0L));
+                          return result;
+                      }));
+                  } else {
+                      futures.add(CompletableFuture.completedFuture(e.getValue().asImpl().getPositions()));
+                  }
+              });
+        return getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfMaps -> {
+            return listOfMaps.stream()
+                             .flatMap(map -> map.entrySet().stream())
+                             .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey(), null), e -> e.getValue()));
+
+        }), InvalidStreamException::new);
+    }
+
     public static Map<Segment, Long> getEndSegmentsForStreams(ReaderGroupConfig config) {
         List<Map<Segment, Long>> listOfMaps = config.getEndingStreamCuts()
                                                     .entrySet()

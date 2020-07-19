@@ -108,9 +108,11 @@ public class ReaderGroupStateManager {
         boolean alreadyAdded = sync.updateState((state, updates) -> {
             if (state.getSegments(readerId) == null) {
                 log.debug("Adding reader {} to reader group. CurrentState is: {}", readerId, state);
-                updates.add(new AddReader(readerId));
+                Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getAllSegmentsForStreams(controller, sync.getState().getConfig());
+                updates.add(new AddReader(readerId, segments));
                 return false;
             } else {
+                log.debug("Not adding reader {} to reader group state. CurrentState is: {}", readerId, state);
                 return true;
             }
         });

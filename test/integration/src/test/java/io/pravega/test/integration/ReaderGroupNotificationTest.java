@@ -233,13 +233,13 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         writer1.writeEvent("0", "data").get();
         long start = System.currentTimeMillis();
         log.info("Segments before scale found as: {}", controller.getCurrentSegments(SCOPE, streamName).get());
-        while (System.currentTimeMillis() - start < Duration.ofSeconds(20).toMillis()) {
-            writer1.writeEvent(routingKeys.get(random.nextInt(3)), "data").get();
-        }
 
         // scale
         List<List<Segment>> segmentsList = scale(controller, SCOPE, streamName, 1, 1, executorService());
         assertNotNull(segmentsList);
+        for (int i = 0; i < NUM_EVENTS - 2; i++) {
+            writer1.writeEvent(routingKeys.get(random.nextInt(3)), "data").get();
+        }
         log.info("Segments after scale found as: {}", controller.getCurrentSegments(SCOPE, streamName).get());
         String readerId = "readerId";
         String readerGroupName = "readerGroup";
@@ -254,11 +254,14 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         StreamSegments streamSegments =  controller.getCurrentSegments(SCOPE, streamName).get();
         EventStreamReader<String> reader1 = clientFactory.createReader(readerId, readerGroupName, new UTF8StringSerializer(),
               ReaderConfig.builder().initialAllocationDelay(0).build());
+        readerGroup.initiateCheckpoint("cp", executorService());
         for (int i = 0; i < NUM_EVENTS; i++) {
              EventRead<String> result =  reader1.readNextEvent(1000);
+             if (!result.isCheckpoint()) {
              assertNotNull(result);
              assertNotNull(result.getEvent());
              assertTrue(result.getEvent().equals("data"));
+             }
         }
         val notificationResults = new ArrayBlockingQueue<SegmentNotification>(10);
         //Add segment event listener
@@ -272,11 +275,12 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         SegmentNotification initialSegmentNotification = notificationResults.take();
         assertNotNull(initialSegmentNotification);
         assertEquals(initialSegmentNotification.getNumOfReaders(), 1);
+        assertEquals(initialSegmentNotification.getNumOfSegments(), NUM_SEGMENTS + 3);
         log.info("notification={}", initialSegmentNotification);
         readerGroup.resetReaderGroup(readerGroupConfig);
         readerGroup.readerOffline("readerId", null);
         long segmentSize = streamSegments.getSegments().size();
-        log.info(String.format("Number of segments expected: %d, actual:%d", NUM_SEGMENTS, segmentSize));
+        log.info(String.format("Number of active segments expected: %d, actual:%d", NUM_SEGMENTS, segmentSize));
         assertEquals(segmentSize, NUM_SEGMENTS);
     }
 
