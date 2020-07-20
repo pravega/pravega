@@ -78,4 +78,6 @@ public interface RequestProcessor {
     void readTableKeys(WireCommands.ReadTableKeys readTableKeys);
 
     void readTableEntries(WireCommands.ReadTableEntries readTableEntries);
+
+    void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta);
 }
