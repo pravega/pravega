@@ -30,7 +30,11 @@ buildscript {
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+        classpath "com.palantir.gradle.docker:gradle-docker:${palantirDockerPluginVersion}"
     }
+}
+plugins {
+    id 'com.palantir.docker' version '0.25.0'
 }
 
 if (project.hasProperty("enableMkdocs")) {
@@ -1117,7 +1121,7 @@ task buildBookkeeperImage(type: DockerBuildTask) {
     dockerFile = "${dockerDir}/Dockerfile"
 }
 
-task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
+task dockerBuild(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
     description = "Builds all docker images"
 }
 
@@ -1133,7 +1137,7 @@ task pushBookkeeperImage(type: DockerPushTask) {
     tag = "${bookkeeperBaseTag}:${version}"
 }
 
-task dockerPush(dependsOn: [pushPravegaImage, pushBookkeeperImage]) {
+task dockerBuildPush(dependsOn: [pushPravegaImage, pushBookkeeperImage]) {
     description = "Push all docker images"
 }
 
@@ -1160,6 +1164,30 @@ class DockerBuildTask extends Exec {
         args "${->dockerDir}"
     }
 }
+
+docker {
+    String baseTag = pravegaBaseTag
+    String dockerBuildDir = "${buildDir}/docker"
+    String dockerDir = "docker/pravega"
+    String dockerFile
+    if (JavaVersion.current().isJava11Compatible()) {
+        dockerFile = "${dockerDir}/Dockerfile-java-11"
+    } else {
+        dockerFile = "${dockerDir}/Dockerfile.dev"
+    }
+    name "${dockerRegistry}/${dockerImageName}:${version}"
+    tag 'latest', "${dockerRegistry}/${dockerImageName}:${version}"
+    files installDist.outputs, "${buildDir}/install/pravega"
+    copySpec.from("${buildDir}/install/pravega").into("docker")
+    copySpec.from("${buildDir}/install/pravega").into("pravega")
+    copySpec.from("docker/pravega").into("pravega")
+    copySpec.from("docker/pravega/scripts").into("scripts")
+    buildArgs([BUILD_VERSION: project.version])
+    dockerfile file(dockerFile)
+    pull true
+    noCache true
+}
+
 
 /**
  * Task for pushing an image, which can either push to dockerhub or to a private registry.
