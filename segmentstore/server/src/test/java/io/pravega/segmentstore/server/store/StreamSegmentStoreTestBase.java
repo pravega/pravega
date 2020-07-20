@@ -262,8 +262,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val segmentStore = builder.createStreamSegmentService();
             checkReads(segmentContents, segmentStore);
             log.info("Finished checking reads.");
+        }
 
-            if (verifySegmentContent) {
+        if (verifySegmentContent) {
+            try (val builder = createBuilder(++instanceId, useChunkStorage);) {
+                val segmentStore = builder.createStreamSegmentService();
                 // Wait for all the data to move to Storage.
                 waitForSegmentsInStorage(segmentNames, segmentStore)
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -271,7 +274,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 checkStorage(segmentContents, segmentStore);
                 log.info("Finished Storage check.");
+                //}
 
+                //try (val builder = createBuilder(++instanceId, useChunkStorage);) {
+                //    val segmentStore = builder.createStreamSegmentService();
                 checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
                 log.info("Finished checking reads while truncating.");
 
@@ -289,13 +295,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished sealing.");
 
             checkSegmentStatus(lengths, startOffsets, true, false, expectedAttributeValue, segmentStore);
-
+            //}
             if (verifySegmentContent) {
+                //try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+                //    val segmentStore = builder.createStreamSegmentService();
                 waitForSegmentsInStorage(segmentNames, segmentStore)
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 log.info("Finished waiting for segments in Storage.");
             }
+        }
 
+        try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+            val segmentStore = builder.createStreamSegmentService();
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
             log.info("Finished deleting segments.");
@@ -681,20 +692,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // StreamSegmentNotExistsException.
             // This is gracefully handled by retries in AppendProcessor and/or Client, but in this case, we simply have to
             // do the retries ourselves, hoping that the callback eventually executes.
-            /*
             Retry.withExpBackoff(100, 2, 10, TIMEOUT.toMillis() / 5)
-                 .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException || info.get().getLength() != info.get().getStorageLength())
-                 .run(() -> {
-                     val latestInfo =  (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-                     try {
-                         checkSegmentReads(segmentName, expectedCurrentOffset, info.get().getLength(), store, expectedData);
-                     } catch (Exception ex2) {
-                         log.debug("", ex2);
-                     }
-                     info.set(latestInfo);
-                     return null;
-                 });
-            */
+                    .retryWhen(ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException || info.get().getLength() != info.get().getStorageLength())
+                    .run(() -> {
+                        val latestInfo =  (StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+                        try {
+                            checkSegmentReads(segmentName, expectedCurrentOffset, info.get().getLength(), store, expectedData);
+                        } catch (Exception ex2) {
+                            log.debug("Exception during checkReads", ex2);
+                        }
+                        info.set(latestInfo);
+                        return null;
+                    });
         }
     }
 
