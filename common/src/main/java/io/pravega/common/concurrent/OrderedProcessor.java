@@ -7,21 +7,20 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util;
+package io.pravega.common.concurrent;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -30,19 +29,16 @@ import lombok.val;
  * Processes items in order, subject to capacity constraints.
  */
 @ThreadSafe
-public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable {
+public class OrderedProcessor<ResultType> implements AutoCloseable {
     //region members
 
-    private static final int CLOSE_TIMEOUT_MILLIS = 60 * 1000;
     private final int capacity;
-    @GuardedBy("processingLock")
-    private final Function<ItemType, CompletableFuture<ResultType>> processor;
     @GuardedBy("stateLock")
     private final Deque<QueueItem> pendingItems;
     private final Executor executor;
 
     /**
-     * Guards access to the OrderedItemProcessor's internal state (counts and queues).
+     * Guards access to the {@link OrderedProcessor}'s internal state (counts and queues).
      */
     private final Object stateLock = new Object();
 
@@ -54,26 +50,21 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     private int activeCount;
     @GuardedBy("stateLock")
     private boolean closed;
-    @GuardedBy("stateLock")
-    private ReusableLatch emptyNotifier;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the OrderedItemProcessor class.
+     * Creates a new instance of the {@link OrderedProcessor} class.
      *
-     * @param capacity  The maximum number of concurrent executions.
-     * @param processor A Function that, given an Item, returns a CompletableFuture that indicates when the item has been
-     *                  processed (successfully or not).
-     * @param executor  An Executor for async invocations.
+     * @param capacity The maximum number of concurrent executions.
+     * @param executor An Executor for async invocations.
      */
-    public OrderedItemProcessor(int capacity, Function<ItemType, CompletableFuture<ResultType>> processor, Executor executor) {
+    public OrderedProcessor(int capacity, @NonNull Executor executor) {
         Preconditions.checkArgument(capacity > 0, "capacity must be a non-negative number.");
         this.capacity = capacity;
-        this.processor = Preconditions.checkNotNull(processor, "processor");
-        this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.executor = executor;
         this.pendingItems = new ArrayDeque<>();
         this.activeCount = 0;
     }
@@ -85,24 +76,18 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     @Override
     @SneakyThrows(Exception.class)
     public void close() {
-        ReusableLatch waitSignal = null;
+        val toCancel = new ArrayList<QueueItem>();
         synchronized (this.stateLock) {
             if (this.closed) {
                 return;
             }
 
+            toCancel.addAll(this.pendingItems);
+            this.pendingItems.clear();
             this.closed = true;
-            if (this.activeCount != 0 || !this.pendingItems.isEmpty()) {
-                // Setup a latch that will be released when the last item completes.
-                this.emptyNotifier = new ReusableLatch(false);
-                waitSignal = this.emptyNotifier;
-            }
         }
 
-        if (waitSignal != null) {
-            // We have unfinished items. Wait for them.
-            waitSignal.await(CLOSE_TIMEOUT_MILLIS);
-        }
+        toCancel.forEach(i -> i.result.cancel(true));
     }
 
     //endregion
@@ -110,23 +95,20 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
     //region Processing
 
     /**
-     * Processes the given item.
-     * * If the OrderedItemProcessor is below capacity, then the item will be processed immediately and the returned
-     * future is the actual result from the Processor.
-     * * If the max capacity is exceeded, the item will be queued up and it will be processed when capacity allows, after
-     * all the items added before it have been processed.
-     * * If an item before this one failed to process and this item is still in the queue (it has not yet been processed),
-     * the returned future will be cancelled with a ProcessingException to prevent out-of-order executions.
+     * Executes the given item.
+     * * If {@link #hasCapacity()} is true, the item will be executed immediately and the returned future is the actual
+     * result from {@code toRun}.
+     * * If {@link #hasCapacity()} is false, the item will be queued up and it will be processed when capacity allows,
+     * after all the items added before it have been executed (whether exceptionally or with a successful outcome).
      * * This method guarantees ordered execution as long as its invocations are serial. That is, it only guarantees that
      * the item has begun processing or an order assigned if the method returned successfully.
-     * * If an item failed to execute, this class will auto-close and will not be usable anymore.
      *
-     * @param item The item to process.
+     * @param toRun A {@link Supplier} that, when invoked, will return a {@link CompletableFuture} which will indicate the
+     *              outcome of the operation to execute.
      * @return A CompletableFuture that, when completed, will indicate that the item has been processed. This will contain
      * the result of the processing function applied to this item.
      */
-    public CompletableFuture<ResultType> process(ItemType item) {
-        Preconditions.checkNotNull(item, "item");
+    public CompletableFuture<ResultType> execute(@NonNull Supplier<CompletableFuture<ResultType>> toRun) {
         CompletableFuture<ResultType> result = null;
         synchronized (this.stateLock) {
             Exceptions.checkNotClosed(this.closed, this);
@@ -136,7 +118,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
             } else {
                 // We are at capacity or have a backlog. Put the item in the queue and return its associated future.
                 result = new CompletableFuture<>();
-                this.pendingItems.add(new QueueItem(item, result));
+                this.pendingItems.add(new QueueItem(toRun, result));
             }
         }
 
@@ -146,7 +128,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
             // the same time). In that case, we need to acquire the processing lock to ensure that we don't accidentally
             // process this item before we finish processing the last item in the queue.
             synchronized (this.processingLock) {
-                result = processInternal(item);
+                result = processInternal(toRun);
             }
         }
 
@@ -161,32 +143,9 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
      */
     @VisibleForTesting
     protected void executionComplete(Throwable exception) {
-        Collection<QueueItem> toFail = null;
-        Throwable failEx = null;
         synchronized (this.stateLock) {
             // Release the spot occupied by this item's execution.
             this.activeCount--;
-            if (exception != null && !this.closed) {
-                // Need to fail all future items and close to prevent new items from being processed.
-                failEx = new ProcessingException("A previous item failed to commit. Cannot process new items.", exception);
-                toFail = new ArrayList<>(this.pendingItems);
-                this.pendingItems.clear();
-                this.closed = true;
-            }
-
-            if (this.emptyNotifier != null && this.activeCount == 0 && this.pendingItems.isEmpty()) {
-                // We were asked to notify when we were empty.
-                this.emptyNotifier.release();
-                this.emptyNotifier = null;
-            }
-        }
-
-        if (toFail != null) {
-            for (QueueItem q : toFail) {
-                q.result.completeExceptionally(failEx);
-            }
-
-            return;
         }
 
         // We need to ensure the items are still executed in order. Once out of the main sync block, it is possible that
@@ -206,15 +165,16 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
                     }
                 }
 
-                Futures.completeAfter(() -> processInternal(toProcess.data), toProcess.result);
+                // Futures.completeAfter will invoke processInternal synchronously, so it will still be within declared guards.
+                Futures.completeAfter(() -> processInternal(toProcess.toRun), toProcess.result);
             }
         }
     }
 
     @GuardedBy("processingLock")
-    private CompletableFuture<ResultType> processInternal(ItemType data) {
+    private CompletableFuture<ResultType> processInternal(Supplier<CompletableFuture<ResultType>> toRun) {
         try {
-            val result = this.processor.apply(data);
+            val result = toRun.get();
             result.whenCompleteAsync((r, ex) -> executionComplete(ex), this.executor);
             return result;
         } catch (Throwable ex) {
@@ -233,23 +193,11 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
 
     //endregion
 
-    //region ProcessingException
-
-    public static class ProcessingException extends IllegalStateException {
-        private static final long serialVersionUID = 1L;
-
-        private ProcessingException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
-
-    //endregion
-
     //region QueueItem
 
     @RequiredArgsConstructor
     private class QueueItem {
-        final ItemType data;
+        final Supplier<CompletableFuture<ResultType>> toRun;
         final CompletableFuture<ResultType> result;
     }
 
