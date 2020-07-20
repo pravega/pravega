@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import lombok.Builder;
 import lombok.Data;
 
@@ -25,12 +24,12 @@ public class StorageFactoryInfo {
     String name;
 
     /**
-     * Type of {@link ChunkedSegmentStorage} supported.
+     * Type of storage layout supported.
      */
-    StorageManagerType storageManagerType;
+    StorageLayoutType storageLayoutType;
 
     /**
-     * Type of {@link ChunkedSegmentStorage} layout supported.
+     * Type of metadata format supported.
      */
-    StorageManagerLayoutType storageManagerLayoutType;
+    StorageMetadataFormat storageMetadataFormat;
 }

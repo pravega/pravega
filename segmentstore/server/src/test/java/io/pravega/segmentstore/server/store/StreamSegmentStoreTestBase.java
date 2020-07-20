@@ -150,7 +150,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
      * (writes, seals, creates, etc.) and another instance to verify the changes being persisted into Storage.
-     * This test does not use ChunkManager.
+     * This test does not use ChunkedSegmentStorage.
      * * Appends
      * * Reads
      * * Segment and transaction creation
@@ -167,7 +167,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
      * (writes, seals, creates, etc.) and another instance to verify the changes being persisted into Storage.
-     * This test uses ChunkManager.
+     * This test uses ChunkedSegmentStorage.
      * * Appends
      * * Reads
      * * Segment and transaction creation
@@ -177,7 +177,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @throws Exception If an exception occurred.
      */
     @Test
-    public void testEndToEndWithChunkManager() throws Exception {
+    public void testEndToEndWithChunkedStorage() throws Exception {
         endToEndProcess(false, true);
     }
 
@@ -185,10 +185,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * End to end test to verify segment store process.
      *
      * @param verifySegmentContent whether it's needed to read segment content for verification.
-     * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+     * @param useChunkedStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
      * @throws Exception If an exception occurred.
      */
-    void endToEndProcess(boolean verifySegmentContent, boolean useChunkStorage) throws Exception {
+    void endToEndProcess(boolean verifySegmentContent, boolean useChunkedStorage) throws Exception {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -200,7 +200,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         // Phase 1: Create segments and add some appends.
         log.info("Starting Phase 1.");
-        try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+        try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
             val segmentStore = builder.createStreamSegmentService();
 
             // Create the StreamSegments.
@@ -226,7 +226,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         // Phase 2: Force a recovery and merge all transactions.
         log.info("Starting Phase 2.");
-        try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+        try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
             val segmentStore = builder.createStreamSegmentService();
             checkReads(segmentContents, segmentStore);
             log.info("Finished checking reads.");
@@ -258,14 +258,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         // Phase 3: Force a recovery, immediately check reads, then truncate and read at the same time.
         log.info("Starting Phase 3.");
-        try (val builder = createBuilder(++instanceId, useChunkStorage);) {
+        try (val builder = createBuilder(++instanceId, useChunkedStorage);) {
             val segmentStore = builder.createStreamSegmentService();
             checkReads(segmentContents, segmentStore);
             log.info("Finished checking reads.");
         }
 
         if (verifySegmentContent) {
-            try (val builder = createBuilder(++instanceId, useChunkStorage);) {
+            try (val builder = createBuilder(++instanceId, useChunkedStorage);) {
                 val segmentStore = builder.createStreamSegmentService();
                 // Wait for all the data to move to Storage.
                 waitForSegmentsInStorage(segmentNames, segmentStore)
@@ -276,7 +276,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 log.info("Finished Storage check.");
                 //}
 
-                //try (val builder = createBuilder(++instanceId, useChunkStorage);) {
+                //try (val builder = createBuilder(++instanceId, useChunkedStorage);) {
                 //    val segmentStore = builder.createStreamSegmentService();
                 checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
                 log.info("Finished checking reads while truncating.");
@@ -288,7 +288,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         // Phase 4: Force a recovery, seal segments and then delete them.
         log.info("Starting Phase 4.");
-        try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+        try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
             val segmentStore = builder.createStreamSegmentService();
             // Seals.
             sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -297,7 +297,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             checkSegmentStatus(lengths, startOffsets, true, false, expectedAttributeValue, segmentStore);
             //}
             if (verifySegmentContent) {
-                //try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+                //try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
                 //    val segmentStore = builder.createStreamSegmentService();
                 waitForSegmentsInStorage(segmentNames, segmentStore)
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -305,7 +305,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        try (val builder = createBuilder(++instanceId, useChunkStorage)) {
+        try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
             val segmentStore = builder.createStreamSegmentService();
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
@@ -338,8 +338,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @throws Exception If an exception occurred.
      */
     @Test
-    //@Ignore
-    public void testEndToEndWithFencingWithChunkManager() throws Exception {
+    public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
         endToEndProcessWithFencing(true, true);
     }
 
@@ -347,15 +346,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * End to end test to verify segment store process with fencing.
      *
      * @param verifySegmentContent whether it's needed to read segment content for verification.
-     * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+     * @param useChunkedSegmentStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
      * @throws Exception If an exception occurred.
      */
-    public void endToEndProcessWithFencing(boolean verifySegmentContent, boolean useChunkStorage) throws Exception {
+    public void endToEndProcessWithFencing(boolean verifySegmentContent, boolean useChunkedSegmentStorage) throws Exception {
         log.info("Starting.");
         ArrayList<SegmentProperties> segmentProperties;
         try (val context = new FencingTestContext()) {
             // Create first instance (this is a one-off so we can bootstrap the test).
-            context.createNewInstance(useChunkStorage);
+            context.createNewInstance(useChunkedSegmentStorage);
 
             // Create the StreamSegments and their transactions.
             val segmentNames = createSegments(context.getActiveStore());
@@ -375,7 +374,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Creating a new Segment Store instance every {} operations.", newInstanceFrequency);
 
             // Execute all the requests.
-            val operationCompletions = executeWithFencing(requests, newInstanceFrequency, context, useChunkStorage);
+            val operationCompletions = executeWithFencing(requests, newInstanceFrequency, context, useChunkedSegmentStorage);
 
             // Wait for our operations to complete.
             operationCompletions.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -404,8 +403,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(int instanceId, boolean useChunkStorage) throws Exception {
-        val builder = createBuilder(this.configBuilder, instanceId, useChunkStorage);
+    private ServiceBuilder createBuilder(int instanceId, boolean useChunkedSegmentStorage) throws Exception {
+        val builder = createBuilder(this.configBuilder, instanceId, useChunkedSegmentStorage);
         try {
             builder.initialize();
         } catch (Throwable ex) {
@@ -420,10 +419,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @param builderConfig The configuration to use.
      * @param instanceId    The Id of the ServiceBuilder to create. For least interference, these should be unique.
-     * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+     * @param useChunkedSegmentStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
      * @return The ServiceBuilder.
      */
-    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkStorage);
+    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkedSegmentStorage);
 
     private ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, List<ByteBuf> appendBuffers) {
@@ -526,17 +525,17 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Executes all the requests asynchronously, one by one, on the given FencingTextContext.
      */
-    private CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context, boolean useChunkStorage) {
+    private CompletableFuture<Void> executeWithFencing(Iterator<StoreRequest> requests, int newInstanceFrequency, FencingTestContext context, boolean useChunkedSegmentStorage) {
         AtomicInteger index = new AtomicInteger();
         return Futures.loop(
                 requests::hasNext,
                 () -> {
                     // Create a new Segment Store instance if we need to.
                     if (index.incrementAndGet() % newInstanceFrequency == 0) {
-                        context.createNewInstanceAsync(useChunkStorage);
+                        context.createNewInstanceAsync(useChunkedSegmentStorage);
                     }
 
-                    return executeWithFencing(requests.next(), index.get(), context, useChunkStorage);
+                    return executeWithFencing(requests.next(), index.get(), context, useChunkedSegmentStorage);
                 },
                 executorService());
     }
@@ -544,9 +543,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     /**
      * Executes the given request on the given FencingTextContext.. We retry all expected exceptions, and when we do, we
      * make sure to execute them on the current (active) Segment Store instance (since the previous one may be unusable).
-     * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+     * @param useChunkedSegmentStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
      */
-    private CompletableFuture<Void> executeWithFencing(StoreRequest request, int index, FencingTestContext context, boolean useChunkStorage) {
+    private CompletableFuture<Void> executeWithFencing(StoreRequest request, int index, FencingTestContext context, boolean useChunkedSegmentStorage) {
         log.debug("Initiating Operation #{} on iteration {}.", index, context.getIteration());
         AtomicReference<StreamSegmentStore> requestStore = new AtomicReference<>(context.getActiveStore());
         return Retry.withExpBackoff(50, 2, 10, TIMEOUT.toMillis() / 10)
@@ -1028,11 +1027,11 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         /**
          * Same as createNewInstance(), but runs asynchronously, and only after the previous initialization completed.
-         * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+         * @param useChunkedSegmentStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
          */
-        void createNewInstanceAsync(boolean useChunkStorage) {
+        void createNewInstanceAsync(boolean useChunkedSegmentStorage) {
             this.newInstanceCompletions.set(
-                    this.newInstanceCompletions.get().thenRunAsync(() -> createNewInstance(useChunkStorage), executorService()));
+                    this.newInstanceCompletions.get().thenRunAsync(() -> createNewInstance(useChunkedSegmentStorage), executorService()));
         }
 
         /**
@@ -1042,13 +1041,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
          * meddle with the BKLog ZK metadata during the new instance's initialization, causing the new instance to wrongfully
          * assume it's not the rightful survivor. A quick retry solves this problem, as there is no other kind of information
          * available to disambiguate this.
-         * @param useChunkStorage whether to use ChunkManager or instead use AsyncStorageWrapper.
+         * @param useChunkedStorage whether to use ChunkedSegmentStorage or instead use AsyncStorageWrapper.
          */
-        void createNewInstance(boolean useChunkStorage) {
+        void createNewInstance(boolean useChunkedStorage) {
             this.newInstanceRetry.run(() -> {
                 int instanceId = getIteration() + 1;
                 log.info("Starting Instance {}.", instanceId);
-                ServiceBuilder b = createBuilder(instanceId, useChunkStorage);
+                ServiceBuilder b = createBuilder(instanceId, useChunkedStorage);
                 this.builders.add(b);
                 this.activeStore.set(b.createStreamSegmentService());
                 this.iteration.incrementAndGet();

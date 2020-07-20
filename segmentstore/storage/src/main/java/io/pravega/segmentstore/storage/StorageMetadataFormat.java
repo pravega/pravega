@@ -10,16 +10,17 @@
 package io.pravega.segmentstore.storage;
 
 /**
- * Type of StorageManager to use.
+ * Type of Storage metadata format.
  */
-public enum StorageManagerType {
+public enum StorageMetadataFormat {
     /**
-     * Does not use any StorageManager.
+     * Uses format that stores data in header files.
      */
-    NONE,
+    HEADER_BASED,
 
     /**
-     * Uses ChunkManager.
+     * Uses format that stores data in table segments.
      */
-    CHUNK_MANAGER,
+    TABLE_BASED,
 }
+

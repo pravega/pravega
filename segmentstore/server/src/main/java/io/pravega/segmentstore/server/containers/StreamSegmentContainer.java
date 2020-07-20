@@ -189,7 +189,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
-            ChunkedSegmentStorage storageManager = (ChunkedSegmentStorage) this.storage;
+            ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
 
             // Initialize storage metadata table segment
             ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
@@ -199,7 +199,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             val metadata = new TableBasedMetadataStore(s, tableExtension);
 
             // Bootstrap
-            storageManager.bootstrap(this.metadata.getContainerId(), metadata);
+            chunkedStorage.bootstrap(this.metadata.getContainerId(), metadata);
         }
     }
 

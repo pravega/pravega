@@ -41,12 +41,12 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkStorage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
 
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> useChunkStorage ?
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
                         new FileSystemSimpleStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor())
                         : new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor())
                 )

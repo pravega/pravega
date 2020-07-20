@@ -14,8 +14,8 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageManagerLayoutType;
-import io.pravega.segmentstore.storage.StorageManagerType;
+import io.pravega.segmentstore.storage.StorageMetadataFormat;
+import io.pravega.segmentstore.storage.StorageLayoutType;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -26,13 +26,13 @@ public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
-                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
-                        .storageManagerType(StorageManagerType.NONE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
     }
@@ -43,7 +43,7 @@ public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(setup, "setup");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(storageFactoryInfo.getName().equals("FILESYSTEM"));
-        if (storageFactoryInfo.getStorageManagerType().equals(StorageManagerType.CHUNK_MANAGER)) {
+        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
             return new FileSystemSimpleStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);
         } else {
             return new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);

@@ -10,17 +10,16 @@
 package io.pravega.segmentstore.storage;
 
 /**
- * Type of Storage metadata layout to use.
+ * Type of Storage layout to use.
  */
-public enum StorageManagerLayoutType {
+public enum StorageLayoutType {
     /**
-     * Uses RollingStorage based layout.
+     * Uses {@link io.pravega.segmentstore.storage.rolling.RollingStorage}.
      */
-    LEGACY,
+    ROLLING_STORAGE,
 
     /**
-     * Uses layout that stores data in table segments.
+     * Uses {@link io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage} .
      */
-    TABLE_BASED,
+    CHUNKED_STORAGE,
 }
-

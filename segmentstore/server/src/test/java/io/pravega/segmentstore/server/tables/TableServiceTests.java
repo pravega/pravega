@@ -167,18 +167,18 @@ public class TableServiceTests extends ThreadPooledTestSuite {
      */
     @Test
     @Ignore
-    public void testEndToEndWithChunkManager() throws Exception {
+    public void testEndToEndWithChunkedStorage() throws Exception {
         testEndToEnd(true);
     }
 
-    public void testEndToEnd(boolean useChunkManager) throws Exception {
+    public void testEndToEnd(boolean useChunkedStorage) throws Exception {
         val rnd = new Random(0);
         ArrayList<String> segmentNames;
         HashMap<BufferView, EntryData> keyInfo;
 
         // Phase 1: Create some segments and update some data (unconditionally).
         log.info("Starting Phase 1");
-        try (val builder = createBuilder(useChunkManager)) {
+        try (val builder = createBuilder(useChunkedStorage)) {
             val tableStore = builder.createTableStoreService();
 
             // Create the Table Segments.
@@ -202,7 +202,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 2: Force a recovery and remove all data (unconditionally)
         log.info("Starting Phase 2");
-        try (val builder = createBuilder(useChunkManager)) {
+        try (val builder = createBuilder(useChunkedStorage)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -221,7 +221,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 3: Force a recovery and conditionally update and remove data
         log.info("Starting Phase 3");
-        try (val builder = createBuilder(useChunkManager)) {
+        try (val builder = createBuilder(useChunkedStorage)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery).
@@ -258,7 +258,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 4: Force a recovery and conditionally remove all data
         log.info("Starting Phase 4");
-        try (val builder = createBuilder(useChunkManager)) {
+        try (val builder = createBuilder(useChunkedStorage)) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -546,9 +546,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return TABLE_SEGMENT_NAME_PREFIX + i;
     }
 
-    private ServiceBuilder createBuilder(boolean useChunkManager) throws Exception {
+    private ServiceBuilder createBuilder(boolean useChunkedStorage) throws Exception {
         val builder = ServiceBuilder.newInMemoryBuilder(this.configBuilder.build())
-                .withStorageFactory(setup -> useChunkManager ? this.simpleStorageFactory : this.asyncStorageFactory)
+                .withStorageFactory(setup -> useChunkedStorage ? this.simpleStorageFactory : this.asyncStorageFactory)
                 .withDataLogFactory(setup -> this.durableDataLogFactory);
         try {
             builder.initialize();

@@ -13,8 +13,8 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageManagerLayoutType;
-import io.pravega.segmentstore.storage.StorageManagerType;
+import io.pravega.segmentstore.storage.StorageMetadataFormat;
+import io.pravega.segmentstore.storage.StorageLayoutType;
 import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,7 +23,7 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
     public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
-        if (storageFactoryInfo.getStorageManagerType().equals(StorageManagerType.CHUNK_MANAGER)) {
+        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
             val factory = new InMemorySimpleStorageFactory(executor, true);
             return factory;
         } else {
@@ -38,13 +38,13 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
-                        .storageManagerType(StorageManagerType.NONE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
-                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build()
         };
     }

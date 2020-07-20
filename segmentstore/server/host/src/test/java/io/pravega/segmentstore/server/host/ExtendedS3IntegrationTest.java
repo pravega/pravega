@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server.host;
 
@@ -66,11 +66,11 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkStorage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> useChunkStorage ?
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
                         new LocalExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor())
                         : new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),

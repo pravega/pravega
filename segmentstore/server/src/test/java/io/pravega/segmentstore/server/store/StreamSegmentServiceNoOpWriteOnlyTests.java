@@ -58,7 +58,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkStorage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkedSegmentStorage) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                 .withStorageFactory(setup -> this.storageFactory)
                 .withDataLogFactory(setup -> this.durableDataLogFactory);
@@ -76,7 +76,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
-    public void testEndToEndWithChunkManager() throws Exception {
+    public void testEndToEndWithChunkedStorage() throws Exception {
         endToEndProcess(false, true);
     }
 
@@ -92,7 +92,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
-    public void testEndToEndWithFencingWithChunkManager() throws Exception {
+    public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
         endToEndProcessWithFencing(true, true);
     }
 }

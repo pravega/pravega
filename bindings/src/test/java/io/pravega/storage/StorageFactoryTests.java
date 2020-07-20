@@ -14,8 +14,8 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageManagerLayoutType;
-import io.pravega.segmentstore.storage.StorageManagerType;
+import io.pravega.segmentstore.storage.StorageMetadataFormat;
+import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -49,13 +49,13 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
-                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
-                        .storageManagerType(StorageManagerType.NONE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
         val factoryInfoList = factoryCreator.getStorageFactories();
@@ -88,13 +88,13 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
-                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
-                        .storageManagerType(StorageManagerType.NONE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 
@@ -133,13 +133,13 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageManagerLayoutType(StorageManagerLayoutType.TABLE_BASED)
-                        .storageManagerType(StorageManagerType.CHUNK_MANAGER)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageManagerLayoutType(StorageManagerLayoutType.LEGACY)
-                        .storageManagerType(StorageManagerType.NONE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 

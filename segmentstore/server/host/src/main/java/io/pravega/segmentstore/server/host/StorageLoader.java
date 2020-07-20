@@ -15,8 +15,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
-import io.pravega.segmentstore.storage.StorageManagerLayoutType;
-import io.pravega.segmentstore.storage.StorageManagerType;
+import io.pravega.segmentstore.storage.StorageMetadataFormat;
+import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +33,8 @@ import lombok.val;
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup,
                                String storageImplementation,
-                               StorageManagerType storageManagerType,
-                               StorageManagerLayoutType storageManagerLayoutType,
+                               StorageLayoutType storageLayoutType,
+                               StorageMetadataFormat storageMetadataFormat,
                                ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
         StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
@@ -43,8 +43,8 @@ public class StorageLoader {
             for (val factoryInfo : factories) {
                 log.info("Loading {}, trying {}", storageImplementation, factoryInfo);
                 if (factoryInfo.getName().equals(storageImplementation)
-                        && factoryInfo.getStorageManagerLayoutType() == storageManagerLayoutType
-                        && factoryInfo.getStorageManagerType() == storageManagerType
+                        && factoryInfo.getStorageMetadataFormat() == storageMetadataFormat
+                        && factoryInfo.getStorageLayoutType() == storageLayoutType
                 ) {
                     StorageFactory factory = factoryCreator.createFactory(factoryInfo, setup, executor);
                     if (!noOpConfig.isStorageNoOpMode()) {

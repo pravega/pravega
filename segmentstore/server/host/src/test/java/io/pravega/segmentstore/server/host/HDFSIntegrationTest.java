@@ -69,11 +69,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkStorage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> useChunkStorage ?
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
                         new HDFSSimpleStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor())
                         : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));

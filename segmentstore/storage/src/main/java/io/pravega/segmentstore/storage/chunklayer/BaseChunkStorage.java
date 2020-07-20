@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The implementations in this repository are tested using following test suites.
  * <ul>
  * <li>SimpleStorageTests</li>
- * <li>ChunkManagerRollingTests</li>
+ * <li>ChunkedRollingStorageTests</li>
  * <li>ChunkStorageProviderTests</li>
  * <li>SystemJournalTests</li>
  * </ul>
