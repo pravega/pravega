@@ -1533,7 +1533,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             // Fork the context.
             val oldTestCotext = testContext;
-            testContext = TestContext.fork(oldTestCotext, epoch++);
+            testContext = oldTestCotext.fork(epoch++);
             TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
 
             // Fence out old store.
@@ -1546,7 +1546,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int total = 10;
 
         // Create a new test context and initialize with new epoch.
-        testContext = TestContext.fork(testContext, epoch++);
+        testContext = testContext.fork(epoch++);
 
         checkDataRead(testSegmentName, testContext, 0, total);
     }
@@ -1582,7 +1582,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             // Fork the context.
             val oldTestCotext = testContext;
-            testContext = TestContext.fork(oldTestCotext, epoch++);
+            testContext = oldTestCotext.fork(epoch++);
             TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
 
             // Make sure to open segment with new instance before writing garbage to old instance.
@@ -1605,7 +1605,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int total = 10;
 
         // Create a new test context and initialize with new epoch.
-        testContext = TestContext.fork(testContext, epoch++);
+        testContext = testContext.fork(epoch++);
 
         checkDataRead(testSegmentName, testContext, 0, total);
     }
@@ -1646,7 +1646,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             // Fork the context.
             val oldTestCotext = testContext;
-            testContext = TestContext.fork(oldTestCotext, epoch++);
+            testContext = oldTestCotext.fork(epoch++);
 
             // Make sure to open segment with new instance before writing garbage to old instance.
             hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
@@ -1668,7 +1668,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         int total = 10;
 
         // Create a new test context and initialize with new epoch.
-        testContext = TestContext.fork(testContext, epoch++);
+        testContext = testContext.fork(epoch++);
 
         checkDataRead(testSegmentName, testContext, truncateAt, total);
     }
@@ -1741,24 +1741,31 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates a fork of current context with same chunk storage but forked metadata store.
          * This simulates multiple segment store instances writing to same storage but different states. (Eg After failover)
          */
-        public static TestContext fork(TestContext original, long epoch) throws Exception {
-            Preconditions.checkNotNull(original);
+        public TestContext fork(long epoch) throws Exception {
             val forkedContext = new TestContext();
-            forkedContext.executor = Preconditions.checkNotNull(original.executor);
-            forkedContext.storageProvider = Preconditions.checkNotNull(original.storageProvider);
-            forkedContext.storageManager = Preconditions.checkNotNull(original.storageManager);
-            forkedContext.config = Preconditions.checkNotNull(original.config);
+            forkedContext.executor = Preconditions.checkNotNull(this.executor);
+            forkedContext.storageProvider = Preconditions.checkNotNull(this.storageProvider);
+            forkedContext.storageManager = Preconditions.checkNotNull(this.storageManager);
+            forkedContext.config = Preconditions.checkNotNull(this.config);
             // This will create a copy of metadata store
-            forkedContext.metadataStore = InMemoryMetadataStore.clone((InMemoryMetadataStore) original.metadataStore);
+            forkedContext.metadataStore = getForkedMetadataStore();
 
             // Use the same same chunk storage, but different metadata store to simulate multiple zombie instances
             // writing to the same underlying storage.
-            forkedContext.storageManager = new ChunkedSegmentStorage(original.storageProvider,
+            forkedContext.storageManager = new ChunkedSegmentStorage(this.storageProvider,
                     forkedContext.metadataStore,
-                    original.executor,
-                    original.config);
+                    this.executor,
+                    this.config);
             forkedContext.storageManager.initialize(epoch);
             return forkedContext;
+        }
+
+        /**
+         * Creates a clone of metadata store.
+         * @return
+         */
+        public ChunkMetadataStore getForkedMetadataStore() {
+            return InMemoryMetadataStore.clone((InMemoryMetadataStore) this.metadataStore);
         }
 
         /**

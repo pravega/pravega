@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutorService;
@@ -72,6 +73,21 @@ public class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
             return new InMemorySimpleStorageTestContext(executorService());
         }
 
+        @Test
+        @Ignore("This is not implemented yet.")
+        public void testReadWriteWithMultipleFailoversWithGarbage(){
+        }
+
+        @Test
+        @Ignore("This is not implemented yet.")
+        public void testTruncateWithMultipleFailoversWithGarbage(){
+        }
+
+        @Test
+        @Ignore("This is not implemented yet.")
+        public void testReadWriteWithMultipleFailovers(){
+        }
+
         public static class InMemorySimpleStorageTestContext extends TestContext {
             InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
                 super(executorService);
@@ -80,6 +96,10 @@ public class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
             @Override
             public ChunkMetadataStore createMetadataStore() throws Exception {
                 return createChunkMetadataStore();
+            }
+
+            public ChunkMetadataStore getForkedMetadataStore() {
+                throw new UnsupportedOperationException("This is not implemented yet.");
             }
 
             private ChunkMetadataStore createChunkMetadataStore() {

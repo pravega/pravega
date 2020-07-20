@@ -40,28 +40,18 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @ThreadSafe
 public class InMemoryTableStore implements TableStore {
-
-    private static final AtomicReference<InMemoryTableStore> SINGLETON = new AtomicReference<InMemoryTableStore>();
-
     @GuardedBy("tables")
     private final HashMap<String, TableData> tables = new HashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
 
     @NonNull
     private final Executor executor;
-
-    public static synchronized InMemoryTableStore getSINGLETON(Executor executor) {
-        SINGLETON.compareAndSet(null, new InMemoryTableStore(executor));
-        return SINGLETON.get();
-    }
-
 
     //region TableStore Implementation
 
@@ -99,7 +89,19 @@ public class InMemoryTableStore implements TableStore {
     }
 
     @Override
+    public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return CompletableFuture.supplyAsync(() -> getTableData(segmentName).put(entries), this.executor);
+    }
+
+    @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return CompletableFuture.runAsync(() -> getTableData(segmentName).remove(keys), this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return CompletableFuture.runAsync(() -> getTableData(segmentName).remove(keys), this.executor);
     }
@@ -127,6 +129,11 @@ public class InMemoryTableStore implements TableStore {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
         throw new UnsupportedOperationException();
     }
 
@@ -195,4 +202,14 @@ public class InMemoryTableStore implements TableStore {
     }
 
     //endregion
+
+    /**
+     * Creates a clone for given {@link InMemoryTableStore}. Useful to simulate zombie segment container.
+     *
+     * @param original Metadata store to clone.
+     * @return Clone of given instance.
+     */
+    public static InMemoryTableStore clone(InMemoryTableStore original) {
+        throw new UnsupportedOperationException("This is not implemented yet.");
+    }
 }
