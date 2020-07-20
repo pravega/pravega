@@ -9,19 +9,11 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import com.google.common.util.concurrent.Service;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -29,18 +21,9 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
-import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -53,22 +36,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -78,7 +53,6 @@ import org.junit.rules.Timeout;
 /**
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
-@Slf4j
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
@@ -108,7 +82,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testCreateDelete() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
@@ -133,7 +107,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testInvalidIteratorState() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val iteratorArgs = IteratorArgs
                 .builder()
@@ -151,7 +125,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testDeleteIfEmpty() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
@@ -197,7 +171,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testUnimplementedMethods() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
         AssertExtensions.assertThrows(
                 "merge() is implemented.",
                 () -> context.ext.merge(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT),
@@ -214,7 +188,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testOffsetAcceptingMethods() {
         @Cleanup
-        val context = new TestContext();
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
@@ -388,7 +362,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         final int maxCompactionLength = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE;
         @Cleanup
-        val context = new TestContext(keyHasher, maxCompactionLength);
+        val context = new TableContext(maxCompactionLength, executorService());
 
         // Create the segment and the Table Writer Processor.
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
@@ -463,7 +437,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Process each TestEntryData in turn.  After each time, re-create the Extension.
         // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
         @Cleanup
-        val context = new TestContext(KeyHashers.DEFAULT_HASHER);
+        val context = new TableContext(executorService());
 
         // Create the Segment.
         context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
@@ -527,7 +501,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
-        val context = new TestContext(hasher);
+        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
 
         // Generate the keys.
         val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
@@ -586,7 +560,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void testBatchUpdates(int updateCount, int maxBatchSize, boolean sortedTableSegment, KeyHasher keyHasher,
                                   EntryGenerator generateToUpdate, KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
-        val context = new TestContext(keyHasher);
+        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
 
         // Create the segment and the Table Writer Processor. We make `sortedTableSegment` configurable because some tests
         // explicitly test the offsets that are written to the segment, which would be very hard to do in the presence of
@@ -713,7 +687,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
         val emptyIteratorArgs = IteratorArgs
                 .builder()
-                .serializedState(new IteratorState(KeyHasher.MAX_HASH).serialize())
+                .serializedState(new IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
                 .fetchTimeout(TIMEOUT)
                 .build();
         // Check that invalid serializer state is handled properly.
@@ -781,11 +755,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         processor.add(new CachedStreamSegmentAppendOperation(op));
     }
 
-    private ArrayList<TestBatchData> generateTestData(TestContext context) {
+    private ArrayList<TestBatchData> generateTestData(TableContext context) {
         return generateTestData(BATCH_UPDATE_COUNT, BATCH_SIZE, context);
     }
 
-    private ArrayList<TestBatchData> generateTestData(int batchUpdateCount, int maxBatchSize, TestContext context) {
+    private ArrayList<TestBatchData> generateTestData(int batchUpdateCount, int maxBatchSize, TableContext context) {
         val result = new ArrayList<TestBatchData>();
         int count = 0;
         while (count < batchUpdateCount) {
@@ -798,7 +772,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private TestBatchData generateAndPopulateEntriesBatch(int batchSize, TestBatchData previous, TestContext context) {
+    private TestBatchData generateAndPopulateEntriesBatch(int batchSize, TestBatchData previous, TableContext context) {
         val expectedEntries = previous == null
                 ? new HashMap<BufferView, BufferView>()
                 : new HashMap<>(previous.expectedEntries);
@@ -831,7 +805,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         return new TestBatchData(toUpdate, toRemove, expectedEntries);
     }
 
-    private BufferView createRandomData(int length, TestContext context) {
+    private BufferView createRandomData(int length, TableContext context) {
         byte[] data = new byte[length];
         context.random.nextBytes(data);
         return new ByteArraySegment(data);
@@ -854,247 +828,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     //region Helper Classes
-
-    private class TestContext implements AutoCloseable {
-        final KeyHasher hasher;
-        final MockSegmentContainer container;
-        final CacheStorage cacheStorage;
-        final CacheManager cacheManager;
-        final ContainerTableExtensionImpl ext;
-        final Random random;
-
-        TestContext() {
-            this(KeyHashers.DEFAULT_HASHER);
-        }
-
-        TestContext(KeyHasher hasher) {
-            this(hasher, DEFAULT_COMPACTION_SIZE);
-        }
-
-        TestContext(KeyHasher hasher, int maxCompactionSize) {
-            this.hasher = hasher;
-            this.container = new MockSegmentContainer(() -> new SegmentMock(createSegmentMetadata(), executorService()));
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
-            this.ext = createExtension(maxCompactionSize);
-            this.random = new Random(0);
-        }
-
-        @Override
-        public void close() {
-            this.ext.close();
-            this.cacheManager.close();
-            this.container.close();
-            this.cacheStorage.close();
-        }
-
-        ContainerTableExtensionImpl createExtension() {
-            return createExtension(DEFAULT_COMPACTION_SIZE);
-        }
-
-        ContainerTableExtensionImpl createExtension(int maxCompactionSize) {
-            return new TestTableExtensionImpl(this.container, this.cacheManager, this.hasher, executorService(), maxCompactionSize);
-        }
-
-        UpdateableSegmentMetadata createSegmentMetadata() {
-            val result = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-            result.setLength(0);
-            result.setStorageLength(0);
-            return result;
-        }
-
-        SegmentMock segment() {
-            return this.container.segment.get();
-        }
-    }
-
-    private static class TestTableExtensionImpl extends ContainerTableExtensionImpl {
-        private final int maxCompactionSize;
-
-        TestTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager,
-                               KeyHasher hasher, ScheduledExecutorService executor, int maxCompactionSize) {
-            super(segmentContainer, cacheManager, hasher, executor);
-            this.maxCompactionSize = maxCompactionSize;
-        }
-
-        @Override
-        protected int getMaxCompactionSize() {
-            return this.maxCompactionSize == DEFAULT_COMPACTION_SIZE ? super.getMaxCompactionSize() : this.maxCompactionSize;
-        }
-    }
-
-    private class MockSegmentContainer implements SegmentContainer {
-        private final AtomicReference<SegmentMock> segment;
-        private final Supplier<SegmentMock> segmentCreator;
-        private final AtomicBoolean closed;
-
-        MockSegmentContainer(Supplier<SegmentMock> segmentCreator) {
-            this.segmentCreator = segmentCreator;
-            this.segment = new AtomicReference<>();
-            this.closed = new AtomicBoolean();
-        }
-
-        @Override
-        public int getId() {
-            return CONTAINER_ID;
-        }
-
-        @Override
-        public void close() {
-            this.closed.set(true);
-        }
-
-        @Override
-        public CompletableFuture<DirectSegmentAccess> forSegment(String segmentName, Duration timeout) {
-            Exceptions.checkNotClosed(this.closed.get(), this);
-            SegmentMock segment = this.segment.get();
-            if (segment == null) {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
-            }
-
-            Assert.assertEquals("Unexpected segment name.", segment.getInfo().getName(), segmentName);
-            return CompletableFuture.supplyAsync(() -> segment, executorService());
-        }
-
-        @Override
-        public CompletableFuture<Void> createStreamSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-            if (this.segment.get() != null) {
-                return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
-            }
-
-            return CompletableFuture
-                    .runAsync(() -> {
-                        SegmentMock segment = this.segmentCreator.get();
-                        Assert.assertTrue(this.segment.compareAndSet(null, segment));
-                    }, executorService())
-                    .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? Collections.emptyList() : attributes, timeout));
-        }
-
-        @Override
-        public CompletableFuture<Void> deleteStreamSegment(String segmentName, Duration timeout) {
-            SegmentMock segment = this.segment.get();
-            if (segment == null) {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
-            }
-            Assert.assertEquals("Unexpected segment name.", segment.getInfo().getName(), segmentName);
-            Assert.assertTrue(this.segment.compareAndSet(segment, null));
-            return CompletableFuture.completedFuture(null);
-        }
-
-        //region Not Implemented Methods
-
-        @Override
-        public Collection<SegmentProperties> getActiveSegments() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public Service startAsync() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public boolean isRunning() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public State state() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public Service stopAsync() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public void awaitRunning() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public void awaitRunning(long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public void awaitTerminated() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public void awaitTerminated(long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public Throwable failureCause() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public void addListener(Listener listener, Executor executor) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        @Override
-        public boolean isOffline() {
-            throw new UnsupportedOperationException("Not Expected");
-        }
-
-        //endregion
-    }
 
     @RequiredArgsConstructor
     private class TestBatchData {

@@ -124,6 +124,13 @@ public class TableService extends SegmentContainerCollection implements TableSto
                 "get", segmentName, args);
     }
 
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        return invokeExtension(segmentName,
+                e -> e.entryDeltaIterator(segmentName, fromPosition, fetchTimeout),
+                "entryDeltaIterator", segmentName, fromPosition, fetchTimeout);
+    }
+
     //endregion
 
     //region Helpers
