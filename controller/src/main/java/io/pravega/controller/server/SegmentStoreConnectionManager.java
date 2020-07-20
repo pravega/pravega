@@ -406,5 +406,10 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
             execute(ReplyProcessor::tableEntriesRead, tableEntriesRead);
         }
+
+        @Override
+        public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
+            execute(ReplyProcessor::tableEntriesDeltaRead, tableEntriesDeltaRead);
+        }
     }
 }
