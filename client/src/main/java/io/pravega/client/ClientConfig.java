@@ -172,7 +172,7 @@ public class ClientConfig implements Serializable {
 
         private boolean deriveTlsEnabledFromControllerURI = true;
 
-        private Duration enableTesting = Duration.ofSeconds(30);
+        private Duration serverRequestTimeout = Duration.ofSeconds(30);
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
