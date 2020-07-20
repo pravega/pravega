@@ -279,7 +279,17 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
+        public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+            throw new UnsupportedOperationException("updateTableSegment");
+        }
+
+        @Override
         public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
+            throw new UnsupportedOperationException("remove");
+        }
+
+        @Override
+        public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
             throw new UnsupportedOperationException("remove");
         }
 
@@ -295,6 +305,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
+            throw new UnsupportedOperationException("entryIterator");
+        }
+
+        @Override
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
             throw new UnsupportedOperationException("entryIterator");
         }
     }

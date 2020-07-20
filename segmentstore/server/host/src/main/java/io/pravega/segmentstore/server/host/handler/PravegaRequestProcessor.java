@@ -48,6 +48,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.segmentstore.server.tables.DeltaIteratorState;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -90,6 +91,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -98,6 +100,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
@@ -650,12 +655,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.put(segment, entries, TIMEOUT)
+        tableStore.put(segment, entries, updateTableEntries.getTableSegmentOffset(), TIMEOUT)
                 .thenAccept(versions -> {
                     connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
                     this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e))
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, updateTableEntries.getTableSegmentOffset(), operation, e))
                 .whenComplete((r, ex) -> updateTableEntries.release());
     }
 
@@ -682,12 +687,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         val timer = new Timer();
-        tableStore.remove(segment, keys, TIMEOUT)
+        tableStore.remove(segment, keys, removeTableKeys.getTableSegmentOffset(), TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
                     this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
                 })
-                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e))
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, removeTableKeys.getTableSegmentOffset(), operation, e))
                 .whenComplete((r, ex) -> removeTableKeys.release());
     }
 
@@ -811,6 +816,66 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             args.prefixFilter(new ByteBufWrapper(prefix));
         }
         return args.build();
+    }
+
+    @Override
+    public void readTableEntriesDelta(WireCommands.ReadTableEntriesDelta readTableEntriesDelta) {
+        final String segment = readTableEntriesDelta.getSegment();
+        final String operation = "readTableEntriesDelta";
+
+        if (!verifyToken(segment, readTableEntriesDelta.getRequestId(), readTableEntriesDelta.getDelegationToken(), operation)) {
+            return;
+        }
+
+        final int suggestedEntryCount = readTableEntriesDelta.getSuggestedEntryCount();
+        final long fromPosition = readTableEntriesDelta.getFromPosition();
+
+        log.info(readTableEntriesDelta.getRequestId(), "Iterate Table Entries Delta: Segment={} Count={} FromPositon={}.",
+                readTableEntriesDelta.getSegment(),
+                readTableEntriesDelta.getSuggestedEntryCount(),
+                readTableEntriesDelta.getFromPosition());
+
+        val timer = new Timer();
+        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>, DeltaIteratorState>(
+                segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
+        tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
+                .thenCompose(itr -> itr.collectRemaining(
+                        e -> {
+                            if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                                return  false;
+                            }
+                            TableEntry entry = e.getEntries().iterator().next();
+                            DeltaIteratorState state = DeltaIteratorState.deserialize(e.getState());
+                            // Store all TableEntries.
+                            val k = new WireCommands.TableKey(toByteBuf(entry.getKey().getKey()), entry.getKey().getVersion());
+                            val v = new WireCommands.TableValue(toByteBuf(entry.getValue()));
+                            if (state.isDeletionRecord()) {
+                                result.remove(entry.getKey().getKey(), k.size() + v.size());
+                            } else {
+                                Map.Entry<WireCommands.TableKey, WireCommands.TableValue> old = result.getItem(entry.getKey().getKey());
+                                if (old != null && old.getKey().getKeyVersion() < entry.getKey().getVersion()) {
+                                    int sizeBytes = (k.size() + v.size()) - (old.getKey().size() + old.getValue().size());
+                                    result.add(entry.getKey().getKey(), new AbstractMap.SimpleImmutableEntry<>(k, v), sizeBytes);
+                                } else {
+                                    result.add(entry.getKey().getKey(), new AbstractMap.SimpleImmutableEntry<>(k, v), k.size() + v.size());
+                                }
+                            }
+                            result.setState(state);
+                            // Update total read data.
+                            return true;
+                        }))
+                .thenAccept(v -> {
+                    log.debug(readTableEntriesDelta.getRequestId(), "Iterate Table Segment Entries Delta complete ({}).", result.getItemCount());
+                    connection.send(new WireCommands.TableEntriesDeltaRead(
+                            readTableEntriesDelta.getRequestId(),
+                            segment,
+                            new WireCommands.TableEntries(result.getItems()),
+                            result.getState().isShouldClear(),
+                            result.getState().isReachedEnd(),
+                            result.getState().getFromPosition()));
+                    this.tableStatsRecorder.iterateEntries(readTableEntriesDelta.getSegment(), result.getItemCount(), timer.getElapsed());
+                }).exceptionally(e -> handleException(readTableEntriesDelta.getRequestId(), segment, operation, e));
+
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<BufferView> inputKeys, final List<TableEntry> resultEntries) {
@@ -998,6 +1063,46 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return this.continuationToken;
         }
     }
+
+    private static class DeltaIteratorResult<K, V, S> {
+        @Getter
+        @Setter
+        @GuardedBy("this")
+        private S state;
+        @GuardedBy("this")
+        private final Map<K, V> items = new HashMap<>();
+        @Getter
+        @GuardedBy("this")
+        private int sizeBytes;
+
+        DeltaIteratorResult(int initialSizeBytes) {
+            this.sizeBytes = initialSizeBytes;
+        }
+
+        synchronized void add(K key, V value, int sizeBytes) {
+            this.items.put(key, value);
+            this.sizeBytes += sizeBytes;
+        }
+
+        synchronized void remove(K item, int sizeBytes) {
+            this.items.remove(item);
+            this.sizeBytes -= sizeBytes;
+        }
+
+        synchronized V getItem(K key) {
+            return this.items.get(key);
+        }
+
+        synchronized List<V> getItems() {
+            return new ArrayList<>(this.items.values());
+        }
+
+        synchronized int getItemCount() {
+            return this.items.size();
+        }
+
+    }
+
 
     //endregion
 }
