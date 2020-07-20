@@ -34,6 +34,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -45,6 +47,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
@@ -57,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SegmentHelperTest {
+public class SegmentHelperTest extends ThreadPooledTestSuite {
 
     private final byte[] key0 = "k".getBytes();
     private final byte[] key1 = "k1".getBytes();
@@ -66,11 +70,11 @@ public class SegmentHelperTest {
     private final byte[] value = "v".getBytes();
     private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
     private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
-
+    
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
         helper.getSegmentUri("", "", 0);
     }
@@ -78,7 +82,7 @@ public class SegmentHelperTest {
     @Test
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -118,7 +122,7 @@ public class SegmentHelperTest {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -152,7 +156,7 @@ public class SegmentHelperTest {
     @Test
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.deleteSegment("", "", 0L, "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -181,7 +185,7 @@ public class SegmentHelperTest {
     @Test
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -214,7 +218,7 @@ public class SegmentHelperTest {
     @Test
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
                 "");
@@ -247,7 +251,7 @@ public class SegmentHelperTest {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -278,7 +282,7 @@ public class SegmentHelperTest {
     @Test
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -309,7 +313,7 @@ public class SegmentHelperTest {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -336,7 +340,7 @@ public class SegmentHelperTest {
     @Test
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -363,7 +367,7 @@ public class SegmentHelperTest {
     @Test
     public void testCreateTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
@@ -392,7 +396,7 @@ public class SegmentHelperTest {
     @Test
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = System.nanoTime();
 
         // On receiving NoSuchSegment true should be returned.
@@ -428,7 +432,7 @@ public class SegmentHelperTest {
     @Test
     public void testUpdateTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentEntry> entries = Arrays.asList(TableSegmentEntry.notExists("k".getBytes(), "v".getBytes()),
                 TableSegmentEntry.unversioned("k1".getBytes(), "v".getBytes()),
                 TableSegmentEntry.versioned("k2".getBytes(), "v".getBytes(), 10L));
@@ -473,7 +477,7 @@ public class SegmentHelperTest {
     @Test
     public void testRemoveTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentKey> keys = Arrays.asList(TableSegmentKey.notExists("k".getBytes()),
                 TableSegmentKey.notExists("k1".getBytes()));
 
@@ -513,7 +517,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
                 TableSegmentKey.unversioned(key1));
 
@@ -547,7 +551,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
         final List<TableSegmentKey> keys1 = Arrays.asList(
                 TableSegmentKey.versioned(key0, 2L),
@@ -606,7 +610,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         List<TableSegmentEntry> entries1 = Arrays.asList(
                 TableSegmentEntry.versioned(key0, value, 10L),
                 TableSegmentEntry.versioned(key1, value, 10L));
@@ -656,6 +660,22 @@ public class SegmentHelperTest {
         validateNoSuchSegment(factory, futureSupplier);
 
         testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test(timeout = 10000)
+    public void testTimeout() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        helper.setTimeout(Duration.ofMillis(100));
+        List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
+                TableSegmentKey.unversioned(key1));
+
+        CompletableFuture<List<TableSegmentEntry>> result = helper.readTable("", keysToBeRead,
+                "", System.nanoTime());
+        
+        AssertExtensions.assertFutureThrows("result should timeout", result, 
+                e -> Exceptions.unwrap(e) instanceof WireCommandFailedException && 
+                        ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableSegmentEntry> entries) {
@@ -753,6 +773,11 @@ public class SegmentHelperTest {
     private void assertArrayByteBufEquals(byte[] expected, ByteBuf actual) {
         // For all our tests, the ByteBuf is backed by arrays so we can make use of that.
         AssertExtensions.assertArrayEquals("", expected, 0, actual.array(), actual.arrayOffset(), expected.length);
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 2;
     }
 
     private static class MockHostControllerStore implements HostControllerStore {
