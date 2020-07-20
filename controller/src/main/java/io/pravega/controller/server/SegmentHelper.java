@@ -117,7 +117,7 @@ public class SegmentHelper implements AutoCloseable {
         this.connectionFactory = clientCF;
         this.hostStore = hostStore;
         this.executorService = executorService;
-        this.timeout = new AtomicReference<>(Duration.ofMinutes(Config.REQUEST_TIMEOUT_MINUTES_SEGMENT_STORE));
+        this.timeout = new AtomicReference<>(Duration.ofSeconds(Config.REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE));
     }
 
     @VisibleForTesting
@@ -622,8 +622,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
-        CompletableFuture<Reply> future = connection.sendRequest(requestId, request);
-        Futures.addTimeout(future, timeout.get(), executorService);
+        CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
         return future
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
@@ -633,7 +632,7 @@ public class SegmentHelper implements AutoCloseable {
                     } else if (unwrap instanceof AuthenticationException) {
                         log.warn(requestId, "Authentication Exception");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-                    } else if (Exceptions.unwrap(e) instanceof TimeoutException) {
+                    } else if (unwrap instanceof TimeoutException) {
                         log.warn(requestId, "Request timedout.");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     } else {

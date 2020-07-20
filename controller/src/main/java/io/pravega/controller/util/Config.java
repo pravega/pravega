@@ -128,8 +128,8 @@ public final class Config {
     public static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named(
             "segmentstore.connect.channel.tls", "", "auth.segmentStoreTlsEnabled");
 
-    public static final Property<Integer> PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_MINUTES = Property.named(
-            "segmentstore.connect.channel.timeoutMinutes", 2, "");
+    public static final Property<Integer> PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS = Property.named(
+            "segmentstore.connect.channel.timeoutSeconds", 120, "");
 
     public static final Property<String> PROPERTY_ZK_URL = Property.named(
             "zk.connect.uri", "localhost:2181", "zkURL");
@@ -269,7 +269,7 @@ public final class Config {
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
-    public static final Integer REQUEST_TIMEOUT_MINUTES_SEGMENT_STORE;
+    public static final Integer REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE;
 
     private static final String METRICS_PATH = "controller.metrics.";
 
@@ -337,7 +337,7 @@ public final class Config {
         GRPC_SERVER_CONFIG = createGrpcServerConfig();
         METRICS_CONFIG = createMetricsConfig(properties);
 
-        REQUEST_TIMEOUT_MINUTES_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_MINUTES);
+        REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
     }
 
     private static Properties loadConfiguration() {

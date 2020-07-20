@@ -24,11 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -36,28 +33,21 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Unit tests for the Futures class.
  */
-public class FuturesTests {
-    private ScheduledExecutorService executor;
-    
-    @Before
-    public void setUp() {
-        executor = Executors.newSingleThreadScheduledExecutor();    
+public class FuturesTests extends ThreadPooledTestSuite {
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
     }
 
-    @After
-    public void tearDown() {
-        executor.shutdownNow();    
-    }
-    
     /**
      * Tests the failedFuture() method.
      */
@@ -562,23 +552,18 @@ public class FuturesTests {
     @Test
     public void testTimeout() {
         Supplier<CompletableFuture<Integer>> supplier = CompletableFuture::new;
-        CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), executor);
+        CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), "", executorService());
         AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
-        
-        CompletableFuture<Void> f2 = new CompletableFuture<>();
-        Futures.addTimeout(f2, Duration.ofMillis(10), executor);
-        AssertExtensions.assertFutureThrows("Future should have timedout. ", f2, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
     public void testCompleteOn() {
         val successfulFuture = new CompletableFuture<Integer>();
-        Executor executor = Executors.newSingleThreadExecutor();
-        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executor);
+        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executorService());
         successfulFuture.complete(1);
         Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());
 
         val failedFuture = new CompletableFuture<Integer>();
-        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executor);
+        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executorService());
         failedFuture.completeExceptionally(new IntentionalException());
         AssertExtensions.assertSuppliedFutureThrows(
                 "Failed future throws exception.",
