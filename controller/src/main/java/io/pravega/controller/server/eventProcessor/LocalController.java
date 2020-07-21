@@ -72,17 +72,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
-        return this.controller.getScope(scopeName)
-                              .handle((r, e) -> {
-                                  if (e != null) {
-                                      if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                          return false;
-                                      } else {
-                                          throw new CompletionException(e);
-                                      }
-                                  }
-                                  return true;
-                              });
+        return Futures.exceptionallyExpecting(this.controller.getScope(scopeName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override
@@ -96,17 +87,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
-        return this.controller.getStream(scopeName, streamName)
-                              .handle((r, e) -> {
-                                  if (e != null) {
-                                      if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                          return false;
-                                      } else {
-                                          throw new CompletionException(e);
-                                      }
-                                  }
-                                  return true;
-                              });
+        return Futures.exceptionallyExpecting(this.controller.getStream(scopeName, streamName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override

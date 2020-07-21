@@ -75,25 +75,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public Iterator<Stream> listStreams(String scopeName) {
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
-        return new Iterator<Stream>() {
-            private Stream next;
-
-            private void load() {
-                next = asyncIterator.getNext().join();
-            }
-            
-            @Override
-            public boolean hasNext() {
-                load();
-                return next != null;
-            }
-
-            @Override
-            public Stream next() {
-                load();
-                return next;
-            }
-        };
+        return asyncIterator.asIterator();
     }
 
     @Override
@@ -196,25 +178,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public Iterator<String> listScopes() {
         AsyncIterator<String> asyncIterator = controller.listScopes();
-        return new Iterator<String>() {
-            private String next;
-
-            private void load() {
-                next = asyncIterator.getNext().join();
-            }
-
-            @Override
-            public boolean hasNext() {
-                load();
-                return next != null;
-            }
-
-            @Override
-            public String next() {
-                load();
-                return next;
-            }
-        };
+        return asyncIterator.asIterator();
     }
 
     @Override
