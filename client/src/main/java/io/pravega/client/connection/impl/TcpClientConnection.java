@@ -49,7 +49,6 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManagerFactory;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -178,6 +177,16 @@ public class TcpClientConnection implements ClientConnection {
         }    
     }
 
+    /**
+     * Connects to the specified location.
+     * 
+     * @param location Location to connect to.
+     * @param clientConfig config for socket.
+     * @param callback ReplyProcessor for replies from the server.
+     * @param executor Thread pool to perfrom the connect in.
+     * @param onClose A callback to be notified when this connection closes.
+     * @return A future for a new connection. If the connect attempt fails the future will be failed with a {@link ConnectionFailedException}
+     */
     public static CompletableFuture<TcpClientConnection> connect(PravegaNodeUri location, ClientConfig clientConfig, ReplyProcessor callback,
                                               ScheduledExecutorService executor, Runnable onClose) {
         return CompletableFuture.supplyAsync(() -> {
@@ -196,7 +205,7 @@ public class TcpClientConnection implements ClientConnection {
                     log.warn("Failed to close socket while failing.", e1);
                 }
                 onClose.run();
-                throw Exceptions.sneakyThrow(e);
+                throw Exceptions.sneakyThrow(new ConnectionFailedException(e));
             }
         }, executor);
     }
@@ -217,42 +226,46 @@ public class TcpClientConnection implements ClientConnection {
      * Creates a socket connected to the provided endpoint. 
      * Note that this is a sync call even though it is called in an async context. 
      * While this is normally frowned upon, it is simply not possible to construct an SSL socket asynchronously in Java.
+     * @throws ConnectionFailedException (Sneakily thrown) If the connect attempt fails.
      */
-    @SneakyThrows //Is called inside a completable future.
-    private static Socket createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {        
-        Socket result;
-        if (clientConfig.isEnableTlsToSegmentStore()) {
-            TrustManagerFactory trustMgrFactory = createFromCert(clientConfig.getTrustStore());
+    private static Socket createClientSocket(PravegaNodeUri location, ClientConfig clientConfig) {
+        try {
+            Socket result;
+            if (clientConfig.isEnableTlsToSegmentStore()) {
+                TrustManagerFactory trustMgrFactory = createFromCert(clientConfig.getTrustStore());
 
-            // Prepare a TLS context that uses the trust manager
-            SSLContext tlsContext = SSLContext.getInstance("TLS");
-            tlsContext.init(null,
-                    trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
-                    null);
+                // Prepare a TLS context that uses the trust manager
+                SSLContext tlsContext = SSLContext.getInstance("TLS");
+                tlsContext.init(null,
+                                trustMgrFactory != null ? trustMgrFactory.getTrustManagers() : null,
+                                        null);
 
-            SSLSocket tlsClientSocket = (SSLSocket) tlsContext.getSocketFactory().createSocket();
+                SSLSocket tlsClientSocket = (SSLSocket) tlsContext.getSocketFactory().createSocket();
 
-            // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
-            if (clientConfig.isValidateHostName()) {
-                SSLParameters tlsParams = new SSLParameters();
+                // SSLSocket does not perform hostname verification by default. So, we must explicitly enable it.
+                if (clientConfig.isValidateHostName()) {
+                    SSLParameters tlsParams = new SSLParameters();
 
-                // While the connection is to a TCP service and not an HTTP server, we use `HTTPS` as the endpoint
-                // identification algorithm, which in turn ensures that the SSLSocket will verify the server's host
-                // name during TLS handshake. This is a commonly used way of enabling hostname verification
-                // regardless of whether the service itself is HTTP (no in this case).
-                tlsParams.setEndpointIdentificationAlgorithm("HTTPS");
-                tlsClientSocket.setSSLParameters(tlsParams);
+                    // While the connection is to a TCP service and not an HTTP server, we use `HTTPS` as the endpoint
+                    // identification algorithm, which in turn ensures that the SSLSocket will verify the server's host
+                    // name during TLS handshake. This is a commonly used way of enabling hostname verification
+                    // regardless of whether the service itself is HTTP (no in this case).
+                    tlsParams.setEndpointIdentificationAlgorithm("HTTPS");
+                    tlsClientSocket.setSSLParameters(tlsParams);
+                }
+                result = tlsClientSocket;
+
+            } else {
+                result = new Socket();
             }
-            result = tlsClientSocket;
-
-        } else {
-            result = new Socket();
+            result.setSendBufferSize(TCP_BUFFER_SIZE);
+            result.setReceiveBufferSize(TCP_BUFFER_SIZE);
+            result.setTcpNoDelay(true);
+            result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()));
+            return result;
+        } catch (Exception e) {
+            throw Exceptions.sneakyThrow(new ConnectionFailedException(e));
         }
-        result.setSendBufferSize(TCP_BUFFER_SIZE);
-        result.setReceiveBufferSize(TCP_BUFFER_SIZE);
-        result.setTcpNoDelay(true);
-        result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()));
-        return result;
     }
 
     @Override
