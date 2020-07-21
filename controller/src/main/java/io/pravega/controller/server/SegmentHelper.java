@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -27,22 +28,29 @@ import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
@@ -102,10 +110,19 @@ public class SegmentHelper implements AutoCloseable {
 
     private final HostControllerStore hostStore;
     private final ConnectionPool connectionPool;
+    private final ScheduledExecutorService executorService;
+    private final AtomicReference<Duration> timeout;
 
-    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore) {
+    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, ScheduledExecutorService executorService) {
         this.connectionPool = connectionPool;
         this.hostStore = hostStore;
+        this.executorService = executorService;
+        this.timeout = new AtomicReference<>(Duration.ofSeconds(Config.REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE));
+    }
+
+    @VisibleForTesting
+    void setTimeout(Duration duration) {
+        timeout.set(duration);    
     }
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -605,7 +622,8 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
-        return connection.sendRequest(requestId, request)
+        CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
+        return future
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
@@ -614,6 +632,9 @@ public class SegmentHelper implements AutoCloseable {
                     } else if (unwrap instanceof AuthenticationException) {
                         log.warn(requestId, "Authentication Exception");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+                    } else if (unwrap instanceof TimeoutException) {
+                        log.warn(requestId, "Request timedout.");
+                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     } else {
                         log.error(requestId, "Request failed", e);
                         throw new CompletionException(e);

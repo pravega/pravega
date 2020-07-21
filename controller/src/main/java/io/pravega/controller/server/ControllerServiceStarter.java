@@ -230,7 +230,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             ClientConfig clientConfig = clientConfigBuilder.build();
             connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
             connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore));
+            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore, controllerExecutor));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),
