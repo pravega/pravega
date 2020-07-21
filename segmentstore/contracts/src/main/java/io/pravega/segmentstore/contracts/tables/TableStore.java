@@ -13,6 +13,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -167,6 +168,33 @@ public interface TableStore {
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout);
 
     /**
+     * Inserts new or updates existing Table Entries (conditioned on the Segment's length matching an expected value)
+     * into the given Segment.
+     *
+     * @param segmentName        The name of the Table Segment to insert/update the Table Entries.
+     * @param entries            A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key}
+     *                           {@link TableKey#version hasVersion} returns true for at least one of the items in the list,
+     *                           then this will perform an atomic Conditional Update. If {@link TableEntry#key}
+     *                           {@link TableKey#version} hasVersion} returns false for ALL items in the list, then this
+     *                           will just be conditioned on the tableSegmentOffset value.
+     * @param tableSegmentOffset The expected offset of the TableSegment used for conditional (expected matches actual) appends.
+     * @param timeout            Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
+     * Key provided. The versions will be in the same order as the TableEntry instances provided. If the operation failed,
+     * the future will be failed with the causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.</li>
+     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #maximumKeyLength()}.</li>
+     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #maximumValueLength()}.</li>
+     * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#key} {@link TableKey#hasVersion() hasVersion() } is true and
+     * {@link TableEntry#key} {@link TableKey#version} does not match the Table Entry's Key current Table Version. </li>
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.<\li>
+     * </ul>
+     */
+    CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout);
+
+    /**
      * Removes one or more Table Keys from the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to remove the Keys from.
@@ -188,6 +216,29 @@ public interface TableStore {
     CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout);
 
     /**
+     * Removes one or more Table Keys from the given Table Segment.
+     *
+     * @param segmentName        The name of the Table Segment to remove the Keys from.
+     * @param keys               A Collection of {@link TableKey} instances to remove. If {@link TableKey#hasVersion()} returns
+     *                           true for at least one of the TableKeys in this collection, then this will perform an atomic
+     *                           Conditional Update (Removal). If {@link TableKey#hasVersion()} returns false for ALL items in
+     *                           the collection, then this just be conditioned on the tableSegmentOffset value.
+     * @param tableSegmentOffset The expected offset of the TableSegment used for conditional (expected matches actual) appends.
+     * @param timeout            Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation failed,
+     * the future will be failed with the causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #maximumKeyLength()}.
+     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#version}
+     * does not match the Table Entry's Key current Table Version.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.
+     * </ul>
+     */
+    CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout);
+
+    /**
      * Looks up a List of Keys in the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to look up into.
@@ -205,7 +256,7 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableKey} instances in the given Table Segment. This is a resumable
+     * Creates a new {@link AsyncIterator} over all the {@link TableKey} instances in the given Table Segment. This is a resumable
      * iterator; this method can be reinvoked using the {@link IteratorItem#getState()} from the last processed item
      * and the resulting iterator will continue from where the previous one left off.
      *
@@ -231,7 +282,7 @@ public interface TableStore {
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args);
 
     /**
-     * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
+     * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment.
      * <p>
      * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
      *
@@ -247,4 +298,29 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args);
+
+    /**
+     * Creates a new {@link AsyncIterator} over all the {@link TableEntry} instances in the given Table Segment starting from a given position.
+     *
+     * The entryDeltaIterator directly traverses the underlying contents of the TableSegment and deserializes the read bytes into
+     * {@link TableEntry}s. The bounds of the iteration (start and end positions) are determined prior to instantiation of the underlying
+     * iterator, and are fixed for the duration of the iteration. The 'actual' startPosition is determined by the max
+     * of the fromPosition and the observed {@link TableAttributes#COMPACTION_OFFSET}. Every TableEntry appended to the TableSegment
+     * will be returned (including deletions).
+     *
+     * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
+     *
+     * @param segmentName       The name of the Table Segment to iterate over.
+     * @param fromPosition      The position to begin iteration at.
+     * @param fetchTimeout      Timeout for each invocation to {@link AsyncIterator#getNext()}.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over all the {@link TableEntry} instances starting at {@param fromPosition}. If the operation failed, the Future will be failed with the
+     * causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
+     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
+     */
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout);
 }
