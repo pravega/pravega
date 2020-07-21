@@ -21,15 +21,15 @@ public class StorageFactoryInfo {
     /**
      * Name of storage binding.
      */
-    String name;
+    private final String name;
 
     /**
      * Type of storage layout supported.
      */
-    StorageLayoutType storageLayoutType;
+    private final StorageLayoutType storageLayoutType;
 
     /**
      * Type of metadata format supported.
      */
-    StorageMetadataFormat storageMetadataFormat;
+    private final StorageMetadataFormat storageMetadataFormat;
 }

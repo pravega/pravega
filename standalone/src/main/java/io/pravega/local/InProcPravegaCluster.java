@@ -40,14 +40,12 @@ import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -88,6 +86,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int segmentStoreCount;
     private int[] segmentStorePorts;
 
+
     /*ZK related variables*/
     private boolean isInProcZK;
     private int zkPort;
@@ -97,6 +96,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     /*HDFS related variables*/
     private boolean isInProcHDFS;
     private String hdfsUrl;
+
 
     /* SegmentStore configuration*/
     private int containerCount;
@@ -161,7 +161,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     @Synchronized
     public void setControllerPorts(int[] controllerPorts) {
-        this.controllerPorts = Arrays.copyOf(controllerPorts, controllerPorts.length);
+        this.controllerPorts = Arrays.copyOf( controllerPorts, controllerPorts.length);
     }
 
     @Synchronized
@@ -172,7 +172,6 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /**
      * Kicks off the cluster creation. right now it can be done only once in lifetime of a process.
-     *
      * @throws Exception Exception thrown by ZK/HDFS etc.
      */
     @Synchronized
@@ -212,6 +211,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         zkService.start();
     }
 
+
     private void cleanUpZK() {
         String[] pathsTobeCleaned = {"/pravega", "/hostIndex", "/store", "/taskIndex"};
 
@@ -228,7 +228,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
-        for (String path : pathsTobeCleaned) {
+        for ( String path : pathsTobeCleaned ) {
             try {
                 zclient.delete().guaranteed().deletingChildrenIfNeeded()
                         .forPath(path);
@@ -425,12 +425,12 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Synchronized
     public void close() throws Exception {
         if (isInProcSegmentStore) {
-            for (ServiceStarter starter : this.nodeServiceStarter) {
+            for ( ServiceStarter starter : this.nodeServiceStarter ) {
                 starter.shutdown();
             }
         }
         if (isInProcController) {
-            for (ControllerServiceMain controller : this.controllerServers) {
+            for ( ControllerServiceMain controller : this.controllerServers ) {
                 controller.stopAsync();
             }
         }

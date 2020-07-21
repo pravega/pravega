@@ -274,10 +274,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 checkStorage(segmentContents, segmentStore);
                 log.info("Finished Storage check.");
-                //}
 
-                //try (val builder = createBuilder(++instanceId, useChunkedStorage);) {
-                //    val segmentStore = builder.createStreamSegmentService();
                 checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
                 log.info("Finished checking reads while truncating.");
 
@@ -295,10 +292,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished sealing.");
 
             checkSegmentStatus(lengths, startOffsets, true, false, expectedAttributeValue, segmentStore);
-            //}
             if (verifySegmentContent) {
-                //try (val builder = createBuilder(++instanceId, useChunkedStorage)) {
-                //    val segmentStore = builder.createStreamSegmentService();
                 waitForSegmentsInStorage(segmentNames, segmentStore)
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 log.info("Finished waiting for segments in Storage.");
@@ -906,18 +900,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
         return retValue;
     }
-
-    /*
-    private CompletableFuture<Void> waitForSegmentsInStorage(ArrayList<SegmentProperties> segmentProperties,
-                                                             StreamSegmentStore readOnlyStore) {
-        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
-        for (SegmentProperties sp : segmentProperties) {
-            segmentsCompletion.add(waitForSegmentInStorage(sp, readOnlyStore));
-        }
-
-        return Futures.allOf(segmentsCompletion);
-    }
-    */
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames,
                                                              StreamSegmentStore readOnlyStore) {

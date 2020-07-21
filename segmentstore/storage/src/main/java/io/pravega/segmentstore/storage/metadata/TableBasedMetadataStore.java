@@ -9,7 +9,9 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -36,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TableBasedMetadataStore extends BaseMetadataStore {
     private final TableStore tableStore;
     private final String tableName;
-    private final Duration timeout = Duration.ofSeconds(1L);
+    private final Duration timeout = Duration.ofSeconds(30);
     private final AtomicBoolean isTableInitialized = new AtomicBoolean(false);
     private final BaseMetadataStore.TransactionData.TransactionDataSerializer serializer = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
 
@@ -62,7 +64,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     protected TransactionData read(String key) throws StorageMetadataException {
         ensureInitialized();
         List<BufferView> keys = new ArrayList<>();
-        keys.add(new ByteArraySegment(key.getBytes()));
+        keys.add(new ByteArraySegment(key.getBytes(Charsets.UTF_8)));
         try {
             List<TableEntry> retValue = this.tableStore.get(tableName, keys, timeout).get();
             if (retValue.size() == 1) {
@@ -107,8 +109,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
                 long version = ((Long) txnData.getDbObject()).longValue();
                 if (null == txnData.getValue()) {
-                    val toDelete = TableKey.versioned(new ByteArraySegment(txnData.getKey().getBytes()),
-                            TableKey.NO_VERSION);
+                    val toDelete = TableKey.unversioned(new ByteArraySegment(txnData.getKey().getBytes(Charsets.UTF_8)));
                     keysToDelete.add(toDelete);
                     deletedKeyToTxnDataMap.put(toDelete, txnData);
                 }
@@ -116,7 +117,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                 val arraySegment = serializer.serialize(txnData);
 
                 TableEntry tableEntry = TableEntry.versioned(
-                        new ByteArraySegment(txnData.getKey().getBytes()),
+                        new ByteArraySegment(txnData.getKey().getBytes(Charsets.UTF_8)),
                         arraySegment,
                         version);
                 entryToTxnDataMap.put(tableEntry, txnData);
@@ -139,35 +140,21 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                 deletedKeyToTxnDataMap.get(deletedKey).setDbObject(TableKey.NOT_EXISTS);
             }
         } catch (RuntimeException e) {
-            throw e; // To make spotbugs happy.
-        } catch (java.util.concurrent.ExecutionException e) {
-            handleException(e.getCause());
-            return;
+            throw handleException(e); // Make spotbugs happy.
         } catch (Exception e) {
-            handleException(e);
-            return;
+            throw handleException(e);
         }
-
     }
 
-    private void handleException(Throwable e) throws StorageMetadataException {
+    private StorageMetadataException handleException(Throwable e) throws StorageMetadataException {
+        e  = Exceptions.unwrap(e);
         if (e instanceof DataLogWriterNotPrimaryException) {
-            throw new StorageMetadataWritesFencedOutException("Transaction failed. Writer fenced off", e);
+            return new StorageMetadataWritesFencedOutException("Transaction failed. Writer fenced off", e);
         }
         if (e instanceof BadKeyVersionException) {
-            throw new StorageMetadataVersionMismatchException("Transaction failed. Version Mismatch.", e);
+            return new StorageMetadataVersionMismatchException("Transaction failed. Version Mismatch.", e);
         }
-        if (e.getCause() != null) {
-            if (e.getCause().getCause() instanceof BadKeyVersionException) {
-                throw new StorageMetadataWritesFencedOutException("Transaction writer is fenced off.", e);
-            }
-            if (e.getCause().getCause() instanceof DataLogWriterNotPrimaryException) {
-                throw new StorageMetadataVersionMismatchException("Transaction failed. Writer fenced off", e);
-            }
-        } else {
-            log.debug("e.getCause()=null", e);
-        }
-        throw new StorageMetadataException("Transaction failed", e);
+        return new StorageMetadataException("Transaction failed", e);
     }
 
     private void ensureInitialized() {

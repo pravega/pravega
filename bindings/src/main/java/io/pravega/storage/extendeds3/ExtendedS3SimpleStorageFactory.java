@@ -12,33 +12,25 @@ package io.pravega.storage.extendeds3;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.ExecutorService;
 
 /**
  * Factory for ExtendedS3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link ExtendedS3ChunkStorage}.
  */
+@RequiredArgsConstructor
 public class ExtendedS3SimpleStorageFactory implements StorageFactory {
+    @NonNull
     private final ExtendedS3StorageConfig config;
-    private final ExecutorService executor;
 
-    /**
-     * Creates a new instance of the {@link ExtendedS3SimpleStorageFactory} class.
-     *
-     * @param config   The Configuration to use.
-     * @param executor An executor to use for background operations.
-     */
-    public ExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
-    }
+    @NonNull
+    private final ExecutorService executor;
 
     @Override
     public Storage createStorageAdapter() {

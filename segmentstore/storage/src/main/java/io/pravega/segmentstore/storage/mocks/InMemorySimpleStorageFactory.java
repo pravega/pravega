@@ -79,7 +79,6 @@ public class InMemorySimpleStorageFactory implements StorageFactory, AutoCloseab
 
     @Override
     public void close() {
-        // ?
     }
 
     /**
@@ -102,11 +101,8 @@ public class InMemorySimpleStorageFactory implements StorageFactory, AutoCloseab
      */
     @VisibleForTesting
     public static Storage newStorage(Executor executor, ChunkStorage chunkStorage) {
-        //TableStore tableStore = new InMemoryTableStore(executor);
-        //tableStore.createSegment("InMemoryStorageFactory", null).join();
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(
                 chunkStorage,
-                //new TableBasedMetadataStore("InMemoryStorageFactory", tableStore),
                 executor,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         chunkedSegmentStorage.initialize(1);

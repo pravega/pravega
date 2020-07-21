@@ -193,7 +193,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
             // Initialize storage metadata table segment
             ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
-            Preconditions.checkNotNull(tableExtension);
             String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
 
             val metadata = new TableBasedMetadataStore(s, tableExtension);
@@ -282,7 +281,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         try {
             initializeStorage();
         } catch (Exception ex) {
-            doStop(ex);
+            return Futures.failedFuture(ex);
         }
         return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }

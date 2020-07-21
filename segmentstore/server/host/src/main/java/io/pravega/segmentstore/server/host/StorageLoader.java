@@ -44,8 +44,7 @@ public class StorageLoader {
                 log.info("Loading {}, trying {}", storageImplementation, factoryInfo);
                 if (factoryInfo.getName().equals(storageImplementation)
                         && factoryInfo.getStorageMetadataFormat() == storageMetadataFormat
-                        && factoryInfo.getStorageLayoutType() == storageLayoutType
-                ) {
+                        && factoryInfo.getStorageLayoutType() == storageLayoutType) {
                     StorageFactory factory = factoryCreator.createFactory(factoryInfo, setup, executor);
                     if (!noOpConfig.isStorageNoOpMode()) {
                         return factory;

@@ -25,7 +25,6 @@ import org.junit.Test;
  * because user segment write operation is no-oped.
  */
 @Slf4j
-@Ignore
 public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTestBase {
 
     private NoOpStorageFactory storageFactory;
@@ -76,6 +75,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
+    @Ignore
     public void testEndToEndWithChunkedStorage() throws Exception {
         endToEndProcess(false, true);
     }
@@ -92,6 +92,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
+    @Ignore
     public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
         endToEndProcessWithFencing(true, true);
     }
