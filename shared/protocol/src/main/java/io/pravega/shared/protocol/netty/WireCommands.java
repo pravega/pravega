@@ -2268,12 +2268,12 @@ public final class WireCommands {
         final String segment;
         @ToString.Exclude
         final String delegationToken;
-        final long fromVersion;
+        final long fromPosition;
         final int suggestedEntryCount;
 
         @Override
         public void process(RequestProcessor cp) {
-
+            cp.readTableEntriesDelta(this);
         }
 
         @Override
@@ -2281,7 +2281,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeLong(fromVersion);
+            out.writeLong(fromPosition);
             out.writeInt(suggestedEntryCount);
         }
 
@@ -2289,10 +2289,10 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            long fromVersion = in.readLong();
+            long fromPosition = in.readLong();
             int suggestedEntryCount = in.readInt();
 
-            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromVersion, suggestedEntryCount);
+            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromPosition, suggestedEntryCount);
         }
     }
 
@@ -2302,25 +2302,24 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
-        final TableEntries tableEntries;
+        final TableEntries entries;
         final boolean shouldClear;
         final boolean reachedEnd;
-        final long lastVersion;
+        final long lastPosition;
 
-        // TODO: Will be implemented as apart of: https://github.com/pravega/pravega/issues/4677
         @Override
         public void process(ReplyProcessor cp) throws UnsupportedOperationException {
-
+            cp.tableEntriesDeltaRead(this);
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            tableEntries.writeFields(out);
+            entries.writeFields(out);
             out.writeBoolean(shouldClear);
             out.writeBoolean(reachedEnd);
-            out.writeLong(lastVersion);
+            out.writeLong(lastPosition);
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
@@ -2329,14 +2328,14 @@ public final class WireCommands {
             TableEntries entries = TableEntries.readFrom(in, in.available());
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
-            long lastVersion = in.readLong();
+            long lastPosition = in.readLong();
 
-            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
+            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastPosition).requireRelease();
         }
 
         @Override
         void releaseInternal() {
-            this.tableEntries.release();
+            this.entries.release();
         }
     }
 
