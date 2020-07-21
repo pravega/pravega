@@ -199,6 +199,13 @@ public class InMemoryTableStore implements TableStore {
                         }
                     });
         }
+
+        synchronized TableData deepCopy() {
+            TableData clone = new TableData(this.segmentName);
+            clone.nextVersion.set(this.nextVersion.get());
+            clone.entries.putAll(this.entries);
+            return clone;
+        }
     }
 
     //endregion
@@ -210,6 +217,10 @@ public class InMemoryTableStore implements TableStore {
      * @return Clone of given instance.
      */
     public static InMemoryTableStore clone(InMemoryTableStore original) {
-        throw new UnsupportedOperationException("This is not implemented yet.");
+        InMemoryTableStore clone = new InMemoryTableStore(original.executor);
+        for (val e : original.tables.entrySet()) {
+            clone.tables.put(e.getKey(), e.getValue().deepCopy());
+        }
+        return clone;
     }
 }

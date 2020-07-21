@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
@@ -20,6 +21,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -36,7 +38,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 public class TableBasedMetadataStore extends BaseMetadataStore {
+    /**
+     * Instance of the {@link TableStore}.
+     */
+    @Getter
     private final TableStore tableStore;
+
+    /**
+     * Name of the table segment.
+     */
+    @Getter
     private final String tableName;
     private final Duration timeout = Duration.ofSeconds(30);
     private final AtomicBoolean isTableInitialized = new AtomicBoolean(false);
@@ -169,5 +180,16 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
             }
             isTableInitialized.set(true);
         }
+    }
+
+    /**
+     * Copy the version of one instance to other.
+     * This only for test purposes. There is no easy way to do this method.
+     * @param from The instance to copy from.
+     * @param to The instance to copy to.
+     */
+    @VisibleForTesting
+    public static void copyVersion(TableBasedMetadataStore from, TableBasedMetadataStore to) {
+        to.setVersion(from.getVersion());
     }
 }

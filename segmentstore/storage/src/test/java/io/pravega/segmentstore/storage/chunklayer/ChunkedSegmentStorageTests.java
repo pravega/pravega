@@ -1742,10 +1742,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * This simulates multiple segment store instances writing to same storage but different states. (Eg After failover)
          */
         public TestContext fork(long epoch) throws Exception {
-            val forkedContext = new TestContext();
+            val forkedContext = createNewInstance();
             forkedContext.executor = Preconditions.checkNotNull(this.executor);
             forkedContext.storageProvider = Preconditions.checkNotNull(this.storageProvider);
-            forkedContext.storageManager = Preconditions.checkNotNull(this.storageManager);
             forkedContext.config = Preconditions.checkNotNull(this.config);
             // This will create a copy of metadata store
             forkedContext.metadataStore = getForkedMetadataStore();
@@ -1758,6 +1757,13 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                     this.config);
             forkedContext.storageManager.initialize(epoch);
             return forkedContext;
+        }
+
+        /**
+         * Expected to be overrriden by derived classes.
+         */
+        protected TestContext createNewInstance() {
+            return new TestContext();
         }
 
         /**

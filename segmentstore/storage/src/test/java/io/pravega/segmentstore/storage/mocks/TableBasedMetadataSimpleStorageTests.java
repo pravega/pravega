@@ -16,7 +16,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
-import org.junit.Ignore;
+import lombok.val;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutorService;
@@ -73,22 +73,10 @@ public class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
             return new InMemorySimpleStorageTestContext(executorService());
         }
 
-        @Test
-        @Ignore("This is not implemented yet.")
-        public void testReadWriteWithMultipleFailoversWithGarbage(){
-        }
-
-        @Test
-        @Ignore("This is not implemented yet.")
-        public void testTruncateWithMultipleFailoversWithGarbage(){
-        }
-
-        @Test
-        @Ignore("This is not implemented yet.")
-        public void testReadWriteWithMultipleFailovers(){
-        }
-
         public static class InMemorySimpleStorageTestContext extends TestContext {
+            InMemorySimpleStorageTestContext() {
+            }
+
             InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
                 super(executorService);
             }
@@ -98,8 +86,19 @@ public class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
                 return createChunkMetadataStore();
             }
 
+            @Override
+            protected TestContext createNewInstance() {
+                return new InMemorySimpleStorageTestContext();
+            }
+
+            @Override
             public ChunkMetadataStore getForkedMetadataStore() {
-                throw new UnsupportedOperationException("This is not implemented yet.");
+                val thisMetadataStore = (TableBasedMetadataStore) this.metadataStore;
+                TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) thisMetadataStore.getTableStore());
+                String tableName =  thisMetadataStore.getTableName();
+                val retValue = new TableBasedMetadataStore(tableName, tableStore);
+                TableBasedMetadataStore.copyVersion(thisMetadataStore, retValue);
+                return retValue;
             }
 
             private ChunkMetadataStore createChunkMetadataStore() {
