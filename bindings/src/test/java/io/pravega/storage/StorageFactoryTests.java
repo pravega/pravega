@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -79,6 +80,9 @@ public class StorageFactoryTests {
 
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
+
+        SyncStorage syncStorage = factory2.createSyncStorage();
+        Assert.assertNotNull(syncStorage);
     }
 
     @Test
@@ -124,6 +128,9 @@ public class StorageFactoryTests {
         Assert.assertTrue(factory2 instanceof ExtendedS3StorageFactory);
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
+
+        SyncStorage syncStorage = factory2.createSyncStorage();
+        Assert.assertNotNull(syncStorage);
     }
 
     @Test
@@ -164,5 +171,8 @@ public class StorageFactoryTests {
         Assert.assertTrue(factory2 instanceof FileSystemStorageFactory);
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
+
+        SyncStorage syncStorage = factory2.createSyncStorage();
+        Assert.assertNotNull(syncStorage);
     }
 }
