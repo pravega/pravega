@@ -1173,7 +1173,7 @@ docker {
     if (JavaVersion.current().isJava11Compatible()) {
         dockerFile = "${dockerDir}/Dockerfile-java-11"
     } else {
-        dockerFile = "${dockerDir}/Dockerfile.dev"
+        dockerFile = "${dockerDir}/Dockerfile"
     }
     name "${dockerRegistry}/${dockerImageName}:${version}"
     tag 'latest', "${dockerRegistry}/${dockerImageName}:${version}"
