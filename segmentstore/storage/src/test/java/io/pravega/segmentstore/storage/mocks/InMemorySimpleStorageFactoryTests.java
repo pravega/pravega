@@ -39,13 +39,13 @@ public class InMemorySimpleStorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
-                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
-                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
 
