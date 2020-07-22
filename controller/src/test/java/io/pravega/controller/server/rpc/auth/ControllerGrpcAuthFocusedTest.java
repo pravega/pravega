@@ -382,6 +382,41 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
+    public void listScopes() {
+        // Arrange
+        ControllerServiceBlockingStub stub =
+                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+        createScope(stub, "scope1");
+        createScope(stub, "scope2");
+        createScope(stub, "scope3");
+        createScope(stub, "scope4");
+
+        stub = prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+        Controller.ScopesRequest request = Controller.ScopesRequest
+                .newBuilder()
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        Controller.ScopesResponse response = stub.listScopes(request);
+
+        // Assert
+        assertEquals(1, response.getScopesList().size());
+        assertEquals("4", response.getContinuationToken().getToken());
+
+        stub = prepareBlockingCallStub(UserNames.SCOPE_READER1_3_READ, DEFAULT_PASSWORD);
+        request = Controller.ScopesRequest
+                .newBuilder()
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        response = stub.listScopes(request);
+
+        // Assert
+        assertEquals(2, response.getScopesList().size());
+        assertEquals("3", response.getContinuationToken().getToken());
+    }
+
+    @Test
     public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingBlockingStub() {
         // Arrange
         String scopeName = "scope1";
@@ -616,12 +651,15 @@ public class ControllerGrpcAuthFocusedTest {
                 String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
                 writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_READ, defaultPassword, "/,READ;scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_3_READ, defaultPassword, "/,READ;scope1,READ;scope3,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "scope2,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
             }
             return result;
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -637,6 +675,8 @@ public class ControllerGrpcAuthFocusedTest {
     private static class UserNames {
         private final static String ADMIN = "admin";
         private final static String SCOPE_READER = "scopereader";
+        private final static String SCOPE_READER1_READ = "scopereader1read";
+        private final static String SCOPE_READER1_3_READ = "scopereader1_3read";
         private final static String SCOPE1_READ = "scope1read";
         private final static String SCOPE2_READ = "scope2read";
         private final static String SCOPE1_STREAM1_READUPDATE = "authSc1Str1";

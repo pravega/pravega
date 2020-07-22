@@ -40,6 +40,9 @@ service ControllerService {
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc listScopes(ScopesRequest) returns (ScopesResponse);
+    rpc checkScopeExists(ScopeInfo) returns (ExistsResponse);
+    rpc checkStreamExists(StreamInfo) returns (ExistsResponse);
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
@@ -192,7 +195,7 @@ message TxnState {
     State state = 1;
 }
 
-message ScopeInfo {
+ message ScopeInfo {
     string scope = 1;
 }
 
@@ -425,4 +428,16 @@ message TimestampResponse {
     Status result = 1;
 }
 
+message ScopesResponse {
+    repeated string scopes = 1;
+    ContinuationToken continuationToken = 2;
+}
+
+message ScopesRequest {
+    ContinuationToken continuationToken = 1;
+}
+
+message ExistsResponse {
+    bool exists = 1;
+}
 
