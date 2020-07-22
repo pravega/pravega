@@ -224,10 +224,30 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         // available writers.
                         success = false;
                         log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                        tryWaitForSuccessors();
                         break;
                     }
                 }
             }
+        }
+    }
+    
+    /**
+     * This is used by flush to optimistically wait for the `handleLogSealed` work to be completed
+     * to prevent a busy loop while waiting for the segments to be updated following a sealed
+     * segment. Please note there are no guarantees about when this method returns. It can be
+     * thought of as a sleep.
+     */
+    @GuardedBy("writeFlushLock")
+    private void tryWaitForSuccessors() {
+        if (sealedSegmentQueue.isEmpty()) {
+            synchronized (writeSealLock) {
+                // Nothing needs to be done here.
+                // When the lock is released the sealing should be complete.
+            }
+        } else {
+            // A background thread should be waking up to process things. Give it a moment.
+            Exceptions.handleInterrupted(() -> Thread.sleep(100));
         }
     }
 
