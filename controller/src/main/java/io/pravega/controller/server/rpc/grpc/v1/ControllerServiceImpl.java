@@ -696,6 +696,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             ctx = null;
         }
+        Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
+                listStreamsInternal(scopeName, request.getContinuationToken().getToken(), pageLimit, ctx)
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.StreamsInScopeResponse
+                                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND).build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                return Controller.StreamsInScopeResponse
+                                        .newBuilder().addAllStreams(response.getKey())
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(response.getValue()).build())
+                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                            }
+                        });
 
         authenticateExecuteAndProcessResults(
                 () -> {
@@ -706,39 +723,38 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         log.debug("Result of authorization for [{}] and READ permission is: [{}]",
                             AuthResourceRepresentation.ofScope(scopeName), result);
                         return result;
-                },
-                delegationToken -> controllerService
-                        .listStreams(scopeName, request.getContinuationToken().getToken(), pageLimit)
-                        .handle((response, ex) -> {
-                            if (ex != null) {
-                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
-                                    return Controller.StreamsInScopeResponse.newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND).build();
-                                } else {
-                                    throw new CompletionException(ex);
-                                }
-                            } else {
-                                log.debug("All streams in scope with continuation token: {}", response);
-                                List<StreamInfo> streams = response
-                                        .getKey().stream()
-                                        .filter(streamName -> {
-                                            String streamAuthResource =
-                                                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
+                }, streamsFn, responseObserver, requestTag);
+    }
 
-                                            boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
-                                                    AuthHandler.Permissions.READ, ctx);
-                                            log.debug("Authorization for [{}] for READ permission was [{}]",
-                                                    streamAuthResource, isAuthorized);
-                                            return isAuthorized;
-                                        })
-                                        .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
-                                        .collect(Collectors.toList());
-                                return Controller.StreamsInScopeResponse
-                                        .newBuilder().addAllStreams(streams)
-                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
-                                                                .setToken(response.getValue()).build())
-                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
-                            }
-                        }), responseObserver, requestTag);
+    private CompletableFuture<Pair<List<StreamInfo>, String>> listStreamsInternal(String scope, String continuationToken, int limit, AuthContext ctx) {
+        List<StreamInfo> streams = new ArrayList<>();
+        return controllerService.listStreams(scope, continuationToken, limit)
+                                .thenCompose(response -> {
+                                    log.debug("All scopes in scope with continuation token: {}", response);
+                                    // filter unauthorized scopes. 
+                                    // fetch recursively if scopes are filtered out.
+                                    AtomicInteger filteredCount = new AtomicInteger();
+                                    
+                                    response.getKey().stream().filter(x -> {
+                                        boolean authorized = grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofStreamInScope(scope, x),
+                                                AuthHandler.Permissions.READ, ctx);
+                                        if (authorized) {
+                                            return true;
+                                        } else {
+                                            filteredCount.incrementAndGet();
+                                            return false;
+                                        }
+                                    }).forEach(x -> streams.add(StreamInfo.newBuilder().setScope(scope).setStream(x).build()));
+                                    if (filteredCount.get() > 0) {
+                                        return listStreamsInternal(scope, response.getValue(), limit - streams.size(), ctx)
+                                                .thenApply(result -> {
+                                                    streams.addAll(result.getKey());
+                                                    return new ImmutablePair<>(streams, result.getValue());
+                                                });
+                                    } else {
+                                        return CompletableFuture.completedFuture(new ImmutablePair<>(streams, response.getValue()));
+                                    }
+                                });
     }
 
     @Override
@@ -902,14 +918,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 .thenCompose( response -> {
                     log.debug("All KeyValueTables in scope with continuation token: {}", response.getRight());
                     List<String> filteredKVTList = getAuthorizedKeyValueTables(scopeName, response.getKey(), ctx);
-                    if (filteredKVTList.size() < limit) {
-                        listKeyValueTablesTillLimit(pageLimit - limit, scopeName, response.getValue(), ctx)
+                    if (filteredKVTList.size() < response.getKey().size()) {
+                        return listKeyValueTablesTillLimit(pageLimit - response.getKey().size(), scopeName, response.getValue(), ctx)
                                 .thenApply( nextResponse -> {
                                     filteredKVTList.addAll(nextResponse.getKey());
                                     return new ImmutablePair<>(filteredKVTList, nextResponse.getValue());
                                 });
+                    } else {
+                        return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, response.getValue()));
                     }
-                    return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, response.getValue()));
                 });
     }
 
