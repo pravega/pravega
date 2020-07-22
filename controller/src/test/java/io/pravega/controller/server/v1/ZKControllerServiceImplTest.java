@@ -9,7 +9,9 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.common.Exceptions;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
@@ -55,6 +57,7 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.util.concurrent.CountDownLatch;
@@ -192,6 +195,16 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
     }
 
+    @Test
+    @Override
+    public void testListScopes() {
+        ResultObserver<Controller.ScopesResponse> list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+        AssertExtensions.assertThrows("", list::get, 
+                e -> Exceptions.unwrap(e) instanceof StatusRuntimeException);
+    }
+    
     private Controller.TxnStatus closeTransaction(final String scope,
                                                   final String stream,
                                                   final Controller.TxnId txnId,

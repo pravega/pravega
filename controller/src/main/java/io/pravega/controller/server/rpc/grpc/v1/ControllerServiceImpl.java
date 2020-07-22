@@ -65,12 +65,14 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -85,7 +87,7 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServiceImplBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerServiceImpl.class));
-    private static final int LIST_STREAMS_IN_SCOPE_LIMIT = 1000;
+    private static final int PAGE_LIMIT = 1000;
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
@@ -99,10 +101,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    private final int listStreamsInScopeLimit;
+    private final int pageLimit;
 
     public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, PAGE_LIMIT);
     }
 
     @Override
@@ -165,7 +167,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             AuthResourceRepresentation.ofScope(scopeName), result);
                     return result;
                 },
-                delegationToken -> listKeyValueTablesTillLimit(listStreamsInScopeLimit, scopeName,
+                delegationToken -> listKeyValueTablesTillLimit(pageLimit, scopeName,
                                                                 request.getContinuationToken().getToken(), ctx)
                         .handle((response, ex) -> {
                             if (ex != null) {
@@ -293,7 +295,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+                AuthHandler.
+                        Permissions.READ_UPDATE),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getEpochSegments", request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
                     return controllerService.getEpochSegments(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch())
@@ -533,6 +536,154 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void listScopes(Controller.ScopesRequest request, StreamObserver<Controller.ScopesResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "listScopes");
+        log.info(requestTag.getRequestId(), "listScope called.");
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofScopes(),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ScopesResponse>> scopesFn = delegationToken ->
+                listScopesInternal(request.getContinuationToken().getToken(), pageLimit, ctx)
+                        .thenApply(response -> Controller.ScopesResponse
+                                .newBuilder().addAllScopes(response.getKey())
+                                .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                                  .setToken(response.getValue()).build())
+                                .build());
+
+        authenticateExecuteAndProcessResults(stringSupplier, scopesFn, responseObserver, requestTag);
+    }
+
+    private CompletableFuture<Pair<List<String>, String>> listScopesInternal(String continuationToken, int limit, AuthContext ctx) {
+        List<String> scopes = new ArrayList<>();
+        return controllerService.listScopes(continuationToken, limit)
+                .thenCompose(response -> {
+                    log.debug("All scopes in scope with continuation token: {}", response);
+                    // filter unauthorized scopes. 
+                    // fetch recursively if scopes are filtered out.
+                    AtomicInteger filteredCount = new AtomicInteger();
+                    response.getKey().stream().filter(x -> {
+                        boolean authorized = grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofScope(x),
+                                AuthHandler.Permissions.READ, ctx);
+                        if (authorized) {
+                            return true;
+                        } else {
+                            filteredCount.incrementAndGet();
+                            return false;
+                        }
+                    }).forEach(scopes::add);
+                    if (filteredCount.get() > 0) {
+                        return listScopesInternal(response.getValue(), limit - scopes.size(), ctx)
+                                .thenApply(result -> {
+                                    scopes.addAll(result.getKey());
+                                    return new ImmutablePair<>(scopes, result.getValue());
+                                });
+                    } else {
+                        return CompletableFuture.completedFuture(new ImmutablePair<>(scopes, response.getValue()));
+                    }
+                });
+    }
+    
+    @Override
+    public void checkScopeExists(ScopeInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "checkScopeExists");
+        String scope = request.getScope();
+        log.info(requestTag.getRequestId(), "checkScopeExists called for scope {}.", request);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofScope(scope),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ExistsResponse>> scopeFn = delegationToken -> controllerService
+                .getScope(scope)
+                .handle((response, e) -> {
+                    boolean exists;
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            exists = false;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        exists = true;
+                    }
+                    return Controller.ExistsResponse.newBuilder().setExists(exists).build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, scopeFn, responseObserver, requestTag);
+    }
+
+    @Override
+    public void checkStreamExists(StreamInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "checkScopeExists");
+        String scope = request.getScope();
+        String stream = request.getStream();
+        log.info(requestTag.getRequestId(), "checkStream exists called for {}/{}.", scope, stream);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    AuthResourceRepresentation.ofStreamInScope(scope, stream),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                    AuthResourceRepresentation.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<Controller.ExistsResponse>> streamFn = delegationToken -> controllerService
+                .getStream(scope, stream)
+                .handle((response, e) -> {
+                    boolean exists;
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            exists = false;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        exists = true;
+                    }
+                    return Controller.ExistsResponse
+                            .newBuilder().setExists(exists)
+                            .build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, streamFn, responseObserver, requestTag);
+    }
+
+    @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
@@ -557,7 +708,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         return result;
                 },
                 delegationToken -> controllerService
-                        .listStreams(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .listStreams(scopeName, request.getContinuationToken().getToken(), pageLimit)
                         .handle((response, ex) -> {
                             if (ex != null) {
                                 if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
@@ -752,7 +903,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("All KeyValueTables in scope with continuation token: {}", response.getRight());
                     List<String> filteredKVTList = getAuthorizedKeyValueTables(scopeName, response.getKey(), ctx);
                     if (filteredKVTList.size() < limit) {
-                        listKeyValueTablesTillLimit(listStreamsInScopeLimit - limit, scopeName, response.getValue(), ctx)
+                        listKeyValueTablesTillLimit(pageLimit - limit, scopeName, response.getValue(), ctx)
                                 .thenApply( nextResponse -> {
                                     filteredKVTList.addAll(nextResponse.getKey());
                                     return new ImmutablePair<>(filteredKVTList, nextResponse.getValue());
