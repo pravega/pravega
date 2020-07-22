@@ -14,7 +14,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -108,14 +107,6 @@ public class Utils {
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
         URI hdfsUri = null;
-        if (DOCKER_BASED) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-        }
-
         String serviceId = "segmentstore";
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:

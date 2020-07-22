@@ -10,7 +10,6 @@
 
 package io.pravega.test.system.framework.services.docker;
 
-import com.google.common.base.Strings;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
@@ -96,7 +95,6 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         List<String> envList = new ArrayList<>();
         envList.add(env1);
         envList.add(env2);
-        getCustomEnvVars(envList, SEGMENTSTORE_EXTRA_ENV, hdfsUri);
         String env3 = "ZK_URL=" + zk;
         String env4 = "BK_ZK_URL=" + zk;
         String env5 = "CONTROLLER_URL=" + conUri.toString();
@@ -123,24 +121,5 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         publishedPort(SEGMENTSTORE_PORT).targetPort(SEGMENTSTORE_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())
                         .build()).build();
         return spec;
-    }
-
-    private void getCustomEnvVars(List<String> stringList, String segmentstoreExtraEnv, final URI hdfsUri) {
-        log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
-        if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
-            Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
-                String[] pair = str.split(KEY_VALUE_SEPARATOR);
-                if (pair.length != 2) {
-                    log.warn("Key Value not present {}", str);
-                    throw new RuntimeException("No key value pair to set Tier2 storage env");
-                } else {
-                    stringList.add(pair[0].toString() + "=" + pair[1].toString());
-                }
-            });
-        } else {
-            // Set HDFS as the default for Tier2.
-            stringList.add("HDFS_URL=" + hdfsUri.getHost() + ":8020");
-            stringList.add("TIER2_STORAGE=HDFS");
-        }
     }
 }

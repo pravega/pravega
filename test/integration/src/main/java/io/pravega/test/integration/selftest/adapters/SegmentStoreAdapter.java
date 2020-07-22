@@ -15,8 +15,8 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -40,12 +41,13 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.File;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +58,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -77,6 +80,8 @@ class SegmentStoreAdapter extends StoreAdapter {
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<SingletonStorageFactory> storageFactory;
     private final AtomicReference<ScheduledExecutorService> storeExecutor;
+    private final Thread stopBookKeeperProcess;
+    private Process bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
     private TableStore tableStore;
     private CuratorFramework zkClient;
@@ -149,6 +154,10 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.statsProvider.start();
         }
 
+        if (this.config.getBookieCount() > 0) {
+            this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.config, this.logId);
+        }
+
         this.serviceBuilder.initialize();
         this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
         this.tableStore = this.serviceBuilder.createTableStoreService();
@@ -157,6 +166,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     protected void shutDown() {
         this.serviceBuilder.close();
+        stopBookKeeper();
 
         val zk = this.zkClient;
         if (zk != null) {
@@ -175,6 +185,7 @@ class SegmentStoreAdapter extends StoreAdapter {
             storageFactory.close();
         }
 
+        Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
     }
 
     //endregion
@@ -260,17 +271,17 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Long> updateTableEntry(String tableName, BufferView key, BufferView value, Long compareVersion, Duration timeout) {
         ensureRunning();
         TableEntry e = compareVersion == null || compareVersion == TableKey.NO_VERSION
                 ? TableEntry.unversioned(key, value)
                 : TableEntry.versioned(key, value, compareVersion);
         return this.tableStore.put(tableName, Collections.singletonList(e), timeout)
-                              .thenApply(versions -> versions.get(0));
+                .thenApply(versions -> versions.get(0));
     }
 
     @Override
-    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+    public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
         ensureRunning();
         TableKey e = compareVersion == null || compareVersion == TableKey.NO_VERSION
                 ? TableKey.unversioned(key)
@@ -279,13 +290,28 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
-        throw new UnsupportedOperationException("getTableEntries");
+    public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
+        ensureRunning();
+        return this.tableStore
+                .get(tableName, keys, timeout)
+                .thenApplyAsync(storeResult -> storeResult.stream().map(e -> e == null ? null : e.getValue()).collect(Collectors.toList()), this.testExecutor);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
-        throw new UnsupportedOperationException("iterateTableEntries");
+    public CompletableFuture<AsyncIterator<List<Map.Entry<BufferView, BufferView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        ensureRunning();
+        return this.tableStore
+                .entryIterator(tableName, IteratorArgs.builder().fetchTimeout(timeout).build())
+                .thenApply(iterator -> () ->
+                        iterator.getNext().thenApply(item -> {
+                            if (item == null) {
+                                return null;
+                            } else {
+                                return item.getEntries().stream()
+                                        .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
+                                        .collect(Collectors.<Map.Entry<BufferView, BufferView>>toList());
+                            }
+                        }));
     }
 
     //endregion
@@ -305,6 +331,15 @@ class SegmentStoreAdapter extends StoreAdapter {
     //endregion
 
     //region Helpers
+
+    private void stopBookKeeper() {
+        val bk = this.bookKeeperService;
+        if (bk != null) {
+            bk.destroyForcibly();
+            log("Bookies shut down.");
+            this.bookKeeperService = null;
+        }
+    }
 
     @SneakyThrows
     private Long attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
