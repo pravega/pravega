@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -28,12 +29,15 @@ import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -219,6 +223,17 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                 () -> storeHelper.createTable(SCOPES_TABLE).thenApply(v -> Collections.emptyList())),
                 executor);
     }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken,
+                                                                    int limit, Executor executor) {
+        return Futures.completeOn(Futures.exceptionallyComposeExpecting(storeHelper.getKeysPaginated(SCOPES_TABLE, Unpooled.wrappedBuffer(Base64.getDecoder().decode(continuationToken)), limit)
+                          .thenApply(result -> new ImmutablePair<>(result.getValue(),
+                                  Base64.getEncoder().encodeToString(result.getKey().array()))), DATA_NOT_FOUND_PREDICATE,
+                () -> storeHelper.createTable(SCOPES_TABLE).thenApply(v -> ImmutablePair.of(Collections.emptyList(), continuationToken))),
+                executor);
+    }
+
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
