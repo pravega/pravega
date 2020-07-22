@@ -10,6 +10,18 @@
 package io.pravega.segmentstore.server;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Defines debug segment container for stream segments.
+ */
 public interface DebugSegmentContainer extends SegmentContainer {
-    CompletableFuture<Void> createStreamSegment(String streamSegmentName, long length, boolean isSealed);
+
+    /**
+     * Updates container metadata table by creating a segment with the given details. This is used during the data recovery
+     * process when a segment exists in the long term storage, but not in the durable data log.
+     * @param streamSegmentName         Name of the segment to be created.
+     * @param length                    Length of the segment to be created.
+     * @param isSealed                  Sealed status of the segment to be created.
+     * @return                          A newly created segment.
+     */
+    CompletableFuture<Void> registerExistingSegment(String streamSegmentName, long length, boolean isSealed);
 }

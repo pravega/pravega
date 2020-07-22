@@ -116,16 +116,21 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
             .build();
-    private ScheduledExecutorService executorService = DataRecoveryTestUtils.createExecutorService(100);
+    private ScheduledExecutorService executorService = executorService();
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
+    protected int getThreadPoolSize() {
+        return 100;
+    }
+
     /**
-     * Tests the ability to create Segments.
+     * It tests the ability to register an existing segment using debug segment container. Method registerExistingSegment
+     * is tested here.
      */
     @Test
-    public void testCreateStreamSegment() {
+    public void testRegisterExistingSegment() {
         int maxSegmentCount = 100;
         final int createdSegmentCount = maxSegmentCount * 2;
 
@@ -150,7 +155,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentSealedStatus[i] = RANDOM.nextBoolean();
             String name = "Segment_" + i;
             segments.add(name);
-            futures.add(localContainer.createStreamSegment(name, segmentLengths[i], segmentSealedStatus[i]));
+            futures.add(localContainer.registerExistingSegment(name, segmentLengths[i], segmentSealedStatus[i]));
         }
         Futures.allOf(futures).join();
 
@@ -167,7 +172,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Use a storage instance to create segments. List the segments from the storage and recreate them.
      */
     @Test
-    public void testEndToEnd() {
+    public void testEndToEnd() throws StreamSegmentException, IOException, InterruptedException {
         // Segments are mapped to four different containers.
         // DebugSegmentContainer for each container Id is created and segments belonging to that container are recovered.
         int containerCount = 4;
@@ -199,70 +204,47 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             ArrayList<String> segmentsList = segmentByContainers.get(containerId);
             if (segmentsList == null) {
                 segmentsList = new ArrayList<>();
-                segmentsList.add(segmentName);
                 segmentByContainers.put(containerId, segmentsList);
-            } else {
-                segmentByContainers.get(containerId).add(segmentName);
             }
+            segmentByContainers.get(containerId).add(segmentName);
 
             // Create segments, write data and randomly seal some of them.
-            try {
-                val wh1 = s.create(segmentName);
-                // Write data.
-                s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
-                if (RANDOM.nextInt(2) == 1) {
-                    s.seal(wh1);
-                    sealedSegments.add(segmentName);
-                }
-            } catch (StreamSegmentException e) {
-                Assert.fail("Exception occurred while test execution.");
+            val wh1 = s.create(segmentName);
+            // Write data.
+            s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+            if (RANDOM.nextInt(2) == 1) {
+                s.seal(wh1);
+                sealedSegments.add(segmentName);
             }
         }
-
-        // Keeps count of segments recovered in all container Ids.
-        int segmentsRecoveredCount = 0;
-
-        // List all segments
-        Map<Integer, List<SegmentProperties>> segments = null;
-        try {
-            segments = DataRecoveryTestUtils.listAllSegments(new AsyncStorageWrapper(s,
-                    DataRecoveryTestUtils.createExecutorService(10)), containerCount);
-        } catch (IOException e) {
-            Assert.fail("Exception occurred while listing segments.");
-        }
-
-        // Verify count of segments listed.
-        for (int i = 0; i < segments.size(); i++) {
-            segmentsRecoveredCount += segments.get(i).size();
-            Assert.assertTrue("Number of segments listed is less than the number of segments created using this container.",
-                    segments.get(i).size() >= segmentsCountByContainer[i]);
-        }
-        Assert.assertTrue("Total number of segments created is less than the number of segments created.",
-                segmentsRecoveredCount >= segmentsToCreateCount);
 
         @Cleanup
         TestContext context = createContext();
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
-                DataRecoveryTestUtils.createExecutorService(10));
+                executorService);
+
+        // List all segments
+        Storage storage = new AsyncStorageWrapper(s, executorService);
+
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
+
 
         // Recover all segments
         for (int containerId = 0; containerId < containerCount; containerId++) {
             @Cleanup
             MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                    context.getDefaultExtensions(), DataRecoveryTestUtils.createExecutorService(10));
+                    context.getDefaultExtensions(), executorService);
 
-            Services.startAsync(localContainer, executorService)
-                    .thenRun(new DataRecoveryTestUtils.Worker(localContainer, segments.get(containerId))).join();
+            Services.startAsync(localContainer, executorService).join();
+            debugStreamSegmentContainerMap.put(containerId, localContainer);
+        }
 
-            for (String segmentName : segmentByContainers.get(containerId)) {
-                SegmentProperties props = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-                Assert.assertEquals("Segment length mismatch ", data.length, props.getLength());
-                if (sealedSegments.contains(segmentName)) {
-                    Assert.assertTrue("Segment should have been sealed", props.isSealed());
-                }
-            }
-            Services.stopAsync(localContainer, executorService).join();
+        DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+
+        // Re-create all segments which were listed.
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            debugStreamSegmentContainerMap.get(containerId).close();
         }
     }
 

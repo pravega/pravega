@@ -45,6 +45,6 @@ public class ReadOnlySegmentContainerFactory implements SegmentContainerFactory 
 
     @Override
     public DebugSegmentContainer createDebugStreamSegmentContainer(int containerId) {
-        return null;
+        throw new UnsupportedOperationException("DebugSegmentContainer not supported in ReadOnly mode.");
     }
 }

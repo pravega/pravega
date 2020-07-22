@@ -11,11 +11,13 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.base.Charsets;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -23,8 +25,11 @@ import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -35,8 +40,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
@@ -46,130 +55,106 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 @Slf4j
 public class DataRecoveryTestUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = createExecutorService(10);
 
     /**
      * Lists all segments from a given long term storage.
-     * @param tier2             Long term storage.
-     * @param containerCount    Total number of segment containers.
+     * @param storage           Long term storage.
      * @return                  A map of lists containing segments by container Ids.
      * @throws                  IOException in case of exception during the execution.
      */
-    public static Map<Integer, List<SegmentProperties>> listAllSegments(Storage tier2, int containerCount) throws IOException {
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
-        Map<Integer, List<SegmentProperties>> segmentToContainers = new HashMap<Integer, List<SegmentProperties>>();
-        log.info("Generating container files with the segments they own...");
-        Iterator<SegmentProperties> it = tier2.listSegments();
-        if (it == null) {
-            return segmentToContainers;
+    public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainers,
+                                          ExecutorService executorService)
+            throws IOException, InterruptedException {
+
+        log.info("Recovery started for all containers...");
+        Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
+        for (DebugStreamSegmentContainer debugStreamSegmentContainer : debugStreamSegmentContainers.values()) {
+            ContainerTableExtension ext = debugStreamSegmentContainer.getExtension(ContainerTableExtension.class);
+            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getId()),
+                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).join();
+
+            // Add all segments present in the container metadata in a set.
+            Set<String> metadataSegments = new HashSet<>();
+            it.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
+                    .collect(Collectors.toSet())), executorService).join();
+            metadataSegmentsByContainer.put(debugStreamSegmentContainer, metadataSegments);
         }
-        // Iterate through all segments. Put each one of them in its respective list.
+
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(debugStreamSegmentContainers.size());
+        Iterator<SegmentProperties> it = storage.listSegments();
+        if (it == null) {
+            log.info("No segments found in the long term storage.");
+            return;
+        }
+
+        // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
         while (it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
-            List<SegmentProperties> segmentsList = segmentToContainers.get(containerId);
-            if (segmentsList == null) {
-                segmentsList = new ArrayList<>();
-                segmentsList.add(curr);
-                segmentToContainers.put(containerId, segmentsList);
-            } else {
-                segmentToContainers.get(containerId).add(curr);
+            metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(curr.getName());
+            executorService.execute(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), curr));
+        }
+
+        for (DebugStreamSegmentContainer debugStreamSegmentContainer : metadataSegmentsByContainer.keySet()) {
+            for (String segmentName : metadataSegmentsByContainer.get(debugStreamSegmentContainer)) {
+                log.info("Deleting segment '{}' as it is not in storage", segmentName);
+                debugStreamSegmentContainer.deleteStreamSegment(segmentName, TIMEOUT).join();
             }
         }
-        return segmentToContainers;
+        executorService.shutdown();
+        executorService.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        return;
     }
 
-    public static ScheduledExecutorService createExecutorService(int threadPoolSize) {
-        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
-        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        es.setRemoveOnCancelPolicy(true);
-        return es;
-    }
-
-     /**
+    /**
      * Creates all segments given in the list with the given DebugStreamSegmentContainer.
      */
-     public static class Worker implements Runnable {
-        private final int containerId;
+    public static class SegmentRecovery implements Runnable {
         private final DebugStreamSegmentContainer container;
-        private final List<SegmentProperties> segments;
-        public Worker(DebugStreamSegmentContainer container, List<SegmentProperties> segments) {
+        private final SegmentProperties storageSegment;
+
+        public SegmentRecovery(DebugStreamSegmentContainer container, SegmentProperties segment) {
             this.container = container;
-            this.containerId = container.getId();
-            this.segments = segments;
+            this.storageSegment = segment;
         }
 
         @Override
         public void run() {
-            if (segments == null) {
+            if (storageSegment == null) {
                 return;
             }
-            log.info("Recovery started for container = {}", containerId);
-            ContainerTableExtension ext = container.getExtension(ContainerTableExtension.class);
-            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(containerId),
-                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).join();
+            long len = storageSegment.getLength();
+            boolean isSealed = storageSegment.isSealed();
+            String segmentName = storageSegment.getName();
 
-            // Add all segments present in the container metadata in a set.
-            Set<TableKey> segmentsInMD = new HashSet<>();
-            it.forEachRemaining(k -> segmentsInMD.addAll(k.getEntries()), EXECUTOR_SERVICE).join();
+            /*
+                1. segment exists in both metadata and storage, re-create it
+                2. segment only in metadata, delete
+                3. segment only in storage, re-create it
+             */
+            val registerSegment = container.registerExistingSegment(segmentName, len, isSealed);
 
-            for (SegmentProperties segment : segments) {
-                long len = segment.getLength();
-                boolean isSealed = segment.isSealed();
-                String segmentName = segment.getName();
+            val streamSegmentInfo = container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
+                    .thenAccept(e -> {
+                        if (len != e.getLength() || isSealed != e.isSealed()) {
+                            container.deleteStreamSegment(segmentName, TIMEOUT).join();
+                            registerSegment.join();
+                        }
+                    });
 
-                /*
-                    1. segment exists in both metadata and storage, re-create it
-                    2. segment only in metadata, delete
-                    3. segment only in storage, re-create it
-                 */
-                segmentsInMD.remove(TableKey.unversioned(getTableKey(segmentName)));
-                container.getStreamSegmentInfo(segment.getName(), TIMEOUT)
-                        .thenAccept(e -> {
-                            container.createStreamSegment(segmentName, len, isSealed)
-                                    .exceptionally(ex -> {
-                                        log.error("Exception occurred while creating segment", ex);
-                                        return null;
-                                    }).join();
-                        })
-                        .exceptionally(e -> {
-                            log.error("Got an exception on getStreamSegmentInfo", e);
-                            if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                                container.createStreamSegment(segmentName, len, isSealed)
-                                        .exceptionally(ex -> {
-                                            log.error("Exception occurred while creating segment", ex);
-                                            return null;
-                                        }).join();
-                            }
-                            return null;
-                        }).join();
-            }
-            for (TableKey k : segmentsInMD) {
-                String segmentName = k.getKey().toString();
-                log.info("Deleting segment : {} as it is not in storage", segmentName);
-                try {
-                    container.deleteStreamSegment(segmentName, TIMEOUT).join();
-                } catch (Throwable e) {
-                    log.error("Error while deleting the segment = {}", segmentName);
-                }
-            }
-            log.info("Recovery done for container = {}", containerId);
+            Futures.exceptionallyComposeExpecting(streamSegmentInfo, ex -> ex instanceof StreamSegmentNotExistsException, () -> registerSegment);
         }
-    }
-
-    public static ArrayView getTableKey(String segmentName) {
-        return new ByteArraySegment(segmentName.getBytes(Charsets.UTF_8));
     }
 
     /**
      * Deletes container-metadata segment and attribute index segment for the given container Id.
-     * @param tier2         Long term storage to delete the segments from.
+     * @param storage       Long term storage to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    public static void deleteContainerMetadataSegments(Storage tier2, int containerId) {
-        deleteSegment(tier2, "_system/containers/metadata_" + containerId);
-        deleteSegment(tier2, "_system/containers/metadata_" + containerId + "$attributes.index");
+    public static void deleteContainerMetadataSegments(Storage storage, int containerId) {
+        String segmentName = NameUtils.getMetadataSegmentName(containerId);
+        deleteSegment(storage, segmentName);
+        deleteSegment(storage, NameUtils.getAttributeSegmentName(segmentName));
     }
 
     /**
@@ -177,12 +162,8 @@ public class DataRecoveryTestUtils {
      * @param tier2         Long term storage to delete the segment from.
      * @param segmentName   Name of the segment to be deleted.
      */
-    public static void deleteSegment(Storage tier2, String segmentName) {
-        try {
-            SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
-            tier2.delete(segmentHandle, TIMEOUT).join();
-        } catch (Throwable e) {
-            log.info("Error while deleting segment: {}", segmentName);
-        }
+    static void deleteSegment(Storage tier2, String segmentName) {
+        SegmentHandle segmentHandle = tier2.openWrite(segmentName).join();
+        tier2.delete(segmentHandle, TIMEOUT).join();
     }
 }

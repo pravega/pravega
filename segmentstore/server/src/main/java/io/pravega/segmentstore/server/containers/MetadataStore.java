@@ -685,7 +685,7 @@ public abstract class MetadataStore implements AutoCloseable {
 
     @Data
     @Builder
-    public static class SegmentInfo {
+    protected static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
         private final SegmentProperties properties;
@@ -705,15 +705,20 @@ public abstract class MetadataStore implements AutoCloseable {
         }
 
         // createSegment in Metadata uses this method to get SegmentInfo
-        static SegmentInfo recoveredSegment(SegmentProperties segmentProperties) {
-            return builder()
-                    .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
-                    .properties(segmentProperties)
+        protected static ArrayView recoveredSegment(String streamSegmentName, long length, boolean isSealed) {
+            StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
+                    .name(streamSegmentName)
+                    .length(length)
+                    .sealed(isSealed)
                     .build();
+            return serialize(builder()
+                    .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                    .properties(segmentProp)
+                    .build());
         }
 
         @SneakyThrows(IOException.class)
-        public static ArrayView serialize(SegmentInfo state) {
+        static ArrayView serialize(SegmentInfo state) {
             return SERIALIZER.serialize(state);
         }
 

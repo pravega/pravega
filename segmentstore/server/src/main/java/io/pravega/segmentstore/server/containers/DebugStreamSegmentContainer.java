@@ -32,10 +32,10 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     private final ContainerConfig config;
 
     /**
-     * Creates a new instance of the StreamSegmentContainer class.
+     * Creates a new instance of the DebugStreamSegmentContainer class.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
-     * @param config                   The ContainerConfig to use for this StreamSegmentContainer.
+     * @param config                   The ContainerConfig to use for this DebugStreamSegmentContainer.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param attributeIndexFactory    The AttributeIndexFactory to use to create Attribute Indices.
@@ -54,21 +54,9 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
         this.config = config;
     }
 
-    /**
-     * Creates a segment with given properties.
-     * @param streamSegmentName         Name of the segment to be created.
-     * @param length                    Length of the segment to be created.
-     * @param isSealed                  Sealed status of the segment to be created.
-     * @return                          A newly created segment.
-     */
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, long length, boolean isSealed) {
-        StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
-                .name(streamSegmentName)
-                .length(length)
-                .sealed(isSealed)
-                .build();
-        ArrayView segmentInfo = MetadataStore.SegmentInfo.serialize(MetadataStore.SegmentInfo.recoveredSegment(segmentProp));
+    public CompletableFuture<Void> registerExistingSegment(String streamSegmentName, long length, boolean isSealed) {
+        ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
     }
 }
