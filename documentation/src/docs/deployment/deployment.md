@@ -31,7 +31,7 @@ The following prerequisites are required for running in production. These are on
 - Zookeeper 3.6.1
 - Bookkeeper 4.9.2
 
-These versions are also used by [zookeeper-operator](https://github.com/pravega/zookeeper-operator) and [bookkeeper-operator](https://github.com/pravega/bookkeeper-operator)
+Any version onwards from these versions can be used. These versions are also used by [zookeeper-operator](https://github.com/pravega/zookeeper-operator) and [bookkeeper-operator](https://github.com/pravega/bookkeeper-operator)
 For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
 ## Installation
