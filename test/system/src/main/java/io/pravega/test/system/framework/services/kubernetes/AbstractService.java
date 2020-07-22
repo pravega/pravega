@@ -110,14 +110,14 @@ public abstract class AbstractService implements Service {
         return deployPravegaUsingOperator(zkUri, controllerCount, segmentStoreCount, bookieCount, props, false);
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, boolean secure) {
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, boolean enableTls) {
     return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createClusterRole(getPravegaOperatorClusterRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
                         .thenCompose(v -> k8sClient.createClusterRoleBinding(getPravegaOperatorClusterRoleBinding()))
                         //deploy pravega operator.
-                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment(secure)))
+                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment(enableTls)))
                         // wait until pravega operator is running, only one instance of operator is running.
                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", PRAVEGA_OPERATOR, 1))
                         // request operator to deploy zookeeper nodes.
@@ -392,7 +392,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private V1Deployment getPravegaOperatorDeployment(boolean secure) {
+    private V1Deployment getPravegaOperatorDeployment(boolean enableTls) {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
                                                         .withImage(PRAVEGA_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
@@ -411,10 +411,10 @@ public abstract class AbstractService implements Service {
                                                                                       .withValue(PRAVEGA_OPERATOR)
                                                                                       .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED")
-                                                                        .withValue(String.valueOf(secure))
+                                                                        .withValue(String.valueOf(enableTls))
                                                                         .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED_FOR_SEGMENT_STORE")
-                                                                        .withValue(String.valueOf(secure))
+                                                                        .withValue(String.valueOf(enableTls))
                                                                         .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)

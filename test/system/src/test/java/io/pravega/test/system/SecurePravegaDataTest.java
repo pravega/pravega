@@ -32,11 +32,9 @@ import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
-import java.util.List;
 import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -65,17 +63,15 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
     private final StreamConfiguration config = StreamConfiguration.builder()
             .scalingPolicy(scalingPolicy)
             .build();
-    private static URI controllerUri;
-    private static URI zkUri;
 
     /**
      * This is used to setup the various services required by the system test framework.
      */
     @Environment
-    public static void initialize() throws ExecutionException {
-        zkUri = startZookeeperInstance();
+    public void initialize() throws ExecutionException {
+        URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        controllerUri = startPravegaControllerInstances(zkUri, 1);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
@@ -86,7 +82,11 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
      */
     @Ignore
     @Test
-    public void securePravegaDataTest() {
+    public void enableTlsPravegaDataTest() {
+
+        Service zk = Utils.createZookeeperService();
+        URI zkUri = zk.getServiceDetails().get(0);
+        URI controllerUri = ensureSecureControllerRunning(zkUri);
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
 
         @Cleanup

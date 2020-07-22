@@ -89,7 +89,7 @@ public class Utils {
         }
     }
 
-    public static Service createPravegaControllerService(final URI zkUri, String serviceName, boolean secure) {
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName, boolean enableTls) {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
@@ -97,7 +97,7 @@ public class Utils {
                 return new PravegaControllerDockerService(serviceName, zkUri);
             case KUBERNETES:
             default:
-                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties(), secure);
+                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties(), enableTls);
         }
     }
 

@@ -27,20 +27,20 @@ public class PravegaControllerK8sService extends AbstractService {
 
     private final URI zkUri;
     private final ImmutableMap<String, String> properties;
-    private final boolean secure;
+    private final boolean enableTls;
 
     public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties) {
         super(id);
         this.zkUri = zkUri;
         this.properties = properties;
-        this.secure = false;
+        this.enableTls = false;
     }
 
-    public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties, boolean secure) {
+    public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties, boolean enableTls) {
         super(id);
         this.zkUri = zkUri;
         this.properties = properties;
-        this.secure = secure;
+        this.enableTls = enableTls;
     }
 
     @Override
@@ -84,7 +84,7 @@ public class PravegaControllerK8sService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
-        String prefix = secure ? TLS : TCP;
+        String prefix = enableTls ? TLS : TCP;
         return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
                                                        .thenApply(statuses -> statuses.stream()
                                                                                      .flatMap(s -> Stream.of(URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),

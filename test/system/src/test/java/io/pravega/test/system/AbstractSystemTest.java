@@ -101,9 +101,9 @@ abstract class AbstractSystemTest {
         return startPravegaControllerInstances(zkUri, instanceCount, false);
     }
 
-    static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount, final boolean secure) throws ExecutionException {
-        Service controllerService = secure ? Utils.createPravegaControllerService(zkUri, "controller", true):
-                Utils.createPravegaControllerService(zkUri);
+    static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount, final boolean enableTls) throws ExecutionException {
+        Service controllerService = enableTls ? Utils.createPravegaControllerService(zkUri, "controller", true) :
+           Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -113,7 +113,7 @@ abstract class AbstractSystemTest {
 
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        String prefix = secure ? TLS : TCP;
+        String prefix = enableTls ? TLS : TCP;
         URI controllerURI = URI.create(prefix + "://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;
