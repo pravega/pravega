@@ -184,12 +184,12 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     /**
      * Copy the version of one instance to other.
-     * This only for test purposes. There is no easy way to do this method.
+     * This only for test purposes.
      * @param from The instance to copy from.
      * @param to The instance to copy to.
      */
     @VisibleForTesting
-    public static void copyVersion(TableBasedMetadataStore from, TableBasedMetadataStore to) {
+    static void copyVersion(TableBasedMetadataStore from, TableBasedMetadataStore to) {
         to.setVersion(from.getVersion());
     }
 }
