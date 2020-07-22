@@ -57,6 +57,7 @@ import static io.pravega.shared.protocol.netty.AppendBatchSizeTracker.MAX_BATCH_
 @Slf4j
 public class TcpClientConnection implements ClientConnection {
 
+    static final int CONNECTION_TIMEOUT = 5000;
     static final int TCP_BUFFER_SIZE = 256 * 1024;
     
     private final Socket socket;
@@ -261,7 +262,7 @@ public class TcpClientConnection implements ClientConnection {
             result.setSendBufferSize(TCP_BUFFER_SIZE);
             result.setReceiveBufferSize(TCP_BUFFER_SIZE);
             result.setTcpNoDelay(true);
-            result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()));
+            result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()), CONNECTION_TIMEOUT);
             return result;
         } catch (Exception e) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(e));
