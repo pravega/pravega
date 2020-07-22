@@ -67,27 +67,21 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public boolean checkScopeExists(String scopeName) {
+        return Futures.getAndHandleExceptions(controller.checkScopeExists(scopeName),
+                RuntimeException::new);
+    }
+
+    @Override
     public Iterator<Stream> listStreams(String scopeName) {
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
-        return new Iterator<Stream>() {
-            private Stream next;
+        return asyncIterator.asIterator();
+    }
 
-            private void load() {
-                next = asyncIterator.getNext().join();
-            }
-            
-            @Override
-            public boolean hasNext() {
-                load();
-                return next != null;
-            }
-
-            @Override
-            public Stream next() {
-                load();
-                return next;
-            }
-        };
+    @Override
+    public boolean checkStreamExists(String scopeName, String streamName) {
+        return Futures.getAndHandleExceptions(controller.checkStreamExists(scopeName, streamName),
+                RuntimeException::new);
     }
 
     @Override
@@ -179,6 +173,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
         return Futures.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
+    }
+
+    @Override
+    public Iterator<String> listScopes() {
+        AsyncIterator<String> asyncIterator = controller.listScopes();
+        return asyncIterator.asIterator();
     }
 
     @Override

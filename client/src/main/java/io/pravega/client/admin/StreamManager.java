@@ -100,6 +100,13 @@ public interface StreamManager extends AutoCloseable {
     boolean deleteStream(String scopeName, String toDelete);
 
     /**
+     * Gets an iterator for all scopes. 
+     *
+     * @return Iterator to iterate over all scopes. 
+     */
+    Iterator<String> listScopes();
+
+    /**
      * Creates a new scope.
      *
      * @param scopeName  The name of the scope to create this stream in.
@@ -108,12 +115,29 @@ public interface StreamManager extends AutoCloseable {
     boolean createScope(String scopeName);
 
     /**
+     * Checks if a scope exists. 
+     *
+     * @param scopeName  The name of the scope to check.
+     * @return True if scope exists.
+     */
+    boolean checkScopeExists(String scopeName);
+
+    /**
      * Gets an iterator for all streams in scope. 
      * 
      * @param scopeName The name of the scope for which to list streams in.
      * @return Iterator of Stream to iterator over all streams in scope. 
      */
     Iterator<Stream> listStreams(String scopeName);
+
+    /**
+     * Checks if a stream exists in scope. 
+     *
+     * @param scopeName  The name of the scope to check the stream in.
+     * @param streamName  The name of the stream to check.
+     * @return True if stream exists.
+     */
+    boolean checkStreamExists(String scopeName, String streamName);
 
     /**
      * Deletes an existing scope. The scope must contain no
