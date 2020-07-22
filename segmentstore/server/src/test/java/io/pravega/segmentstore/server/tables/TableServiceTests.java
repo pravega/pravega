@@ -294,7 +294,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Check search results.
         val actualResults = Futures.allOfWithResults(searchFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                .stream().flatMap(List::stream).collect(Collectors.toList());
+                                   .stream().flatMap(List::stream).collect(Collectors.toList());
         Assert.assertEquals("Unexpected number of search results.", expectedResult.size(), actualResults.size());
         for (int i = 0; i < expectedResult.size(); i++) {
             val expectedKey = expectedResult.get(i).getKey();
@@ -376,7 +376,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
         val updateResult = updates.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
+                                  .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
         return Futures.allOfWithResults(updateResult).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
@@ -399,7 +399,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     private void executeRemovals(HashMap<String, ArrayList<TableKey>> removals, TableStore tableStore) throws Exception {
         val updateResult = removals.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), TIMEOUT)));
+                                   .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), TIMEOUT)));
         Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
