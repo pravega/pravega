@@ -27,6 +27,8 @@ import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
  */
 @Slf4j
 abstract class AbstractSystemTest {
+    final static String TCP = "tcp";
+    final static String TLS = "tls";
     static final Predicate<URI> ISGRPC = uri -> {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
@@ -65,6 +67,11 @@ abstract class AbstractSystemTest {
         return startControllerService(conService);
     }
 
+    static URI ensureSecureControllerRunning(final URI zkUri) {
+        Service conService = Utils.createPravegaControllerService(zkUri, "controller", true);
+        return startControllerService(conService);
+    }
+
     private static URI startControllerService(Service conService) {
         if (!conService.isRunning()) {
             conService.start(true);
@@ -91,7 +98,12 @@ abstract class AbstractSystemTest {
     }
 
     static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount) throws ExecutionException {
-        Service controllerService = Utils.createPravegaControllerService(zkUri);
+        return startPravegaControllerInstances(zkUri, instanceCount, false);
+    }
+
+    static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount, final boolean secure) throws ExecutionException {
+        Service controllerService = secure ? Utils.createPravegaControllerService(zkUri, "controller", true):
+                Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -101,12 +113,13 @@ abstract class AbstractSystemTest {
 
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        String prefix = secure ? TLS : TCP;
+        URI controllerURI = URI.create(prefix + "://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;
     }
 
+    
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final int instanceCount) throws ExecutionException {
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {

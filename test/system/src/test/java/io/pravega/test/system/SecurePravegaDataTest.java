@@ -31,6 +31,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutionException;
 import java.util.List;
 import java.util.UUID;
 import lombok.Cleanup;
@@ -48,7 +49,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore("until signed certificates")
+@Ignore
 public class SecurePravegaDataTest extends AbstractReadWriteTest {
 
     private final static String STREAM_NAME = "testStreamSecure";
@@ -64,23 +65,18 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
     private final StreamConfiguration config = StreamConfiguration.builder()
             .scalingPolicy(scalingPolicy)
             .build();
-    private URI controllerUri;
-    private URI zkUri;
+    private static URI controllerUri;
+    private static URI zkUri;
 
     /**
      * This is used to setup the various services required by the system test framework.
      */
     @Environment
-    public void initialize() {
-        Service zkService = Utils.createZookeeperService();
-        Assert.assertTrue(zkService.isRunning());
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.info("zookeeper service details: {}", zkUris);
-        zkUri = zkUris.get(0);
-
-        Service conService = Utils.createPravegaControllerService(zkUri, "controller", true);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        controllerUri = ctlURIs.get(0);
+    public static void initialize() throws ExecutionException {
+        zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        controllerUri = startPravegaControllerInstances(zkUri, 1);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     /**
@@ -88,7 +84,7 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
      * The test fails incase of exceptions
      *
      */
-    @Ignore("until signed certificates")
+    @Ignore
     @Test
     public void securePravegaDataTest() {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
