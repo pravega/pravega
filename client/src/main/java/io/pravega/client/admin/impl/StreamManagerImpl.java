@@ -26,7 +26,6 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BlockingAsyncIterator;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -108,6 +107,13 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public Iterator<String> listScopes() {
+        log.info("Listing scopes");
+        AsyncIterator<String> asyncIterator = controller.listScopes();
+        return asyncIterator.asIterator();
+    }
+
+    @Override
     public boolean createScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
@@ -115,11 +121,23 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean checkScopeExists(String scopeName) {
+        log.info("Checking if scope {} exists", scopeName);
+        return  Futures.getThrowingException(controller.checkScopeExists(scopeName));
+    }
+
+    @Override
     public Iterator<Stream> listStreams(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Listing streams in scope: {}", scopeName);
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
-        return new BlockingAsyncIterator<>(asyncIterator);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public boolean checkStreamExists(String scopeName, String streamName) {
+        log.info("Checking if stream {} exists in scope {}", streamName, scopeName);
+        return  Futures.getThrowingException(controller.checkStreamExists(scopeName, streamName));
     }
 
     @Override
