@@ -26,20 +26,20 @@ for all major operating systems.
 
 ### Zookeeper
 
-Pravega requires **Zookeeper 3.5.4-beta**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
+Pravega requires **Zookeeper 3.6.1**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
 
-This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.4-beta.tar.gz](https://archive.apache.org/dist/zookeeper/zookeeper-3.5.4-beta/zookeeper-3.5.4-beta.tar.gz).
+This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.6.1](https://archive.apache.org/dist/zookeeper/zookeeper-3.6.1/apache-zookeeper-3.6.1.tar.gz).
 
-For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.4-beta/zookeeperStarted.html).
+For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.6.1/zookeeperStarted.html).
 
 ### Bookkeeper
 
-Pravega requires **Bookkeeper 4.7.3**. At least 3 Bookkeeper servers are recommended for a quorum.
+Pravega requires **Bookkeeper 4.9.2**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.7.3-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.7.3//bookkeeper-server-4.7.3-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.9.2-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.9.2/bookkeeper-server-4.9.2-bin.tar.gz).
 
-For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.7.3/getting-started).
-Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.7.3` directory.
+For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.9.2/getting-started).
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.9.2` directory.
 
 #### Bookkeeper Configuration
 
@@ -56,7 +56,7 @@ indexDirectories=/bk/index
 
 ### Initializing Zookeeper paths
 
-The following paths need to be created in Zookeeper. Open the `zookeeper-3.5.4-beta` directory on the Zookeeper servers and run the following paths:
+The following paths need to be created in Zookeeper. Open the `zookeeper-3.6.1` directory on the Zookeeper servers and run the following paths:
 
 ```
 bin/zkCli.sh -server $ZK_URL create /pravega
