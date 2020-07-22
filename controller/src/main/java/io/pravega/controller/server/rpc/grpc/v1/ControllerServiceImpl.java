@@ -730,11 +730,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         List<StreamInfo> streams = new ArrayList<>();
         return controllerService.listStreams(scope, continuationToken, limit)
                                 .thenCompose(response -> {
-                                    log.debug("All scopes in scope with continuation token: {}", response);
+                                    log.debug("All streams in scope with continuation token: {}", response);
                                     // filter unauthorized scopes. 
                                     // fetch recursively if scopes are filtered out.
                                     AtomicInteger filteredCount = new AtomicInteger();
-                                    
+
                                     response.getKey().stream().filter(x -> {
                                         boolean authorized = grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofStreamInScope(scope, x),
                                                 AuthHandler.Permissions.READ, ctx);
