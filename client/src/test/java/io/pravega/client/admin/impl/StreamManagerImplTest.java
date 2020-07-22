@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.common.collect.Lists;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ClientConnection;
@@ -31,6 +32,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -198,6 +200,62 @@ public class StreamManagerImplTest {
         assertEquals(stream, info.getHeadStreamCut().asImpl().getStream());
         assertEquals(3, info.getHeadStreamCut().asImpl().getPositions().size());
         assertTrue(info.isSealed());
+    }
+
+    @Test(timeout = 10000)
+    public void testListScopes() {
+        // Setup Mocks
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        ClientConnection connection = mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.CreateSegment request = (WireCommands.CreateSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                         false, false, 0, 0, 0));
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+        connectionFactory.provideConnection(location, connection);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
+                connectionFactory, true);
+        @Cleanup
+        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+
+        String scope = "scope";
+        String scope1 = "scope1";
+        String scope2 = "scope2";
+        String scope3 = "scope3";
+        String stream1 = "stream1";
+        streamManager.createScope(scope);
+        streamManager.createScope(scope1);
+        streamManager.createScope(scope2);
+        streamManager.createScope(scope3);
+
+        streamManager.createStream(scope, stream1, StreamConfiguration.builder()
+                                                                      .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                      .build());
+        ArrayList<String> result = Lists.newArrayList(streamManager.listScopes());
+        assertEquals(result.size(), 4);
+        assertTrue(streamManager.checkScopeExists(scope));
+        assertFalse(streamManager.checkScopeExists("nonExistent"));
+        assertTrue(streamManager.checkStreamExists(scope, stream1));
+        assertFalse(streamManager.checkStreamExists(scope, "nonExistent"));
+        assertFalse(streamManager.checkStreamExists("nonExistent", "nonExistent"));
     }
 
     @Test(timeout = 10000)

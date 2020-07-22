@@ -30,11 +30,13 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -57,7 +59,7 @@ import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
 
-    private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
+    private static final int PAGE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
     private final boolean authorizationEnabled;
@@ -66,6 +68,27 @@ public class LocalController implements Controller {
         this.controller = controller;
         this.tokenSigningKey = tokenSigningKey;
         this.authorizationEnabled = authorizationEnabled;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
+        return Futures.exceptionallyExpecting(this.controller.getScope(scopeName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
+    }
+
+    @Override
+    public AsyncIterator<String> listScopes() {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<String>>>> function = token ->
+                controller.listScopes(token, PAGE_LIMIT)
+                          .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getValue(), result.getKey()));
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
+        return Futures.exceptionallyExpecting(this.controller.getStream(scopeName, streamName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override
@@ -90,7 +113,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                controller.listStreams(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                controller.listStreams(scopeName, token, PAGE_LIMIT)
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
                               return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
@@ -470,7 +493,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-                controller.listKeyValueTables(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                controller.listKeyValueTables(scopeName, token, PAGE_LIMIT)
                         .thenApply(result -> {
                             List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
                                     .collect(Collectors.toList());
