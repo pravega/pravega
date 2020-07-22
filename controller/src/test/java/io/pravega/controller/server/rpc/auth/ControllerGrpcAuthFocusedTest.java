@@ -691,7 +691,7 @@ public class ControllerGrpcAuthFocusedTest {
             throw new RuntimeException("Failed to create stream");
         }
     }
-    
+
     private static File createAuthFile() {
         try {
             File result = File.createTempFile("auth_file", ".txt");
