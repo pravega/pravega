@@ -218,6 +218,18 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<List<String>> listScopes();
 
     /**
+     * List scopes with pagination. This api continues listing scopes from the supplied continuation token
+     * and returns a count limited list of scopes and a new continuation token.
+     *
+     * @param continuationToken continuation token
+     * @param limit limit on number of scopes to return.
+     * @param executor executor
+     * @return A pair of list of scopes with the continuation token. 
+     */
+    CompletableFuture<Pair<List<String>, String>> listScopes(final String continuationToken,
+                                                             final int limit, final Executor executor);
+    
+    /**
      * Updates the configuration of an existing stream.
      *
      * @param scope         stream scope

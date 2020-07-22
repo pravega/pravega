@@ -220,6 +220,27 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void listScopesPaginated() throws Exception {
+        // list stream in scope
+        String scope = "scopeList";
+        store.createScope(scope + "1").get();
+        store.createScope(scope + "2").get();
+        store.createScope(scope + "3").get();
+
+        Pair<List<String>, String> scopes = store.listScopes("", 2, executor).get();
+        assertEquals("List scopes", 2, scopes.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
+
+        scopes = store.listScopes(scopes.getValue(), 2, executor).get();
+        assertEquals("List scopes", 1, scopes.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
+
+        scopes = store.listScopes(scopes.getValue(), 2, executor).get();
+        assertEquals("List scopes", 0, scopes.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
+    }
+
+    @Test
     public void listStreamsInScope() throws Exception {
         // list stream in scope
         store.createScope("Scope").get();
