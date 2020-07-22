@@ -171,7 +171,7 @@ public class TableMetadataTasks implements AutoCloseable {
                             DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
                             return eventHelper.addIndexAndSubmitTask(deleteEvent,
                                     () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
-                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName)))
+                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
                                     .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
                         });
             }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
@@ -195,8 +195,8 @@ public class TableMetadataTasks implements AutoCloseable {
                                                 false, delegationToken, requestId), executor));
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName) {
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
+    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN)) {

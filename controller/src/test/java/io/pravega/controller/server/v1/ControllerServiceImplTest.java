@@ -309,7 +309,7 @@ public abstract class ControllerServiceImplTest {
     @Test
     public void deleteKeyValueTableTests() {
 
-        // Try deleting a non-existent KeyValueTable.
+        // Try deleting a non-existent KeyValueTable inside an existing scope
         ResultObserver<DeleteKVTableStatus> result2 = new ResultObserver<>();
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(SCOPE4, "dummyKvt"), result2);
         DeleteKVTableStatus deleteKVTStatus = result2.get();

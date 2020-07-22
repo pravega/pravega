@@ -100,7 +100,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
             assert kvt.getName().equals(name);
         } else {
             kvt = cache.getUnchecked(new ImmutablePair<>(scope, name));
-            log.info("GOT KVT from cache: {}/{}", kvt.getScopeName(), kvt.getName());
+            log.debug("Got KVTable from cache: {}/{}", kvt.getScopeName(), kvt.getName());
             kvt.refresh();
         }
         return kvt;

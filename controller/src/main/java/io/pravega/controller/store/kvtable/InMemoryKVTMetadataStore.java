@@ -11,7 +11,6 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.lang.AtomicInt96;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
@@ -40,14 +39,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @GuardedBy("$lock")
     private Map<String, InMemoryScope> scopes = new HashMap<>();
 
-    private final AtomicInt96 counter;
-
-    private final Executor executor;
 
     public InMemoryKVTMetadataStore(Executor executor) {
         super(new InMemoryHostIndex());
-        this.executor = executor;
-        this.counter = new AtomicInt96();
     }
 
     @Override
@@ -57,20 +51,12 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
-        KeyValueTable kvt;
-        if (context != null) {
-            kvt = context.getKvTable();
-            assert kvt.getScopeName().equals(scope);
-            assert kvt.getName().equals(name);
-        } else {
-            if (!scopes.containsKey(scope)) {
-                return new InMemoryKVTable(scope, name);
-            }
-            InMemoryScope kvtScope = scopes.get(scope);
-            Optional<InMemoryKVTable> kvTable = kvtScope.getKVTableFromScope(name);
-            kvt = kvTable.orElse(new InMemoryKVTable(scope, name));
+        if (!scopes.containsKey(scope)) {
+            return new InMemoryKVTable(scope, name);
         }
-        return kvt;
+        InMemoryScope kvtScope = scopes.get(scope);
+        Optional<InMemoryKVTable> kvTable = kvtScope.getKVTableFromScope(name);
+        return kvTable.orElse(new InMemoryKVTable(scope, name));
     }
 
     @Override
