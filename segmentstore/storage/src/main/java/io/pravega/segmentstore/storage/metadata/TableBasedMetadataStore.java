@@ -78,6 +78,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
         keys.add(new ByteArraySegment(key.getBytes(Charsets.UTF_8)));
         try {
             List<TableEntry> retValue = this.tableStore.get(tableName, keys, timeout).get();
+            Preconditions.checkState(retValue.size() < 2, "Unexpected number of values returned.");
             if (retValue.size() == 1) {
                 TableEntry entry = retValue.get(0);
                 if (null != entry) {

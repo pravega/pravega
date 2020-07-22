@@ -26,9 +26,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemorySimpleStorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -52,7 +50,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -103,10 +100,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
-
-    private InMemoryStorageFactory asyncStorageFactory;
-    private InMemoryChunkStorage chunkStorageProvider;
-    private InMemorySimpleStorageFactory simpleStorageFactory;
+    private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
     @Override
@@ -116,11 +110,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     @Before
     public void setUp() {
-        this.chunkStorageProvider = new InMemoryChunkStorage();
-        this.simpleStorageFactory = new InMemorySimpleStorageFactory(executorService(), chunkStorageProvider);
-
-        this.asyncStorageFactory = new InMemoryStorageFactory(executorService());
-
+        this.storageFactory = new InMemoryStorageFactory(executorService());
         this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
     }
 
@@ -131,14 +121,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             this.durableDataLogFactory = null;
         }
 
-        if (this.asyncStorageFactory != null) {
-            this.asyncStorageFactory.close();
-            this.asyncStorageFactory = null;
-        }
-
-        if (this.simpleStorageFactory != null) {
-            this.simpleStorageFactory.close();
-            this.simpleStorageFactory = null;
+        if (this.storageFactory != null) {
+            this.storageFactory.close();
+            this.storageFactory = null;
         }
     }
 
@@ -153,32 +138,14 @@ public class TableServiceTests extends ThreadPooledTestSuite {
      * - Recovering of Table Segments after failover.
      */
     @Test
-    public void testEndToEndWithAsyncStorage() throws Exception {
-        testEndToEnd(false);
-    }
-
-    /**
-     * Tests an End-to-End scenario for a {@link TableStore} implementation using a real implementation of {@link StreamSegmentStore}
-     * (without any mocks or manual event triggering or other test aids). Features tested:
-     * - Table Segment creation and deletion.
-     * - Conditional and unconditional updates.
-     * - Conditional and unconditional removals.
-     * - Recovering of Table Segments after failover.
-     */
-    @Test
-    @Ignore
-    public void testEndToEndWithChunkedStorage() throws Exception {
-        testEndToEnd(true);
-    }
-
-    public void testEndToEnd(boolean useChunkedStorage) throws Exception {
+    public void testEndToEnd() throws Exception {
         val rnd = new Random(0);
         ArrayList<String> segmentNames;
         HashMap<BufferView, EntryData> keyInfo;
 
         // Phase 1: Create some segments and update some data (unconditionally).
         log.info("Starting Phase 1");
-        try (val builder = createBuilder(useChunkedStorage)) {
+        try (val builder = createBuilder()) {
             val tableStore = builder.createTableStoreService();
 
             // Create the Table Segments.
@@ -202,7 +169,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 2: Force a recovery and remove all data (unconditionally)
         log.info("Starting Phase 2");
-        try (val builder = createBuilder(useChunkedStorage)) {
+        try (val builder = createBuilder()) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -221,7 +188,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 3: Force a recovery and conditionally update and remove data
         log.info("Starting Phase 3");
-        try (val builder = createBuilder(useChunkedStorage)) {
+        try (val builder = createBuilder()) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery).
@@ -258,7 +225,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Phase 4: Force a recovery and conditionally remove all data
         log.info("Starting Phase 4");
-        try (val builder = createBuilder(useChunkedStorage)) {
+        try (val builder = createBuilder()) {
             val tableStore = builder.createTableStoreService();
 
             // Check (after recovery)
@@ -409,7 +376,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
         val updateResult = updates.entrySet().stream()
-                                  .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.put(e.getKey(), e.getValue(), TIMEOUT)));
         return Futures.allOfWithResults(updateResult).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
@@ -432,7 +399,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
     private void executeRemovals(HashMap<String, ArrayList<TableKey>> removals, TableStore tableStore) throws Exception {
         val updateResult = removals.entrySet().stream()
-                                   .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), TIMEOUT)));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableStore.remove(e.getKey(), e.getValue(), TIMEOUT)));
         Futures.allOf(updateResult.values()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
@@ -546,9 +513,9 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return TABLE_SEGMENT_NAME_PREFIX + i;
     }
 
-    private ServiceBuilder createBuilder(boolean useChunkedStorage) throws Exception {
+    private ServiceBuilder createBuilder() throws Exception {
         val builder = ServiceBuilder.newInMemoryBuilder(this.configBuilder.build())
-                .withStorageFactory(setup -> useChunkedStorage ? this.simpleStorageFactory : this.asyncStorageFactory)
+                .withStorageFactory(setup -> this.storageFactory)
                 .withDataLogFactory(setup -> this.durableDataLogFactory);
         try {
             builder.initialize();

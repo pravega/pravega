@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -23,73 +22,29 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
-public class InMemorySimpleStorageFactory implements StorageFactory, AutoCloseable {
-    @VisibleForTesting
+public class InMemorySimpleStorageFactory implements StorageFactory {
     protected ScheduledExecutorService executor;
 
     private Storage singletonStorage;
-    private ChunkStorage singletonChunkStorage;
     private boolean reuseStorage;
-
-    public InMemorySimpleStorageFactory(ScheduledExecutorService executor) {
-        this.executor = Preconditions.checkNotNull(executor, "executor");
-    }
-
-    public InMemorySimpleStorageFactory() {
-    }
 
     public InMemorySimpleStorageFactory(ScheduledExecutorService executor, boolean reuseStorage) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.reuseStorage = reuseStorage;
     }
 
-    public InMemorySimpleStorageFactory(ScheduledExecutorService executor, Storage storage) {
-        this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.singletonStorage = Preconditions.checkNotNull(storage, "Storage");
-        this.reuseStorage = true;
-    }
-
-    public InMemorySimpleStorageFactory(ScheduledExecutorService executor, ChunkStorage chunkStorage) {
-        this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.singletonChunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
-        this.reuseStorage = false;
-    }
-
     @Override
     public Storage createStorageAdapter() {
         synchronized (this) {
-            if (reuseStorage) {
-                if (null != singletonStorage) {
-                    return singletonStorage;
-                }
-                singletonStorage = getStorage();
+            if (null != singletonStorage) {
                 return singletonStorage;
             }
-            return getStorage();
+            Storage storage = newStorage(executor, new InMemoryChunkStorage());
+            if (reuseStorage) {
+                singletonStorage = storage;
+            }
+            return storage;
         }
-    }
-
-    private Storage getStorage() {
-        if (null == singletonChunkStorage) {
-            return newStorage(executor);
-        } else {
-            return newStorage(executor, singletonChunkStorage);
-        }
-    }
-
-    @Override
-    public void close() {
-    }
-
-    /**
-     * Creates a new InMemory Storage, without a rolling wrapper.
-     *
-     * @param executor An Executor to use for async operations.
-     * @return A new InMemoryStorage.
-     */
-    @VisibleForTesting
-    public static Storage newStorage(Executor executor) {
-        return newStorage(executor, new InMemoryChunkStorage());
     }
 
     /**
@@ -99,8 +54,7 @@ public class InMemorySimpleStorageFactory implements StorageFactory, AutoCloseab
      * @param chunkStorage ChunkStorage to use.
      * @return A new InMemoryStorage.
      */
-    @VisibleForTesting
-    public static Storage newStorage(Executor executor, ChunkStorage chunkStorage) {
+    static Storage newStorage(Executor executor, ChunkStorage chunkStorage) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(
                 chunkStorage,
                 executor,

@@ -75,4 +75,24 @@ public class InMemorySimpleStorageFactoryTests {
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
     }
+
+    @Test
+    public void testReuse() {
+        val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), true);
+
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+
+        Assert.assertEquals(s1.getChunkStorage(), s2.getChunkStorage());
+    }
+
+    @Test
+    public void testNoReuse() {
+        val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), false);
+
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+
+        Assert.assertNotEquals(s1.getChunkStorage(), s2.getChunkStorage());
+    }
 }
