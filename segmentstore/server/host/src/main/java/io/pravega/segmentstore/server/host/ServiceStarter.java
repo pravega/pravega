@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.netty.util.ResourceLeakDetector;
 import io.pravega.common.Exceptions;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
@@ -52,6 +53,7 @@ public final class ServiceStarter {
     private final ServiceBuilderConfig builderConfig;
     private final ServiceConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
+    private final ResourceLeakDetector.Level originalLeakDetectionLevel;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
     private AutoScaleMonitor autoScaleMonitor;
@@ -66,6 +68,7 @@ public final class ServiceStarter {
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
         this.serviceBuilder = createServiceBuilder();
+        this.originalLeakDetectionLevel = ResourceLeakDetector.getLevel();
     }
 
     private ServiceBuilder createServiceBuilder() {
@@ -82,6 +85,8 @@ public final class ServiceStarter {
 
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
+
+        enableNettyLeakDetector();
 
         log.info("Initializing metrics provider ...");
         MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
@@ -156,7 +161,25 @@ public final class ServiceStarter {
             if (this.serviceConfig.isSecureZK()) {
                 ZKTLSUtils.unsetSecureZKClientProperties();
             }
+
+            restoreNettyLeakDetector();
             this.closed = true;
+        }
+    }
+
+    private void enableNettyLeakDetector() {
+        if (this.serviceConfig.isNettyLeakDetectionEnabled()) {
+            ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
+            log.warn("Netty {} set to {} level. THIS WILL RESULT IN DEGRADED PERFORMANCE. USE FOR DEBUGGING PURPOSES ONLY.",
+                    ResourceLeakDetector.class.getSimpleName(), ResourceLeakDetector.Level.PARANOID);
+        }
+    }
+
+    private void restoreNettyLeakDetector() {
+        if (this.serviceConfig.isNettyLeakDetectionEnabled()) {
+            // We only restore it if we actually changed it.
+            ResourceLeakDetector.setLevel(this.originalLeakDetectionLevel);
+            log.info("Netty {} restored to {} level.", ResourceLeakDetector.class.getSimpleName(), this.originalLeakDetectionLevel);
         }
     }
 

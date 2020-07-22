@@ -59,6 +59,7 @@ public class ServiceConfig {
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60, "cacheMaxTimeSeconds");
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1, "cacheGenerationTimeSeconds");
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false, "replyWithStackTraceOnError");
+    public static final Property<Boolean> NETTY_LEAK_DETECTION_ENABLED = Property.named("netty.leakDetection.enable", false);
     public static final Property<String> INSTANCE_ID = Property.named("instance.id", "");
 
     // TLS-related config for the service
@@ -278,6 +279,12 @@ public class ServiceConfig {
     private final boolean replyWithStackTraceOnError;
 
     /**
+     * Whether to enable {@link io.netty.util.ResourceLeakDetector}.
+     */
+    @Getter
+    private final boolean nettyLeakDetectionEnabled;
+
+    /**
      * Gets a value that uniquely identifies the Service. This is useful if multiple Service Instances share the same
      * log files or during testing, when multiple Service Instances run in the same process. This value will be prefixed
      * to the names of all Threads used by this Service Instance, which should make log parsing easier.
@@ -347,6 +354,7 @@ public class ServiceConfig {
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, cachePolicyTargetUtilization, cachePolicyMaxUtilization,
                 Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
+        this.nettyLeakDetectionEnabled = properties.getBoolean(NETTY_LEAK_DETECTION_ENABLED);
         this.instanceId = properties.get(INSTANCE_ID);
     }
 
