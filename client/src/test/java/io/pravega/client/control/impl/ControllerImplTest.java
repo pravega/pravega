@@ -162,6 +162,58 @@ public class ControllerImplTest {
         // Setup test server generating different success and failure responses.
         testServerImpl = new ControllerServiceImplBase() {
             @Override
+            public void listScopes(Controller.ScopesRequest request, StreamObserver<Controller.ScopesResponse> responseObserver) {
+                if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                    List<String> list1 = new LinkedList<>();
+                    list1.add("scope1");
+                    list1.add("scope2");
+                    responseObserver.onNext(Controller.ScopesResponse
+                            .newBuilder().addAllScopes(list1)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken")) {
+                    List<String> list2 = new LinkedList<>();
+                    list2.add("scope3");
+
+                    responseObserver.onNext(Controller.ScopesResponse
+                            .newBuilder().addAllScopes(list2)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken2")) {
+                    List<String> list3 = new LinkedList<>();
+                    responseObserver.onNext(Controller.ScopesResponse
+                            .newBuilder().addAllScopes(list3)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void checkScopeExists(ScopeInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+                if (!request.getScope().equals("throwing")) {
+                    responseObserver.onNext(Controller.ExistsResponse.newBuilder()
+                                                                     .setExists(request.getScope().equals("scope1"))
+                                                                     .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void checkStreamExists(StreamInfo request, StreamObserver<Controller.ExistsResponse> responseObserver) {
+                if (!request.getScope().equals("throwing")) {
+                    responseObserver.onNext(Controller.ExistsResponse.newBuilder()
+                                                                 .setExists(request.getStream().equals("stream1")).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void createStream(StreamConfig request,
                     StreamObserver<CreateStreamStatus> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1") ||
@@ -840,7 +892,6 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getScope().getScope().equals("deadline")) {
                     // dont send any response
-                    System.err.println("i am here");
                 } else if (request.getScope().getScope().equals(FAILING)) {
                     responseObserver.onNext(Controller.StreamsInScopeResponse
                             .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.FAILURE)
@@ -1191,7 +1242,12 @@ public class ControllerImplTest {
                                                                    .build());
         assertTrue(createStreamStatus.get());
 
-        createStreamStatus = controllerClient.createStream("scope1", "stream2", StreamConfiguration.builder()
+        assertTrue(controllerClient.checkStreamExists("scope1", "stream1").join());
+        assertFalse(controllerClient.checkStreamExists("scope1", "stream2").join());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                controllerClient.checkStreamExists("throwing", "throwing"), t -> true);
+
+            createStreamStatus = controllerClient.createStream("scope1", "stream2", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
@@ -1548,6 +1604,10 @@ public class ControllerImplTest {
         CompletableFuture<Boolean> scopeStatus;
         scopeStatus = controllerClient.createScope("scope1");
         assertTrue(scopeStatus.get());
+        assertTrue(controllerClient.checkScopeExists("scope1").join());
+        assertFalse(controllerClient.checkScopeExists("scope2").join());
+        AssertExtensions.assertFutureThrows("Throwing", controllerClient.checkScopeExists("throwing"),
+                t -> true);
 
         scopeStatus = controllerClient.createScope("scope2");
         AssertExtensions.assertFutureThrows("Server should throw exception", scopeStatus, Throwable -> true);
@@ -1560,6 +1620,18 @@ public class ControllerImplTest {
 
         scopeStatus = controllerClient.createScope("scope5");
         AssertExtensions.assertFutureThrows("Should throw Exception", scopeStatus, throwable -> true);
+    }
+    
+    @Test
+    public void testListScopes() {
+        AsyncIterator<String> iterator = controllerClient.listScopes();
+
+        String m = iterator.getNext().join();
+        assertEquals("scope1", m);
+        m = iterator.getNext().join();
+        assertEquals("scope2", m);
+        m = iterator.getNext().join();
+        assertEquals("scope3", m);
     }
     
     @Test

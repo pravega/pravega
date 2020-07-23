@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -417,6 +418,13 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertFalse(batches.contains(firstBatch));
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
+    }
+
+    @Test
+    @Override
+    public void listScopesPaginated() throws Exception {
+        AssertExtensions.assertThrows("", () -> store.listScopes("", 1, executor),
+                e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
     }
     
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
