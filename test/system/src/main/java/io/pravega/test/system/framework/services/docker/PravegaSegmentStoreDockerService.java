@@ -38,6 +38,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
     private static final String ENV_SEPARATOR = ";;";
     private static final String KEY_VALUE_SEPARATOR = "::";
+    private static final String NFS_MOUNT = "/nfs";
     private final long instances = 1;
     private final double cpu = 0.5;
     private final double mem = 1741.0;
@@ -69,8 +70,11 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", serviceName);
-
-        Mount mount = Mount.builder().type("volume").source("segmentstore-logs").target("/opt/pravega/logs").build();
+        List<Mount> mounts = new ArrayList<Mount>();
+        Mount logMount = Mount.builder().type("volume").source("segmentstore-logs").target("/opt/pravega/logs").build();
+        Mount dataMount = Mount.builder().type("volume").source("nfs").target(NFS_MOUNT).build();
+        mounts.add(logMount);
+        mounts.add(dataMount);
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
         Map<String, String> stringBuilderMap = new HashMap<>();
@@ -83,6 +87,9 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(30 * 1000));
         stringBuilderMap.put("hdfs.replaceDataNodesOnFailure", "false");
         stringBuilderMap.put("bookkeeper.bkAckQuorumSize", "3");
+        stringBuilderMap.put("pravegaservice.storage.impl.name", "FILESYSTEM");
+        stringBuilderMap.put("storage.impl.name", "FILESYSTEM");
+        stringBuilderMap.put("filesystem.root", NFS_MOUNT);
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
         }
@@ -98,9 +105,12 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         String env3 = "ZK_URL=" + zk;
         String env4 = "BK_ZK_URL=" + zk;
         String env5 = "CONTROLLER_URL=" + conUri.toString();
+        String env6 = "TIER2_STORAGE=FILESYSTEM";
+        String env7 = "NFS_MOUNT=/nfs";
         envList.add(env3);
         envList.add(env4);
         envList.add(env5);
+        envList.add(env6);
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
@@ -109,7 +119,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .hostname(serviceName)
                         .labels(labels)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(SEGMENTSTORE_PORT)).build())
-                        .mounts(Arrays.asList(mount))
+                        .mounts(mounts)
                         .env(envList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
