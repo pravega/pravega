@@ -244,6 +244,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             synchronized (writeSealLock) {
                 // Nothing needs to be done here.
                 // When the lock is released the sealing should be complete.
+                log.debug("Segment sealing completed, retrying flush.");
             }
         } else {
             // A background thread should be waking up to process things. Give it a moment.
