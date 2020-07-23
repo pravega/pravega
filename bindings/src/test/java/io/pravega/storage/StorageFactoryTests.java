@@ -30,6 +30,7 @@ import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageFactoryCreator;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -174,5 +175,34 @@ public class StorageFactoryTests {
 
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
+    }
+
+    @Test
+    public void testNull() {
+        val executor = new ScheduledThreadPoolExecutor(1);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new FileSystemSimpleStorageFactory(null, executor),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new ExtendedS3SimpleStorageFactory(null, executor),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new HDFSSimpleStorageFactory(null, executor),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new FileSystemSimpleStorageFactory(FileSystemStorageConfig.builder().build(), null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new ExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig.builder().build(), null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new HDFSSimpleStorageFactory(HDFSStorageConfig.builder().build(), null),
+                ex -> ex instanceof NullPointerException);
     }
 }

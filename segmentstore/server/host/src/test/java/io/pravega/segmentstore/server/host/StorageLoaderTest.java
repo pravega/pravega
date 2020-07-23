@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -44,7 +45,7 @@ public class StorageLoaderTest {
     private StorageFactory expectedFactory;
 
     @Test
-    public void testNoOpWithWithInMemoryStorage() throws Exception {
+    public void testNoOpWithInMemoryStorage() throws Exception {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
@@ -88,7 +89,7 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
         val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED);
-        assertTrue(expectedFactory instanceof FileSystemStorageFactory);
+        assertTrue(factory instanceof FileSystemStorageFactory);
     }
 
     @Test
@@ -101,7 +102,20 @@ public class StorageLoaderTest {
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
 
         val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE, StorageMetadataFormat.TABLE_BASED);
-        assertTrue(expectedFactory instanceof FileSystemSimpleStorageFactory);
+        assertTrue(factory instanceof FileSystemSimpleStorageFactory);
+    }
+
+    @Test
+    public void testInvalidCombination() throws Exception {
+        val storageType = ServiceConfig.StorageType.FILESYSTEM;
+        ConfigSetup configSetup = mock(ConfigSetup.class);
+        val extraConfig = StorageExtraConfig.builder()
+                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
+                .build();
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
+
+        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.TABLE_BASED);
+        assertNull(factory);
     }
 
     @Test
@@ -168,7 +182,6 @@ public class StorageLoaderTest {
     private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType, StorageMetadataFormat storageMetadataFormat) throws DurableDataLogException {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         StorageLoader loader = new StorageLoader();
-        expectedFactory = loader.load(setup, name, storageLayoutType, storageMetadataFormat, executor);
-        return expectedFactory;
+        return loader.load(setup, name, storageLayoutType, storageMetadataFormat, executor);
     }
 }
