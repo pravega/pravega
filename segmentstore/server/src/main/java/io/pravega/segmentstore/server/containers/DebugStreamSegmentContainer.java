@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
