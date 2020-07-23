@@ -142,10 +142,10 @@ public class InProcPravegaCluster implements AutoCloseable {
             //Check TLS related parameters
             Preconditions.checkState(!enableTls ||
                             (!Strings.isNullOrEmpty(this.keyFile)
-                                    && !Strings.isNullOrEmpty(this.certFile)
-                                    && !Strings.isNullOrEmpty(this.jksKeyFile)
-                                    && !Strings.isNullOrEmpty(this.jksTrustFile)
-                                    && !Strings.isNullOrEmpty(this.keyPasswordFile)),
+                            && !Strings.isNullOrEmpty(this.certFile)
+                            && !Strings.isNullOrEmpty(this.jksKeyFile)
+                            && !Strings.isNullOrEmpty(this.jksTrustFile)
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {
@@ -293,12 +293,12 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
                         .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
-                                + controllerPorts[0])
-                        .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
-                        .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
-                        .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                        .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
-                        .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
+                                                                                + controllerPorts[0])
+                                         .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                                         .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
+                                         .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
@@ -431,8 +431,8 @@ public class InProcPravegaCluster implements AutoCloseable {
         }
         if (isInProcController) {
             for ( ControllerServiceMain controller : this.controllerServers ) {
-                controller.stopAsync();
-            }
+                    controller.stopAsync();
+                }
         }
 
         if (this.zkService != null) {
