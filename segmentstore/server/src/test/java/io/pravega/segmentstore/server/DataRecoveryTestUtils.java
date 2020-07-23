@@ -61,6 +61,9 @@ public class DataRecoveryTestUtils {
         log.info("Recovery started for all containers...");
         Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
         for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
+            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+            DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, debugStreamSegmentContainer.getKey());
+
             ContainerTableExtension ext = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
             AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getKey()),
                     IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).join();
@@ -72,10 +75,8 @@ public class DataRecoveryTestUtils {
             metadataSegmentsByContainer.put(debugStreamSegmentContainer.getValue(), metadataSegments);
         }
 
-        // Delete metadata segments
-        int count = debugStreamSegmentContainers.size();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(debugStreamSegmentContainers.size());
-        log.info("size = {}", debugStreamSegmentContainers.size());
+
         Iterator<SegmentProperties> it = storage.listSegments();
         if (it == null) {
             log.info("No segments found in the long term storage.");
@@ -88,9 +89,6 @@ public class DataRecoveryTestUtils {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
             log.info("Segment to be recovered = {}", curr.getName());
-            if (curr.getName().startsWith("_system/containers/metadata_")) {
-                continue;
-            }
             metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(curr.getName());
             opFutures.add(CompletableFuture.runAsync(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), curr)));
         }

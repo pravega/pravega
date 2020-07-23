@@ -75,10 +75,9 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
-import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -93,7 +92,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -144,7 +142,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
     private File baseDir;
-    private FileSystemStorageFactory storageFactory;
+    private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
     private SegmentStoreStarter segmentStoreStarter;
     private BKZK bkzk = null;
@@ -417,12 +415,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executorService = executorService();
         int instanceId = 0;
         // Creating a long term storage only once here.
-        this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
-        FileSystemStorageConfig fsConfig = FileSystemStorageConfig
-                .builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
-                .build();
-        this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
+        this.storageFactory = new InMemoryStorageFactory(executorService);
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
@@ -500,8 +493,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
         }
 
-        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, CONTAINER_ID);
         DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
         // Re-create all segments which were listed.
