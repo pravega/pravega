@@ -192,14 +192,9 @@ class SegmentStoreConnectionManager implements AutoCloseable {
                 connection.send(request);
             } catch (ConnectionFailedException cfe) {
                 Throwable cause = Exceptions.unwrap(cfe);
-                if (cause instanceof ConnectionFailedException) {
-                    resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
-                                                                                      WireCommandFailedException.Reason.ConnectionFailed));
-                    state.set(ConnectionState.DISCONNECTED);
-                } else {
-                    log.debug("connection.sendAsync failed with {}", cause.getClass());
-                    resultFuture.completeExceptionally(cause);
-                }
+                resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
+                                                                                  WireCommandFailedException.Reason.ConnectionFailed));
+                state.set(ConnectionState.DISCONNECTED);
             }
         }
 
