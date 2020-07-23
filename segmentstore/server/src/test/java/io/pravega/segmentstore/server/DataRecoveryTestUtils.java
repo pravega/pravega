@@ -40,8 +40,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
-import static io.pravega.shared.NameUtils.isMetadataAttributeSegment;
-import static io.pravega.shared.NameUtils.isMetadataSegment;
 
 /**
  * Utility methods for data recovery tests.
@@ -90,7 +88,7 @@ public class DataRecoveryTestUtils {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
             log.info("Segment to be recovered = {}", curr.getName());
-            if (isMetadataSegment(curr.getName()) || isMetadataAttributeSegment(curr.getName())) {
+            if (curr.getName().startsWith("_system/containers/metadata_")) {
                 continue;
             }
             metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(curr.getName());

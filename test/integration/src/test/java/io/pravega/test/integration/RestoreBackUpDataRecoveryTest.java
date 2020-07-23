@@ -487,9 +487,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         this.dataLogFactory.initialize();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
-        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, CONTAINER_ID);
-
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
 
         // Start debug segment container using dataLogFactory from new BK instance and old long term storageFactory.
@@ -503,6 +500,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
         }
 
+        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+        DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, CONTAINER_ID);
         DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
         // Re-create all segments which were listed.
@@ -580,7 +579,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                                                              Storage tier2) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            log.info("Segment Name = {}", segmentName);
             SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             log.info("Segment properties = {}", sp);
             segmentsCompletion.add(waitForSegmentInStorage(sp, tier2));

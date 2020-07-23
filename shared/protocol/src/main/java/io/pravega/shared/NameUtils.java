@@ -208,26 +208,6 @@ public final class NameUtils {
     }
 
     /**
-     * Checks whether given name is an Attribute Segment.
-     *
-     * @param segmentName   The name of the segment.
-     * @return              true if the name is Attribute Segment. False otherwise
-     */
-    public static boolean isMetadataAttributeSegment(String segmentName) {
-        return segmentName.startsWith("_system/containers/metadata_") && segmentName.endsWith(ATTRIBUTE_SUFFIX);
-    }
-
-    /**
-     * Checks whether given name is an Attribute Segment.
-     *
-     * @param segmentName   The name of the segment.
-     * @return              true if the name is Attribute Segment. False otherwise
-     */
-    public static boolean isMetadataSegment(String segmentName) {
-        return segmentName.startsWith("_system/containers/metadata_");
-    }
-
-    /**
      * Gets the name of the Segment name from its Header Segment Name.
      *
      * @param headerSegmentName The name of the Header Segment.
