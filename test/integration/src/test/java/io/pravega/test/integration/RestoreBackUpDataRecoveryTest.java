@@ -36,8 +36,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.containers.SegmentsTracker;
-import io.pravega.segmentstore.contracts.tables.TableStoreWrapper;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataRecoveryTestUtils;
@@ -45,6 +43,7 @@ import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
+import io.pravega.segmentstore.server.SegmentsTracker;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
@@ -100,8 +99,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -112,7 +109,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -147,7 +143,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
-    private ScheduledExecutorService executorService = executorService();
     private File baseDir;
     private FileSystemStorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
@@ -175,7 +170,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             FileHelpers.deleteFileOrDirectory(this.baseDir);
             this.baseDir = null;
         }
-        executorService.shutdown();
     }
 
     @Override
@@ -191,10 +185,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Sets up a new BookKeeper & ZooKeeper.
      */
     private static class BKZK implements AutoCloseable {
-        private final int writeCount = 500;
-        private final int maxWriteAttempts = 3;
-        private final int maxLedgerSize = 200 * Math.max(10, writeCount / 20);
-        private final AtomicBoolean secureBk = new AtomicBoolean();
         private final int bookieCount = 1;
         private AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
         private AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
@@ -213,11 +203,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                     .startZk(true)
                     .zkPort(bkPort)
                     .ledgersPath("/pravega/bookkeeper/ledgers")
-                    .secureBK(isSecure())
-                    .secureZK(isSecure())
-                    .tlsTrustStore("../segmentstore/config/bookie.truststore.jks")
-                    .tLSKeyStore("../segmentstore/config/bookie.keystore.jks")
-                    .tLSKeyStorePasswordPath("../segmentstore/config/bookie.keystore.jks.passwd")
                     .bookiePorts(bookiePorts)
                     .build();
             this.bookKeeperServiceRunner.startAll();
@@ -230,8 +215,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                     .connectString("localhost:" + bkPort)
                     .namespace(baseNamespace)
                     .retryPolicy(new ExponentialBackoffRetry(1000, 5))
-                    .connectionTimeoutMs(10000)
-                    .sessionTimeoutMs(10000)
                     .build());
 
             this.zkClient.get().start();
@@ -240,8 +223,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.bkConfig.set(BookKeeperConfig
                     .builder()
                     .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + bkPort)
-                    .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, maxWriteAttempts)
-                    .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, maxLedgerSize)
                     .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
                     .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                     .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bookieCount)
@@ -249,10 +230,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                     .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bookieCount)
                     .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000)
                     .build());
-        }
-
-        public boolean isSecure() {
-            return secureBk.get();
         }
 
         @Override
@@ -275,14 +252,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    DebugTool createDebugTool(BookKeeperLogFactory dataLogFactory, StorageFactory storageFactory) {
-        return new DebugTool(dataLogFactory, storageFactory);
+    DebugTool createDebugTool(BookKeeperLogFactory dataLogFactory, StorageFactory storageFactory, ScheduledExecutorService
+            scheduledExecutorService) {
+        return new DebugTool(dataLogFactory, storageFactory, scheduledExecutorService);
     }
 
     /**
      * Sets up the environment for creating a DebugSegmentContainer.
      */
-    private class DebugTool implements AutoCloseable {
+    private static class DebugTool implements AutoCloseable {
         private final CacheStorage cacheStorage;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
@@ -315,23 +293,22 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
                 .build();
 
-        DebugTool(BookKeeperLogFactory dataLogFactory, StorageFactory storageFactory) {
+        DebugTool(BookKeeperLogFactory dataLogFactory, StorageFactory storageFactory, ScheduledExecutorService
+                  scheduledExecutorService) {
             Preconditions.checkNotNull(dataLogFactory);
             Preconditions.checkNotNull(storageFactory);
             this.dataLogFactory = dataLogFactory;
             this.storageFactory = storageFactory;
-            this.operationLogFactory = new DurableLogFactory(durableLogConfig, this.dataLogFactory, executorService);
-
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE/5);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService);
-            this.readIndexFactory = new ContainerReadIndexFactory(readIndexConfig, this.cacheManager, executorService);
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(attributeIndexConfig, this.cacheManager, executorService);
-            this.writerFactory = new StorageWriterFactory(writerConfig, executorService);
-
+            this.operationLogFactory = new DurableLogFactory(durableLogConfig, this.dataLogFactory, scheduledExecutorService);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
+            this.readIndexFactory = new ContainerReadIndexFactory(readIndexConfig, this.cacheManager, scheduledExecutorService);
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(attributeIndexConfig, this.cacheManager, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(writerConfig, scheduledExecutorService);
             ContainerConfig containerConfig = ServiceBuilderConfig.getDefaultConfig().getConfig(ContainerConfig::builder);
             this.containerFactory = new StreamSegmentContainerFactory(containerConfig, this.operationLogFactory,
                     this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory,
-                    this::createContainerExtensions, executorService);
+                    this::createContainerExtensions, scheduledExecutorService);
         }
 
         private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
@@ -377,9 +354,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             }
             this.serviceBuilder.initialize();
             this.segmentsTracker = new SegmentsTracker(serviceBuilder.createStreamSegmentService(), serviceBuilder.createTableStoreService());
-            this.monitor = new AutoScaleMonitor(segmentsTracker.getStreamSegmentStore(), AutoScalerConfig.builder().build());
-            this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, this.segmentsTracker.getStreamSegmentStore(),
-                    this.segmentsTracker.getTableStore(), monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
+            this.monitor = new AutoScaleMonitor(this.segmentsTracker, AutoScalerConfig.builder().build());
+            this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, this.segmentsTracker,
+                    this.segmentsTracker, monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
                     null, null, true, serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
         }
@@ -437,15 +414,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 240000)
     public void testDurableDataLogFail() throws Exception {
+        ScheduledExecutorService executorService = executorService();
         int instanceId = 0;
-
-        // Creating tier 2 only once here.
+        // Creating a long term storage only once here.
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         FileSystemStorageConfig fsConfig = FileSystemStorageConfig
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
         this.storageFactory = new FileSystemStorageFactory(fsConfig, executorService);
+        log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
         this.bkzk = setUpNewBK(instanceId++);
@@ -456,6 +434,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Create two streams for writing data onto two different segments
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
         createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
+        log.info("Created two streams.");
 
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -464,7 +443,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory, connectionFactory);
 
+        log.info("Writing events on to stream: {}", STREAM1);
         writeEvents(STREAM1, clientFactory); // write 300 events on one segment
+        log.info("Writing events on to stream: {}", STREAM2);
         writeEvents(STREAM2, clientFactory); // write 300 events on other segment
 
         // Verify events write by reading them.
@@ -472,6 +453,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        log.info("Verified that events were written, by reading them.");
 
         readerGroupManager.close();
         clientFactory.close();
@@ -483,11 +465,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("No. of segments created = {}", allSegments.size());
 
         // Get the long term storage from the running pravega instance
-        @Cleanup Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
+        @Cleanup
+        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService);
 
         // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), this.segmentStoreStarter.segmentsTracker.getStreamSegmentStore(), storage)
+        waitForSegmentsInStorage(allSegments.keySet(), this.segmentStoreStarter.segmentsTracker, storage)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         this.segmentStoreStarter.close(); // Shutdown SegmentStore
@@ -502,6 +485,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         this.bkzk = setUpNewBK(instanceId++);
         this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
         this.dataLogFactory.initialize();
+        log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
         DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, CONTAINER_ID);
@@ -509,7 +493,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
 
         // Start debug segment container using dataLogFactory from new BK instance and old long term storageFactory.
-        DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory);
+        DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory, executorService);
 
         // Start a debug segment container with given id and recover all segments belonging to that container
         for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
@@ -521,18 +505,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
-
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
             Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService).join();
             debugStreamSegmentContainerMap.get(containerId).close();
         }
-
         debugTool.close();
+        log.info("Segments have been recovered.");
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
         controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
+        log.info("Started segment store and controller again.");
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
@@ -547,6 +531,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
         readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        log.info("Read all events again to verify that segments were recovered.");
     }
 
     public void createScopeStream(Controller controller, String scopeName, String streamName) {

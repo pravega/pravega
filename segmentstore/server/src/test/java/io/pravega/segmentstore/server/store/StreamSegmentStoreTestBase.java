@@ -31,38 +31,22 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataRecoveryTestUtils;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.WriterFactory;
-import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
-import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
-import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTests;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
-import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.server.tables.ContainerTableExtension;
-import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
-import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
-import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
-import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
-import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
@@ -70,7 +54,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -114,6 +97,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
+    private static final int CONTAINER_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -121,6 +105,20 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
+
+    // Configurations for DebugSegmentContainer
+    private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
+            .builder()
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
+            .build();
+    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+            .build();
+
     private StorageFactory readOnlyStorageFactory = null;
     private ScheduledExecutorService executorService = executorService();
 
@@ -128,7 +126,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .builder()
             .include(ServiceConfig
                     .builder()
-                    .with(ServiceConfig.CONTAINER_COUNT, 4)
+                    .with(ServiceConfig.CONTAINER_COUNT, CONTAINER_COUNT)
                     .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                     .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
                     .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
@@ -207,7 +205,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @throws Exception If an exception occurred.
      */
     public void endToEndDebugSegmentContainer() throws Exception {
-        int containerCount = 4;
+        ScheduledExecutorService executorService = executorService();
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -238,21 +236,21 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Storage storage = getReadOnlyStorageFactory().createStorageAdapter();
 
             // Delete container metadata segment and attribute index segment for each container Id from the persistent storage.
-            for (int containerId = 0; containerId < containerCount; containerId++) {
+            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, containerId);
             }
 
-            Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-
             // Create the environment for DebugSegmentContainer using the given storageFactory.
-            @Cleanup TestContext context = createContext(getReadOnlyStorageFactory());
-            OperationLogFactory localDurableLogFactory = new DurableLogFactory(durableLogConfig, context.dataLogFactory,
+            @Cleanup DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
+            OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, context.dataLogFactory,
                     executorService);
+            context.storageFactory = getReadOnlyStorageFactory();
 
-            // Recover all segments
-            for (int containerId = 0; containerId < containerCount; containerId++) {
+            // Start a debug segment container corresponding tpo each container Id and put it in the Hashmap with the Id.
+            Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
+            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
-                        DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, containerConfig, localDurableLogFactory,
+                        DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
                         context.getDefaultExtensions(), executorService);
 
@@ -260,9 +258,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 debugStreamSegmentContainerMap.put(containerId, localContainer);
             }
 
+            // Recover all segments from the long term storage using debug segment container.
             DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
-            for (int containerId = 0; containerId < containerCount; containerId++) {
+            // Verify that segment details match post recovery.
+            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
+            for (String segment : segmentNames) {
+                int containerId = segToConMapper.getContainerId(segment);
+                SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT).join();
+                Assert.assertEquals("Segment length mismatch.", (long) lengths.get(segment), props.getLength());
+            }
+
+            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 debugStreamSegmentContainerMap.get(containerId).close();
             }
         }
@@ -1154,61 +1161,5 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     @FunctionalInterface
     private interface StoreRequest {
         CompletableFuture<Void> apply(StreamSegmentStore store);
-    }
-
-    public TestContext createContext(StorageFactory storageFactory) {
-        return new TestContext(storageFactory);
-    }
-
-    public class TestContext implements AutoCloseable {
-        private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-        private final StorageFactory storageFactory;
-        private final DurableDataLogFactory dataLogFactory;
-        private final ReadIndexFactory readIndexFactory;
-        private final AttributeIndexFactory attributeIndexFactory;
-        private final WriterFactory writerFactory;
-        private final CacheStorage cacheStorage;
-        private final CacheManager cacheManager;
-        private final ReadIndexConfig defaultReadIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
-
-        private final AttributeIndexConfig defaultAttributeIndexConfig = AttributeIndexConfig
-                .builder()
-                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
-                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
-                .build();
-
-        private final WriterConfig defaultWriterConfig = WriterConfig
-                .builder()
-                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
-                .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3)
-                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
-                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
-                .build();
-        TestContext(StorageFactory storageFactory) {
-            this.storageFactory = storageFactory;
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
-            this.readIndexFactory = new ContainerReadIndexFactory(defaultReadIndexConfig, this.cacheManager, executorService());
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(defaultAttributeIndexConfig, this.cacheManager, executorService());
-            this.writerFactory = new StorageWriterFactory(defaultWriterConfig, executorService());
-        }
-
-        SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
-            return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, createTableExtension(c, e));
-        }
-
-        private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(c, this.cacheManager, e);
-        }
-
-        @Override
-        public void close() {
-            this.dataLogFactory.close();
-            this.cacheManager.close();
-            this.cacheStorage.close();
-            this.readIndexFactory.close();
-        }
     }
 }

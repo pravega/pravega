@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.containers;
+package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
@@ -26,7 +26,6 @@ import lombok.Getter;
 
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,12 +33,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A wrapper class to StreamSegmentStore to track the segments being created or deleted.
+ * A wrapper class to StreamSegmentStore and TableStore to track the segments being created or deleted. The list of segments
+ * obtained during this process is used in RestoreBackUpDataRecoveryTest to wait for segments to be flushed to the long term storage.
  */
 public class SegmentsTracker implements StreamSegmentStore, TableStore {
-    @Getter(AccessLevel.PUBLIC)
     private final StreamSegmentStore streamSegmentStore;
-    @Getter(AccessLevel.PUBLIC)
     private final TableStore tableStore;
 
     @Getter(AccessLevel.PUBLIC)

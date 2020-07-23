@@ -48,8 +48,11 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -61,7 +64,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -73,15 +75,17 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Tests for DebugStreamSegmentContainer class.
  */
+@Slf4j
 public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating the length for a segment
     private static final int MAX_SEGMENT_LENGTH = 10100; // Used in randomly generating the length for a segment
     private static final int CONTAINER_ID = 1234567;
     private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final int TEST_TIMEOUT_MILLIS = 10 * 1000;
+    private static final int TEST_TIMEOUT_MILLIS = 60 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
+    private static final int THREAD_POOL_COUNT = 30;
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -116,13 +120,23 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
             .build();
-    private ScheduledExecutorService executorService = executorService();
+    private ScheduledExecutorService executorService;
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
+    @Before
+    public void setUp() {
+        this.executorService = executorService();
+    }
+
+    @After
+    public void tearDown() {
+        this.executorService.shutdown();
+    }
+
     protected int getThreadPoolSize() {
-        return 100;
+        return THREAD_POOL_COUNT;
     }
 
     /**
@@ -136,7 +150,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Sets up dataLogFactory, readIndexFactory, attributeIndexFactory etc for the DebugSegmentContainer.
         @Cleanup
-        TestContext context = createContext();
+        TestContext context = createContext(executorService);
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         // Starts a DebugSegmentContainer.
         @Cleanup
@@ -144,6 +158,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                 context.getDefaultExtensions(), executorService());
         localContainer.startAsync().awaitRunning();
+        log.info("Started debug segment container.");
 
         // Record details(name, length & sealed status) of each segment to be created.
         ArrayList<String> segments = new ArrayList<>();
@@ -157,7 +172,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segments.add(name);
             futures.add(localContainer.registerExistingSegment(name, segmentLengths[i], segmentSealedStatus[i]));
         }
+        // Creates all the segments.
         Futures.allOf(futures).join();
+        log.info("Created the segments using debug segment container.");
 
         // Verify the Segments are still there with their length & sealed status.
         for (int i = 0; i < createdSegmentCount; i++) {
@@ -172,9 +189,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Use a storage instance to create segments. List the segments from the storage and recreate them.
      */
     @Test
-    public void testEndToEnd() throws StreamSegmentException, IOException, InterruptedException {
+    public void testEndToEnd() throws StreamSegmentException, IOException {
         // Segments are mapped to four different containers.
-        // DebugSegmentContainer for each container Id is created and segments belonging to that container are recovered.
         int containerCount = 4;
         int segmentsToCreateCount = 50;
 
@@ -184,20 +200,17 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         val s = new RollingStorage(baseStorage, new SegmentRollingPolicy(1));
         s.initialize(1);
+        log.info("Created a storage instance");
 
         // Record details(name, container Id & sealed status) of each segment to be created.
         Set<String> sealedSegments = new HashSet<>();
         byte[] data = "data".getBytes();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
-        int[] segmentsCountByContainer = new int[containerCount];
         Map<Integer, ArrayList<String>> segmentByContainers = new HashMap<>();
 
         // Create segments and get their container Ids, sealed status and names to verify.
         for (int i = 0; i < segmentsToCreateCount; i++) {
             String segmentName = "segment-" + RANDOM.nextInt();
-
-            // Count segments by each container Id.
-            segmentsCountByContainer[segToConMapper.getContainerId(segmentName)]++;
 
             // Use segmentName to map to different containers.
             int containerId = segToConMapper.getContainerId(segmentName);
@@ -217,21 +230,17 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 sealedSegments.add(segmentName);
             }
         }
+        log.info("Created some segments using the storage.");
 
         @Cleanup
-        TestContext context = createContext();
+        TestContext context = createContext(executorService);
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
                 executorService);
 
-        // List all segments
-        Storage storage = new AsyncStorageWrapper(s, executorService);
-
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
 
-
-        // Recover all segments
+        log.info("Start a debug segment container corresponding to each container id.");
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            @Cleanup
             MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                     context.getDefaultExtensions(), executorService);
@@ -240,10 +249,16 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             debugStreamSegmentContainerMap.put(containerId, localContainer);
         }
 
-        DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+        log.info("Recover all segments using the storage and debug segment containers.");
+        DataRecoveryTestUtils.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
 
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < containerCount; containerId++) {
+            for (String segment : segmentByContainers.get(containerId)) {
+                SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT).join();
+                Assert.assertEquals("Segment length mismatch.", data.length, props.getLength());
+                Assert.assertEquals("Sealed status of the segment don't match.", sealedSegments.contains(segment), props.isSealed());
+            }
             debugStreamSegmentContainerMap.get(containerId).close();
         }
     }
@@ -261,31 +276,31 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    public TestContext createContext() {
-        return new TestContext();
+    public static TestContext createContext(ScheduledExecutorService scheduledExecutorService) {
+        return new TestContext(scheduledExecutorService);
     }
 
 
-    public class TestContext implements AutoCloseable {
-        private final WatchableInMemoryStorageFactory storageFactory;
-        private final DurableDataLogFactory dataLogFactory;
-        private final ReadIndexFactory readIndexFactory;
-        private final AttributeIndexFactory attributeIndexFactory;
-        private final WriterFactory writerFactory;
-        private final CacheStorage cacheStorage;
-        private final CacheManager cacheManager;
+    public static class TestContext implements AutoCloseable {
+        public StorageFactory storageFactory;
+        public final DurableDataLogFactory dataLogFactory;
+        public final ReadIndexFactory readIndexFactory;
+        public final AttributeIndexFactory attributeIndexFactory;
+        public final WriterFactory writerFactory;
+        public final CacheStorage cacheStorage;
+        public final CacheManager cacheManager;
 
-        TestContext() {
-            this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
+        TestContext(ScheduledExecutorService scheduledExecutorService) {
+            this.storageFactory = new WatchableInMemoryStorageFactory(scheduledExecutorService);
+            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, scheduledExecutorService);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, scheduledExecutorService);
         }
 
-        SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
+        public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
             return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, createTableExtension(c, e));
         }
 
@@ -297,7 +312,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         public void close() {
             this.readIndexFactory.close();
             this.dataLogFactory.close();
-            this.storageFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
         }

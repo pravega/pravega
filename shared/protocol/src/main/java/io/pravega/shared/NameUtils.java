@@ -196,16 +196,6 @@ public final class NameUtils {
         Preconditions.checkArgument(!segmentName.endsWith(HEADER_SUFFIX), "segmentName is already a segment header name");
         return segmentName + HEADER_SUFFIX;
     }
-
-    /**
-     * Checks whether given name is an Attribute Segment.
-     *
-     * @param segmentName   The name of the segment.
-     * @return              true if the name is Attribute Segment. False otherwise
-     */
-    public static boolean isAttributeSegment(String segmentName) {
-        return segmentName.endsWith(ATTRIBUTE_SUFFIX);
-    }
   
     /**
      * Checks whether given name is a Header Segment.
@@ -215,6 +205,26 @@ public final class NameUtils {
      */
     public static boolean isHeaderSegment(String segmentName) {
         return segmentName.endsWith(HEADER_SUFFIX);
+    }
+
+    /**
+     * Checks whether given name is an Attribute Segment.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              true if the name is Attribute Segment. False otherwise
+     */
+    public static boolean isMetadataAttributeSegment(String segmentName) {
+        return segmentName.startsWith("_system/containers/metadata_") && segmentName.endsWith(ATTRIBUTE_SUFFIX);
+    }
+
+    /**
+     * Checks whether given name is an Attribute Segment.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              true if the name is Attribute Segment. False otherwise
+     */
+    public static boolean isMetadataSegment(String segmentName) {
+        return segmentName.startsWith("_system/containers/metadata_");
     }
 
     /**
