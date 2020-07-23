@@ -294,7 +294,7 @@ public class ServiceBuilder implements AutoCloseable {
                 writerFactory, storageFactory, this::createContainerExtensions, this.coreExecutor);
     }
 
-    private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
+    public Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
         return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
     }

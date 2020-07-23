@@ -235,11 +235,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Get the persistent storage from readOnlySegmentStore.
             Storage storage = getReadOnlyStorageFactory().createStorageAdapter();
 
-            // Delete container metadata segment and attribute index segment for each container Id from the persistent storage.
-            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-                DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, containerId);
-            }
-
             // Create the environment for DebugSegmentContainer using the given storageFactory.
             @Cleanup DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, context.dataLogFactory,
