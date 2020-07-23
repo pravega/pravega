@@ -72,8 +72,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -156,6 +157,27 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "listKeyValueTables called for scope {}.", scopeName);
 
         final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
+        
+        Function<String, CompletableFuture<Controller.KVTablesInScopeResponse>> streamsFn = delegationToken ->
+                listWithFilter(request.getContinuationToken().getToken(), pageLimit, 
+                        (x, y) -> controllerService.listKeyValueTables(scopeName, x, y), 
+                        x -> grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofKeyValueTableInScope(scopeName, x), AuthHandler.Permissions.READ, ctx), 
+                        x -> KeyValueTableInfo.newBuilder().setScope(scopeName).setKvtName(x).build())
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.KVTablesInScopeResponse
+                                            .newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND).build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                return Controller.KVTablesInScopeResponse
+                                        .newBuilder().addAllKvtables(response.getKey())
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(response.getValue()).build())
+                                        .setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).build();
+                            }
+                        });
 
         authenticateExecuteAndProcessResults(
                 () -> {
@@ -166,27 +188,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("Result of authorization for [{}] and READ permission is: [{}]",
                             AuthResourceRepresentation.ofScope(scopeName), result);
                     return result;
-                },
-                delegationToken -> listKeyValueTablesTillLimit(pageLimit, scopeName,
-                                                                request.getContinuationToken().getToken(), ctx)
-                        .handle((response, ex) -> {
-                            if (ex != null) {
-                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
-                                    return Controller.KVTablesInScopeResponse.newBuilder().setStatus(Controller.KVTablesInScopeResponse.Status.SCOPE_NOT_FOUND).build();
-                                } else {
-                                    throw new CompletionException(ex);
-                                }
-                            } else {
-                                List<KeyValueTableInfo> kvTablesList = response.getLeft().stream()
-                                        .map(kvt -> KeyValueTableInfo.newBuilder().setScope(scopeName).setKvtName(kvt).build())
-                                        .collect(Collectors.toList());
-                                return Controller.KVTablesInScopeResponse
-                                        .newBuilder().addAllKvtables(kvTablesList)
-                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
-                                                .setToken(response.getRight()).build())
-                                        .setStatus(Controller.KVTablesInScopeResponse.Status.SUCCESS).build();
-                            }
-                        }), responseObserver, requestTag);
+                }, streamsFn, responseObserver, requestTag);
 
     }
 
@@ -557,8 +559,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     AuthResourceRepresentation.ofScopes(), result);
             return result;
         };
+        
         Function<String, CompletableFuture<Controller.ScopesResponse>> scopesFn = delegationToken ->
-                listScopesInternal(request.getContinuationToken().getToken(), pageLimit, ctx)
+                listWithFilter(request.getContinuationToken().getToken(), pageLimit,
+                        controllerService::listScopes,
+                        x -> grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofScope(x), AuthHandler.Permissions.READ, ctx),
+                        x -> x)
                         .thenApply(response -> Controller.ScopesResponse
                                 .newBuilder().addAllScopes(response.getKey())
                                 .setContinuationToken(Controller.ContinuationToken.newBuilder()
@@ -566,36 +572,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 .build());
 
         authenticateExecuteAndProcessResults(stringSupplier, scopesFn, responseObserver, requestTag);
-    }
-
-    private CompletableFuture<Pair<List<String>, String>> listScopesInternal(String continuationToken, int limit, AuthContext ctx) {
-        List<String> scopes = new ArrayList<>();
-        return controllerService.listScopes(continuationToken, limit)
-                .thenCompose(response -> {
-                    log.debug("All scopes in scope with continuation token: {}", response);
-                    // filter unauthorized scopes. 
-                    // fetch recursively if scopes are filtered out.
-                    AtomicInteger filteredCount = new AtomicInteger();
-                    response.getKey().stream().filter(x -> {
-                        boolean authorized = grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofScope(x),
-                                AuthHandler.Permissions.READ, ctx);
-                        if (authorized) {
-                            return true;
-                        } else {
-                            filteredCount.incrementAndGet();
-                            return false;
-                        }
-                    }).forEach(scopes::add);
-                    if (filteredCount.get() > 0) {
-                        return listScopesInternal(response.getValue(), limit - scopes.size(), ctx)
-                                .thenApply(result -> {
-                                    scopes.addAll(result.getKey());
-                                    return new ImmutablePair<>(scopes, result.getValue());
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(scopes, response.getValue()));
-                    }
-                });
     }
     
     @Override
@@ -690,14 +666,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 "listStream", scopeName);
         log.info(requestTag.getRequestId(), "listStream called for scope {}.", scopeName);
 
-        final AuthContext ctx;
-        if (this.grpcAuthHelper.isAuthEnabled()) {
-            ctx = AuthContext.current();
-        } else {
-            ctx = null;
-        }
+        final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
         Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
-                listStreamsInternal(scopeName, request.getContinuationToken().getToken(), pageLimit, ctx)
+                listWithFilter(request.getContinuationToken().getToken(), pageLimit,
+                        (x, y) -> controllerService.listStreams(scopeName, x, y),
+                        x -> grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofStreamInScope(scopeName, x), AuthHandler.Permissions.READ, ctx),
+                        x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build())
                         .handle((response, ex) -> {
                             if (ex != null) {
                                 if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
@@ -725,38 +699,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         return result;
                 }, streamsFn, responseObserver, requestTag);
     }
-
-    private CompletableFuture<Pair<List<StreamInfo>, String>> listStreamsInternal(String scope, String continuationToken, int limit, AuthContext ctx) {
-        List<StreamInfo> streams = new ArrayList<>();
-        return controllerService.listStreams(scope, continuationToken, limit)
-                                .thenCompose(response -> {
-                                    log.debug("All streams in scope with continuation token: {}", response);
-                                    // filter unauthorized scopes. 
-                                    // fetch recursively if scopes are filtered out.
-                                    AtomicInteger filteredCount = new AtomicInteger();
-
-                                    response.getKey().stream().filter(x -> {
-                                        boolean authorized = grpcAuthHelper.isAuthorized(AuthResourceRepresentation.ofStreamInScope(scope, x),
-                                                AuthHandler.Permissions.READ, ctx);
-                                        if (authorized) {
-                                            return true;
-                                        } else {
-                                            filteredCount.incrementAndGet();
-                                            return false;
-                                        }
-                                    }).forEach(x -> streams.add(StreamInfo.newBuilder().setScope(scope).setStream(x).build()));
-                                    if (filteredCount.get() > 0) {
-                                        return listStreamsInternal(scope, response.getValue(), limit - streams.size(), ctx)
-                                                .thenApply(result -> {
-                                                    streams.addAll(result.getKey());
-                                                    return new ImmutablePair<>(streams, result.getValue());
-                                                });
-                                    } else {
-                                        return CompletableFuture.completedFuture(new ImmutablePair<>(streams, response.getValue()));
-                                    }
-                                });
-    }
-
+    
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteScope", request.getScope());
@@ -911,37 +854,33 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
-    private CompletableFuture<Pair<List<String>, String>> listKeyValueTablesTillLimit(int limit, String scopeName,
-                                                                                      String token, final AuthContext ctx) {
-        return controllerService
-                .listKeyValueTables(scopeName, token, limit)
-                .thenCompose( response -> {
-                    log.debug("All KeyValueTables in scope with continuation token: {}", response.getRight());
-                    List<String> filteredKVTList = getAuthorizedKeyValueTables(scopeName, response.getKey(), ctx);
-                    if (filteredKVTList.size() < response.getKey().size()) {
-                        return listKeyValueTablesTillLimit(pageLimit - response.getKey().size(), scopeName, response.getValue(), ctx)
-                                .thenApply( nextResponse -> {
-                                    filteredKVTList.addAll(nextResponse.getKey());
-                                    return new ImmutablePair<>(filteredKVTList, nextResponse.getValue());
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(new ImmutablePair<>(filteredKVTList, response.getValue()));
-                    }
-                });
-    }
+    private <T> CompletableFuture<Pair<List<T>, String>> listWithFilter(String continuationToken, int limit,
+                                                                        BiFunction<String, Integer, CompletableFuture<Pair<List<String>, String>>> fetcher,
+                                                                        Predicate<String> filter, Function<String, T> tCreator) {
+        List<T> results = new ArrayList<>();
+        return fetcher.apply(continuationToken, limit).thenCompose(response -> {
+            log.debug("All entries with continuation token: {}", response);
+            // filter unauthorized results. 
+            // fetch recursively if results are filtered out.
+            boolean filtered = false;
+            for (String key : response.getKey()) {
+                if (filter.test(key)) {
+                    results.add(tCreator.apply(key));
+                } else {
+                    filtered = true;
+                }
+            }
 
-    private List<String> getAuthorizedKeyValueTables(String scopeName, List<String> kvtList, AuthContext ctx) {
-        return kvtList.stream()
-                .filter(kvtName -> {
-                    String kvtAuthResource =
-                            AuthResourceRepresentation.ofKeyValueTableInScope(scopeName, kvtName);
-
-                    boolean isAuthorized = grpcAuthHelper.isAuthorized(kvtAuthResource,
-                            AuthHandler.Permissions.READ, ctx);
-                    log.debug("Authorization for [{}] for READ permission was [{}]",
-                            kvtAuthResource, isAuthorized);
-                    return isAuthorized;
-                }).collect(Collectors.toList());
+            if (filtered) {
+                return listWithFilter(response.getValue(), limit - results.size(), fetcher, filter, tCreator)
+                              .thenApply(result -> {
+                                  results.addAll(result.getKey());
+                                  return new ImmutablePair<>(results, result.getValue());
+                              });
+            } else {
+                return CompletableFuture.completedFuture(new ImmutablePair<>(results, response.getValue()));
+            }
+        });
     }
 
     private boolean isAuthEnabled() {
