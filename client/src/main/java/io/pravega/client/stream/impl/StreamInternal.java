@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.Stream;
+import io.pravega.shared.NameUtils;
 
 public interface StreamInternal extends Stream {
 
@@ -20,17 +21,10 @@ public interface StreamInternal extends Stream {
      */
     @Override
     default String getScopedName() {
-        StringBuffer sb = new StringBuffer();
-        String scope = getScope();
-        if (scope != null) {
-            sb.append(scope);
-            sb.append('/');
-        }
-        sb.append(getStreamName());
-        return sb.toString();
+        return NameUtils.getScopedStreamName(getScope(), getStreamName());
     }
     
-    public static Stream fromScopedName(String scopedName) {
+    static Stream fromScopedName(String scopedName) {
         String[] tokens = scopedName.split("/");
         if (tokens.length == 2) {
             return new StreamImpl(tokens[0], tokens[1]);
