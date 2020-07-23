@@ -115,7 +115,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  */
 @Slf4j
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofMillis(60000 * 1000);
+    protected static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
     private static final int CONTAINER_COUNT = 1;
     private static final int CONTAINER_ID = 0;
@@ -193,9 +193,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         BKZK(int instanceId) throws Exception {
             bkPort = TestUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
-            for (int i = 0; i < bookieCount; i++) {
-                bookiePorts.add(TestUtils.getAvailableListenPort());
-            }
+            bookiePorts.add(TestUtils.getAvailableListenPort());
 
             this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
@@ -486,20 +484,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         DebugTool debugTool = createDebugTool(this.dataLogFactory, this.storageFactory, executorService);
 
         // Start a debug segment container with given id and recover all segments belonging to that container
-        for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-            DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
-                    debugTool.containerFactory.createDebugStreamSegmentContainer(containerId);
-            Services.startAsync(debugStreamSegmentContainer, executorService).join();
-            debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
-        }
+        DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
+                debugTool.containerFactory.createDebugStreamSegmentContainer(CONTAINER_ID);
+        Services.startAsync(debugStreamSegmentContainer, executorService).join();
+        debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
+        // List segments and recover them
         DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
-        // Re-create all segments which were listed.
-        for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService).join();
-            debugStreamSegmentContainerMap.get(containerId).close();
-        }
+        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService).join();
+        debugStreamSegmentContainerMap.get(CONTAINER_ID).close();
         debugTool.close();
         log.info("Segments have been recovered.");
 
