@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataRecoveryTestUtils;
@@ -58,7 +57,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -189,7 +187,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Use a storage instance to create segments. List the segments from the storage and recreate them.
      */
     @Test
-    public void testEndToEnd() throws StreamSegmentException, IOException {
+    public void testEndToEnd() throws Exception {
         // Segments are mapped to four different containers.
         int containerCount = 4;
         int segmentsToCreateCount = 50;

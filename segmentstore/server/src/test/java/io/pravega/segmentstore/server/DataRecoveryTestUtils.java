@@ -27,7 +27,6 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
@@ -54,24 +54,24 @@ public class DataRecoveryTestUtils {
      * @param storage                           Long term storage.
      * @param debugStreamSegmentContainers      A hashmap which has debug segment container instances to create segments.
      * @param executorService                   A thread pool for execution.
-     * @throws                                  IOException in case of exception during the execution.
+     * @throws                                  Exception in case of exception during the execution.
      */
     public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainers,
-                                          ExecutorService executorService) throws IOException {
+                                          ExecutorService executorService) throws Exception {
         log.info("Recovery started for all containers...");
         Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
         for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
             // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-            DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, debugStreamSegmentContainer.getKey());
+            deleteContainerMetadataSegments(storage, debugStreamSegmentContainer.getKey());
 
             ContainerTableExtension ext = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
             AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getKey()),
-                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).join();
+                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Add all segments present in the container metadata in a set.
             Set<String> metadataSegments = new HashSet<>();
             it.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
-                    .collect(Collectors.toSet())), executorService).join();
+                    .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsByContainer.put(debugStreamSegmentContainer.getValue(), metadataSegments);
         }
 
@@ -146,7 +146,7 @@ public class DataRecoveryTestUtils {
      * @param storage       Long term storage to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    public static void deleteContainerMetadataSegments(Storage storage, int containerId) {
+    private static void deleteContainerMetadataSegments(Storage storage, int containerId) {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         deleteSegment(storage, metadataSegmentName);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
@@ -158,7 +158,7 @@ public class DataRecoveryTestUtils {
      * @param storage       Long term storage to delete the segment from.
      * @param segmentName   Name of the segment to be deleted.
      */
-    static void deleteSegment(Storage storage, String segmentName) {
+    private static void deleteSegment(Storage storage, String segmentName) {
         try {
             SegmentHandle segmentHandle = storage.openWrite(segmentName).join();
             storage.delete(segmentHandle, TIMEOUT).join();
