@@ -40,7 +40,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     private Map<String, InMemoryScope> scopes = new HashMap<>();
 
 
-    public InMemoryKVTMetadataStore(Executor executor) {
+    public InMemoryKVTMetadataStore() {
         super(new InMemoryHostIndex());
     }
 
