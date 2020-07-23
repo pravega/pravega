@@ -88,6 +88,45 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
+    public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
+        return CompletableFuture.completedFuture(createdScopes.containsKey(scopeName));
+    }
+
+    @Override
+    public AsyncIterator<String> listScopes() {
+        Set<String> collect = createdScopes.keySet();
+        return new AsyncIterator<String>() {
+            Object lock = new Object();
+            @GuardedBy("lock")
+            Iterator<String> iterator = collect.iterator();
+            @Override
+            public CompletableFuture<String> getNext() {
+                String next;
+                synchronized (lock) {
+                    if (!iterator.hasNext()) {
+                        next = null;
+                    } else {
+                        next = iterator.next();
+                    }
+                }
+
+                return CompletableFuture.completedFuture(next);
+            }
+        };
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
+        MockScope mockScope = this.createdScopes.get(scopeName);
+        if (mockScope != null) {
+            return CompletableFuture.completedFuture(mockScope.streams.containsKey(new StreamImpl(scopeName, streamName)));
+        } else {
+            return CompletableFuture.completedFuture(false);
+        }
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         if (createdScopes.get(scopeName) != null) {
             return CompletableFuture.completedFuture(false);
