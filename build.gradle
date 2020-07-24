@@ -842,6 +842,7 @@ project('test:system') {
         tasks.withType(Exec) { environment "imageVersionZkOp",System.getProperty("imageVersionZkOp", "latest") }
         tasks.withType(Exec) { environment "chartName",System.getProperty("chartName", "pravega") }
         tasks.withType(Exec) { environment "repository",System.getProperty("repository", "pravega") }
+        tasks.withType(Exec) { environment "nameSpace",System.getProperty("nameSpace", "default") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -864,6 +865,7 @@ project('test:system') {
         systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        systemProperty "nameSpace", System.getProperty("nameSpace", "default")
         // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
         // bookkeeper version defaults to pravega version.
