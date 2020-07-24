@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -50,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -111,10 +113,11 @@ public class ControllerServiceTest {
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+
         kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper,  executor,  executor,
                 "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(connectionFactory, hostStore), executor, null);
+                new SegmentHelper(connectionFactory, hostStore, executor), executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -247,5 +250,29 @@ public class ControllerServiceTest {
         status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
+    }
+    
+    @Test(timeout = 10000L)
+    public void testWriterMark() {
+        String scope = "mark";
+        String stream = "mark";
+        String writerId = "writer";
+        // partially create stream
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamStore).createStream(eq(scope), eq(stream), any(), anyLong(), any(), any());
+
+        doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict")))
+                .when(streamStore).noteWriterMark(eq(scope), eq(stream), eq(writerId), anyLong(), any(), any(), any());
+        
+        AssertExtensions.assertFutureThrows("Exception should be thrown to the caller", 
+                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found")))
+                .when(streamStore).noteWriterMark(eq(scope), eq(stream), eq(writerId), anyLong(), any(), any(), any());
+
+        AssertExtensions.assertFutureThrows("Exception should be thrown to the caller", 
+                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        
     }
 }

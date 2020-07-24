@@ -12,6 +12,7 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -327,6 +328,20 @@ public final class NameUtils {
         sb.append(EPOCH_DELIMITER);
         sb.append(epoch);
         return sb.toString();
+    }
+
+    /**
+     * Returns a list representing the components of a scoped Stream/Key-Value Table name.
+     *
+     * @param scopedName The scoped name.
+     * @return A list containing the components. If the scoped name was properly formatted, this list should have
+     * two elements: element index 0 has the scope name and element index 1 has the stream name.
+     * @throws IllegalStateException If 'scopedName' is not in the form 'scope/name`.
+     */
+    public static List<String> extractScopedNameTokens(String scopedName) {
+        String[] tokens = scopedName.split("/");
+        Preconditions.checkArgument(tokens.length == 2, "Unexpected format for '%s'. Expected format '<scope-name>/<name>'.", scopedName);
+        return Arrays.asList(tokens);
     }
 
     /**

@@ -10,13 +10,20 @@
 package io.pravega.controller.server.v1;
 
 import com.google.common.base.Strings;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -50,7 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -61,6 +67,11 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 /**
  * Controller Service Implementation tests.
@@ -87,13 +98,18 @@ public abstract class ControllerServiceImplTest {
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
+    RequestTracker requestTracker = new RequestTracker(true);
+    private ControllerService controllerSpied;
+    
+    abstract ControllerService getControllerService() throws Exception;
 
     @Before
-    public abstract void setup() throws Exception;
-
-    @After
-    public abstract void tearDown() throws Exception;
-
+    public void setUp() throws Exception {
+        controllerSpied = spy(getControllerService());
+        this.controllerService = new ControllerServiceImpl(controllerSpied, 
+                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+    }
+    
     @Test
     public void getControllerServersTest() {
         ResultObserver<ServerResponse> result = new ResultObserver<>();
@@ -106,12 +122,15 @@ public abstract class ControllerServiceImplTest {
     @Test
     public void createScopeTests() {
         CreateScopeStatus status;
-
         // region createScope
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
         this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), result1);
         status = result1.get();
         assertEquals(status.getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertTrue(exists.get().getExists());
 
         ResultObserver<CreateScopeStatus> result2 = new ResultObserver<>();
         this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE2), result2);
@@ -401,6 +420,10 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         this.controllerService.createScope(ScopeInfo.newBuilder().setScope(SCOPE1).build(), result);
         Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkStreamExists(StreamInfo.newBuilder().setScope(SCOPE1).setStream(STREAM1).build(), exists);
+        assertFalse(exists.get().getExists());
 
         ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result1);
@@ -838,6 +861,33 @@ public abstract class ControllerServiceImplTest {
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
+    @Test
+    public void testListScopes() {
+        ResultObserver<Controller.ScopesResponse> list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+        assertTrue(list.get().getScopesList().isEmpty());
+
+        ResultObserver<Controller.ExistsResponse> exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertFalse(exists.get().getExists());
+        
+        // region createScope
+        ResultObserver<CreateScopeStatus> create = new ResultObserver<>();
+        this.controllerService.createScope(ModelHelper.createScopeInfo(SCOPE1), create);
+        assertEquals(create.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+
+        assertTrue(list.get().getScopesList().contains(SCOPE1));
+
+        exists = new ResultObserver<>();
+        this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
+        assertTrue(exists.get().getExists());
+    }
+
     @Test(timeout = 30000L)
     public void testWriterMark() {
         String writer1 = "writer1";
@@ -924,6 +974,23 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
 
+        // try failing request
+        doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "")))
+                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any());
+        request = Controller.TimestampFromWriter.newBuilder()
+                                                .setWriter(writer1)
+                                                .setTimestamp(4L)
+                                                .setPosition(position)
+                                                .build();
+        ResultObserver<Controller.TimestampResponse> resultObserverFailing = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserverFailing);
+        AssertExtensions.assertThrows("", resultObserverFailing::get, e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StatusRuntimeException
+                    && ((StatusRuntimeException) unwrap).getStatus().getCode().equals(Status.INTERNAL.getCode());
+        });
+        
+        // remove writer
         Controller.RemoveWriterRequest writerShutdownRequest = Controller.RemoveWriterRequest
                 .newBuilder().setStream(streamInfo).setWriter(writer1).build();
         ResultObserver<Controller.RemoveWriterResponse> shutdownResultObserver = new ResultObserver<>();

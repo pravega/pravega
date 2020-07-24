@@ -23,6 +23,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
@@ -108,12 +109,42 @@ public class StreamMetaDataTests {
     private final ScalingConfig scalingPolicyCommon2 = new ScalingConfig();
     private final RetentionConfig retentionPolicyCommon = new RetentionConfig();
     private final RetentionConfig retentionPolicyCommon2 = new RetentionConfig();
+    private final RetentionConfig retentionPolicyGran = new RetentionConfig();
+    private final RetentionConfig retentionPolicyDateMins = new RetentionConfig();
+    private final RetentionConfig retentionPolicyHoursMins = new RetentionConfig();
+    private final RetentionConfig retentionPolicyOnlyHours = new RetentionConfig();
+    private final RetentionConfig retentionPolicyOnlyMins = new RetentionConfig();
     private final StreamProperty streamResponseExpected = new StreamProperty();
     private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamProperty streamResponseExpected3 = new StreamProperty();
+    private final StreamProperty streamResponseGranExpected = new StreamProperty();
+    private final StreamProperty streamResponseRetDaysMinsExpected = new StreamProperty();
+    private final StreamProperty streamResponseRetHoursMinsExpected = new StreamProperty();
+    private final StreamProperty streamResponseRetOnlyHoursExpected = new StreamProperty();
+    private final StreamProperty streamResponseRetOnlyMinsExpected = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
             .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
+            .build();
+    private final StreamConfiguration streamCfgRetTimeGranular = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(2L).plusHours(3L).plusMinutes(5L))).build();
+
+    private final StreamConfiguration streamCfgRetTimeDaysMins = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(10L).plusMinutes(50L)))
+            .build();
+    private final StreamConfiguration streamCfgRetTimeHoursMins = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofHours(13L).plusMinutes(26L)))
+            .build();
+    private final StreamConfiguration streamCfgRetTimeOnlyHours = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofHours(16L)))
+            .build();
+    private final StreamConfiguration streamCfgRetTimeOnlyMins = StreamConfiguration.builder()
+            .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
+            .retentionPolicy(RetentionPolicy.byTime(Duration.ofMinutes(32L)))
             .build();
 
     private final CreateStreamRequest createStreamRequest2 = new CreateStreamRequest();
@@ -125,6 +156,16 @@ public class StreamMetaDataTests {
 
     private final CompletableFuture<StreamConfiguration> streamConfigFuture = CompletableFuture.
             completedFuture(streamConfiguration);
+    private final CompletableFuture<StreamConfiguration> streamCfgRetTimeGranFuture = CompletableFuture.
+            completedFuture(streamCfgRetTimeGranular);
+    private final CompletableFuture<StreamConfiguration> streamCfgRetTimeDaysMinsFuture = CompletableFuture.
+            completedFuture(streamCfgRetTimeDaysMins);
+    private final CompletableFuture<StreamConfiguration> streamCfgRetTimeHoursMinsFuture = CompletableFuture.
+            completedFuture(streamCfgRetTimeHoursMins);
+    private final CompletableFuture<StreamConfiguration> streamCfgRetTimeOnlyHoursFuture = CompletableFuture.
+            completedFuture(streamCfgRetTimeOnlyHours);
+    private final CompletableFuture<StreamConfiguration> streamCfgRetTimeOnlyMinsFuture = CompletableFuture.
+            completedFuture(streamCfgRetTimeOnlyMins);
     private final CompletableFuture<CreateStreamStatus> createStreamStatus = CompletableFuture.
             completedFuture(CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.SUCCESS).build());
     private final CompletableFuture<CreateStreamStatus> createStreamStatus2 = CompletableFuture.
@@ -166,14 +207,62 @@ public class StreamMetaDataTests {
 
         retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
         retentionPolicyCommon.setValue(123L);
+        TimeBasedRetention timeRetention = new TimeBasedRetention();
+        retentionPolicyCommon.setTimeBasedRetention(timeRetention.days(123L).hours(0L).minutes(0L));
 
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
+        retentionPolicyCommon2.setTimeBasedRetention(null);
 
         streamResponseExpected.setScopeName(scope1);
         streamResponseExpected.setStreamName(stream1);
         streamResponseExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseExpected.setRetentionPolicy(retentionPolicyCommon);
+
+        retentionPolicyGran.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyGran.setValue(0L);
+        TimeBasedRetention tr = new TimeBasedRetention();
+        retentionPolicyGran.setTimeBasedRetention(tr.days(2L).hours(3L).minutes(5L));
+        streamResponseGranExpected.setScopeName(scope1);
+        streamResponseGranExpected.setStreamName(stream1);
+        streamResponseGranExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseGranExpected.setRetentionPolicy(retentionPolicyGran);
+
+        retentionPolicyDateMins.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyDateMins.setValue(0L);
+        TimeBasedRetention tr1 = new TimeBasedRetention();
+        retentionPolicyDateMins.setTimeBasedRetention(tr1.days(10L).hours(0L).minutes(50L));
+        streamResponseRetDaysMinsExpected.setScopeName(scope1);
+        streamResponseRetDaysMinsExpected.setStreamName(stream1);
+        streamResponseRetDaysMinsExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseRetDaysMinsExpected.setRetentionPolicy(retentionPolicyDateMins);
+
+        retentionPolicyHoursMins.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyHoursMins.setValue(0L);
+        TimeBasedRetention tr2 = new TimeBasedRetention();
+        retentionPolicyHoursMins.setTimeBasedRetention(tr2.days(0L).hours(13L).minutes(26L));
+        streamResponseRetHoursMinsExpected.setScopeName(scope1);
+        streamResponseRetHoursMinsExpected.setStreamName(stream1);
+        streamResponseRetHoursMinsExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseRetHoursMinsExpected.setRetentionPolicy(retentionPolicyHoursMins);
+
+        retentionPolicyOnlyHours.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyOnlyHours.setValue(0L);
+        TimeBasedRetention tr3 = new TimeBasedRetention();
+        retentionPolicyOnlyHours.setTimeBasedRetention(tr3.days(0L).hours(16L).minutes(0L));
+        streamResponseRetOnlyHoursExpected.setScopeName(scope1);
+        streamResponseRetOnlyHoursExpected.setStreamName(stream1);
+        streamResponseRetOnlyHoursExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseRetOnlyHoursExpected.setRetentionPolicy(retentionPolicyOnlyHours);
+
+        retentionPolicyOnlyMins.setType(TypeEnum.LIMITED_DAYS);
+        retentionPolicyOnlyMins.setValue(0L);
+        TimeBasedRetention tr4 = new TimeBasedRetention();
+        retentionPolicyOnlyMins.setTimeBasedRetention(tr4.days(0L).hours(0L).minutes(32L));
+        streamResponseRetOnlyMinsExpected.setScopeName(scope1);
+        streamResponseRetOnlyMinsExpected.setStreamName(stream1);
+        streamResponseRetOnlyMinsExpected.setScalingPolicy(scalingPolicyCommon);
+        streamResponseRetOnlyMinsExpected.setRetentionPolicy(retentionPolicyOnlyMins);
 
         createStreamRequest.setStreamName(stream1);
         createStreamRequest.setScalingPolicy(scalingPolicyCommon);
@@ -350,6 +439,47 @@ public class StreamMetaDataTests {
         assertEquals("Get Stream Config Status", 200, response.getStatus());
         StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
         testExpectedVsActualObject(streamResponseExpected, streamResponseActual);
+        response.close();
+
+        // Test to get a Stream with time based Retention Config set to days, hours and mins
+        when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamCfgRetTimeGranFuture);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Stream Config Status", 200, response.getStatus());
+        streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseGranExpected, streamResponseActual);
+        response.close();
+
+        // Test to get a Stream with time based Retention Config set to days and mins
+        when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamCfgRetTimeDaysMinsFuture);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Stream Config Status", 200, response.getStatus());
+        streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseRetDaysMinsExpected, streamResponseActual);
+        response.close();
+
+        // Test to get a Stream with time based Retention Config set to hours and mins
+        when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamCfgRetTimeHoursMinsFuture);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Stream Config Status", 200, response.getStatus());
+        streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseRetHoursMinsExpected, streamResponseActual);
+        response.close();
+
+        // Test to get a Stream with time based Retention Config set to only hours ( 0 days and 0 mins)
+
+        when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamCfgRetTimeOnlyHoursFuture);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Stream Config Status", 200, response.getStatus());
+        streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseRetOnlyHoursExpected, streamResponseActual);
+        response.close();
+
+        // Test to get a Stream with time based Retention Config set to only mins ( 0 days and 0 hours)
+        when(mockControllerService.getStream(scope1, stream1)).thenReturn(streamCfgRetTimeOnlyMinsFuture);
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Stream Config Status", 200, response.getStatus());
+        streamResponseActual = response.readEntity(StreamProperty.class);
+        testExpectedVsActualObject(streamResponseRetOnlyMinsExpected, streamResponseActual);
         response.close();
 
         // Get a non-existent stream

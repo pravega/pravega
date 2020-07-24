@@ -25,8 +25,7 @@ services:
     environment:
       WAIT_FOR: ${ZK_URL:-zookeeper:2181}
       JAVA_OPTS: |
-        -Dcontroller.zk.url=${ZK_URL:-zookeeper:2181}
-        -Dconfig.controller.metricenableCSVReporter=false
+        -Dcontroller.zk.connect.uri=${ZK_URL:-zookeeper:2181}
         -Xmx512m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
@@ -46,12 +45,11 @@ services:
       ZK_URL: ${ZK_URL:-zookeeper:2181}
       CONTROLLER_URL: tcp://controller:9090
       JAVA_OPTS: |
-        -Dmetrics.enableCSVReporter=false
-        -Dpravegaservice.publishedIPAddress=${PUBLISHED_ADDRESS}
-        -Dpravegaservice.listeningIPAddress=${LISTENING_ADDRESS}
-        -Dbookkeeper.bkEnsembleSize=2
-        -Dbookkeeper.bkAckQuorumSize=2
-        -Dbookkeeper.bkWriteQuorumSize=2
+        -Dpravegaservice.service.published.host.nameOrIp=${PUBLISHED_ADDRESS}
+        -Dpravegaservice.service.listener.host.nameOrIp=${LISTENING_ADDRESS}
+        -Dbookkeeper.ensemble.size=2
+        -Dbookkeeper.ack.quorum.size=2
+        -Dbookkeeper.write.quorum.size=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
