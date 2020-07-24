@@ -145,7 +145,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation: " + segmentDeleted);
     }
 
-
+    @Override
+    public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authFailed) {
+        throw new IllegalStateException("Unexpected operation: " + authFailed);
+    }
+    
     @Override
     public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
         throw new IllegalStateException("Unexpected operation: " + tableEntriesUpdated);
