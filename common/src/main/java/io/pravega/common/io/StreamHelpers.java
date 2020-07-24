@@ -83,7 +83,7 @@ public final class StreamHelpers {
      * @param message the message to log in the event of an exception
      * @param args template args for the message.
      */
-    public static void closeQuietly(Closeable toClose, Logger log, String message, Object ... args) {
+    public static void closeQuietly(Closeable toClose, Logger log, String message, Object... args) {
         try {
             toClose.close();
         } catch (IOException e) {
