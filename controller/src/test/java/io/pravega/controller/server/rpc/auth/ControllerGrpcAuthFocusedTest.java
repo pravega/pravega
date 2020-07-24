@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerInterceptors;
@@ -20,12 +21,9 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
@@ -39,21 +37,21 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.InMemoryScope;
+import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -79,15 +77,16 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -100,7 +99,13 @@ import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -133,7 +138,7 @@ public class ControllerGrpcAuthFocusedTest {
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private TableMetadataTasks kvtMetadataTasks;
-    private TableMetadataTasks kvtMetadataStore;
+    private KVTableMetadataStore kvtStore;
     private Server grpcServer;
     private ManagedChannel inProcessChannel;
 
@@ -148,24 +153,18 @@ public class ControllerGrpcAuthFocusedTest {
     @Before
     public void setup() throws IOException {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
-        KVTableMetadataStore kvtStore = KVTableStoreFactory.createInMemoryStore(EXECUTOR);
+        this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(EXECUTOR));
+        Map<String, InMemoryScope> scopeMap = ((InMemoryStreamMetadataStore) streamStore).getScopes();
+        ((InMemoryKVTMetadataStore) kvtStore).setScopes(scopeMap);
+
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        KVTableMetadataStore kvtMetadataStore = mock(KVTableMetadataStore.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(
-                ClientConfig.builder()
-                        .controllerURI(URI.create("tcp://localhost"))
-                        .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
-                        .build());
-
         GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
-
         EventHelper helper = EventHelperMock.getEventHelperMock(EXECUTOR, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker, helper);
@@ -173,8 +172,8 @@ public class ControllerGrpcAuthFocusedTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 EXECUTOR, "host", authHelper);
 
-        kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore,  segmentHelper,
-                EXECUTOR, EXECUTOR, "host", authHelper, requestTracker);
+        kvtMetadataTasks = new TableMetadataTasks(kvtStore,  segmentHelper,
+                EXECUTOR, EXECUTOR, "host", authHelper, requestTracker, helper);
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
@@ -477,12 +476,13 @@ public class ControllerGrpcAuthFocusedTest {
     @Test
     public void listStreamFiltersResultWhenUserHasAccessToSubsetOfStreams() {
         // Arrange
-        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+        String scope = "scope1";
+        createScopeAndStreams(scope, Arrays.asList("stream1", "stream2", "stream3", "stream4"),
                 prepareFromFixedScaleTypePolicy(2));
         ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_LIST_READ, DEFAULT_PASSWORD);
         Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
                 .newBuilder().setScope(
-                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                        Controller.ScopeInfo.newBuilder().setScope(scope).build())
                 .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
 
         // Act
@@ -490,6 +490,18 @@ public class ControllerGrpcAuthFocusedTest {
 
         // Assert
         assertEquals(1, response.getStreamsList().size());
+
+        stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_3_LIST_READ, DEFAULT_PASSWORD);
+        request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope(scope).build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        response = stub.listStreamsInScope(request);
+
+        // Assert
+        assertEquals(2, response.getStreamsList().size());
     }
 
     @Test
@@ -526,6 +538,49 @@ public class ControllerGrpcAuthFocusedTest {
         AssertExtensions.assertThrows("Expected auth failure.",
                 () -> stub.listStreamsInScope(request),
                 e -> e.getMessage().contains("UNAUTHENTICATED"));
+    }
+
+    @Test
+    public void listKVTFiltersResultWhenUserHasAccessToSubsetOfTables() {
+        // Arrange
+        String scope = "scope1";
+        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+        createScope(stub, scope);
+
+        doAnswer(x -> CompletableFuture.completedFuture(true)).when(this.kvtStore).checkScopeExists(any());
+        doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table1", "table2"), "2")))
+                .when(this.kvtStore).listKeyValueTables(anyString(), 
+                eq(""), anyInt(), any());
+        doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table3", "table4"), "4")))
+                .when(this.kvtStore).listKeyValueTables(anyString(), 
+                eq("2"), anyInt(), any());
+        doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "4")))
+                .when(this.kvtStore).listKeyValueTables(anyString(), 
+                eq("4"), anyInt(), any());
+        
+        stub = prepareBlockingCallStub(UserNames.SCOPE1_TABLE1_LIST_READ, DEFAULT_PASSWORD);
+        Controller.KVTablesInScopeRequest request = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope(scope).build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        Controller.KVTablesInScopeResponse response = stub.listKeyValueTablesInScope(request);
+
+        // Assert
+        assertEquals(1, response.getKvtablesCount());
+
+        stub = prepareBlockingCallStub(UserNames.SCOPE1_TABLE1_3_LIST_READ, DEFAULT_PASSWORD);
+        request = Controller.KVTablesInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope(scope).build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        response = stub.listKeyValueTablesInScope(request);
+
+        // Assert
+        assertEquals(2, response.getKvtablesCount());
     }
 
     //region Private methods
@@ -658,6 +713,9 @@ public class ControllerGrpcAuthFocusedTest {
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ;scope1/stream3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ;scope1/_kvtable/table3,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
             }
             return result;
@@ -682,6 +740,9 @@ public class ControllerGrpcAuthFocusedTest {
         private final static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
         private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
         private final static String SCOPE1_STREAM1_LIST_READ = "scope1stream1lr";
+        private final static String SCOPE1_STREAM1_3_LIST_READ = "scope1stream1_3lr";
+        private final static String SCOPE1_TABLE1_LIST_READ = "scope1table1lr";
+        private final static String SCOPE1_TABLE1_3_LIST_READ = "scope1table1_3lr";
     }
 
     static class ResultObserver<T> implements StreamObserver<T> {
