@@ -14,7 +14,8 @@ import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Position;
@@ -64,7 +65,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -227,7 +227,7 @@ public class EventProcessorTest {
         eventSerializer = new EventSerializer<>(new TestSerializer());
     
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -247,7 +247,7 @@ public class EventProcessorTest {
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
@@ -292,7 +292,7 @@ public class EventProcessorTest {
         final String readerGroup = "readerGroup2";
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         controller.createScope(scope).join();
         final StreamConfiguration config = StreamConfiguration.builder()
@@ -315,7 +315,7 @@ public class EventProcessorTest {
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
         
         CheckpointConfig checkpointConfig =
                 CheckpointConfig.builder()
@@ -365,14 +365,14 @@ public class EventProcessorTest {
         eventProcessorGroup.awaitTerminated();
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory2 = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory2 = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory2 = new ClientFactoryImpl(scope, controller, connectionFactory2);
 
         system = new EventProcessorSystemImpl("Controller2", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory2),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory2, connectionFactory2));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory2));
 
         EventProcessorConfig<TestEvent> eventProcessorConfig2 = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new EventProcessor<TestEvent>() {
@@ -422,7 +422,7 @@ public class EventProcessorTest {
         eventSerializer = new EventSerializer<>(new TestSerializer());
 
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -460,7 +460,7 @@ public class EventProcessorTest {
         // create a group and verify that all events can be written and read by readers in this group.
         EventProcessorSystem system1 = new EventProcessorSystemImpl("Controller", "process1", scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup1 =
@@ -506,7 +506,7 @@ public class EventProcessorTest {
         // add another system and event processor group (effectively add a new set of readers to the readergroup) 
         EventProcessorSystem system2 = new EventProcessorSystemImpl("Controller", "process2", scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup2 =
@@ -521,8 +521,7 @@ public class EventProcessorTest {
         ConcurrentSet<Integer> output2 = new ConcurrentSet<>();
 
         // wait until rebalance may have happened. 
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
-                connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 

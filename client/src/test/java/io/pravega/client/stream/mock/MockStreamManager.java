@@ -16,7 +16,9 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
@@ -48,16 +50,17 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
     @Getter
-    private final ConnectionFactoryImpl connectionFactory;
+    private final ConnectionPool connectionPool;
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
-        this.controller = new MockController(endpoint, port, connectionFactory, true);
-        this.clientFactory = new MockClientFactory(scope, controller);
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build();
+        this.connectionPool = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
+        this.controller = new MockController(endpoint, port, connectionPool, true);
+        this.clientFactory = new MockClientFactory(scope, controller, connectionPool);
     }
 
     @Override
@@ -139,7 +142,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public void close() {
         clientFactory.close();
-        connectionFactory.close();
+        connectionPool.close();
     }
 
     @Override
@@ -167,7 +170,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(),
                                    new ReaderGroupStateUpdatesSerializer(), clientFactory, controller,
-                                   connectionFactory);
+                                   connectionPool);
     }
 
     @Override

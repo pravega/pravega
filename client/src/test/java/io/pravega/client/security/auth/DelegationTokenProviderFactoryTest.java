@@ -13,9 +13,8 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.JwtBody;
-import org.junit.Test;
-
 import java.time.Instant;
+import org.junit.Test;
 
 import static io.pravega.test.common.JwtTestUtils.createEmptyDummyToken;
 import static io.pravega.test.common.JwtTestUtils.toCompact;

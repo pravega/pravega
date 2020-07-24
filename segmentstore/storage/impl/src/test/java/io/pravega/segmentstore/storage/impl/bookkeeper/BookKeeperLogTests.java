@@ -838,6 +838,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             return result;
         }
 
+        @Override
         @VisibleForTesting
         protected Stat updateZkMetadata(byte[] serializedMetadata, int version) throws Exception {
             assert this.persistData || this.throwZkException;

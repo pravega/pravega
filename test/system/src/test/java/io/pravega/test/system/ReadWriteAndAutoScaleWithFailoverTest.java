@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -102,17 +103,18 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
                                                                                   "ReadWriteAndAutoScaleWithFailoverTest-controller");
 
         //get Controller Uri
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                            .clientConfig(Utils.buildClientConfig(controllerURIDirect))
+                                                            .clientConfig(clientConfig)
                                                             .maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
         testState = new TestState(false);
-        streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
+        streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, AUTO_SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
 
-        clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, Utils.buildClientConfig(controllerURIDirect));
+        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
+        readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
     @After

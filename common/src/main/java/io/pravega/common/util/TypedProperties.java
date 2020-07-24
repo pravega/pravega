@@ -96,6 +96,18 @@ public class TypedProperties {
     }
 
     /**
+     * Gets the value of a Double property.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a Double.
+     */
+    public double getDouble(Property<Double> property) throws ConfigurationException {
+        return tryGet(property, Double::parseDouble);
+    }
+    
+    /**
      * Gets the value of an Enumeration property.
      *
      * @param property  The Property to get.
