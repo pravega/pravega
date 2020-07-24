@@ -118,7 +118,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller);
+        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 

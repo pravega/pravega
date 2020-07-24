@@ -10,13 +10,14 @@
 package io.pravega.controller.rest.v1;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
@@ -48,13 +49,13 @@ public abstract class PingTest {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
     
     @Before
     public void setup() throws Exception {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
                 connectionFactory);
         restServer.startAsync();

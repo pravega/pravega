@@ -286,7 +286,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
                                      .clientConfig(clientConfig)
                                      .build(), executor);
-        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller, clientConfig);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, clientConfig)) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
                                                        .stream(Stream.of(testScope, testStream1))

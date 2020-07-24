@@ -9,6 +9,10 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -79,8 +83,11 @@ public class EndToEndTransactionTest {
 
         final long txnTimeout = 4000;
 
+        ClientConfig config = ClientConfig.builder().build();
         @Cleanup
-        MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory(testScope, controller, new ConnectionPoolImpl(config, connectionFactory));
 
         @Cleanup
         TransactionalEventStreamWriter<String> producer = clientFactory.createTransactionalEventWriter(

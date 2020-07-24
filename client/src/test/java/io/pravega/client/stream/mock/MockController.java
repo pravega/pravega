@@ -13,11 +13,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -38,6 +38,7 @@ import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -74,7 +75,7 @@ public class MockController implements Controller {
 
     private final String endpoint;
     private final int port;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     @GuardedBy("$lock")
     private final Map<String, MockScope> createdScopes = new HashMap<>();
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
@@ -622,18 +623,17 @@ public class MockController implements Controller {
     }
 
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
-        ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
+        ClientConnection connection = getAndHandleExceptions(connectionPool
+            .getClientConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
                                                              RuntimeException::new);
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });
-
-        connection.sendAsync(request, cfe -> {
-            if (cfe != null) {
-                resultFuture.completeExceptionally(cfe);
-            }
-        });
+        try {
+            connection.send(request);
+        } catch (ConnectionFailedException cfe) {
+            resultFuture.completeExceptionally(cfe);
+        }
     }
 
     @Override
