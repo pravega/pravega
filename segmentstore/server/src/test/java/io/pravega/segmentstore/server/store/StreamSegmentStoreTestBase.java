@@ -704,7 +704,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         @Cleanup
         ReadResult readResult = store.read(segmentName, expectedCurrentOffset.get(), (int) (segmentLength - expectedCurrentOffset.get()), TIMEOUT).join();
         Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
-        boolean checkClosed = true;
         // A more thorough read check is done in StreamSegmentContainerTests; here we just check if the data was merged correctly.
         while (readResult.hasNext()) {
             ReadResultEntry readEntry = readResult.next();
@@ -725,9 +724,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     expectedData, (int) expectedCurrentOffset.get(), actualData, 0, readEntryContents.getLength());
             expectedCurrentOffset.addAndGet(readEntryContents.getLength());
         }
-        if (checkClosed) {
-            Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
-        }
+        Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
     }
 
     private void checkReadsWhileTruncating(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> startOffsets,

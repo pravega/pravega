@@ -12,11 +12,9 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -69,8 +67,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     @Builder
     private StreamSegmentInformation(String name, long startOffset, long length, long storageLength, boolean sealed, boolean deleted,
                                      boolean sealedInStorage, boolean deletedInStorage, Map<UUID, Long> attributes, ImmutableDate lastModified) {
-        this.sealedInStorage = sealedInStorage;
-        this.deletedInStorage = deletedInStorage;
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
         this.name = Exceptions.checkNotNullOrEmpty(name, "name");
@@ -78,7 +74,9 @@ public class StreamSegmentInformation implements SegmentProperties {
         this.length = length;
         this.storageLength = storageLength;
         this.sealed = sealed;
+        this.sealedInStorage = sealedInStorage;
         this.deleted = deleted;
+        this.deletedInStorage = deletedInStorage;
         this.lastModified = lastModified == null ? new ImmutableDate() : lastModified;
         this.attributes = createAttributes(attributes);
     }
@@ -91,13 +89,13 @@ public class StreamSegmentInformation implements SegmentProperties {
      */
     public static StreamSegmentInformationBuilder from(SegmentProperties base) {
         return StreamSegmentInformation.builder()
-                .name(base.getName())
-                .startOffset(base.getStartOffset())
-                .length(base.getLength())
-                .sealed(base.isSealed())
-                .deleted(base.isDeleted())
-                .lastModified(base.getLastModified())
-                .attributes(base.getAttributes());
+                                       .name(base.getName())
+                                       .startOffset(base.getStartOffset())
+                                       .length(base.getLength())
+                                       .sealed(base.isSealed())
+                                       .deleted(base.isDeleted())
+                                       .lastModified(base.getLastModified())
+                                       .attributes(base.getAttributes());
     }
 
     //endregion

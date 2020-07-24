@@ -9,33 +9,24 @@
  */
 package io.pravega.storage.hdfs;
 
-import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.Executor;
 
 /**
- * Factory for ExtendedS3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link HDFSChunkStorage}.
+ * Factory for HDFS {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link HDFSChunkStorage}.
  */
+@RequiredArgsConstructor
 public class HDFSSimpleStorageFactory implements StorageFactory {
+    @NonNull
     private final HDFSStorageConfig config;
+    @NonNull
     private final Executor executor;
-
-    /**
-     * Creates a new instance of the HDFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
-     * @param executor An executor to use for background operations.
-     */
-    public HDFSSimpleStorageFactory(HDFSStorageConfig config, Executor executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
-    }
 
     @Override
     public Storage createStorageAdapter() {
