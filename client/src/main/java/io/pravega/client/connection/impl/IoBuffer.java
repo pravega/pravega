@@ -22,6 +22,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * This is a utility class for repeatedly reading data from an input stream, that tries to buffer data in a way that minimizes allocations.
  * It is intended that {@link #getBuffOfSize(InputStream, int)} is called in a loop to read chunks of data from the provided input stream.
@@ -47,10 +49,7 @@ class IoBuffer {
      * Obtain a ByteBuff of size `size` by reading data from the provided input stream or from this buffer if the data is already available.
      */
     public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
-        if (size > maxBufferSize) {
-            throw new IllegalArgumentException("Requested buffer size " + size + " is larger than maximum allowed"
-                    + maxBufferSize);
-        }
+        checkArgument(size > maxBufferSize, "Requested buffer size {} is larger than max allowd {}", size, maxBufferSize);
         if (size == 0) {
             // Technically this should not need to be special cased per the Javadoc of InputStrem, 
             // but ByteArrayInputStream has a bug that makes this needed.

@@ -52,6 +52,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static io.pravega.common.io.StreamHelpers.closeQuietly;
 import static io.pravega.shared.protocol.netty.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
 
 @Slf4j
@@ -159,11 +160,7 @@ public class TcpClientConnection implements ClientConnection {
         
         public void stop() {
             stop.set(true);
-            try {
-                in.close();
-            } catch (Exception e) {
-                log.warn("Got error while shutting down reader {}. ", name, e);
-            }
+            closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
             callback.connectionDropped();
         }
     }
@@ -200,11 +197,7 @@ public class TcpClientConnection implements ClientConnection {
                 CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream());
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
-                try {
-                    socket.close();
-                } catch (IOException e1) {
-                    log.warn("Failed to close socket while failing.", e1);
-                }
+                closeQuietly(socket, log, "Failed to close socket while failing.");
                 onClose.run();
                 throw Exceptions.sneakyThrow(new ConnectionFailedException(e));
             }
@@ -271,9 +264,7 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
-        if (closed.get()) {
-            throw new ConnectionFailedException("Connection is closed");
-        }
+        Exceptions.checkNotClosed(closed.get(), this);
         try {
             encoder.write(cmd);
         } catch (IOException e) {
@@ -285,9 +276,7 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
-        if (closed.get()) {
-            throw new ConnectionFailedException("Connection is closed");
-        }
+        Exceptions.checkNotClosed(closed.get(), this);
         try {
             encoder.write(append);
         } catch (IOException e) {
@@ -302,11 +291,7 @@ public class TcpClientConnection implements ClientConnection {
         if (closed.compareAndSet(false, true)) {
             reader.stop();
             timeoutFuture.cancel(false);
-            try {
-                socket.close();
-            } catch (IOException e) {
-                log.warn("Error closing socket", e);
-            }
+            closeQuietly(socket, log, "Error closing TcpClientConnection.socket");
             if (onClose != null) {
                 onClose.run();
             }
