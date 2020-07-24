@@ -17,9 +17,11 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
@@ -65,15 +67,14 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 @Slf4j
-public class ClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
+public class ClientFactoryImpl extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory {
 
-    private final String scope;
-    private final Controller controller;
+
     private final SegmentInputStreamFactory inFactory;
     private final SegmentOutputStreamFactory outFactory;
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
-    private final ConnectionFactory connectionFactory;
+
     private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
     /**
@@ -82,17 +83,14 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      *
      * @param scope             The scope string.
      * @param controller        The reference to Controller.
+     * @param config            The client config.
      */
-    public ClientFactoryImpl(String scope, Controller controller) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-        this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+    public ClientFactoryImpl(String scope, Controller controller, ClientConfig config) {
+        super(scope, controller, new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config)));
+        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
+        this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }
 
     /**
@@ -105,25 +103,35 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
      */
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
-        this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-                new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
-                new ConditionalOutputStreamFactoryImpl(controller, connectionFactory),
-                new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
+        this(scope, controller, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
+    }
+    
+    /**
+     * Creates a new instance of the ClientFactory class. Note: ConnectionFactory and Controller is
+     * closed when {@link ClientFactoryImpl#close()} is invoked.
+     *
+     * @param scope The scope string.
+     * @param controller The reference to Controller.
+     * @param pool The connection pool
+     */
+    @VisibleForTesting
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionPool pool) {
+        super(scope, controller, pool);
+        this.inFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
+        this.outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
+        this.condFactory = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
     }
 
     @VisibleForTesting
-    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionPool connectionPool,
             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
             ConditionalOutputStreamFactory condFactory, SegmentMetadataClientFactory metaFactory) {
-        Preconditions.checkNotNull(scope);
-        Preconditions.checkNotNull(controller);
+        super(scope, controller, connectionPool);
         Preconditions.checkNotNull(inFactory);
         Preconditions.checkNotNull(outFactory);
         Preconditions.checkNotNull(condFactory);
         Preconditions.checkNotNull(metaFactory);
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionFactory = connectionFactory;
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.condFactory = condFactory;
@@ -143,7 +151,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionFactory.getInternalExecutor());
+        return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
     }
 
     @Override
@@ -153,7 +161,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
         NameUtils.validateWriterId(writerId);
         log.info("Creating transactional writer:{} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        return new TransactionalEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
+        return new TransactionalEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, connectionPool.getInternalExecutor());
     }
 
     @Override
@@ -206,10 +214,8 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
-                delegationToken, controller, segment);
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
@@ -239,7 +245,7 @@ public class ClientFactoryImpl implements EventStreamClientFactory, Synchronizer
     @Override
     public void close() {
         controller.close();
-        connectionFactory.close();
+        connectionPool.close();
     }
 
     private int getThreadPoolSize() {

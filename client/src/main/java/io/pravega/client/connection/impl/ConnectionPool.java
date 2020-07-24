@@ -7,11 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * This represents a ConnectionPool that manages the actual network connections to different SegmentStore instances.
@@ -39,14 +40,12 @@ public interface ConnectionPool extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp);
 
-    /**
-     * Fetch the current active {@link io.netty.channel.Channel} count, which represents the number of active connections being
-     * managed by the connection pool.
-     * @return the number of active Channel.
-     */
-    int getActiveChannelCount();
-
     @Override
     void close();
+
+    /**
+     * Returns the client internal thread pool executor.
+     */
+    ScheduledExecutorService getInternalExecutor();
 }
 

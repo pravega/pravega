@@ -10,8 +10,8 @@
 package io.pravega.client.segment.impl;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.RawClient;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.common.Exceptions;
@@ -45,7 +45,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     private final UUID writerId;
     private final Segment segmentId;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -68,7 +68,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {
-                            client = new RawClient(controller, connectionFactory, segmentId);
+                            client = new RawClient(controller, connectionPool, segmentId);
                             long requestId = client.getFlow().getNextSequenceNumber();
                             log.debug("Setting up appends on segment {} for ConditionalOutputStream.", segmentId);
 

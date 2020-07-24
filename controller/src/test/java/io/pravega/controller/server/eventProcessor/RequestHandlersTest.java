@@ -12,7 +12,8 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -115,7 +116,7 @@ public abstract class RequestHandlersTest {
     private TestingServer zkServer;
 
     private EventStreamClientFactory clientFactory;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
     private SegmentHelper segmentHelper;
     @Before
     public void setup() throws Exception {
@@ -143,7 +144,7 @@ public abstract class RequestHandlersTest {
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         clientFactory = mock(EventStreamClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,

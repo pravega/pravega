@@ -11,15 +11,18 @@ package io.pravega.common.io;
 
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * Unit tests for StreamHelpers class.
  */
+@Slf4j
 public class StreamHelpersTests {
     /**
      * Tests the readAll method that copies data into an existing array.
@@ -109,6 +112,24 @@ public class StreamHelpersTests {
                 e -> e instanceof IllegalArgumentException && e.getMessage().equals("maxLength: must be a non-negative number."));
     }
 
+    @Test
+    public void testCloseQuietly() {
+        Closeable successful = new Closeable() {
+            @Override
+            public void close() throws IOException {
+               //success;
+            }
+        };
+        Closeable failed = new Closeable() {
+            @Override
+            public void close() throws IOException {
+                throw new IOException("Expected");
+            }
+        };
+        StreamHelpers.closeQuietly(successful, log, "no exception");
+        StreamHelpers.closeQuietly(failed, log, "expected message");
+    }
+    
     private static class TestInputStream extends InputStream {
         private final byte[] buffer;
         private int pos;

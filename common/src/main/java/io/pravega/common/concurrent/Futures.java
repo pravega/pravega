@@ -213,34 +213,6 @@ public final class Futures {
     }
 
     /**
-     * Similar to {@link #getAndHandleExceptions(Future, Function)} but with an exception handler rather than a transforming function
-     * and a timeout on get().
-     *
-     * @param future               The future whose result is wanted
-     * @param handler              An exception handler
-     * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
-     * @param <ResultT>            Type of the result.
-     * @param <ExceptionT>         Type of the Exception.
-     * @throws ExceptionT       If thrown by the future.
-     * @return The result of calling future.get() or null if the timeout expired prior to the future completing.
-     */
-    @SneakyThrows(InterruptedException.class)
-    public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Consumer<Throwable> handler, long timeoutMillis) throws ExceptionT {
-        try {
-            return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-            handler.accept(e.getCause());
-            return null;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (TimeoutException e) {
-            return null;
-        }
-    }
-
-    /**
      * Creates a new CompletableFuture that is failed with the given exception.
      *
      * @param exception The exception to fail the CompletableFuture.

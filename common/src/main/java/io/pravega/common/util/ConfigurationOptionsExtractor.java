@@ -61,7 +61,7 @@ public class ConfigurationOptionsExtractor {
      */
     public static Integer extractInt(@NonNull String systemProperty, @NonNull String environmentVariable,
                                      @NonNull Integer defaultValue) {
-        String property = extractString(systemProperty, environmentVariable, defaultValue + "");
+        String property = extractString(systemProperty, environmentVariable, String.valueOf(defaultValue));
         Integer result = null;
         try {
             result = Integer.parseInt(property);
