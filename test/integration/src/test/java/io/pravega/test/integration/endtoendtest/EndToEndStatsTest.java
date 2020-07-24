@@ -12,6 +12,7 @@ package io.pravega.test.integration.endtoendtest;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -106,7 +107,7 @@ public class EndToEndStatsTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        EventStreamClientFactory clientFactory = new ClientFactoryImpl("test", controller);
+        EventStreamClientFactory clientFactory = new ClientFactoryImpl("test", controller, ClientConfig.builder().build());
 
         EventWriterConfig writerConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
         @Cleanup

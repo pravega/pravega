@@ -7,12 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 
 import org.junit.Before;
 
 public class SecureConnectionFactoryImplTest extends ConnectionFactoryImplTest {
-
+    
     @Override
     @Before
     public void setUp() throws Exception {

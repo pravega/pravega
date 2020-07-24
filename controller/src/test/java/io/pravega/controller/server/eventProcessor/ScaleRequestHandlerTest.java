@@ -12,7 +12,8 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -111,7 +112,7 @@ public abstract class ScaleRequestHandlerTest {
 
     private TestingServer zkServer;
     private EventStreamClientFactory clientFactory;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
 
@@ -141,7 +142,7 @@ public abstract class ScaleRequestHandlerTest {
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
