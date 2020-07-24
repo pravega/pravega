@@ -11,9 +11,8 @@ package io.pravega.client;
 
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
-import org.junit.Test;
-
 import java.net.URI;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

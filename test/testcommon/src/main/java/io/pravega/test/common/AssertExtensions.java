@@ -21,6 +21,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
@@ -56,13 +57,18 @@ public class AssertExtensions {
      * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
     private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-        TestUtils.await(() -> {
+        try {
+            TestUtils.await(() -> {
                 try {
-                    return (expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()));
+                    return (expected == null && eval.call() == null)
+                            || (expected != null && expected.equals(eval.call()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-        }, checkIntervalMillis, timeoutMillis);
+            }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected value: " + expected + " observed: " + eval.call());
+        }
         assertEquals(expected, eval.call());
     }
 

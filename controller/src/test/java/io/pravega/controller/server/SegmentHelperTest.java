@@ -11,9 +11,10 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -807,7 +808,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         }
     }
 
-    private class MockConnectionFactory implements ConnectionFactory {
+    private class MockConnectionFactory implements ConnectionFactory, ConnectionPool {
         private final AtomicBoolean failConnection = new AtomicBoolean(false);
         @Getter
         private ReplyProcessor rp;
@@ -825,12 +826,19 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp) {
             this.rp = rp;
             this.connection = new MockConnection(rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
 
+        @Override
+        public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
+            this.rp = rp;
+            this.connection = new MockConnection(rp, failConnection);
+            return CompletableFuture.completedFuture(connection);
+        }
+        
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
@@ -858,7 +866,10 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
         @Override
         public void send(WireCommand cmd) throws ConnectionFailedException {
-
+            this.requestId = ((Request) cmd).getRequestId();
+            if (toFail.get()) {
+                throw new ConnectionFailedException();
+            }
         }
 
         @Override
@@ -866,13 +877,6 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
         }
 
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            this.requestId = ((Request) cmd).getRequestId();
-            if (toFail.get()) {
-                callback.complete(new ConnectionFailedException());
-            }
-        }
 
         @Override
         public void sendAsync(List<Append> appends, CompletedCallback callback) {

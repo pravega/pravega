@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -535,12 +536,13 @@ public final class WireCommands {
         final UUID writerId;
         final ByteBuf data;
 
-        AppendBlock(UUID writerId) {
+        public AppendBlock(UUID writerId) {
             this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
-        AppendBlock(UUID writerId, ByteBuf data) {
+        @VisibleForTesting
+        public AppendBlock(UUID writerId, ByteBuf data) {
             this.writerId = writerId;
             this.data = data;
         }
@@ -1594,6 +1596,11 @@ public final class WireCommands {
 
         public boolean isTokenExpired() {
             return errorCode == ErrorCode.TOKEN_EXPIRED;
+        }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
         }
 
         @Override

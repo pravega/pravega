@@ -10,7 +10,7 @@
 package io.pravega.client;
 
 
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.Flow;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

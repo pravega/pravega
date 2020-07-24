@@ -15,7 +15,7 @@ import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -679,30 +679,25 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
+        public void send(WireCommand cmd) throws ConnectionFailedException {
             if (this.closed) {
-                callback.complete(new ConnectionFailedException("Connection closed"));
+                throw new ConnectionFailedException("Connection closed");
             }
 
             this.lastRequestId = ((Request) cmd).getRequestId();
             this.lastSentWireCommands.addLast(cmd);
             if (this.failed) {
-                callback.complete(new ConnectionFailedException());
+                throw new ConnectionFailedException();
             }
+        }
+        
+        @Override
+        public void send(Append append) {
+            throw new UnsupportedOperationException("not needed for this test");
         }
 
         @Override
         public void sendAsync(List<Append> appends, CompletedCallback callback) {
-            throw new UnsupportedOperationException("not needed for this test");
-        }
-
-        @Override
-        public void send(WireCommand cmd) {
-            throw new UnsupportedOperationException("not needed for this test");
-        }
-
-        @Override
-        public void send(Append append) {
             throw new UnsupportedOperationException("not needed for this test");
         }
     }

@@ -7,10 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.EnvVars;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -27,19 +30,31 @@ import java.util.function.Supplier;
  * synchronous writers. Otherwise the batch size is set to the amount of data that will be written in the next
  * {@link #MAX_BATCH_TIME_MILLIS} or half the server round trip time (whichever is less)
  */
-class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
-    private static final int MAX_BATCH_TIME_MILLIS = 100;
-
+public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
+    
+    // This must be less than WireCommands.MAX_WIRECOMMAND_SIZE / 2;
+    @VisibleForTesting
+    static final int MAX_BATCH_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_MAX_BATCH_SIZE",
+                                                                 2 * TcpClientConnection.TCP_BUFFER_SIZE - 1024);
+    @VisibleForTesting
+    static final int BASE_TIME_NANOS = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_TIME_NANOS", 0);
+    @VisibleForTesting
+    static final int BASE_SIZE = EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_BASE_SIZE", 0);
+    @VisibleForTesting
+    static final double OUTSTANDING_FRACTION = 1.0 / EnvVars.readIntegerFromEnvVar("PRAVEGA_BATCH_OUTSTANDING_DENOMINATOR", 2);
+    
+    private static final double NANOS_PER_MILLI = AbstractTimer.NANOS_TO_MILLIS;
+    
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
     private final AtomicLong lastAppendTime;
     private final AtomicLong lastAckNumber;
-    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.1, true);
-    private final ExponentialMovingAverage millisBetweenAppends = new ExponentialMovingAverage(10, 0.1, false);
-    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(2, 0.05, false);
+    private final ExponentialMovingAverage eventSize = new ExponentialMovingAverage(1024, 0.01, true);
+    private final ExponentialMovingAverage nanosBetweenAppends = new ExponentialMovingAverage(10 * NANOS_PER_MILLI, 0.001, false);
+    private final ExponentialMovingAverage appendsOutstanding = new ExponentialMovingAverage(20, 0.001, false);
 
-    AppendBatchSizeTrackerImpl() {
-        clock = System::currentTimeMillis;
+    public AppendBatchSizeTrackerImpl() {
+        clock = System::nanoTime;
         lastAppendTime = new AtomicLong(clock.get());
         lastAckNumber = new AtomicLong(0);
         lastAppendNumber = new AtomicLong(0);
@@ -50,8 +65,7 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         long now = Math.max(lastAppendTime.get(), clock.get());
         long last = lastAppendTime.getAndSet(now);
         lastAppendNumber.set(eventNumber);
-        millisBetweenAppends.addNewSample(now - last);
-        appendsOutstanding.addNewSample(eventNumber - lastAckNumber.get());
+        nanosBetweenAppends.addNewSample(now - last);
         eventSize.addNewSample(size);
     }
 
@@ -73,11 +87,12 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         if (numInflight <= 1) {
             return 0;
         }
-        double appendsInMaxBatch = Math.max(1.0, MAX_BATCH_TIME_MILLIS / millisBetweenAppends.getCurrentValue());
-        double targetAppendsOutstanding = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * 0.5, 1.0,
-                                                             appendsInMaxBatch);
-        return (int) MathHelpers.minMax((long) (targetAppendsOutstanding * eventSize.getCurrentValue()), 0,
-                                        MAX_BATCH_SIZE);
+        double nanosPerAppend = nanosBetweenAppends.getCurrentValue();
+        double appendsInMaxBatchTime = Math.max(1.0, (MAX_BATCH_TIME_MILLIS * NANOS_PER_MILLI) / nanosPerAppend);
+        double appendsInTime = Math.max(1.0, BASE_TIME_NANOS / nanosPerAppend);
+        double appendsInBatch = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime, 1.0, appendsInMaxBatchTime);
+        int size = (int) (appendsInBatch * eventSize.getCurrentValue()) + BASE_SIZE;
+        return MathHelpers.minMax(size, 0, MAX_BATCH_SIZE);
     }
 
     @Override
