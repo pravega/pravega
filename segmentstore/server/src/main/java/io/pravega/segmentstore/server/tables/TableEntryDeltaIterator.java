@@ -13,6 +13,8 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 
@@ -45,7 +47,7 @@ import lombok.val;
 @Slf4j
 @ThreadSafe
 @Builder
-class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
+public class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     //region Members
 
     // The maximum size (in bytes) of each read to perform on the segment.
@@ -55,7 +57,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     // The offset to being iteration at.
     private final long startOffset;
     // Maximum length of the TableSegment we want to read until.
-    private final int maxLength;
+    private final int maxBytesToRead;
     private final boolean shouldClear;
     private final Duration fetchTimeout;
     private final EntrySerializer entrySerializer;
@@ -85,7 +87,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     }
 
     public synchronized boolean endOfSegment() {
-        return this.currentBatchOffset >= (this.startOffset + this.maxLength);
+        return this.currentBatchOffset >= (this.startOffset + this.maxBytesToRead);
     }
 
     private synchronized CompletableFuture<Map.Entry<DeltaIteratorState, TableEntry>> getNextEntry() {
@@ -122,7 +124,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
 
     private CompletableFuture<List<Map.Entry<DeltaIteratorState, TableEntry>>> toEntries(long startOffset) {
         TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
-        int length = Math.min(maxLength, MAX_READ_SIZE);
+        int length = Math.min(maxBytesToRead, MAX_READ_SIZE);
 
         if (endOfSegment()) {
             return CompletableFuture.completedFuture(Collections.emptyList());
@@ -143,7 +145,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         try {
             while (currentOffset < maxOffset) {
                 val entry = AsyncTableEntryReader.readEntryComponents(input, currentOffset, this.entrySerializer);
-                boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxLength + startOffset;
+                boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxBytesToRead + startOffset;
                 // We must preserve deletions to accurately construct a delta.
                 BufferView value = entry.getValue() == null ? BufferView.empty() : entry.getValue();
                 currentOffset += entry.getHeader().getTotalLength();
@@ -181,6 +183,17 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 0L);
     }
 
+    public static DeltaIteratorState initialState(SegmentProperties properties, long fromPosition) {
+        long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
+        long startPosition = Math.min(fromPosition, properties.getLength());
+        // All of the most recent keys will exist beyond the compactionOffset.
+        long startOffset = Math.max(startPosition, compactionOffset);
+        // We should clear if the starting position may have been truncated out due to compaction.
+        boolean shouldClear = fromPosition < compactionOffset;
+        // Maximum length of the TableSegment we want to read until.
+        int maxLength = (int) (properties.getLength() - startOffset);
+        return new DeltaIteratorState(startPosition, maxLength == 0, shouldClear, false);
+    }
     //endregion
 
     @FunctionalInterface

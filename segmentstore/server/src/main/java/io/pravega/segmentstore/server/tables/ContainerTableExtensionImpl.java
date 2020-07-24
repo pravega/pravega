@@ -472,14 +472,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
                         throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
                     }
-                    long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
-                    // All of the most recent keys will exist beyond the compactionOffset.
-                    long startOffset = Math.max(fromPosition, compactionOffset);
-                    // We should clear if the starting position may have been truncated out due to compaction.
-                    boolean shouldClear = fromPosition < compactionOffset;
-                    // Maximum length of the TableSegment we want to read until.
-                    int maxLength = (int) (properties.getLength() - startOffset);
-
+                    DeltaIteratorState state = TableEntryDeltaIterator.initialState(properties, fromPosition);
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
                         return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
                                 item.getKey().serialize(),
@@ -489,12 +482,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             .segment(segment)
                             .entrySerializer(serializer)
                             .executor(executor)
-                            .maxLength(maxLength)
-                            .startOffset(startOffset)
-                            .currentBatchOffset(startOffset)
+                            .maxBytesToRead((int) (properties.getLength() - state.getFromPosition()))
+                            .startOffset(state.getFromPosition())
+                            .currentBatchOffset(state.getFromPosition())
                             .fetchTimeout(fetchTimeout)
                             .resultConverter(converter)
-                            .shouldClear(shouldClear)
+                            .shouldClear(state.isShouldClear())
                             .build();
 
                     return CompletableFuture.completedFuture(iterator);
