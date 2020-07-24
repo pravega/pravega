@@ -191,8 +191,8 @@ public class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         // We should clear if the starting position may have been truncated out due to compaction.
         boolean shouldClear = fromPosition < compactionOffset;
         // Maximum length of the TableSegment we want to read until.
-        int maxLength = (int) (properties.getLength() - startOffset);
-        return new DeltaIteratorState(startPosition, maxLength == 0, shouldClear, false);
+        int maxBytesToRead = (int) (properties.getLength() - startOffset);
+        return new DeltaIteratorState(startPosition, maxBytesToRead == 0, shouldClear, false);
     }
     //endregion
 
