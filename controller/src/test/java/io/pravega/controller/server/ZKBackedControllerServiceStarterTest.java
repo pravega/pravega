@@ -14,9 +14,8 @@ import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.Service;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
@@ -41,12 +40,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,6 +47,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -122,13 +120,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
-            this.rp = rp;
-            this.connection = new MockConnection(rp);
-            return CompletableFuture.completedFuture(connection);
-        }
-
-        @Override
         public ScheduledExecutorService getInternalExecutor() {
             return executorService;
         }
@@ -157,11 +148,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         
         @Override
         public void send(Append append) throws ConnectionFailedException {
-        }
-
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            handleRequest(cmd);
         }
 
         @Override

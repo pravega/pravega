@@ -10,7 +10,8 @@
 package io.pravega.controller.server.bucket;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -33,14 +34,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 
 public abstract class BucketServiceTest {
     StreamMetadataStore streamMetadataStore;
@@ -49,7 +49,7 @@ public abstract class BucketServiceTest {
     BucketManager watermarkingService;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
-    private ConnectionFactoryImpl connectionFactory;
+    private ConnectionFactory connectionFactory;
     private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
 
@@ -63,7 +63,7 @@ public abstract class BucketServiceTest {
         
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 

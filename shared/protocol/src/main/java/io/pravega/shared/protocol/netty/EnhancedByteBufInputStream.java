@@ -17,10 +17,10 @@ import java.io.IOException;
 /**
  * Extends {@link ByteBufInputStream} with additional functionality.
  */
-class EnhancedByteBufInputStream extends ByteBufInputStream {
+public class EnhancedByteBufInputStream extends ByteBufInputStream {
     private final ByteBuf buffer;
 
-    EnhancedByteBufInputStream(ByteBuf buffer) {
+    public EnhancedByteBufInputStream(ByteBuf buffer) {
         super(buffer);
         this.buffer = buffer;
     }

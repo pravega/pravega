@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -37,14 +37,6 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(Append append) throws ConnectionFailedException;
-    
-    /**
-     * Sends a wire command asynchronously.
-     *
-     * @param cmd The wire command to be sent.
-     * @param callback A callback to be invoked when the operation is complete
-     */
-    void sendAsync(WireCommand cmd, CompletedCallback callback);
 
     /**
      * Sends the provided append commands.
@@ -59,7 +51,7 @@ public interface ClientConnection extends AutoCloseable {
      */
     @Override
     void close();
-
+    
     @FunctionalInterface
     interface CompletedCallback {
         /**
