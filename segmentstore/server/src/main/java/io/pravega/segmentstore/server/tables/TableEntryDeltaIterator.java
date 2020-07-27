@@ -45,7 +45,7 @@ import lombok.val;
 @Slf4j
 @ThreadSafe
 @Builder
-public class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
+class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     //region Members
 
     // The maximum size (in bytes) of each read to perform on the segment.
