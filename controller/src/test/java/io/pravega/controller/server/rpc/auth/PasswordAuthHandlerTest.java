@@ -17,8 +17,10 @@ import lombok.SneakyThrows;
 import org.junit.Test;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.Assert.assertEquals;
@@ -31,6 +33,8 @@ public class PasswordAuthHandlerTest {
 
     private final StrongPasswordProcessor encrypter = StrongPasswordProcessor.builder().build();
     private final Base64.Encoder base64Encoder = Base64.getEncoder();
+
+    //region Tests verifying authentication
 
     @Test
     public void authenticatesValidUserSuccessfully() {
@@ -65,6 +69,62 @@ public class PasswordAuthHandlerTest {
         Principal principal = authHandler.authenticate(prepareToken("user-nonexistent", password));
     }
 
+    //endregion Tests verifying authentication
+
+    //region Tests verifying authorization
+
+    @Test
+    public void authorizesSuperUserSuccessfully() {
+        String username = "test-user";
+        String password = "test-password";
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
+                AuthHandler.Permissions.READ_UPDATE);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+
+        Principal principal = authHandler.authenticate(prepareToken(username, password));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authHandler.authorize("/", principal));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authHandler.authorize("testscope", principal));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authHandler.authorize("testscope/teststream", principal));
+    }
+
+    @Test
+    public void failsAuthorizationWhenUserIsNotAuthorizedToAResource() {
+        String username = "test-user";
+        String password = "test-password";
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
+                "testscope/teststream", AuthHandler.Permissions.READ);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+
+        Principal principal = authHandler.authenticate(prepareToken(username, password));
+        assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("testscope/teststream", principal));
+        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("/", principal));
+        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("testscope", principal));
+    }
+
+    @Test
+    public void verifyMultiAclUserAuthorization() {
+        String username = "test-user";
+        String password = "test-password";
+        List<String> resources = Arrays.asList("/", "testscope", "testscope/teststream");
+        List<AuthHandler.Permissions> permissions =
+                Arrays.asList(AuthHandler.Permissions.NONE, AuthHandler.Permissions.READ, AuthHandler.Permissions.READ);
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
+                resources, permissions);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+        Principal principal = authHandler.authenticate(prepareToken(username, password));
+
+        assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("testscope", principal));
+        assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("testscope/teststream", principal));
+
+        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("/", principal));
+        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("testscope2", principal));
+        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("testscope/teststream2", principal));
+    }
+
+    //endregion
+
+    //region Private methods
+
     private String prepareToken(@NonNull String username, @NonNull String password) {
         return base64Encoder.encodeToString(String.format("%s:%s", username, password).getBytes(Charsets.UTF_8));
     }
@@ -73,12 +133,23 @@ public class PasswordAuthHandlerTest {
     private ConcurrentHashMap<String, AccessControlList> prepareMapOfAclsByUserName(
             @NonNull String user, @NonNull String password,
             @NonNull String resource, @NonNull AuthHandler.Permissions permission)  {
+        return prepareMapOfAclsByUserName(user, password, Arrays.asList(resource), Arrays.asList(permission));
+    }
+
+    @SneakyThrows
+    private ConcurrentHashMap<String, AccessControlList> prepareMapOfAclsByUserName(
+            @NonNull String user, @NonNull String password,
+            @NonNull List<String> resources, @NonNull List<AuthHandler.Permissions> permissions)  {
         ConcurrentHashMap<String, AccessControlList> result = new ConcurrentHashMap<>();
 
-        AccessControlEntry ace = new AccessControlEntry(resource, permission);
-        AccessControlList acl = new AccessControlList(encrypter.encryptPassword(password), Arrays.asList(ace));
-
-        result.put(user, acl);
+        List<AccessControlEntry> aces = new ArrayList<>(resources.size());
+        for (int i = 0; i < resources.size(); i++) {
+            AccessControlEntry ace = new AccessControlEntry(resources.get(i), permissions.get(i));
+            aces.add(ace);
+        }
+        result.put(user, new AccessControlList(encrypter.encryptPassword(password), aces));
         return result;
     }
+
+    //endregion
 }
