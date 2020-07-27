@@ -72,7 +72,7 @@ public class DeltaIteratorState implements IteratorState {
         this.deletionRecord = false;
     }
 
-    boolean isValid(long position) {
+    static boolean isValid(long position) {
         return position >= 0;
     }
 
