@@ -49,7 +49,6 @@ import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.tables.DeltaIteratorState;
-import io.pravega.segmentstore.server.tables.TableEntryDeltaIterator;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -837,14 +836,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableEntriesDelta.getFromPosition());
 
         val timer = new Timer();
-        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>, DeltaIteratorState>(
+        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(
                 segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
-        // Guards against two cases: an empty segment, or a starting position that exceeds the segment length.
-        segmentStore.getStreamSegmentInfo(segment, TIMEOUT)
-                .thenAccept(properties -> {
-                    result.setState(TableEntryDeltaIterator.initialState(properties, fromPosition));
-                });
-
         tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
@@ -1071,11 +1064,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private static class DeltaIteratorResult<K, V, S> {
+    private static class DeltaIteratorResult<K, V> {
         @Getter
         @Setter
         @GuardedBy("this")
-        private S state;
+        private DeltaIteratorState state = new DeltaIteratorState();
         @GuardedBy("this")
         private final Map<K, V> items = new HashMap<>();
         @Getter

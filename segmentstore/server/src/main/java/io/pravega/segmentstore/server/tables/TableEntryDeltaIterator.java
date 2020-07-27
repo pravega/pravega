@@ -13,8 +13,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 
@@ -183,17 +181,6 @@ public class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
                 0L);
     }
 
-    public static DeltaIteratorState initialState(SegmentProperties properties, long fromPosition) {
-        long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
-        long startPosition = Math.min(fromPosition, properties.getLength());
-        // All of the most recent keys will exist beyond the compactionOffset.
-        long startOffset = Math.max(startPosition, compactionOffset);
-        // We should clear if the starting position may have been truncated out due to compaction.
-        boolean shouldClear = fromPosition < compactionOffset;
-        // Maximum length of the TableSegment we want to read until.
-        int maxBytesToRead = (int) (properties.getLength() - startOffset);
-        return new DeltaIteratorState(startPosition, maxBytesToRead == 0, shouldClear, false);
-    }
     //endregion
 
     @FunctionalInterface

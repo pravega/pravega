@@ -472,7 +472,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
                         throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
                     }
-                    DeltaIteratorState state = TableEntryDeltaIterator.initialState(properties, fromPosition);
+                    if (fromPosition > properties.getLength()) {
+                        throw new IllegalArgumentException("fromPosition can not exceed the length of the TableSegment.");
+                    }
+                    long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
+                    // All of the most recent keys will exist beyond the compactionOffset.
+                    long startOffset = Math.max(fromPosition, compactionOffset);
+                    // We should clear if the starting position may have been truncated out due to compaction.
+                    boolean shouldClear = fromPosition < compactionOffset;
+                    // Maximum length of the TableSegment we want to read until.
+                    int maxBytesToRead = (int) (properties.getLength() - startOffset);
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
                         return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
                                 item.getKey().serialize(),
@@ -482,12 +491,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             .segment(segment)
                             .entrySerializer(serializer)
                             .executor(executor)
-                            .maxBytesToRead((int) (properties.getLength() - state.getFromPosition()))
-                            .startOffset(state.getFromPosition())
-                            .currentBatchOffset(state.getFromPosition())
+                            .maxBytesToRead(maxBytesToRead)
+                            .startOffset(startOffset)
+                            .currentBatchOffset(fromPosition)
                             .fetchTimeout(fetchTimeout)
                             .resultConverter(converter)
-                            .shouldClear(state.isShouldClear())
+                            .shouldClear(shouldClear)
                             .build();
 
                     return CompletableFuture.completedFuture(iterator);

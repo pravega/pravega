@@ -1076,22 +1076,9 @@ public class PravegaRequestProcessorTest {
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "",
                 getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
-
         long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
-        // Iterate using fromPosition >> segmentLength.
-        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length * 2, 3));
-        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
-        order.verify(connection, times(2)).send(wireCommandsCaptor.capture());
-
-        verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(0), any());
-
-        WireCommands.TableEntriesDeltaRead getTableEntriesIteratorsResp =
-                (WireCommands.TableEntriesDeltaRead) wireCommandsCaptor.getAllValues().get(1);
-
-        assertTrue(getTableEntriesIteratorsResp.getEntries().getEntries().size() == 0);
-        assertFalse(getTableEntriesIteratorsResp.isShouldClear());
-        assertTrue(getTableEntriesIteratorsResp.isReachedEnd());
-        assertEquals(getTableEntriesIteratorsResp.getLastPosition(), length);
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length + 1, 3));
+        verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
     }
 
     @Test
