@@ -84,15 +84,15 @@ public class DataRecoveryTestUtils {
         }
 
         // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
-        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         while (it.hasNext()) {
             SegmentProperties curr = it.next();
             int containerId = segToConMapper.getContainerId(curr.getName());
             log.info("Segment to be recovered = {}", curr.getName());
             metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(curr.getName());
-            opFutures.add(CompletableFuture.runAsync(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), curr)));
+            futures.add(CompletableFuture.runAsync(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), curr)));
         }
-        Futures.allOf(opFutures).join();
+        Futures.allOf(futures).join();
 
         for (Map.Entry<DebugStreamSegmentContainer, Set<String>> metadataSegmentsSetEntry : metadataSegmentsByContainer.entrySet()) {
             for (String segmentName : metadataSegmentsSetEntry.getValue()) {
@@ -146,7 +146,7 @@ public class DataRecoveryTestUtils {
      * @param storage       Long term storage to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    private static void deleteContainerMetadataSegments(Storage storage, int containerId) {
+    public static void deleteContainerMetadataSegments(Storage storage, int containerId) {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         deleteSegment(storage, metadataSegmentName);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);

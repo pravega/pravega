@@ -51,10 +51,7 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
-import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
-import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
@@ -91,7 +88,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.File;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -141,7 +137,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
-    private File baseDir;
     private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
     private SegmentStoreStarter segmentStoreStarter;
@@ -162,11 +157,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         if (this.bkzk != null) {
             this.bkzk.close();
             this.bkzk = null;
-        }
-
-        if (this.baseDir != null) {
-            FileHelpers.deleteFileOrDirectory(this.baseDir);
-            this.baseDir = null;
         }
     }
 
@@ -326,13 +316,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /**
-     * Creates a segment store server.
+     * Creates a segment store.
      */
     private static class SegmentStoreStarter {
         private final int servicePort = TestUtils.getAvailableListenPort();
         private ServiceBuilder serviceBuilder;
         private SegmentsTracker segmentsTracker;
-        private AutoScaleMonitor monitor;
         private PravegaConnectionListener server;
 
         SegmentStoreStarter(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
@@ -350,28 +339,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             }
             this.serviceBuilder.initialize();
             this.segmentsTracker = new SegmentsTracker(serviceBuilder.createStreamSegmentService(), serviceBuilder.createTableStoreService());
-            this.monitor = new AutoScaleMonitor(this.segmentsTracker, AutoScalerConfig.builder().build());
-            this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, this.segmentsTracker,
-                    this.segmentsTracker, monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                    null, null, true, serviceBuilder.getLowPriorityExecutor());
+            this.server = new PravegaConnectionListener(false, servicePort, this.segmentsTracker, this.segmentsTracker,
+                    this.serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
         }
 
         public void close() {
-            if (this.server != null) {
-                this.server.close();
-                this.server = null;
-            }
-
-            if (this.monitor != null) {
-                this.monitor.close();
-                this.monitor = null;
-            }
-
-            if (this.serviceBuilder != null) {
-                this.serviceBuilder.close();
-                this.serviceBuilder = null;
-            }
+            this.server.close();
+            this.serviceBuilder.close();
         }
     }
 
@@ -385,8 +360,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static class ControllerStarter {
         private final int controllerPort = TestUtils.getAvailableListenPort();
         private final String serviceHost = "localhost";
-        private ControllerWrapper controllerWrapper = null;
-        private Controller controller = null;
+        private ControllerWrapper controllerWrapper;
+        private Controller controller;
 
         ControllerStarter(int bkPort, int servicePort) throws InterruptedException {
             this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
@@ -396,19 +371,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
 
         public void close() throws Exception {
-            if (this.controller != null) {
-                this.controller.close();
-                this.controller = null;
-            }
-
-            if (this.controllerWrapper != null) {
-                this.controllerWrapper.close();
-                this.controllerWrapper = null;
-            }
+            this.controller.close();
+            this.controllerWrapper.close();
         }
     }
 
-    @Test(timeout = 240000)
+    @Test(timeout = 180000)
     public void testDurableDataLogFail() throws Exception {
         ScheduledExecutorService executorService = executorService();
         int instanceId = 0;
@@ -492,6 +460,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // List segments and recover them
         DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
+        // Wait for metadata segment to be flushed to LTS
+        String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);
+        waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainer, storage)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        log.info("Long term storage has been update with a new container metadata segment.");
+
+        // Stop the debug segment container
         Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService).join();
         debugStreamSegmentContainerMap.get(CONTAINER_ID).close();
         debugTool.close();
@@ -558,6 +533,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             q++;
         }
         reader.close();
+    }
+
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, DebugStreamSegmentContainer container,
+                                                             Storage storage) {
+        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            log.info("Segment properties = {}", sp);
+            segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
+        }
+
+        return Futures.allOf(segmentsCompletion);
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
