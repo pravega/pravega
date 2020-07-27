@@ -37,6 +37,7 @@ import lombok.Synchronized;
 import lombok.val;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
 import org.jclouds.ContextBuilder;
@@ -123,18 +124,7 @@ public class S3ProxyImpl extends S3ImplBase {
                 throw new S3Exception("InvalidRange", HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", key);
             }
 
-            byte[] objectAfterPut = null;
-            if (contentBytes != null && existingBytes != null) {
-                objectAfterPut = new byte[contentBytes.length + existingBytes.length];
-                System.arraycopy(contentBytes, 0, objectAfterPut, 0, contentBytes.length);
-                System.arraycopy(existingBytes, 0, objectAfterPut, contentBytes.length, existingBytes.length);
-            } else if (contentBytes != null) {
-                objectAfterPut = new byte[contentBytes.length];
-                System.arraycopy(contentBytes, 0, objectAfterPut, 0, contentBytes.length);
-            } else if (existingBytes != null) {
-                objectAfterPut = new byte[existingBytes.length];
-                System.arraycopy(existingBytes, 0, objectAfterPut, 0, existingBytes.length);
-            }
+            val objectAfterPut = ArrayUtils.addAll(existingBytes, contentBytes);
             client.putObject(new PutObjectRequest(bucketName, key, (Object) objectAfterPut));
             aclMap.put(key, aclMap.get(key).withSize(range.getLast() - 1));
         } catch (IOException e) {

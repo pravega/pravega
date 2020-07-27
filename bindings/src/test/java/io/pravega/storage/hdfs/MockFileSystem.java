@@ -21,7 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
@@ -38,6 +37,7 @@ import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.apache.http.annotation.GuardedBy;
 
 /**
  * Mock FileSystem for use in unit tests.

@@ -12,7 +12,7 @@ package io.pravega.storage.hdfs;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import lombok.Getter;
-import javax.annotation.concurrent.ThreadSafe;
+import org.apache.http.annotation.ThreadSafe;
 
 /**
  * Base Handle for HDFSStorage.
