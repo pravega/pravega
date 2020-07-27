@@ -44,7 +44,6 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -151,19 +150,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
                     .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
-
-    // Configurations for DebugSegmentContainer
-    private final ContainerConfig containerConfig = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
-            .build();
-    private final DurableLogConfig durableLogConfig = DurableLogConfig
-            .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
-            .build();
 
     @Override
     protected int getThreadPoolSize() {
