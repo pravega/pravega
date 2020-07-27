@@ -14,7 +14,6 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -26,12 +25,10 @@ public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };

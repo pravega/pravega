@@ -14,7 +14,6 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
@@ -51,12 +50,10 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("HDFS")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
@@ -93,12 +90,10 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
@@ -141,12 +136,10 @@ public class StorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };

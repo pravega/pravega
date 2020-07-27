@@ -28,8 +28,4 @@ public class StorageFactoryInfo {
      */
     private final StorageLayoutType storageLayoutType;
 
-    /**
-     * Type of metadata format supported.
-     */
-    private final StorageMetadataFormat storageMetadataFormat;
 }

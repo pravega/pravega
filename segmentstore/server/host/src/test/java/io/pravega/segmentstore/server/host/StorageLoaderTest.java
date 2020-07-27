@@ -16,7 +16,6 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
@@ -34,7 +33,6 @@ import org.junit.Test;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -58,7 +56,7 @@ public class StorageLoaderTest {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
                     StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED, executor);
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
                     return expectedFactory;
                 });
         builder.initialize();
@@ -72,7 +70,7 @@ public class StorageLoaderTest {
         builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
                     StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED, executor);
+                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
                     return expectedFactory;
                 });
         builder.initialize();
@@ -88,7 +86,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED);
+        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE);
         assertTrue(factory instanceof FileSystemStorageFactory);
     }
 
@@ -101,21 +99,8 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
 
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE, StorageMetadataFormat.TABLE_BASED);
+        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof FileSystemSimpleStorageFactory);
-    }
-
-    @Test
-    public void testInvalidCombination() throws Exception {
-        val storageType = ServiceConfig.StorageType.FILESYSTEM;
-        ConfigSetup configSetup = mock(ConfigSetup.class);
-        val extraConfig = StorageExtraConfig.builder()
-                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
-                .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.TABLE_BASED);
-        assertNull(factory);
     }
 
     @Test
@@ -126,7 +111,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED);
+        val factory  = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.ROLLING_STORAGE);
         assertTrue(factory instanceof HDFSStorageFactory);
     }
 
@@ -138,7 +123,7 @@ public class StorageLoaderTest {
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
-        val factory = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.CHUNKED_STORAGE, StorageMetadataFormat.TABLE_BASED);
+        val factory = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof HDFSSimpleStorageFactory);
     }
 
@@ -157,7 +142,7 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
 
-        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE, StorageMetadataFormat.HEADER_BASED);
+        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.ROLLING_STORAGE);
         assertTrue(factory instanceof ExtendedS3StorageFactory);
     }
 
@@ -175,13 +160,13 @@ public class StorageLoaderTest {
                 .build();
         when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
 
-        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE, StorageMetadataFormat.TABLE_BASED);
+        val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
     }
 
-    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType, StorageMetadataFormat storageMetadataFormat) throws DurableDataLogException {
+    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         StorageLoader loader = new StorageLoader();
-        return loader.load(setup, name, storageLayoutType, storageMetadataFormat, executor);
+        return loader.load(setup, name, storageLayoutType, executor);
     }
 }

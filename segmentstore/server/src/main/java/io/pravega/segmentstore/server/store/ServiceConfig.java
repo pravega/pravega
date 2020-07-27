@@ -18,7 +18,7 @@ import io.pravega.segmentstore.server.CachePolicy;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Duration;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
+
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -54,7 +54,6 @@ public class ServiceConfig {
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
-    public static final Property<StorageMetadataFormat> STORAGE_METADATA = Property.named("storage.metadata.format", StorageMetadataFormat.HEADER_BASED);
     public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.ROLLING_STORAGE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
@@ -237,12 +236,6 @@ public class ServiceConfig {
     private final StorageType storageImplementation;
 
     /**
-     * The Type of Storage metadata format to use.
-     */
-    @Getter
-    private final StorageMetadataFormat storageMetadataFormat;
-
-    /**
      * The Type of Storage layout to use.
      */
     @Getter
@@ -345,7 +338,6 @@ public class ServiceConfig {
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
-        this.storageMetadataFormat = properties.getEnum(STORAGE_METADATA, StorageMetadataFormat.class);
         this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageLayoutType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);

@@ -75,9 +75,8 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
-    @Ignore
-    public void testEndToEndWithChunkedStorage() throws Exception {
-        endToEndProcess(false, true);
+    @Ignore ("NoOpStorage does not support ChunkedSegmentStorage yet.")
+    public void testEndToEndWithChunkedStorage() {
     }
 
     /**
@@ -92,8 +91,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
 
     @Override
     @Test
-    @Ignore
-    public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
-        endToEndProcessWithFencing(true, true);
+    @Ignore ("NoOpStorage does not support ChunkedSegmentStorage yet.")
+    public void testEndToEndWithFencingWithChunkedStorage() {
     }
 }

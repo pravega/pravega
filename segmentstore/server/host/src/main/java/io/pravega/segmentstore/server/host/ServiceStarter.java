@@ -179,7 +179,6 @@ public final class ServiceStarter {
             return loader.load(setup,
                     this.serviceConfig.getStorageImplementation().toString(),
                     this.serviceConfig.getStorageLayout(),
-                    this.serviceConfig.getStorageMetadataFormat(),
                     setup.getStorageExecutor());
         });
     }

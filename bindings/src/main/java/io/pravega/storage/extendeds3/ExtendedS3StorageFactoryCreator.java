@@ -14,7 +14,6 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,12 +37,10 @@ public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };

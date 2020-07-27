@@ -13,7 +13,6 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import lombok.val;
 
@@ -38,12 +37,10 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
         return new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build(),
         };

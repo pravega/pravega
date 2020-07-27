@@ -15,7 +15,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.StorageMetadataFormat;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import lombok.val;
@@ -39,12 +38,10 @@ public class InMemorySimpleStorageFactoryTests {
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.TABLE_BASED)
                         .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
                         .build(),
                 StorageFactoryInfo.builder()
                         .name("INMEMORY")
-                        .storageMetadataFormat(StorageMetadataFormat.HEADER_BASED)
                         .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
                         .build()
         };
