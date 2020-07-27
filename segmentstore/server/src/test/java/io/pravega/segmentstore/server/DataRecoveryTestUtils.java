@@ -146,7 +146,7 @@ public class DataRecoveryTestUtils {
      * @param storage       Long term storage to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    public static void deleteContainerMetadataSegments(Storage storage, int containerId) {
+    private static void deleteContainerMetadataSegments(Storage storage, int containerId) {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         deleteSegment(storage, metadataSegmentName);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
