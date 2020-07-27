@@ -460,8 +460,8 @@ public abstract class MetadataStore implements AutoCloseable {
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
             return this.connector.getMapSegmentId()
-                    .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
-                    .thenApply(id -> completeAssignment(properties.getName(), id));
+                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
+                                 .thenApply(id -> completeAssignment(properties.getName(), id));
         }
     }
 
@@ -547,28 +547,28 @@ public abstract class MetadataStore implements AutoCloseable {
     private <T> CompletableFuture<T> retryWithCleanup(Supplier<CompletableFuture<T>> toTry) {
         CompletableFuture<T> result = new CompletableFuture<>();
         toTry.get()
-                .thenAccept(result::complete)
-                .exceptionally(ex -> {
-                    // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
-                    // and try again, exactly once.
-                    try {
-                        if (Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
-                            log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
-                                    Exceptions.unwrap(ex).getMessage());
+             .thenAccept(result::complete)
+             .exceptionally(ex -> {
+                 // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
+                 // and try again, exactly once.
+                 try {
+                     if (Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
+                         log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
+                                 Exceptions.unwrap(ex).getMessage());
 
-                            CompletableFuture<T> f = this.connector.getMetadataCleanup().get().thenComposeAsync(v -> toTry.get(), this.executor);
-                            f.thenAccept(result::complete);
-                            Futures.exceptionListener(f, result::completeExceptionally);
-                        } else {
-                            result.completeExceptionally(ex);
-                        }
-                    } catch (Throwable t) {
-                        result.completeExceptionally(t);
-                        throw t;
-                    }
+                         CompletableFuture<T> f = this.connector.getMetadataCleanup().get().thenComposeAsync(v -> toTry.get(), this.executor);
+                         f.thenAccept(result::complete);
+                         Futures.exceptionListener(f, result::completeExceptionally);
+                     } else {
+                         result.completeExceptionally(ex);
+                     }
+                 } catch (Throwable t) {
+                     result.completeExceptionally(t);
+                     throw t;
+                 }
 
-                    return null;
-                });
+                 return null;
+             });
 
         return result;
     }
