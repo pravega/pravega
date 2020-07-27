@@ -1,0 +1,84 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.controller.server.rpc.auth;
+
+import com.google.common.base.Charsets;
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
+import lombok.NonNull;
+import lombok.SneakyThrows;
+import org.junit.Test;
+
+import java.security.Principal;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+/**
+ * Unit tests for the password-based auth handler plugin.
+ */
+public class PasswordAuthHandlerTest {
+
+    private final StrongPasswordProcessor encrypter = StrongPasswordProcessor.builder().build();
+    private final Base64.Encoder base64Encoder = Base64.getEncoder();
+
+    @Test
+    public void authenticatesValidUserSuccessfully() {
+        String username = "user";
+        String password = "password";
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
+                AuthHandler.Permissions.READ_UPDATE);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+
+        Principal principal = authHandler.authenticate(prepareToken(username, password));
+        assertNotNull(principal);
+        assertEquals(username, principal.getName());
+    }
+
+    @Test(expected = AuthenticationException.class)
+    public void authenticationFailsForUserWithBadCredentials() {
+        String username = "user";
+        String password = "password";
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
+                AuthHandler.Permissions.READ_UPDATE);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+        authHandler.authenticate(prepareToken(username, "bad-password"));
+    }
+
+    @Test(expected = AuthenticationException.class)
+    public void authenticationFailsForMissingUser() {
+        String username = "user1";
+        String password = "password";
+        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
+                AuthHandler.Permissions.READ_UPDATE);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
+        Principal principal = authHandler.authenticate(prepareToken("user-nonexistent", password));
+    }
+
+    private String prepareToken(@NonNull String username, @NonNull String password) {
+        return base64Encoder.encodeToString(String.format("%s:%s", username, password).getBytes(Charsets.UTF_8));
+    }
+
+    @SneakyThrows
+    private ConcurrentHashMap<String, AccessControlList> prepareMapOfAclsByUserName(
+            @NonNull String user, @NonNull String password,
+            @NonNull String resource, @NonNull AuthHandler.Permissions permission)  {
+        ConcurrentHashMap<String, AccessControlList> result = new ConcurrentHashMap<>();
+
+        AccessControlEntry ace = new AccessControlEntry(resource, permission);
+        AccessControlList acl = new AccessControlList(encrypter.encryptPassword(password), Arrays.asList(ace));
+
+        result.put(user, acl);
+        return result;
+    }
+}
