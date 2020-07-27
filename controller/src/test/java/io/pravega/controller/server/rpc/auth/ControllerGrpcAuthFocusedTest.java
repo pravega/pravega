@@ -151,7 +151,7 @@ public class ControllerGrpcAuthFocusedTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
-        KVTableMetadataStore kvtStore = KVTableStoreFactory.createInMemoryStore(EXECUTOR);
+        KVTableMetadataStore kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, EXECUTOR);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         KVTableMetadataStore kvtMetadataStore = mock(KVTableMetadataStore.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
