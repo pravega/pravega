@@ -31,7 +31,6 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -108,6 +107,16 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 /**
  * Integration test to verify data recovery.
  * Recovery scenario: when data written to Pravega is already flushed to the long term storage.
+ * What test does, step by step:
+ * 1. Starts Pravega locally with just one segment container.
+ * 2. Writes 300 events to two different segments.
+ * 3. Waits for all segments created to be flushed to the long term storage.
+ * 4. Shuts down the controller, segment store and bookeeper/zookeeper.
+ * 5. Deletes container metadata segment and its attribute segment from the old LTS.
+ * 5. Starts debug segment container using a new bookeeper/zookeeper and the old LTS.
+ * 6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+ * 7. Starts segment store and controller.
+ * 8. Reads all 600 events again.
  */
 @Slf4j
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
@@ -548,18 +557,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
-                                                             Storage tier2) {
+                                                             Storage storage) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
             SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             log.info("Segment properties = {}", sp);
-            segmentsCompletion.add(waitForSegmentInStorage(sp, tier2));
+            segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
         }
 
         return Futures.allOf(segmentsCompletion);
     }
 
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage tier2) {
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
         if (sp.getLength() == 0) {
             // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
             return CompletableFuture.completedFuture(null);
@@ -574,8 +583,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         return Futures.loop(
                 tryAgain::get,
                 () -> {
-                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, tier2);
-                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, tier2);
+                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, storage);
+                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, storage);
                     return CompletableFuture.allOf(segInfo, attrInfo)
                             .thenCompose(v -> {
                                 SegmentProperties storageProps = segInfo.join();
@@ -597,9 +606,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 executorService());
     }
 
-    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, Storage tier2) {
+    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, Storage storage) {
         return Futures
-                .exceptionallyExpecting(tier2.getStreamSegmentInfo(segmentName, timer.getRemaining()),
+                .exceptionallyExpecting(storage.getStreamSegmentInfo(segmentName, timer.getRemaining()),
                         ex -> ex instanceof StreamSegmentNotExistsException,
                         StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }

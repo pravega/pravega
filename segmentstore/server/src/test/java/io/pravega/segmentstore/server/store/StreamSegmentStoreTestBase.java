@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -191,8 +192,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments and then only 
-     * persisted storage is used to re-create all segments.
+     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments, and segments are let
+     * to be flushed to the long term storage. And then just using the long persisted storage, debug segment container
+     * registers all the segments.
      * @throws Exception If an exception occurred.
      */
     @Test

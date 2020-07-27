@@ -140,6 +140,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     /**
      * It tests the ability to register an existing segment using debug segment container. Method registerExistingSegment
      * is tested here.
+     * The test starts a debug segment container and creates some segments using it and then verifies if the segments
+     * were created successfully.
      */
     @Test
     public void testRegisterExistingSegment() {
@@ -184,7 +186,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Use a storage instance to create segments. List the segments from the storage and recreate them.
+     * Use a storage instance to create segments. Lists the segments from the storage and and then recreates them using
+     * debug segment containers. Before re-creating(or registering), the segments are mapped to their respective debug
+     * segment container. Once registered, segment's properties are matched to verify if the test was successful or not.
      */
     @Test
     public void testEndToEnd() throws Exception {
