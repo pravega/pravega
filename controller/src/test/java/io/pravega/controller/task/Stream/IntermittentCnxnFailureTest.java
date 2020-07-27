@@ -10,8 +10,9 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -26,6 +27,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -33,6 +35,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -56,6 +59,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -85,9 +89,13 @@ public class IntermittentCnxnFailureTest {
 
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private ConnectionFactory connectionFactory;
+    private ConnectionPool connectionPool;
+    @Mock
+    private KVTableMetadataStore kvtStore;
+    @Mock
+    private TableMetadataTasks kvtMetadataTasks;
     private StatsProvider statsProvider = null;
-    
+
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -109,9 +117,9 @@ public class IntermittentCnxnFailureTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
-        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
+        segmentHelperMock = spy(new SegmentHelper(connectionPool, hostStore, executor));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
@@ -122,7 +130,7 @@ public class IntermittentCnxnFailureTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
-        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+        controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
         StreamMetrics.initialize();
         controllerService.createScope(SCOPE).get();
@@ -136,7 +144,7 @@ public class IntermittentCnxnFailureTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
-        connectionFactory.close();
+        connectionPool.close();
         StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }

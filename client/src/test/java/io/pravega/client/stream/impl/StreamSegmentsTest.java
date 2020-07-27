@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -22,12 +23,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
+import lombok.val;
 import org.junit.Test;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -40,11 +42,44 @@ public class StreamSegmentsTest {
 
     private final String scope = "scope";
     private final String streamName = "streamName";
-    
+
+    @Test
+    public void testInvalidInput() {
+        val s = new Segment("a", "b", 9L);
+        val n1 = new TreeMap<Double, SegmentWithRange>();
+        n1.put(0.0, new SegmentWithRange(s, 0.0, 0.1));
+        AssertExtensions.assertThrows(
+                "",
+                () -> new StreamSegments(n1, ""),
+                ex -> ex instanceof IllegalArgumentException);
+        n1.clear();
+        n1.put(0.5, new SegmentWithRange(s, 0.5, 0.6));
+        AssertExtensions.assertThrows(
+                "",
+                () -> new StreamSegments(n1, ""),
+                ex -> ex instanceof IllegalArgumentException);
+        n1.clear();
+        n1.put(2.0, new SegmentWithRange(s, 1.0, 1.0));
+        AssertExtensions.assertThrows(
+                "",
+                () -> new StreamSegments(n1, ""),
+                ex -> ex instanceof IllegalArgumentException);
+        n1.clear();
+        val s1 = new StreamSegments(n1, "");
+        AssertExtensions.assertThrows(
+                "",
+                () -> s1.getSegmentForKey(-1),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                "",
+                () -> s1.getSegmentForKey(2),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
     @Test
     public void testUsesAllSegments() {
         StreamSegments streamSegments = initStreamSegments(4);
-        
+
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {

@@ -107,4 +107,19 @@ public final class AuthResourceRepresentation {
         Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
         return String.format("%s/%s", ofReaderGroupsInScope(scopeName), readerGroupName);
     }
+
+    /**
+     * Creates a resource representation for use in authorization of actions pertaining to the specified KeyValueTable
+     * within the specified scope.
+     *
+     * @param scopeName the name of the scope
+     * @param kvtName the name of the KeyValueTable
+     * @return a string representing the specified kvtable within the specified scope
+     * @throws NullPointerException if {@code scopeName} or {@code kvtName} are null
+     * @throws IllegalArgumentException if {@code scopeName} or {@code kvtName} are empty
+     */
+    public static String ofKeyValueTableInScope(String scopeName, String kvtName) {
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
+        return String.format("%s/_kvtable/%s", ofStreamsInScope(scopeName), kvtName);
+    }
 }

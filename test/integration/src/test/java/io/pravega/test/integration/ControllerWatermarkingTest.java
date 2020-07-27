@@ -9,21 +9,9 @@
  */
 package io.pravega.test.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map.Entry;
-
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -32,7 +20,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.watermark.WatermarkSerializer;
@@ -49,7 +37,17 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map.Entry;
 import lombok.Cleanup;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -121,7 +119,7 @@ public class ControllerWatermarkingTest {
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
         
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         RevisionedStreamClient<Watermark> reader = clientFactory.createRevisionedStreamClient(markStream,

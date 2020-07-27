@@ -12,20 +12,21 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -158,10 +159,12 @@ public class ControllerStreamMetadataTest {
 
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
+        ClientConfig config = ClientConfig.builder().build();
         @Cleanup
-        ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionPool cp = new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config));
+        
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, cf);
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
 
         // Create and delete scope
         assertTrue(streamManager.createScope(SCOPE));

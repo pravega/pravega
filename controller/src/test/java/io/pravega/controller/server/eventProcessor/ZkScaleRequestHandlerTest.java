@@ -11,7 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.VersionedMetadata;
 
 public class ZkScaleRequestHandlerTest extends ScaleRequestHandlerTest {
     @Override
