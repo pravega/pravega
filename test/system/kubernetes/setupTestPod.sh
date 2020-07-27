@@ -36,7 +36,7 @@ fi
 
 # Step 2: Verify if helm is present.
 if [ $(program_is_installed helm) == 0 ]; then
-  echo "helm is not installed, please ensure kubectl with version >=v3.2.1"
+  echo "helm is not installed, please ensure helm with version >=v3.2.1"
   exit 1
 else
   echo "helm is installed."
