@@ -121,13 +121,20 @@ allprojects {
             force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
+            force "io.netty:netty-common:" + nettyVersion
             force "io.netty:netty-transport:" + nettyVersion
             force "io.netty:netty-handler:" + nettyVersion
+            force "io.netty:netty-codec:" + nettyVersion
+            force "io.netty:netty-codec-http:" + nettyVersion
+            force "io.netty:netty-codec-http2:" + nettyVersion
+            force "io.netty:netty-codec-socks:" + nettyVersion
+            force "io.netty:netty-handler-proxy:" + nettyVersion
             force "io.netty:netty-transport-native-epoll:" + nettyVersion
-            force "io.netty:netty-all:" + nettyVersion
-            force "io.netty:netty:" + nettyAllVersion
             force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
-
+            // Netty 4 uber jar
+            exclude group: 'io.netty', module: 'netty-all'
+            // Netty 3
+            exclude group: 'io.netty', module: 'netty'
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
             }
@@ -233,6 +240,7 @@ project('shared:protocol') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(path: ':common', configuration: 'testRuntime')
     }
 }
 
@@ -266,7 +274,7 @@ project('test:testcommon') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-common', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
@@ -329,6 +337,12 @@ project ('bindings') {
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
+        // Adding JAXB API and the reference implementation as dependencies here, since they are not available
+        // in newer Java SE versions (11 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
@@ -457,9 +471,9 @@ project('test:integration') {
     }
 
     test {
-		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=selftest"]
+        jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+                   "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                   "-Dlog.name=selftest"]
     }
 
     dependencies {
@@ -834,9 +848,6 @@ project('test:system') {
 
     task startK8SystemTests(type: Test) {
         tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
-        //tasks.withType(Exec) { environment "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage", "zookeeper-operator") }
-        //tasks.withType(Exec) { environment "bookkeeperOperatorImage", System.getProperty("bookkeeperOperatorImage", "bookkeeper-operator") }
-       // tasks.withType(Exec) { environment "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega-operator") }
         tasks.withType(Exec) { environment "imageVersionPrOp",System.getProperty("imageVersionPrOp", "latest") }
         tasks.withType(Exec) { environment "imageVersionBkOp",System.getProperty("imageVersionBkOp", "latest") }
         tasks.withType(Exec) { environment "imageVersionZkOp",System.getProperty("imageVersionZkOp", "latest") }
@@ -853,7 +864,6 @@ project('test:system') {
         systemProperty "execType", "KUBERNETES"
         systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest")
         systemProperty "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest")
-        systemProperty "bookkeeperOperatorImage", System.getProperty("bookkeeperOperatorImage", "pravega/bookkeeper-operator:latest")
         // The below properties are used to to specify the pravega docker image properties
         // e.g: private-docker-repo/pravega-prefix/pravega:version
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
@@ -865,32 +875,23 @@ project('test:system') {
         systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        // bookkeeper version defaults to pravega version.
         systemProperty "nameSpace", System.getProperty("nameSpace", "default")
-        // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-        // bookkeeper version defaults to pravega version.
         systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "latest") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
+        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        systemProperty "tier2Config", System.getProperty("tier2Config")
         systemProperty "imageVersionPrOp",System.getProperty("imageVersionPrOp", "latest")
         systemProperty "imageVersionBkOp",System.getProperty("imageVersionBkOp", "latest")
         systemProperty "imageVersionZkOp",System.getProperty("imageVersionZkOp", "latest")
-        //systemProperty "pravegaOperatorImage",System.getProperty("pravegaOperatorImage", "pravega-operator")
-        //systemProperty "zookeeperOperatorImage",System.getProperty("zookeeperOperatorImage", "zookeeper-operator")
-       // systemProperty "bookkeeperOperatorImage",System.getProperty("bookkeeperOperatorImage", "bookkeeper-operator")
         systemProperty "chartName",System.getProperty("chartName", "pravega")
         systemProperty "repository",System.getProperty("repository", "pravega")
-        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
-        systemProperty "tier2Config", System.getProperty("tier2Config")
-        
+
         systemProperty "imageVersionPrOp", System.getProperty("imageVersionPrOp")
         systemProperty "imageVersionBkOp", System.getProperty("imageVersionBkOp")
         systemProperty "imageVersionZkOp", System.getProperty("imageVersionZkOp")
-        //systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage")
-        //systemProperty "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage")
-       // systemProperty "bookkeeperOperatorImage", System.getProperty("bookkeeperOperatorImage")
-        
-        
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
