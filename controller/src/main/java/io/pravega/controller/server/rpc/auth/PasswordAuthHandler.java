@@ -36,11 +36,17 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
-    private final ConcurrentHashMap<String, PravegaACls> userMap;
+    private final ConcurrentHashMap<String, AccessControlList> userMap;
     private final StrongPasswordProcessor encryptor;
 
     public PasswordAuthHandler() {
         userMap = new ConcurrentHashMap<>();
+        encryptor = StrongPasswordProcessor.builder().build();
+    }
+
+    @VisibleForTesting
+    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser) {
+        userMap = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
     }
 
@@ -62,7 +68,7 @@ public class PasswordAuthHandler implements AuthHandler {
                     } else {
                         acls = userFields[2];
                     }
-                    userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(acls)));
+                    userMap.put(userFields[0], new AccessControlList(userFields[1], getAcls(acls)));
                 }
             }
         } catch (IOException e) {
@@ -82,7 +88,8 @@ public class PasswordAuthHandler implements AuthHandler {
         char[] password = parts[1].toCharArray();
 
         try {
-            if (userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword)) {
+            if (userMap.containsKey(userName) &&
+                    encryptor.checkPassword(password, userMap.get(userName).getEncryptedPassword())) {
                 return new UserPrincipal(userName);
             }
             throw new AuthenticationException("User authentication exception");
@@ -127,7 +134,7 @@ public class PasswordAuthHandler implements AuthHandler {
         return parts;
     }
 
-    private Permissions authorizeForUser(PravegaACls pravegaACls, String resource) {
+    private Permissions authorizeForUser(AccessControlList accessControlList, String resource) {
         Permissions result = Permissions.NONE;
 
         /*
@@ -135,7 +142,7 @@ public class PasswordAuthHandler implements AuthHandler {
          *  If It is a direct match, return the ACLs.
          *  If it is a partial match, the target has to end with a `/`
          */
-        for (PravegaAcl acl : pravegaACls.acls) {
+        for (AccessControlEntry acl : accessControlList.getAcls()) {
 
             // Separating into different blocks, to make the code more understandable.
             // It makes the code look a bit strange, but it is still simpler and easier to decipher than what it be
@@ -143,18 +150,18 @@ public class PasswordAuthHandler implements AuthHandler {
 
             if (acl.isResource(resource)) {
                 // Example: resource = "myscope", acl-resource = "myscope"
-                result = acl.permissions;
+                result = acl.getPermissions();
                 break;
             }
 
             if (acl.isResource("/*") && !resource.contains("/")) {
                 // Example: resource = "myscope", acl-resource ="/*"
-                result = acl.permissions;
+                result = acl.getPermissions();
                 break;
             }
 
             if (acl.resourceEndsWith("/") && acl.resourceStartsWith(resource)) {
-                result = acl.permissions;
+                result = acl.getPermissions();
                 break;
             }
 
@@ -163,20 +170,20 @@ public class PasswordAuthHandler implements AuthHandler {
             if (resource.contains("/") && !resource.endsWith("/")) {
                 String[] values = resource.split("/");
                 if (acl.isResource(values[0] + "/*")) {
-                    result = acl.permissions;
+                    result = acl.getPermissions();
                     break;
                 }
             }
 
             if (acl.isResource("*") && acl.hasHigherPermissionsThan(result)) {
-                result = acl.permissions;
+                result = acl.getPermissions();
                 break;
             }
         }
         return result;
     }
 
-    private List<PravegaAcl> getAcls(String aclString) {
+    private List<AccessControlEntry> getAcls(String aclString) {
         return  Arrays.stream(aclString.split(";")).map(acl -> {
             String[] splits = acl.split(",");
             if (splits.length == 0) {
@@ -188,36 +195,40 @@ public class PasswordAuthHandler implements AuthHandler {
                 aclVal = splits[1];
 
             }
-            return new PravegaAcl(resource,
+            return new AccessControlEntry(resource,
                     Permissions.valueOf(aclVal));
         }).collect(Collectors.toList());
     }
 
-    @Data
-    private class PravegaACls {
-        private final String encryptedPassword;
-        private final List<PravegaAcl> acls;
+
+}
+
+@VisibleForTesting
+@Data
+class AccessControlList {
+    private final String encryptedPassword;
+    private final List<AccessControlEntry> acls;
+}
+
+@VisibleForTesting
+@Data
+class AccessControlEntry {
+    private final String resourceRepresentation;
+    private final AuthHandler.Permissions permissions;
+
+    public boolean isResource(String resource) {
+        return resourceRepresentation.equals(resource);
     }
 
-    @Data
-    private class PravegaAcl {
-        private final String resourceRepresentation;
-        private final Permissions permissions;
+    public boolean resourceEndsWith(String resource) {
+        return resourceRepresentation.endsWith(resource);
+    }
 
-        public boolean isResource(String resource) {
-            return resourceRepresentation.equals(resource);
-        }
+    public boolean resourceStartsWith(String resource) {
+        return resourceRepresentation.startsWith(resource);
+    }
 
-        public boolean resourceEndsWith(String resource) {
-            return resourceRepresentation.endsWith(resource);
-        }
-
-        public boolean resourceStartsWith(String resource) {
-            return resourceRepresentation.startsWith(resource);
-        }
-
-        public boolean hasHigherPermissionsThan(Permissions input) {
-            return this.permissions.ordinal() > input.ordinal();
-        }
+    public boolean hasHigherPermissionsThan(AuthHandler.Permissions input) {
+        return this.permissions.ordinal() > input.ordinal();
     }
 }
