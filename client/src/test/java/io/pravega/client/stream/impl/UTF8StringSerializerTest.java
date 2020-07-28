@@ -10,9 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Strings;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 

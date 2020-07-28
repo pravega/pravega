@@ -177,7 +177,7 @@ public class S3ProxyImpl extends S3ImplBase {
 
     @Override
     public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
-        request.getDeleteObjects().getKeys().forEach(key -> aclMap.remove(key));
+        request.getDeleteObjects().getKeys().forEach(key -> aclMap.remove(key.getKey()));
         return client.deleteObjects(request);
     }
 
