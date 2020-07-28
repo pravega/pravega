@@ -280,9 +280,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeSecondaryServices() {
         try {
             initializeStorage();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return Futures.failedFuture(ex);
         } catch (Exception ex) {
             return Futures.failedFuture(ex);
         }

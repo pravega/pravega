@@ -52,6 +52,8 @@ import java.util.concurrent.Executor;
 @Slf4j
 public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    private static final int CONTAINER_ID = 42;
+    private static final int OWNER_EPOCH = 100;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -106,7 +108,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
         val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), config);
-        val systemJournal = new SystemJournal(42, 1, storageProvider, metadataStore, config);
+        val systemJournal = new SystemJournal(CONTAINER_ID, 1, storageProvider, metadataStore, config);
 
         testUninitialized(storageManager);
 
@@ -117,14 +119,14 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
         Assert.assertEquals(1, storageManager.getEpoch());
 
-        storageManager.bootstrap(42, metadataStore);
+        storageManager.bootstrap(CONTAINER_ID, metadataStore);
         Assert.assertEquals(metadataStore, storageManager.getMetadataStore());
         Assert.assertEquals(storageProvider, storageManager.getChunkStorage());
         Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
         Assert.assertNotNull(storageManager.getSystemJournal());
         Assert.assertEquals(systemJournal.getConfig().getDefaultRollingPolicy(), policy);
         Assert.assertEquals(1, storageManager.getEpoch());
-        Assert.assertEquals(42, storageManager.getContainerId());
+        Assert.assertEquals(CONTAINER_ID, storageManager.getContainerId());
         Assert.assertEquals(0, storageManager.getConfig().getMinSizeLimitForConcat());
         Assert.assertEquals(Long.MAX_VALUE, storageManager.getConfig().getMaxSizeLimitForConcat());
         storageManager.close();
@@ -242,7 +244,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestContext testContext = getTestContext();
         testContext.storageManager.initialize(2);
         int maxRollingLength = 1;
-        int ownerEpoch = 100;
+        int ownerEpoch = OWNER_EPOCH;
         testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch);
 
         // These operations should always succeed.
@@ -299,7 +301,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestContext testContext = getTestContext();
         testContext.storageManager.initialize(2);
         int maxRollingLength = 1;
-        testContext.insertMetadata(testSegmentName, maxRollingLength, 100);
+        testContext.insertMetadata(testSegmentName, maxRollingLength, OWNER_EPOCH);
         testContext.insertMetadata("source", maxRollingLength, 1);
         testContext.storageManager.seal(SegmentStorageHandle.writeHandle("source"), null).join();
 
@@ -348,7 +350,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestContext testContext = getTestContext();
         testContext.storageManager.initialize(2);
         int maxRollingLength = 1;
-        testContext.insertMetadata(testSegmentName, maxRollingLength, 100);
+        testContext.insertMetadata(testSegmentName, maxRollingLength, OWNER_EPOCH);
         testContext.insertMetadata("source", maxRollingLength, 1);
         testContext.storageManager.seal(SegmentStorageHandle.writeHandle("source"), null).join();
 
@@ -880,7 +882,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testOpenWriteAfterFailoverWithSingleChunk() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
-        int maxRollingLength = 100;
+        int maxRollingLength = OWNER_EPOCH;
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 12;
 
@@ -897,7 +899,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testOpenReadAfterFailoverWithSingleChunk() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
-        int maxRollingLength = 100;
+        int maxRollingLength = OWNER_EPOCH;
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 12;
 
@@ -1517,7 +1519,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Write some data.
         long writeAt = 0;
-        long epoch = 42;
+        long epoch = CONTAINER_ID;
         ArrayList<Long> lengths = new ArrayList<>();
         for (int i = 1; i < 5; i++) {
             // Create a new test context and initialize with new epoch.
@@ -1566,7 +1568,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Write some data.
         long writeAt = 0;
-        long epoch = 42;
+        long epoch = CONTAINER_ID;
         SegmentHandle hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
         ArrayList<Long> lengths = new ArrayList<>();
         for (int i = 1; i < 5; i++) {
@@ -1626,7 +1628,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Write some data.
         long writeAt = 0;
         long truncateAt = 0;
-        long epoch = 42;
+        long epoch = CONTAINER_ID;
         SegmentHandle hWrite =  testContext.storageManager.openWrite(testSegmentName).get();
         ArrayList<Long> lengths = new ArrayList<>();
         for (int i = 1; i < 5; i++) {

@@ -69,6 +69,13 @@ public class StreamSegmentInformation implements SegmentProperties {
                                      boolean sealedInStorage, boolean deletedInStorage, Map<UUID, Long> attributes, ImmutableDate lastModified) {
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
+        Preconditions.checkArgument(length >= storageLength, "storageLength must be less than or equal to length.");
+        if (deletedInStorage) {
+            Preconditions.checkArgument(deleted, "deleted must be set if deletedInStorage is set.");
+        }
+        if (sealedInStorage) {
+            Preconditions.checkArgument(sealed, "sealed must be set if sealedInStorage is set.");
+        }
         this.name = Exceptions.checkNotNullOrEmpty(name, "name");
         this.startOffset = startOffset;
         this.length = length;
