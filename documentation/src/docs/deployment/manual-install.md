@@ -19,6 +19,13 @@ Setup a HDFS storage cluster running **HDFS version 2.7+**. HDFS is used as Tier
 sufficient capacity to store the contents of all the streams. The storage cluster is recommended to be run
 alongside Pravega on separate nodes.
 
+### Filesystem
+
+HDFS is the default Tier 2 storage which is also called Long Term Storage. If it is easier to mount an nfs share, then Filesystem can be used in place of HDFS. The following configuration options are necessary to configure the Filesystem as Long Term Storage.
+pravegaservice.storage.impl.name = FILESYSTEM
+filesystem.root = /mnt/tier2
+where /mnt/tier2 is replaced with your nfs share and FILESYSTEM is a keyword.
+
 ### Java
 
 Install the latest Java 8 from [java.oracle.com](http://java.oracle.com). Packages are available

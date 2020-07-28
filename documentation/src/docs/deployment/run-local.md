@@ -13,8 +13,9 @@ As an alternative to running Pravega on a cluster of machines, you may run Prave
 
 You may run Pravega on local machine using either of these two options:
 
-1. [Standalone mode](#standalone-mode) deployment: In this option, Pravega server runs on a single process.
-2. Distributed mode [Docker Compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
+1. [Standalone mode](#standalone-mode) deployment: In this option, Pravega server runs in a single process and in-memory.
+2. [Long Term Storage mode](#long-term-storage) deployment: In this option, Pravega server runs as a single instance on localhost or a virtual machine with streams persisted on Tier 2
+3. Distributed mode [Docker Compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
 
 These options are explained in below subsections.
 
@@ -59,6 +60,11 @@ Run Pravega Standalone:
 ```
 $ pravega-<version>/bin/pravega-standalone
 ```
+
+
+##  With Long Term Storage
+
+When the streams are required to be persisted between server restarts, a tier 2 storage is required by Pravega. For Example, a mounted nfs-share can be used can be used a tier2 storage. Only the Segment store requires its host to be configured with this storage. The controller and segment store are run as different processes. The long term storage is set up only on the latter. These steps are described in [Manual Installation](manual-install.md).
 
 ### From Docker Image
 
