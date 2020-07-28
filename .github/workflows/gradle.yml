@@ -1,0 +1,46 @@
+# This workflow will build a Java project with Gradle
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
+
+name: build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [8, 11]
+
+    name: Java ${{ matrix.java }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Restore local Gradle & Maven cache
+      uses: actions/cache@v2.1.0
+      with:
+        path: |
+          .gradle
+          ~/.gradle
+          ~/.m2
+        key: gradle-m2-java-${{ matrix.java }}
+        restore-keys: |
+          gradle-m2-java-
+          gradle-m2
+    - name: Set up JDK ${{ matrix.java }}
+      uses: actions/setup-java@v1
+      with:
+        java-version: ${{ matrix.java }}
+    - name: Assemble with Gradle
+      run: ./gradlew assemble
+    - name: Check with Gradle
+      run: ./gradlew check
+    - name: Codecov
+      if: ${{ matrix.java == 8 }}
+      uses: codecov/codecov-action@v1.0.12
+    - name: Javadoc with Gradle
+      run: ./gradlew javadocs
