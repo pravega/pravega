@@ -88,6 +88,7 @@ plugins.withId('java') {
         maxHeapSize = "512m"
         def jvmArgsCopy = jvmArgs
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
+        jvmArgsCopy.add("-XX:+HeapDumpOnOutOfMemoryError")
         jvmArgs = jvmArgsCopy
     }
 
