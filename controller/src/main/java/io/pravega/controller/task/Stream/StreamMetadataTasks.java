@@ -18,7 +18,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
@@ -30,8 +30,8 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -39,7 +39,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
@@ -58,6 +58,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
@@ -83,9 +84,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -103,22 +101,19 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamMetadataTasks extends TaskBase {
-
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
-    private static final long COMPLETION_TIMEOUT_MILLIS = Duration.ofMinutes(2).toMillis();
+
 
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final SegmentHelper segmentHelper;
-    private String requestStreamName;
 
-    private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
-    private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
-    private final AtomicLong completionTimeoutMillis = new AtomicLong(COMPLETION_TIMEOUT_MILLIS);
+    private EventHelper eventHelper;
+
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -136,6 +131,17 @@ public class StreamMetadataTasks extends TaskBase {
                                final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, executor, new Context(hostId),
              authHelper, requestTracker);
+    }
+
+    @VisibleForTesting
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
+                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
+                               final String hostId, GrpcAuthHelper authHelper, RequestTracker requestTracker,
+                               final EventHelper helper) {
+        this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, executor, new Context(hostId),
+                authHelper, requestTracker);
+        this.eventHelper = helper;
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -156,12 +162,13 @@ public class StreamMetadataTasks extends TaskBase {
     @Synchronized
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
-        this.requestStreamName = streamName;
-        requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
+        this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()));
-        writerInitFuture.complete(null);
+                EventWriterConfig.builder().build()),
+                this.executor, this.eventExecutor, this.context.getHostId(),
+                ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
     }
+
 
     /**
      * Method to create stream with retries for lock failed exception.
@@ -223,13 +230,13 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(configProperty -> {
                     // 2. post event to start update workflow
                     if (!configProperty.getObject().isUpdating()) {
-                        return addIndexAndSubmitTask(new UpdateStreamEvent(scope, stream, requestId), 
+                        return eventHelper.addIndexAndSubmitTask(new UpdateStreamEvent(scope, stream, requestId),
                                 // 3. update new configuration in the store with updating flag = true
                                 // if attempt to update fails, we bail out with no harm done
                                 () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
                                         context, executor))
                                 // 4. wait for update to complete
-                                .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
+                                .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                     } else {
                         log.warn(requestId, "Another update in progress for {}/{}",
@@ -242,18 +249,6 @@ public class StreamMetadataTasks extends TaskBase {
                             ex.getMessage());
                     return handleUpdateStreamError(ex, requestId);
                 });
-    }
-
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
-        return checkDone(condition, 100L);
-    }
-    
-    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
-        // Check whether workflow is complete by adding a delay between each iteration. 
-        // If the work is not complete within `completionTimeoutMillis` throw TimeoutException.
-        AtomicBoolean isDone = new AtomicBoolean(false);
-        return RetryHelper.loopWithTimeout(() -> !isDone.get(), () -> condition.get().thenAccept(isDone::set),
-                delay, 5000L, completionTimeoutMillis.get(), executor);
     }
 
     @VisibleForTesting
@@ -326,27 +321,32 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
                                              RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-        return findTruncationRecord(policy, retentionSet, newRecord, recordingTime)
-                .map(record -> streamMetadataStore.getStreamCutRecord(scope, stream, record, context, executor)
-                        .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                        .thenCompose(started -> {
-                            if (started) {
-                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
+        Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
+        if (!truncationRecord.isPresent()) {
+            log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
+            return CompletableFuture.completedFuture(null);
+        }
+        log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
+                                                                                newRecord.getRecordingTime(), newRecord.getRecordingSize());
+        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
+                   .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
+                   .thenCompose(started -> {
+                       if (started) {
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord.get(), context, executor);
                             } else {
                                 throw new RuntimeException("Could not start truncation");
-                            }
-                        })
-                        .exceptionally(e -> {
-                            if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                log.debug(requestId, "Cannot truncate at given " +
+                       }
+                   })
+                   .exceptionally(e -> {
+                       if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                           // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                           log.debug(requestId, "Cannot truncate at given " +
                                         "streamCut because it intersects with existing truncation point");
                                 return null;
-                            } else {
+                           } else {
                                 throw new CompletionException(e);
-                            }
-                        })
-                ).orElse(CompletableFuture.completedFuture(null));
+                          }
+                       });
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
@@ -417,7 +417,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
+                        return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn(requestId, "Unable to start truncation for {}/{}", scope, stream);
@@ -438,7 +438,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(property -> {
                     if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
-                        return addIndexAndSubmitTask(new TruncateStreamEvent(scope, stream, requestId), 
+                        return eventHelper.addIndexAndSubmitTask(new TruncateStreamEvent(scope, stream, requestId),
                                 // 3. start truncation by updating the metadata
                                 () -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
@@ -488,7 +488,7 @@ public class StreamMetadataTasks extends TaskBase {
 
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
-        return addIndexAndSubmitTask(event, 
+        return eventHelper.addIndexAndSubmitTask(event,
                 // 2. set state to sealing
                 () -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(state -> {
@@ -501,7 +501,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {
-                        return checkDone(() -> isSealed(scope, stream, context))
+                        return eventHelper.checkDone(() -> isSealed(scope, stream, context))
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -546,7 +546,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (State.SEALED.equals(state) || State.CREATING.equals(state)) {
                         return streamMetadataStore.getCreationTime(scope, stream, context, executor)
                                                   .thenApply(time -> new DeleteStreamEvent(scope, stream, requestId, time))
-                                                  .thenCompose(event -> writeEvent(event))
+                                                  .thenCompose(event -> eventHelper.writeEvent(event))
                                                   .thenApply(x -> true);
                     } else if (State.UNKNOWN.equals(state)) {
                         // Since the state is not created, so the segments and state 
@@ -564,7 +564,7 @@ public class StreamMetadataTasks extends TaskBase {
                 })
                 .thenCompose(result -> {
                     if (result) {
-                        return checkDone(() -> isDeleted(scope, stream))
+                        return eventHelper.checkDone(() -> isDeleted(scope, stream))
                                 .thenApply(x -> DeleteStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
@@ -600,7 +600,7 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
 
-        return addIndexAndSubmitTask(event,
+        return eventHelper.addIndexAndSubmitTask(event,
                 () -> streamMetadataStore.submitScale(scope, stream, segmentsToSeal, new ArrayList<>(newRanges),
                         scaleTimestamp, null, context, executor))
                         .handle((startScaleResponse, e) -> {
@@ -679,82 +679,24 @@ public class StreamMetadataTasks extends TaskBase {
                             });
     }
 
-    /**
-     * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will 
-     * be posted in request stream. It does it by following approach:
-     * 1. it first adds the index for the event to be posted to the current host. 
-     * 2. it then invokes future. 
-     * 3. it then posts event. 
-     * 4. removes the index. 
-     *
-     * If controller fails after step 2, a replacement controller will failover all indexes and {@link RequestSweeper} will 
-     * post events for any index that is found.  
-     *
-     * Upon failover, an index can be found if failure occurred in any step before 3. It is safe to post duplicate events 
-     * because event processing is idempotent. It is also safe to post event even if step 2 was not performed because the 
-     * event will be ignored by the processor after a while.
-     */
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
-        String id = UUID.randomUUID().toString();
-        // We first add index and then call the metadata update.
-        //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception 
-        // (which can also occur if we had retried on a store exception), we will still post the event because we
-        //  don't know whether our update succeeded. Posting the event is harmless, though. If the update
-        // has succeeded, then the event will be used for processing. If the update had failed, then the event
-        // will be discarded. We will throw the exception that we received from running futureSupplier or return the
-        // successful value
-        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event) 
-            .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
-                (r, e) -> {
-                    if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
-                            Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
-                        return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
-                                ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
-                                          .thenCompose(z -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
-                                          .thenApply(vd -> {
-                                              if (e != null) {
-                                                  throw new CompletionException(e);
-                                              } else {
-                                                  return r;
-                                              }
-                                          });
-                    } else {
-                        throw new CompletionException(e);
-                    }
-                }));
+        return eventHelper.addIndexAndSubmitTask(event, futureSupplier);
     }
-    
-    public CompletableFuture<Void> writeEvent(ControllerEvent event) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
 
-        writerInitFuture.thenComposeAsync(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event),
-                                          eventExecutor)
-                        .whenComplete((r, e) -> {
-                            if (e != null) {
-                                log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
-                                if (e instanceof TaskExceptions.ProcessingDisabledException) {
-                                    result.completeExceptionally(e);
-                                } else {
-                                    // transform any other event write exception to retryable
-                                    // exception
-                                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event",
-                                                                                                       e));
-                                }
-                            } else {
-                                log.info("event posted successfully");
-                                result.complete(null);
-                            }
-                        });
-        return result;
+    public CompletableFuture<Void> writeEvent(ControllerEvent event) {
+        return eventHelper.writeEvent(event);
     }
 
     @VisibleForTesting
     public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
-        requestEventWriterRef.set(requestEventWriter);
-        writerInitFuture.complete(null);
+        eventHelper.setRequestEventWriter(requestEventWriter);
     }
-    
+
+    CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
+        return eventHelper.removeTaskFromIndex(hostId, id);
+    }
+
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
@@ -1064,13 +1006,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public void close() throws Exception {
-        if (!writerInitFuture.isDone()) {
-            writerInitFuture.cancel(true);
+        if (eventHelper != null) {
+            eventHelper.close();
         }
-        EventStreamWriter<ControllerEvent> writer = requestEventWriterRef.get();
-        if (writer != null) {
-            writer.close();
-        }
+
     }
 
     public String retrieveDelegationToken() {
@@ -1079,6 +1018,6 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     public void setCompletionTimeoutMillis(long timeoutMillis) {
-        completionTimeoutMillis.set(timeoutMillis);
+        eventHelper.setCompletionTimeoutMillis(timeoutMillis);
     }
 }

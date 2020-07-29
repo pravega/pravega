@@ -19,9 +19,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -286,7 +286,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
                                      .clientConfig(clientConfig)
                                      .build(), executor);
-        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller, clientConfig);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, clientConfig)) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
                                                        .stream(Stream.of(testScope, testStream1))

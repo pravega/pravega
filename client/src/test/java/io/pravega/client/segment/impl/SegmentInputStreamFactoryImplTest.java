@@ -9,23 +9,22 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.Flow;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.EmptyTokenProviderImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -36,7 +35,7 @@ public class SegmentInputStreamFactoryImplTest {
     @Mock
     private Controller controller;
     @Mock
-    private ConnectionFactory cf;
+    private ConnectionPool cp;
     @Mock
     private ClientConnection connection;
     @Mock
@@ -46,14 +45,14 @@ public class SegmentInputStreamFactoryImplTest {
     public void setup() {
         when(controller.getEndpointForSegment(anyString()))
                 .thenReturn(CompletableFuture.completedFuture(new PravegaNodeUri("localhost", 9090)));
-        when(cf.establishConnection(any(Flow.class), any(PravegaNodeUri.class), any(ReplyProcessor.class)))
+        when(cp.getClientConnection(any(Flow.class), any(PravegaNodeUri.class), any(ReplyProcessor.class)))
                 .thenReturn(CompletableFuture.completedFuture(connection));
-        when(cf.getInternalExecutor()).thenReturn(executor);
+        when(cp.getInternalExecutor()).thenReturn(executor);
     }
 
     @Test
     public void createInputStreamForSegment() {
-        SegmentInputStreamFactoryImpl factory = new SegmentInputStreamFactoryImpl(controller, cf);
+        SegmentInputStreamFactoryImpl factory = new SegmentInputStreamFactoryImpl(controller, cp);
         SegmentInputStream segmentInputStream = factory
                 .createInputStreamForSegment(Segment.fromScopedName("scope/stream/0"), new EmptyTokenProviderImpl());
         assertEquals(0, segmentInputStream.getOffset());
@@ -61,7 +60,7 @@ public class SegmentInputStreamFactoryImplTest {
 
     @Test
     public void testCreateInputStreamForSegmentWithOffset() {
-        SegmentInputStreamFactoryImpl factory = new SegmentInputStreamFactoryImpl(controller, cf);
+        SegmentInputStreamFactoryImpl factory = new SegmentInputStreamFactoryImpl(controller, cp);
         SegmentInputStream segmentInputStream = factory
                 .createInputStreamForSegment(Segment
                         .fromScopedName("scope/stream/0"), new EmptyTokenProviderImpl(), 100);

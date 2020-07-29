@@ -51,7 +51,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -59,6 +59,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -67,7 +68,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class BoundedStreamReaderTest {
+public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
 
     private static final String SCOPE = "testScope";
     private static final String STREAM1 = "testStream1";
@@ -90,6 +91,7 @@ public class BoundedStreamReaderTest {
 
     @Before
     public void setUp() throws Exception {
+        super.before();
         executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
@@ -117,6 +119,7 @@ public class BoundedStreamReaderTest {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+        super.after();
     }
 
     @Test(timeout = 60000)

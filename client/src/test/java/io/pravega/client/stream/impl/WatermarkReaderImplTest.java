@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -22,10 +23,9 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.InlineExecutor;
-import lombok.Cleanup;
-
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

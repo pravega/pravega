@@ -14,9 +14,8 @@ import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.Service;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
@@ -29,6 +28,7 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
@@ -40,12 +40,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,6 +47,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -92,7 +91,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         segmentEvent = new ConcurrentHashMap<>();
         writers = new ConcurrentHashMap<>();
         writerEventNumber = new ConcurrentHashMap<>();
-
     }
     
     @Override
@@ -106,6 +104,8 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
     
     abstract StreamMetadataStore getStore(StoreClient storeClient);
 
+    abstract KVTableMetadataStore getKVTStore(StoreClient storeClient);
+
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
         private ReplyProcessor rp;
@@ -114,13 +114,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-            this.rp = rp;
-            this.connection = new MockConnection(rp);
-            return CompletableFuture.completedFuture(connection);
-        }
-
-        @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
             this.connection = new MockConnection(rp);
             return CompletableFuture.completedFuture(connection);
@@ -155,11 +148,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         
         @Override
         public void send(Append append) throws ConnectionFailedException {
-        }
-
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            handleRequest(cmd);
         }
 
         @Override
@@ -280,6 +268,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         CompletableFuture<Void> signal = new CompletableFuture<>();
         @Cleanup
         StreamMetadataStore store = spy(getStore(storeClient));
+        KVTableMetadataStore kvtStore = spy(getKVTStore(storeClient));
         doAnswer(x -> {
             signal.complete(null);
             latch.join();
@@ -287,7 +276,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         }).when(store).createScope(anyString());
         
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, kvtStore);
         starter.startAsync();
         
         // this will block until createScope is called from event processors. 

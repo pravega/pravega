@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -39,7 +40,6 @@ import lombok.experimental.Accessors;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
@@ -536,12 +536,13 @@ public final class WireCommands {
         final UUID writerId;
         final ByteBuf data;
 
-        AppendBlock(UUID writerId) {
+        public AppendBlock(UUID writerId) {
             this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
-        AppendBlock(UUID writerId, ByteBuf data) {
+        @VisibleForTesting
+        public AppendBlock(UUID writerId, ByteBuf data) {
             this.writerId = writerId;
             this.data = data;
         }
@@ -1109,6 +1110,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        final boolean sorted;
         @ToString.Exclude
         final String delegationToken;
 
@@ -1122,14 +1124,19 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeBoolean(sorted);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
+            boolean sorted = false;
+            if (in.available() >= 1) {
+                sorted = in.readBoolean();
+            }
 
-            return new CreateTableSegment(requestId, segment, delegationToken);
+            return new CreateTableSegment(requestId, segment, sorted, delegationToken);
         }
     }
 
@@ -1590,6 +1597,11 @@ public final class WireCommands {
         public boolean isTokenExpired() {
             return errorCode == ErrorCode.TOKEN_EXPIRED;
         }
+        
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1867,6 +1879,7 @@ public final class WireCommands {
         final String delegationToken;
         final int suggestedKeyCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1883,6 +1896,11 @@ public final class WireCommands {
             if (continuationToken.readableBytes() != 0) {
                 continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
             }
+
+            out.writeInt(prefixFilter.readableBytes());
+            if (prefixFilter.readableBytes() != 0) {
+                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            }
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1892,13 +1910,17 @@ public final class WireCommands {
             int suggestedKeyCount = in.readInt();
             int dataLength = in.readInt();
 
-            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + delegationToken.getBytes(UTF_8).length + 2 * Integer.BYTES) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
-            }
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken));
+            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
+            byte[] prefixFilter = new byte[prefixFilterLength];
+            if (prefixFilterLength > 0) {
+                in.readFully(prefixFilter);
+            }
+
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken),
+                    wrappedBuffer(prefixFilter));
         }
     }
 
@@ -1964,6 +1986,7 @@ public final class WireCommands {
         final String delegationToken;
         final int suggestedEntryCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.
+        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1980,6 +2003,10 @@ public final class WireCommands {
             if (continuationToken.readableBytes() != 0) {
                 continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
             }
+            out.writeInt(prefixFilter.readableBytes());
+            if (prefixFilter.readableBytes() != 0) {
+                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            }
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1989,14 +2016,17 @@ public final class WireCommands {
             int suggestedEntryCount = in.readInt();
             int dataLength = in.readInt();
 
-            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + delegationToken.getBytes(UTF_8).length + 2 * Integer.BYTES ) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
-            }
-
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken));
+            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
+            byte[] prefixFilter = new byte[prefixFilterLength];
+            if (prefixFilterLength > 0) {
+                in.readFully(prefixFilter);
+            }
+
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken),
+                    wrappedBuffer(prefixFilter));
         }
     }
 
@@ -2238,12 +2268,12 @@ public final class WireCommands {
         final String segment;
         @ToString.Exclude
         final String delegationToken;
-        final long fromVersion;
+        final long fromPosition;
         final int suggestedEntryCount;
 
         @Override
         public void process(RequestProcessor cp) {
-
+            cp.readTableEntriesDelta(this);
         }
 
         @Override
@@ -2251,7 +2281,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeLong(fromVersion);
+            out.writeLong(fromPosition);
             out.writeInt(suggestedEntryCount);
         }
 
@@ -2259,10 +2289,10 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
-            long fromVersion = in.readLong();
+            long fromPosition = in.readLong();
             int suggestedEntryCount = in.readInt();
 
-            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromVersion, suggestedEntryCount);
+            return new ReadTableEntriesDelta(requestId, segment, delegationToken, fromPosition, suggestedEntryCount);
         }
     }
 
@@ -2272,25 +2302,24 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_DELTA_READ;
         final long requestId;
         final String segment;
-        final TableEntries tableEntries;
+        final TableEntries entries;
         final boolean shouldClear;
         final boolean reachedEnd;
-        final long lastVersion;
+        final long lastPosition;
 
-        // TODO: Will be implemented as apart of: https://github.com/pravega/pravega/issues/4677
         @Override
         public void process(ReplyProcessor cp) throws UnsupportedOperationException {
-
+            cp.tableEntriesDeltaRead(this);
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            tableEntries.writeFields(out);
+            entries.writeFields(out);
             out.writeBoolean(shouldClear);
             out.writeBoolean(reachedEnd);
-            out.writeLong(lastVersion);
+            out.writeLong(lastPosition);
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
@@ -2299,14 +2328,14 @@ public final class WireCommands {
             TableEntries entries = TableEntries.readFrom(in, in.available());
             boolean shouldClear = in.readBoolean();
             boolean reachedEnd = in.readBoolean();
-            long lastVersion = in.readLong();
+            long lastPosition = in.readLong();
 
-            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastVersion);
+            return new TableEntriesDeltaRead(requestId, segment, entries, shouldClear, reachedEnd, lastPosition).requireRelease();
         }
 
         @Override
         void releaseInternal() {
-            this.tableEntries.release();
+            this.entries.release();
         }
     }
 
