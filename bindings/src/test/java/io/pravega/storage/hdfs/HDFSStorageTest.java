@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -64,7 +65,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Before
     public void setUp() throws Exception {
-        this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
+        this.baseDir = Files.createTempDirectory("test_hdfs_" + UUID.randomUUID().toString()).toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig
                 .builder()

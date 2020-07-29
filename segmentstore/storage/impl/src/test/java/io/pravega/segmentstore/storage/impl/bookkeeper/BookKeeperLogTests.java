@@ -50,8 +50,8 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
 import org.apache.bookkeeper.client.BKException.ZKException;
-import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
@@ -64,9 +64,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -87,8 +85,6 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(100 * TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
     private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
@@ -186,7 +182,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests the BookKeeperLogFactory and its initialization.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
@@ -208,7 +204,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAutoCloseOnBookieFailure() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -244,7 +240,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests the ability to retry writes when Bookies fail.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendTransientBookieFailure() throws Exception {
         TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         try (DurableDataLog log = createDurableDataLog()) {
@@ -286,7 +282,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests the ability to retry writes when Bookies fail.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendPermanentFailures() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -328,7 +324,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests the ability of BookKeeperLog to automatically remove empty ledgers during initialization.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testRemoveEmptyLedgers() throws Exception {
         final int count = 100;
         final int writeEvery = count / 10;
@@ -379,7 +375,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testWriteSettings() {
         @Cleanup
         val log = createDurableDataLog();
@@ -388,7 +384,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         Assert.assertEquals(this.config.get().getMaxOutstandingBytes(), ws.getMaxOutstandingBytes());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testReconcileMetadata() throws Exception {
         @Cleanup
         BookKeeperAdmin a = new BookKeeperAdmin((org.apache.bookkeeper.client.BookKeeper) this.factory.get().getBookKeeperClient());
@@ -439,7 +435,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests {@link BookKeeperLogFactory#createDebugLogWrapper}.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testDebugLogWrapper() throws Exception {
         @Cleanup
         val wrapper = this.factory.get().createDebugLogWrapper(0);
@@ -467,7 +463,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests {@link DebugLogWrapper#reconcileLedgers}.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReconcileLedgers() throws Exception {
         final int initialLedgerCount = 5;
         final int midPoint = initialLedgerCount / 2;
@@ -553,7 +549,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
      * Tests {@link DebugLogWrapper#reconcileLedgers} with an empty log metadata and various types of candidate ledgers
      * that may or may not belong to it.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReconcileLedgersEmptyLog() throws Exception {
         final BookKeeper bk = this.factory.get().getBookKeeperClient();
         BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
@@ -602,7 +598,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests {@link DebugLogWrapper#reconcileLedgers} by providing it with a few bad candidates, which should be excluded.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReconcileLedgersBadCandidates() throws Exception {
         final BookKeeper bk = this.factory.get().getBookKeeperClient();
         BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
@@ -646,7 +642,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     /**
      * Tests the ability to reject reading from a Log if it has been found it contains Ledgers that do not belong to it.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReadWithBadLogId() throws Exception {
         final BookKeeper bk = this.factory.get().getBookKeeperClient();
         try (val log = (BookKeeperLog) createDurableDataLog()) {
@@ -839,6 +835,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
 
         @VisibleForTesting
+        @Override
         protected Stat updateZkMetadata(byte[] serializedMetadata, int version) throws Exception {
             assert this.persistData || this.throwZkException;
             Stat result = new Stat();
