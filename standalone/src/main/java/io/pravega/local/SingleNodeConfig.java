@@ -13,7 +13,9 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import lombok.Getter;
+import lombok.ToString;
 
+@ToString
 public class SingleNodeConfig {
     //region config names
     public final static String PROPERTY_FILE = "singlenode.configurationFile";

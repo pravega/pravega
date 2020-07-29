@@ -238,7 +238,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalHDFS() throws IOException {
-        localHdfs = LocalHDFSEmulator.newBuilder().baseDirName("temp").build();
+        String baseDir = "temp";
+        log.info("Starting HDFS Emulator @ {}/", baseDir);
+        localHdfs = LocalHDFSEmulator.newBuilder().baseDirName(baseDir).build();
         localHdfs.start();
     }
 
