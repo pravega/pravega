@@ -9,35 +9,31 @@
  */
 package io.pravega.storage.hdfs;
 
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.Executor;
 
 /**
- * Factory for HDFS Storage adapters.
+ * Factory for HDFS {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link HDFSChunkStorage}.
  */
 @RequiredArgsConstructor
-public class HDFSStorageFactory implements StorageFactory {
+public class HDFSSimpleStorageFactory implements StorageFactory {
     @NonNull
     private final HDFSStorageConfig config;
-
     @NonNull
     private final Executor executor;
 
     @Override
     public Storage createStorageAdapter() {
-        HDFSStorage s = new HDFSStorage(this.config);
-        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
-    }
-
-    @Override
-    public SyncStorage createSyncStorage() {
-        return new HDFSStorage(this.config);
+        ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
+                new HDFSChunkStorage(this.config),
+                this.executor,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        return storageProvider;
     }
 }

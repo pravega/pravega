@@ -97,7 +97,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @return Cloned instance of ChunkMetadataStore.
      * @throws Exception Exceptions in case of any errors.
      */
-    protected static ChunkMetadataStore getCloneMetadataStore(ChunkMetadataStore metadataStore) throws Exception {
+    protected ChunkMetadataStore getCloneMetadataStore(ChunkMetadataStore metadataStore) throws Exception {
         return InMemoryMetadataStore.clone((InMemoryMetadataStore) metadataStore);
     }
 

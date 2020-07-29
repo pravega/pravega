@@ -229,11 +229,6 @@ public class ChunkedSegmentStorage implements Storage {
      * @throws StorageMetadataException In case of any chunk metadata store related errors.
      */
     private void claimOwnership(MetadataTransaction txn, SegmentMetadata segmentMetadata) throws ChunkStorageException, StorageMetadataException {
-        // Claim ownership.
-        // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
-        // If this instance is no more owner, then transaction commit will fail.So it is still safe.
-        segmentMetadata.setOwnerEpoch(this.epoch);
-        segmentMetadata.setOwnershipChanged(true);
 
         // Get the last chunk
         String lastChunkName = segmentMetadata.getLastChunk();
@@ -244,23 +239,42 @@ public class ChunkedSegmentStorage implements Storage {
                     segmentMetadata.getName(),
                     lastChunk.getName(),
                     lastChunk.getLength());
-            ChunkInfo chunkInfo = chunkStorage.getInfo(lastChunkName);
-            Preconditions.checkState(chunkInfo != null);
-            Preconditions.checkState(lastChunk != null);
-            // Adjust its length;
-            if (chunkInfo.getLength() != lastChunk.getLength()) {
-                Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
-                // Whatever length you see right now is the final "sealed" length of the last chunk.
-                lastChunk.setLength(chunkInfo.getLength());
-                segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
-                txn.update(lastChunk);
-                log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
+            try {
+                ChunkInfo chunkInfo = chunkStorage.getInfo(lastChunkName);
+                Preconditions.checkState(chunkInfo != null);
+                Preconditions.checkState(lastChunk != null);
+                // Adjust its length;
+                if (chunkInfo.getLength() != lastChunk.getLength()) {
+                    Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
+                    // Whatever length you see right now is the final "sealed" length of the last chunk.
+                    lastChunk.setLength(chunkInfo.getLength());
+                    segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
+                    txn.update(lastChunk);
+                    log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
+                            logPrefix,
+                            segmentMetadata.getName(),
+                            lastChunk.getName(),
+                            chunkInfo.getLength());
+                }
+            } catch (ChunkNotFoundException e) {
+                // This probably means that this instance is fenced out and newer instance truncated this segment.
+                // Try a commit of unmodified data to fail fast.
+                log.debug("{} claimOwnership - Last chunk was missing, failing fast - segment={}, last chunk={}.",
                         logPrefix,
                         segmentMetadata.getName(),
-                        lastChunk.getName(),
-                        chunkInfo.getLength());
+                        lastChunk.getName());
+                txn.update(segmentMetadata);
+                txn.commit();
+                throw e;
             }
         }
+
+        // Claim ownership.
+        // This is safe because the previous instance is definitely not an owner anymore. (even if this instance is no more owner)
+        // If this instance is no more owner, then transaction commit will fail.So it is still safe.
+        segmentMetadata.setOwnerEpoch(this.epoch);
+        segmentMetadata.setOwnershipChanged(true);
+
         // Update and commit
         // If This instance is fenced this update will fail.
         txn.update(segmentMetadata);
@@ -1045,7 +1059,7 @@ public class ChunkedSegmentStorage implements Storage {
                 }
 
                 // Finally commit.
-                txn.commit(chunksToDelete.size() == 0); // if layout did not change then commit with lazyWrite.
+                txn.commit();
 
                 collectGarbage(chunksToDelete);
 

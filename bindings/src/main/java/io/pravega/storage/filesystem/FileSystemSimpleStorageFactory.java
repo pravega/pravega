@@ -9,21 +9,20 @@
  */
 package io.pravega.storage.filesystem;
 
-import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for file system Storage adapters.
+ * Factory for FileSystem {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link FileSystemChunkStorage}.
  */
 @RequiredArgsConstructor
-public class FileSystemStorageFactory implements StorageFactory {
+public class FileSystemSimpleStorageFactory implements StorageFactory {
     @NonNull
     private final FileSystemStorageConfig config;
 
@@ -32,12 +31,10 @@ public class FileSystemStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        FileSystemStorage s = new FileSystemStorage(this.config);
-        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
-    }
-
-    @Override
-    public SyncStorage createSyncStorage() {
-        return new FileSystemStorage(this.config);
+        ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
+                new FileSystemChunkStorage(this.config),
+                this.executor,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        return storageProvider;
     }
 }
