@@ -10,7 +10,6 @@
 package io.pravega.client;
 
 import io.pravega.client.stream.impl.Credentials;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
