@@ -323,7 +323,7 @@ public class StreamMetadataTasks extends TaskBase {
                                              RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
         Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
         if (!truncationRecord.isPresent()) {
-            log.info("Could not find truncation record for stream {}/{}", scope, stream);
+            log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
             return CompletableFuture.completedFuture(null);
         }
         log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
