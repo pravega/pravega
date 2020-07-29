@@ -50,12 +50,22 @@ public final class SegmentStoreMetrics {
     /**
      * CacheManager metrics.
      */
-    public final static class CacheManager {
-        public void report(CacheState snapshot, int generationSpread) {
+    public final static class CacheManager implements AutoCloseable {
+        public void report(CacheState snapshot, int generationSpread, long policyDuration) {
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES, snapshot.getStoredBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES, snapshot.getUsedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES, snapshot.getAllocatedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD, generationSpread);
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_POLICY_DURATION, policyDuration);
+        }
+
+        @Override
+        public void close() {
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_POLICY_DURATION);
         }
     }
 

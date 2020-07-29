@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -157,5 +158,34 @@ public class SegmentStoreMetricsTests {
         op.processingDelay(delay * delay, "Batching");
         assertEquals(delay * delay, (int) MetricRegistryUtils.getGauge(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, "Batching")).value());
     }
+
+    @Test
+    public void testCacheManagerMetrics() {
+        int storedBytes = 10000;
+        int usedBytes = 1000;
+        int allocatedBytes = 100;
+        int generationSpread = 10;
+        int policyDuration = 1;
+
+        int containerId = new Random().nextInt(Integer.MAX_VALUE);
+        @Cleanup
+        SegmentStoreMetrics.CacheManager cache = new SegmentStoreMetrics.CacheManager();
+        cache.report(new CacheState(storedBytes, usedBytes, 0, allocatedBytes, storedBytes), generationSpread, policyDuration);
+
+        assertEquals(storedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_STORED_SIZE_BYTES).value());
+        assertEquals(usedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES).value());
+        assertEquals(allocatedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES).value());
+        assertEquals(generationSpread, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD).value());
+        assertEquals(policyDuration, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_POLICY_DURATION).value());
+
+        cache.close();
+
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_STORED_SIZE_BYTES));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_POLICY_DURATION));
+    }
+
 
 }
