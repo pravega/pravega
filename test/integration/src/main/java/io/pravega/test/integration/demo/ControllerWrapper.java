@@ -32,6 +32,7 @@ import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.control.impl.Controller;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -158,6 +159,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .eventProcessorConfig(eventProcessorConfig)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
+                .retentionFrequency(Duration.ofSeconds(1))
                 .build();
 
         controllerServiceMain = new ControllerServiceMain(serviceConfig);

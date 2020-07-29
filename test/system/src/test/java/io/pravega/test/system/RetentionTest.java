@@ -38,6 +38,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -49,22 +51,27 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class RetentionTest extends AbstractSystemTest {
 
-    private static final String STREAM = "testRetentionStream";
     private static final String SCOPE = "testRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String STREAM_TIME = "testRetentionStreamTime";
+    private static final String STREAM_SIZE = "testRetentionStreamSize";
     private static final String READER_GROUP = "testRetentionReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
-    private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
-    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
+    private final RetentionPolicy retentionPolicyTime = RetentionPolicy.byTime(Duration.ofMinutes(1));
+    private final RetentionPolicy retentionPolicySize = RetentionPolicy.bySizeBytes(1);
+    private final StreamConfiguration configTime = StreamConfiguration.builder().scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicyTime).build();
+    private final StreamConfiguration configSize = StreamConfiguration.builder().scalingPolicy(scalingPolicy)
+                                                                      .retentionPolicy(retentionPolicySize).build();
     private URI controllerURI;
     private StreamManager streamManager;
 
@@ -88,7 +95,8 @@ public class RetentionTest extends AbstractSystemTest {
         controllerURI = ctlURIs.get(0);
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
-        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM_TIME, configTime));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM_SIZE, configSize));
     }
 
     @After
@@ -98,44 +106,60 @@ public class RetentionTest extends AbstractSystemTest {
 
     @Test
     public void retentionTest() throws Exception {
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                                                       connectionFactory.getInternalExecutor());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
-        log.info("Invoking Writer test with Controller URI: {}", controllerURI);
+        CompletableFuture.allOf(retentionTestTime(STREAM_TIME, false), retentionTestTime(STREAM_SIZE, true));
+    }
+    
+    private CompletableFuture<Void> retentionTestTime(String streamName, boolean sizeBased) throws Exception {
+        return CompletableFuture.runAsync(() -> {
+            final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+            @Cleanup
+            ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+            ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                    connectionFactory.getInternalExecutor());
+            @Cleanup
+            ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+            log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
-        //create a writer
-        @Cleanup
-        EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM,
-                new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+            //create a writer
+            @Cleanup
+            EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(streamName,
+                    new JavaSerializer<>(),
+                    EventWriterConfig.builder().build());
 
-        //write an event
-        String writeEvent = "event";
-        writer.writeEvent(writeEvent);
-        writer.flush();
-        log.debug("Writing event: {} ", writeEvent);
+            //write an event
+            String writeEvent = "event";
+            writer.writeEvent(writeEvent);
+            if (sizeBased) {
+                // since truncation always happens at an event boundary, for size based, we will write two events, 
+                // so that truncation can happen at the first event. 
+                writer.writeEvent(writeEvent);
+            }
+            writer.flush();
+            log.debug("Writing event: {} ", writeEvent);
 
-        //sleep for 5 mins
-        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
+            //sleep for 5 mins
+            Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
-        //create a reader
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
-        EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                READER_GROUP,
-                new JavaSerializer<>(),
-                ReaderConfig.builder().build());
+            //create a reader
+            ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
+            groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM_TIME)).build());
+            EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
+                    READER_GROUP,
+                    new JavaSerializer<>(),
+                    ReaderConfig.builder().build());
 
-        //verify reader functionality is unaffected post truncation
-        String event = "newEvent";
-        writer.writeEvent(event);
-        log.info("Writing event: {}", event);
-        Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
+            if (sizeBased) {
+                // we should read one write event back from the stream. 
+                String event = reader.readNextEvent(6000).getEvent();
+                assertEquals(event, writeEvent);
+            }
+            //verify reader functionality is unaffected post truncation
+            String event = "newEvent";
+            writer.writeEvent(event);
+            log.info("Writing event: {}", event);
+            Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
 
-        log.debug("The stream is already truncated.Simple retention test passed.");
+            log.debug("The stream is already truncated.Simple retention test passed.");
+        });
     }
 }
