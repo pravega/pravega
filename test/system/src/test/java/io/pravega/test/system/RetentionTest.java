@@ -106,10 +106,10 @@ public class RetentionTest extends AbstractSystemTest {
 
     @Test
     public void retentionTest() throws Exception {
-        CompletableFuture.allOf(retentionTestTime(STREAM_TIME, false), retentionTestTime(STREAM_SIZE, true));
+        CompletableFuture.allOf(retentionTest(STREAM_TIME, false), retentionTest(STREAM_SIZE, true));
     }
     
-    private CompletableFuture<Void> retentionTestTime(String streamName, boolean sizeBased) throws Exception {
+    private CompletableFuture<Void> retentionTest(String streamName, boolean sizeBased) throws Exception {
         return CompletableFuture.runAsync(() -> {
             final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
             @Cleanup
@@ -137,14 +137,21 @@ public class RetentionTest extends AbstractSystemTest {
             writer.flush();
             log.debug("Writing event: {} ", writeEvent);
 
-            //sleep for 5 mins
+            // sleep for 5 mins -- retention frequency is set to 2 minutes. So in 5 minutes we should definitely have 
+            // 2 retention cycles, with a stream cut being computed in first cycle and truncation happening on the 
+            // previously computed streamcut in second cycle. 
+            // for time based retention, we wrote one event, which would get truncated. 
+            // for size based retention we wrote two events such that stream would retain at least 1 byte as prescribed by 
+            // the policy
             Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
             //create a reader
             ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
-            groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM_TIME)).build());
+            String groupName = READER_GROUP + streamName;
+            groupManager.createReaderGroup(groupName, 
+                    ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).build());
             EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                    READER_GROUP,
+                    groupName,
                     new JavaSerializer<>(),
                     ReaderConfig.builder().build());
 
