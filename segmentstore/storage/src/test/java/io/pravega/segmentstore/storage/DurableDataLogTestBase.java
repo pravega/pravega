@@ -40,7 +40,7 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofMillis(15 * 1000);
+    protected static final Duration TIMEOUT = Duration.ofMillis(20 * 1000);
     protected static final int WRITE_MIN_LENGTH = 20;
     protected static final int WRITE_MAX_LENGTH = 200;
     private final Random random = new Random(0);
