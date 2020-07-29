@@ -29,7 +29,6 @@ import io.pravega.shared.metrics.StatsProvider;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 
@@ -102,7 +101,6 @@ public class Main {
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
                     .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
-                    .retentionFrequency(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES))
                     .build();
 
             setUncaughtExceptionHandler(Main::logUncaughtException);
