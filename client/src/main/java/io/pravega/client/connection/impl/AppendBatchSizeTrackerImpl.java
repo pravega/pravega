@@ -89,7 +89,8 @@ public class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
         }
         double nanosPerAppend = nanosBetweenAppends.getCurrentValue();
         double appendsInMaxBatchTime = Math.max(1.0, (MAX_BATCH_TIME_MILLIS * NANOS_PER_MILLI) / nanosPerAppend);
-        double appendsInBatch = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION, 1.0, appendsInMaxBatchTime);
+        double appendsInTime = Math.max(0.0, BASE_TIME_NANOS / nanosPerAppend);
+        double appendsInBatch = MathHelpers.minMax(appendsOutstanding.getCurrentValue() * OUTSTANDING_FRACTION + appendsInTime, 1.0, appendsInMaxBatchTime);
         int size = (int) (appendsInBatch * eventSize.getCurrentValue()) + BASE_SIZE;
         return MathHelpers.minMax(size, 0, MAX_BATCH_SIZE);
     }
