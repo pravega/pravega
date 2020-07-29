@@ -105,7 +105,6 @@ public class ReaderGroupStateManager {
      * Add this reader to the reader group so that it is able to acquire segments
      */
     void initializeReader(long initialAllocationDelay) {
-        sync.fetchUpdates();
         boolean alreadyAdded = sync.updateState((state, updates) -> {
             if (state.getSegments(readerId) == null) {
                 log.debug("Adding reader {} to reader group. CurrentState is: {}", readerId, state);
