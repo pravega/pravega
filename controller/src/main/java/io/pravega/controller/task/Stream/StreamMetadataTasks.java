@@ -321,27 +321,33 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
                                              RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-        return findTruncationRecord(policy, retentionSet, newRecord, recordingTime)
-                .map(record -> streamMetadataStore.getStreamCutRecord(scope, stream, record, context, executor)
-                        .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                        .thenCompose(started -> {
-                            if (started) {
-                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
+        Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
+        if (!truncationRecord.isPresent()) {
+            log.info("Could not find truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
+                                                                newRecord.getRecordingTime(), newRecord.getRecordingSize());
+            return CompletableFuture.completedFuture(null);
+        }
+        log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
+                newRecord.getRecordingTime(), newRecord.getRecordingSize());
+        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
+                   .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
+                   .thenCompose(started -> {
+                       if (started) {
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord.get(), context, executor);
                             } else {
                                 throw new RuntimeException("Could not start truncation");
-                            }
-                        })
-                        .exceptionally(e -> {
-                            if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                log.debug(requestId, "Cannot truncate at given " +
+                       }
+                   })
+                   .exceptionally(e -> {
+                       if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                           // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                           log.debug(requestId, "Cannot truncate at given " +
                                         "streamCut because it intersects with existing truncation point");
                                 return null;
-                            } else {
+                           } else {
                                 throw new CompletionException(e);
-                            }
-                        })
-                ).orElse(CompletableFuture.completedFuture(null));
+                          }
+                       });
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
