@@ -13,8 +13,8 @@ import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -67,8 +67,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.test.TestingServer;
@@ -147,7 +147,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://localhost"))
                 .build());
         @Cleanup
@@ -223,7 +223,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://localhost"))
                 .build());
         @Cleanup
@@ -251,8 +251,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         String readerId = "readerId";
         String readerGroupName = "readerGroup";
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build();
         groupManager.createReaderGroup(readerGroupName, readerGroupConfig);
@@ -298,7 +297,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://localhost"))
                 .build());
         @Cleanup
