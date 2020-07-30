@@ -16,6 +16,7 @@ import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,13 +49,14 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     @Synchronized
     KeyValueTable newKeyValueTable(String scope, String name) {
-        if (this.streamStore.getScopes().containsKey(scope)) {
-            InMemoryScope kvtScope = this.streamStore.getScopes().get(scope);
-            if (kvtScope.checkTableExists(name)) {
-                return kvtScope.getKeyValueTable(name);
-            }
-        }
-       return new InMemoryKVTable(scope, name);
+        boolean scopeExists = this.streamStore.scopeExists(name);
+        if (scopeExists) {
+               InMemoryScope kvtScope = this.streamStore.getScope(scope);
+               if (kvtScope.checkTableExists(name)) {
+                 return kvtScope.getKeyValueTable(name);
+               }
+          }
+        return new InMemoryKVTable(scope, name);
     }
 
     @Override
@@ -62,11 +64,12 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
         return getScope(scopeName);
     }
 
+    @SneakyThrows
     @Override
     @Synchronized
     public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
-        if (this.streamStore.getScopes().containsKey(scope)) {
-            InMemoryScope kvtScope = this.streamStore.getScopes().get(scope);
+        if (this.streamStore.scopeExists(name)) {
+            InMemoryScope kvtScope = this.streamStore.getScope(scope);
             if (kvtScope.checkTableExists(name)) {
                 return kvtScope.getKeyValueTable(name);
             }
@@ -94,7 +97,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> checkScopeExists(String scope) {
-        return Futures.completeOn(CompletableFuture.completedFuture(this.streamStore.getScopes().containsKey(scope)), executor);
+        return Futures.completeOn(CompletableFuture.completedFuture(this.streamStore.scopeExists(scope)), executor);
     }
 
     @Override
@@ -111,8 +114,8 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     @Synchronized
     public Scope getScope(final String scopeName) {
-        if (this.streamStore.getScopes().containsKey(scopeName)) {
-            return this.streamStore.getScopes().get(scopeName);
+        if (this.streamStore.scopeExists(scopeName)) {
+            return this.streamStore.getScope(scopeName);
         } else {
             return new InMemoryScope(scopeName);
         }
@@ -133,7 +136,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
                                                          final String kvtName,
                                                          final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(this.streamStore.getScopes().get(scopeName)
+        return Futures.completeOn(this.streamStore.getScope(scopeName)
                                         .addKVTableToScope(kvtName, id), executor);
     }
 

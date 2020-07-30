@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,8 +73,14 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         this.counter = new AtomicInt96();
     }
 
-    public Map<String, InMemoryScope> getScopes() {
-        return Collections.unmodifiableMap(scopes);
+    @Synchronized
+    public InMemoryScope getScope(String scopeName) {
+        return scopes.get(scopeName);
+    }
+
+    @Synchronized
+    public boolean scopeExists(String scopeName) {
+        return scopes.containsKey(scopeName);
     }
 
     @Override
@@ -95,7 +100,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 

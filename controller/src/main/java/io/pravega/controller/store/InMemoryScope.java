@@ -134,6 +134,7 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+    @Synchronized
     public Boolean checkTableExists(String kvt) {
         return kvTablesMap.containsKey(kvt);
     }
@@ -165,6 +166,7 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
+    @Synchronized
     public KeyValueTable getKeyValueTable(String name) {
         return kvTablesMap.get(name);
     }
