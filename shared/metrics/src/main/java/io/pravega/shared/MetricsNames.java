@@ -121,7 +121,7 @@ public final class MetricsNames {
     public static final String CACHE_USED_SIZE_BYTES = PREFIX + "segmentstore.cache.used_size_bytes";       // Gauge
     public static final String CACHE_ALLOC_SIZE_BYTES = PREFIX + "segmentstore.cache.allocated_size_bytes"; // Gauge
     public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";                 // Histogram
-    public static final String CACHE_POLICY_DURATION = PREFIX + "segmentstore.cache.policy_duration";       // Gauge
+    public static final String CACHE_POLICY_DURATION = PREFIX + "segmentstore.cache.policy_duration_ms";    // Timer
 
     // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = PREFIX + "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue. Per-container Histogram

@@ -45,6 +45,10 @@ public final class SegmentStoreMetrics {
      */
     private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
 
+    /**
+     * The amount of time taken to complete one cycle of the CacheManager's cache policy.
+     */
+    private static final OpStatsLogger CACHE_POLICY_DURATION = STATS_LOGGER.createStats(MetricsNames.CACHE_POLICY_DURATION);
     //region CacheManager
 
     /**
@@ -56,7 +60,7 @@ public final class SegmentStoreMetrics {
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES, snapshot.getUsedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES, snapshot.getAllocatedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD, generationSpread);
-            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_POLICY_DURATION, policyDuration);
+            CACHE_POLICY_DURATION.reportSuccessValue(policyDuration);
         }
 
         @Override
@@ -65,7 +69,7 @@ public final class SegmentStoreMetrics {
             DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES);
             DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES);
             DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD);
-            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_POLICY_DURATION);
+            CACHE_POLICY_DURATION.close();
         }
     }
 
