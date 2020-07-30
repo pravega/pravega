@@ -135,7 +135,7 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public Boolean checkTableExists(String kvt) {
+    public boolean checkTableExists(String kvt) {
         return kvTablesMap.containsKey(kvt);
     }
 
