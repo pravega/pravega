@@ -74,11 +74,6 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Synchronized
-    public InMemoryScope getScope(String scopeName) {
-        return scopes.get(scopeName);
-    }
-
-    @Synchronized
     public boolean scopeExists(String scopeName) {
         return scopes.containsKey(scopeName);
     }

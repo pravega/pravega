@@ -51,7 +51,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     KeyValueTable newKeyValueTable(String scope, String name) {
         boolean scopeExists = this.streamStore.scopeExists(name);
         if (scopeExists) {
-               InMemoryScope kvtScope = this.streamStore.getScope(scope);
+               InMemoryScope kvtScope = (InMemoryScope) this.streamStore.getScope(scope);
                if (kvtScope.checkTableExists(name)) {
                  return kvtScope.getKeyValueTable(name);
                }
@@ -69,7 +69,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Synchronized
     public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
         if (this.streamStore.scopeExists(scope)) {
-            InMemoryScope kvtScope = this.streamStore.getScope(scope);
+            InMemoryScope kvtScope = (InMemoryScope) this.streamStore.getScope(scope);
             if (kvtScope.checkTableExists(name)) {
                 return kvtScope.getKeyValueTable(name);
             }
@@ -136,7 +136,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
                                                          final String kvtName,
                                                          final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(this.streamStore.getScope(scopeName)
+        return Futures.completeOn(((InMemoryScope)this.streamStore.getScope(scopeName))
                                         .addKVTableToScope(kvtName, id), executor);
     }
 
