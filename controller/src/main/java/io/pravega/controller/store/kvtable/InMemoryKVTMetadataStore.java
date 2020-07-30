@@ -136,7 +136,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
                                                          final String kvtName,
                                                          final byte[] id,
                                                          final Executor executor) {
-        return Futures.completeOn(((InMemoryScope)this.streamStore.getScope(scopeName))
+        return Futures.completeOn(((InMemoryScope) this.streamStore.getScope(scopeName))
                                         .addKVTableToScope(kvtName, id), executor);
     }
 
