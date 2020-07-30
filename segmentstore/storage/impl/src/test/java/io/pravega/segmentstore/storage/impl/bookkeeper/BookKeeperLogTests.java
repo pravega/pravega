@@ -827,6 +827,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             return result;
         }
 
+        @Override
         @VisibleForTesting
         @Override
         protected Stat updateZkMetadata(byte[] serializedMetadata, int version) throws Exception {

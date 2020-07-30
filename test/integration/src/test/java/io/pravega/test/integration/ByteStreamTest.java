@@ -16,7 +16,13 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
@@ -28,6 +34,7 @@ import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -46,7 +53,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
-public class ByteStreamTest {
+public class ByteStreamTest extends LeakDetectorTestSuite {
 
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
@@ -55,6 +62,7 @@ public class ByteStreamTest {
 
     @Before
     public void setup() throws Exception {
+        super.before();
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
@@ -81,6 +89,7 @@ public class ByteStreamTest {
 
     @After
     public void tearDown() throws Exception {
+        super.after();
         if (this.controllerWrapper != null) {
             this.controllerWrapper.close();
             this.controllerWrapper = null;
@@ -273,8 +282,13 @@ public class ByteStreamTest {
     }
     
     ByteStreamClientFactory createClientFactory(String scope) {
-        val connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        return new ByteStreamClientImpl(scope, controller, connectionFactory);
+        ClientConfig config = ClientConfig.builder().build();
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
+        ConnectionPool pool = new ConnectionPoolImpl(config, connectionFactory);
+        val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, pool);
+        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, pool);
+        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, pool);
+        return new ByteStreamClientImpl(scope, controller, pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
     }
 
 }
