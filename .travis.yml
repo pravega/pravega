@@ -25,9 +25,14 @@ jobs:
     - stage: build
       if: type IN (push, pull_request)
       install: ./gradlew assemble
-      script: ./gradlew check
+      script: ./gradlew check --exclude-task test:integration:test
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
+
+    - stage: integration tests
+      if: type IN (push, pull_request)
+      install: ./gradlew assemble
+      script: ./gradlew test:integration:test 
 
     - stage: javadocs
       install: echo "Building javadocs"
