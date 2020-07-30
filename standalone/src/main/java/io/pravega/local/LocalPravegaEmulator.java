@@ -127,11 +127,10 @@ public class LocalPravegaEmulator implements AutoCloseable {
             log.info("Starting Pravega Emulator with ports: ZK port {}, controllerPort {}, SegmentStorePort {}",
                     conf.getZkPort(), conf.getControllerPort(), conf.getSegmentStorePort());
             localPravega.start();
-            String msg = String.format("# Pravega Sandbox is running locally now. You could access it at %s:%d. #", "127.0.0.1", conf.getControllerPort());
-            log.info("#".repeat(msg.length()));
-            log.info("{}", msg);
-            log.info("#".repeat(msg.length()));
+            log.info("");
+            log.info("Pravega Sandbox is running locally now. You could access it at {}:{}.", "127.0.0.1", conf.getControllerPort());
             log.info("For more detailed logs, see: {}", String.format("%s/%s", System.getProperty("user.dir"), "standalone/standalone.log"));
+            log.info("");
         } catch (Exception ex) {
             log.error("Exception occurred running emulator", ex);
             System.exit(1);
