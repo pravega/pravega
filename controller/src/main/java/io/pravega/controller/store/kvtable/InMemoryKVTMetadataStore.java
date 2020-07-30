@@ -102,8 +102,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
         return Futures.completeOn(checkScopeExists(scopeName).thenCompose(exists -> {
             if (exists) {
-                return CompletableFuture.completedFuture((InMemoryScope) getScope(scopeName))
-                        .thenApply(scope -> scope.checkTableExists(kvt));
+                return CompletableFuture.completedFuture(((InMemoryScope) getScope(scopeName)).checkTableExists(kvt));
             }
             return CompletableFuture.completedFuture(Boolean.FALSE);
         }), executor);
