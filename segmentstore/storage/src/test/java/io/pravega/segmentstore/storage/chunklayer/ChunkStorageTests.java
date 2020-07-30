@@ -513,13 +513,15 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 " delete should throw IllegalArgumentException.",
                 () -> chunkStorage.delete(ChunkHandle.readHandle(chunkName)),
                 ex -> ex instanceof IllegalArgumentException);
-
+        // Make readonly and open.
         chunkStorage.setReadOnly(hWrite, true);
+        chunkStorage.openWrite(chunkName);
 
-        ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName);
-        assertTrue(hWrite2.isReadOnly());
-
+        // Make writable and open again.
         chunkStorage.setReadOnly(hWrite, false);
+        ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName);
+        assertFalse(hWrite2.isReadOnly());
+
         bytesWritten = chunkStorage.write(hWrite, 1, 1, new ByteArrayInputStream(new byte[1]));
         assertEquals(1, bytesWritten);
         chunkStorage.delete(hWrite);
