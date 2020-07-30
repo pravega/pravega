@@ -19,10 +19,12 @@ import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
+import io.pravega.controller.util.Config;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
 
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -45,7 +47,9 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final Optional<GRPCServerConfig> gRPCServerConfig;
 
     private final Optional<RESTServerConfig> restServerConfig;
-
+    
+    private final Duration retentionFrequency;
+    
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
                                 final StoreClientConfig storeClientConfig,
@@ -55,7 +59,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final TimeoutServiceConfig timeoutServiceConfig,
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
-                                final Optional<RESTServerConfig> restServerConfig) {
+                                final Optional<RESTServerConfig> restServerConfig,
+                                final Duration retentionFrequency) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
@@ -86,5 +91,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;
         this.restServerConfig = restServerConfig;
+        this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
+                : retentionFrequency;
     }
 }
