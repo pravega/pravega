@@ -7,11 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
-import java.util.List;
 import lombok.Data;
 import lombok.NonNull;
+
+import java.util.List;
 
 /**
  * Command arguments.

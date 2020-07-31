@@ -7,14 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import java.util.HashMap;
 import lombok.val;
 
+import java.util.HashMap;
+
 abstract class ConfigCommand extends Command {
+
     static final String COMPONENT = "config";
     private static final String PAIR_SEPARATOR = "=";
 

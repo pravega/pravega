@@ -681,6 +681,77 @@ project('controller') {
     }
 }
 
+project('cli:admincommands') {
+    apply plugin: 'application'
+    applicationName = "pravega-admin"
+    mainClassName = "io.pravega.cli.admincommands.AdminCLIRunner"
+
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':controller')
+        compile project(':segmentstore:server')
+        compile project(':segmentstore:storage')
+        compile project(':segmentstore:storage:impl')
+        compile project(':shared:cluster')
+        compile project(':test:testcommon')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
+        testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
+        testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
+project('cli:usercommands') {
+    apply plugin: 'application'
+    applicationName = "pravega-cli"
+    mainClassName = "io.pravega.cli.usercommands.UserCLIRunner"
+
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':client')
+        compile project(':shared:protocol')
+        compile project(':test:testcommon')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
+
 project('standalone') {
     apply plugin: 'application'
     applicationName = "pravega-standalone"
@@ -1016,6 +1087,8 @@ task publishAllJars() {
     dependsOn ':shared:controller-api:publish'
     dependsOn ':controller:publish'
     dependsOn ':standalone:publish'
+    dependsOn ':cli:admincommands'
+    dependsOn ':cli:usercommands'
     dependsOn ':test:system:publish'
 }
 
@@ -1070,6 +1143,8 @@ distributions {
             from (project(":segmentstore:server:host").installDist) {
                 exclude "logback.xml"
             }
+            from (project(":cli:admincommands").installDist)
+            from (project(":cli:usercommands").installDist)
             from (project(":standalone").installDist)
             from 'LICENSE'
             from 'NOTICE'

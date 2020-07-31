@@ -7,15 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.Map;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.Map;
+
 /**
- * Configuration for {@link InteractiveDemo}.
+ * Configuration for {@link UserCLIRunner}.
  */
 @Data
 @Builder

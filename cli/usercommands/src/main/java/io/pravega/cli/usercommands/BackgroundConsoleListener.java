@@ -7,11 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
+
+import lombok.val;
 
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.val;
 
 /**
  * Acquires console input on a background thread and updates its state ({@link #isTriggered()} when a desired token

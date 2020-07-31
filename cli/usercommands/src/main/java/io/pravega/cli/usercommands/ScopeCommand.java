@@ -7,13 +7,17 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
+import io.pravega.cli.usercommands.Command;
+import io.pravega.cli.usercommands.CommandArgs;
+import io.pravega.cli.usercommands.StreamCommand;
 import io.pravega.client.admin.StreamManager;
-import java.net.URI;
 import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
+
+import java.net.URI;
 
 abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";

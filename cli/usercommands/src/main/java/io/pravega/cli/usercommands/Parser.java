@@ -7,18 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Scanner;
 import lombok.AccessLevel;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Scanner;
+
 final class Parser {
+
     private static final String MATCH_ESCAPED_DOUBLE_QUOTES = "[^\"\\s]+|\"(\\\\.|[^\\\\\"])*\"";
     private static final String MATCH_BRACES = "(^\\{\\s]+)|(\\{).+\\}";
     private static final String SCANNER_PATTERN = String.format("(%s)|(%s)", MATCH_BRACES, MATCH_ESCAPED_DOUBLE_QUOTES);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,50 +7,78 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.admincommands;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.shared.NameUtils;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import io.pravega.cli.admincommands.bookkeeper.BookKeeperCleanupCommand;
+import io.pravega.cli.admincommands.bookkeeper.BookKeeperDetailsCommand;
+import io.pravega.cli.admincommands.bookkeeper.BookKeeperDisableCommand;
+import io.pravega.cli.admincommands.bookkeeper.BookKeeperEnableCommand;
+import io.pravega.cli.admincommands.bookkeeper.BookKeeperListCommand;
+import io.pravega.cli.admincommands.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admincommands.password.PasswordFileCreatorCommand;
+import io.pravega.cli.admincommands.cluster.GetClusterNodesCommand;
+import io.pravega.cli.admincommands.cluster.GetSegmentStoreByContainerCommand;
+import io.pravega.cli.admincommands.cluster.ListContainersCommand;
+import io.pravega.cli.admincommands.config.ConfigListCommand;
+import io.pravega.cli.admincommands.config.ConfigSetCommand;
+import io.pravega.cli.admincommands.controller.*;
+import io.pravega.cli.admincommands.utils.CLIControllerConfig;
+import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.io.PrintStream;
-import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.Builder;
+import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import lombok.Singular;
 import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * Base class for any command to execute from the Admin tool.
  */
-@RequiredArgsConstructor
-abstract class Command {
+public abstract class AdminCommand {
     //region Private
 
-    @Getter
-    @NonNull
+    @Getter(AccessLevel.PROTECTED)
     private final CommandArgs commandArgs;
 
     @VisibleForTesting
-    @Getter
-    @Setter
+    @Getter(AccessLevel.PUBLIC)
+    @Setter(AccessLevel.PUBLIC)
     private PrintStream out = System.out;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the Command class.
+     *
+     * @param args The arguments for the command.
+     */
+    public AdminCommand(CommandArgs args) {
+        this.commandArgs = Preconditions.checkNotNull(args, "commandArgs");
+    }
 
     //endregion
 
@@ -66,31 +94,63 @@ abstract class Command {
      */
     public abstract void execute() throws Exception;
 
-    protected InteractiveConfig getConfig() {
-        return getCommandArgs().getConfig();
+    /**
+     * Creates a new instance of the ServiceConfig class from the shared AdminCommandState passed in via the Constructor.
+     */
+    protected ServiceConfig getServiceConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(ServiceConfig::builder);
     }
 
-    protected URI getControllerUri() {
-        return URI.create(getConfig().getControllerUri());
+    /**
+     * Creates a new instance of the CLIControllerConfig class from the shared AdminCommandState passed in via the Constructor.
+     */
+    protected CLIControllerConfig getCLIControllerConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build().getConfig(CLIControllerConfig::builder);
+    }
+
+    /**
+     * Creates a new instance of the CuratorFramework class using configuration from the shared AdminCommandState.
+     */
+    protected CuratorFramework createZKClient() {
+        val serviceConfig = getServiceConfig();
+        CuratorFramework zkClient = CuratorFrameworkFactory
+                .builder()
+                .connectString(serviceConfig.getZkURL())
+                .namespace("pravega/" + serviceConfig.getClusterName())
+                .retryPolicy(new ExponentialBackoffRetry(serviceConfig.getZkRetrySleepMs(), serviceConfig.getZkRetryCount()))
+                .sessionTimeoutMs(serviceConfig.getZkSessionTimeoutMs())
+                .build();
+        zkClient.start();
+        return zkClient;
     }
 
     protected void output(String messageTemplate, Object... args) {
         this.out.println(String.format(messageTemplate, args));
     }
 
+    protected void prettyJSONOutput(String jsonString) {
+        JsonElement je = new JsonParser().parse(jsonString);
+        output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
+    }
+
+    protected void prettyJSONOutput(String key, Object value) {
+        JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
+        output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
+    }
+
+    protected boolean confirmContinue() {
+        output("Do you want to continue?[yes|no]");
+        Scanner s = new Scanner(System.in);
+        String input = s.nextLine();
+        return input.equals("yes");
+    }
+
     //endregion
 
     //region Arguments
 
-    protected void ensureMinArgCount(int minCount) {
-        Preconditions.checkArgument(minCount <= this.commandArgs.getArgs().size(), "Expected at least %s arguments, found %s.",
-                minCount, this.commandArgs.getArgs().size());
-    }
-
-    protected void ensureArgCount(int... expectedCount) {
-        boolean match = Arrays.stream(expectedCount).anyMatch(c -> c == this.commandArgs.getArgs().size());
-        Preconditions.checkArgument(match, "Incorrect argument count (%s). Expected any of: %s.", this.commandArgs.getArgs().size(),
-                Arrays.stream(expectedCount).mapToObj(Integer::toString).collect(Collectors.joining(", ")));
+    protected void ensureArgCount(int expectedCount) {
+        Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount, "Incorrect argument count.");
     }
 
     protected int getIntArg(int index) {
@@ -105,55 +165,13 @@ abstract class Command {
         return getArg(index, Boolean::parseBoolean);
     }
 
-    protected ScopedName getScopedNameArg(int index) {
-        return getArg(index, scopedName -> {
-            val parts = NameUtils.extractScopedNameTokens(scopedName);
-            Preconditions.checkArgument(parts.size() == 2, "Invalid scoped Stream name. Expected format 'scope/stream': '%s'.", scopedName);
-            return new ScopedName(parts.get(0), parts.get(1));
-        });
-    }
-
-    protected <T> T getJsonArg(int index, Class<T> c) {
-        String jsonArg = getArg(index);
-        jsonArg = removeEnvelope(jsonArg, "{", "}");
-        return Formatter.JsonFormatter.GSON.fromJson(jsonArg, c);
-    }
-
-    protected String getArg(int index) {
-        return removeEnvelope(this.commandArgs.getArgs().get(index), "\"", "\"");
-    }
-
     private <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
-            s = getArg(index);
+            s = this.commandArgs.getArgs().get(index);
             return converter.apply(s);
         } catch (Exception ex) {
             throw new IllegalArgumentException(String.format("Unexpected argument '%s' at position %d: %s.", s, index, ex.getMessage()));
-        }
-    }
-
-    private String removeEnvelope(String s, String removeBeginning, String removeEnd) {
-        if (s.length() > removeBeginning.length() + removeEnd.length()
-                && s.startsWith(removeBeginning) && s.endsWith(removeEnd)) {
-            s = s.substring(removeBeginning.length(), s.length() - removeEnd.length());
-        }
-
-        return s;
-    }
-
-    //endregion
-
-    //region ScopedName
-
-    @Data
-    protected static class ScopedName {
-        private final String scope;
-        private final String name;
-
-        @Override
-        public String toString() {
-            return NameUtils.getScopedStreamName(this.scope, this.name);
         }
     }
 
@@ -164,49 +182,27 @@ abstract class Command {
     /**
      * Describes an argument.
      */
-    @Data
+    @RequiredArgsConstructor
+    @Getter
     public static class ArgDescriptor {
-        @NonNull
         private final String name;
-        @NonNull
-        private final String description;
-    }
-
-    @Data
-    public static class SyntaxExample {
-        @NonNull
-        private final String args;
-        @NonNull
         private final String description;
     }
 
     /**
      * Describes a Command.
      */
-    @Data
-    @Builder
-    static class CommandDescriptor {
-        @NonNull
+    @Getter
+    public static class CommandDescriptor {
         private final String component;
-        @NonNull
         private final String name;
-        @NonNull
         private final String description;
-        @NonNull
-        @Singular
-        private final List<ArgDescriptor> args;
-        @NonNull
-        @Singular
-        private final List<SyntaxExample> syntaxExamples;
-
-        public static class CommandDescriptorBuilder {
-            public CommandDescriptorBuilder withArg(String name, String description) {
-                return arg(new ArgDescriptor(name, description));
-            }
-
-            public CommandDescriptorBuilder withSyntaxExample(String args, String description) {
-                return syntaxExample(new SyntaxExample(args, description));
-            }
+        private final ArgDescriptor[] args;
+        public CommandDescriptor(String component, String name, String description, ArgDescriptor... args) {
+            this.component = Exceptions.checkNotNullOrEmpty(component, "component");
+            this.name = Exceptions.checkNotNullOrEmpty(name, "name");
+            this.description = Exceptions.checkNotNullOrEmpty(description, "description");
+            this.args = args;
         }
     }
 
@@ -220,27 +216,24 @@ abstract class Command {
     public static class Factory {
         private static final Map<String, Map<String, CommandInfo>> COMMANDS = registerAll(
                 ImmutableMap.<Supplier<CommandDescriptor>, CommandCreator>builder()
-                        .put(ConfigCommand.List::descriptor, ConfigCommand.List::new)
-                        .put(ConfigCommand.Set::descriptor, ConfigCommand.Set::new)
-                        .put(ScopeCommand.Create::descriptor, ScopeCommand.Create::new)
-                        .put(ScopeCommand.Delete::descriptor, ScopeCommand.Delete::new)
-                        .put(StreamCommand.Create::descriptor, StreamCommand.Create::new)
-                        .put(StreamCommand.Delete::descriptor, StreamCommand.Delete::new)
-                        .put(StreamCommand.List::descriptor, StreamCommand.List::new)
-                        .put(StreamCommand.Append::descriptor, StreamCommand.Append::new)
-                        .put(StreamCommand.Read::descriptor, StreamCommand.Read::new)
-                        .put(KeyValueTableCommand.Create::descriptor, KeyValueTableCommand.Create::new)
-                        .put(KeyValueTableCommand.Delete::descriptor, KeyValueTableCommand.Delete::new)
-                        .put(KeyValueTableCommand.ListKVTables::descriptor, KeyValueTableCommand.ListKVTables::new)
-                        .put(KeyValueTableCommand.Get::descriptor, KeyValueTableCommand.Get::new)
-                        .put(KeyValueTableCommand.Put::descriptor, KeyValueTableCommand.Put::new)
-                        .put(KeyValueTableCommand.PutIf::descriptor, KeyValueTableCommand.PutIf::new)
-                        .put(KeyValueTableCommand.PutIfAbsent::descriptor, KeyValueTableCommand.PutIfAbsent::new)
-                        .put(KeyValueTableCommand.PutAll::descriptor, KeyValueTableCommand.PutAll::new)
-                        .put(KeyValueTableCommand.PutRange::descriptor, KeyValueTableCommand.PutRange::new)
-                        .put(KeyValueTableCommand.Remove::descriptor, KeyValueTableCommand.Remove::new)
-                        .put(KeyValueTableCommand.ListKeys::descriptor, KeyValueTableCommand.ListKeys::new)
-                        .put(KeyValueTableCommand.ListEntries::descriptor, KeyValueTableCommand.ListEntries::new)
+                        .put(ConfigListCommand::descriptor, ConfigListCommand::new)
+                        .put(ConfigSetCommand::descriptor, ConfigSetCommand::new)
+                        .put(BookKeeperCleanupCommand::descriptor, BookKeeperCleanupCommand::new)
+                        .put(BookKeeperListCommand::descriptor, BookKeeperListCommand::new)
+                        .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
+                        .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
+                        .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
+                        .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
+                        .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
+                        .put(ControllerListStreamsInScopeCommand::descriptor, ControllerListStreamsInScopeCommand::new)
+                        .put(ControllerListReaderGroupsInScopeCommand::descriptor, ControllerListReaderGroupsInScopeCommand::new)
+                        .put(ControllerDescribeReaderGroupCommand::descriptor, ControllerDescribeReaderGroupCommand::new)
+                        .put(ControllerDescribeStreamCommand::descriptor, ControllerDescribeStreamCommand::new)
+                        .put(GetClusterNodesCommand::descriptor, GetClusterNodesCommand::new)
+                        .put(ListContainersCommand::descriptor, ListContainersCommand::new)
+                        .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
+                        .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .build());
 
         /**
@@ -287,7 +280,7 @@ abstract class Command {
          * @param args      CommandArgs for the command.
          * @return A new instance of a Command base, already initialized with the command's commandArgs.
          */
-        public static Command get(String component, String command, CommandArgs args) {
+        public static AdminCommand get(String component, String command, CommandArgs args) {
             CommandInfo ci = getCommand(component, command);
             return ci == null ? null : ci.getCreator().apply(args);
         }
@@ -300,7 +293,7 @@ abstract class Command {
         private static Map<String, Map<String, CommandInfo>> registerAll(Map<Supplier<CommandDescriptor>, CommandCreator> items) {
             val result = new HashMap<String, Map<String, CommandInfo>>();
             for (val e : items.entrySet()) {
-                Command.CommandDescriptor d = e.getKey().get();
+                AdminCommand.CommandDescriptor d = e.getKey().get();
                 Map<String, CommandInfo> componentCommands = result.getOrDefault(d.getComponent(), null);
                 if (componentCommands == null) {
                     componentCommands = new HashMap<>();
@@ -321,7 +314,7 @@ abstract class Command {
         }
 
         @FunctionalInterface
-        private interface CommandCreator extends Function<CommandArgs, Command> {
+        private interface CommandCreator extends Function<CommandArgs, AdminCommand> {
         }
     }
 

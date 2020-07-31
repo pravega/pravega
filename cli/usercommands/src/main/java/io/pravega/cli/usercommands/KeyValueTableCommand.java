@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Streams;
@@ -16,16 +16,14 @@ import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.KeyValueTableClientConfiguration;
-import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.TableEntry;
-import io.pravega.client.tables.TableKey;
-import io.pravega.client.tables.Version;
+import io.pravega.client.tables.*;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
+import lombok.Cleanup;
+import lombok.Data;
+import lombok.NonNull;
+import lombok.val;
+
 import java.net.URI;
 import java.time.Instant;
 import java.util.Arrays;
@@ -35,10 +33,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.Cleanup;
-import lombok.Data;
-import lombok.NonNull;
-import lombok.val;
 
 abstract class KeyValueTableCommand extends Command {
     /**

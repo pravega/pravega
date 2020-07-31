@@ -7,31 +7,32 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.demo.interactive;
+package io.pravega.cli.usercommands;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.google.common.base.Strings;
+import lombok.Cleanup;
+import lombok.val;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.val;
-import org.slf4j.LoggerFactory;
 
 /**
  * Interactive CLI Demo Tool for Pravega.
  */
-public class InteractiveDemo {
+public class UserCLIRunner {
     private static final String CMD_HELP = "help";
     private static final String CMD_EXIT = "exit";
 
     public static void main(String[] args) throws Exception {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.getLoggerList().get(0).setLevel(Level.ERROR);
+        //context.getLoggerList().get(0).setLevel(Level.ERROR);
 
         System.out.println("Pravega Interactive Demo Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool\n");
@@ -105,7 +106,7 @@ public class InteractiveDemo {
         System.out.println(String.format("\t%s %s %s: %s",
                 d.getComponent(),
                 d.getName(),
-                d.getArgs().stream().map(InteractiveDemo::formatArgInline).collect(Collectors.joining(" ")),
+                d.getArgs().stream().map(UserCLIRunner::formatArgInline).collect(Collectors.joining(" ")),
                 d.getDescription()));
     }
 
@@ -148,7 +149,7 @@ public class InteractiveDemo {
 
         commands.stream()
                 .sorted(Comparator.comparing(Command.CommandDescriptor::getComponent).thenComparing(Command.CommandDescriptor::getName))
-                .forEach(InteractiveDemo::printCommandSummary);
+                .forEach(UserCLIRunner::printCommandSummary);
     }
 
     private static String formatArgInline(Command.ArgDescriptor ad) {
