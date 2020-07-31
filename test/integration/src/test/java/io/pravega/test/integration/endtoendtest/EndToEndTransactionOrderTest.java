@@ -30,7 +30,6 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -39,6 +38,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -96,7 +96,7 @@ public class EndToEndTransactionOrderTest {
     public void setUp() throws Exception {
 
         zkTestServer = new TestingServerStarter().start();
-        int port = Config.SERVICE_PORT;
+        int port = TestUtils.getAvailableListenPort();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         controller = controllerWrapper.getController();
@@ -116,8 +116,8 @@ public class EndToEndTransactionOrderTest {
                 internalCF,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
-
-        server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
+        int sssPort = TestUtils.getAvailableListenPort();
+        server = new PravegaConnectionListener(false, false, "localhost", sssPort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
                 true, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
@@ -241,7 +241,7 @@ public class EndToEndTransactionOrderTest {
                         eventToTxnMap.put(i1, transaction.getTxnId());
                         txnToWriter.put(transaction.getTxnId(), writerId);
                     } catch (Throwable e) {
-                        log.error("test exception writing events {}", e);
+                        log.error("test exception writing events", e);
                         throw new CompletionException(e);
                     }
                 }), executor)
