@@ -12,7 +12,7 @@ package io.pravega.test.system;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventRead;
@@ -90,7 +90,7 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
         @Cleanup
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(Utils.buildClientConfig(controllerUri))
