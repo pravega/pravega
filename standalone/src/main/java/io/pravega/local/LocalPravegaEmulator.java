@@ -90,7 +90,6 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .include(System.getProperties())
                     .build();
             SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);
-            log.info("{}", conf);
 
             final LocalPravegaEmulator localPravega = LocalPravegaEmulator.builder()
                     .controllerPort(conf.getControllerPort())
@@ -129,7 +128,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             localPravega.start();
             log.info("");
             log.info("Pravega Sandbox is running locally now. You could access it at {}:{}.", "127.0.0.1", conf.getControllerPort());
-            log.info("For more detailed logs, see: {}", String.format("%s/%s", System.getProperty("user.dir"), "standalone/standalone.log"));
+            log.info("For more detailed logs, see: {}/{}", System.getProperty("user.dir"), "standalone/standalone.log");
             log.info("");
         } catch (Exception ex) {
             log.error("Exception occurred running emulator", ex);
@@ -150,6 +149,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      * @throws Exception passes on the exception thrown by `inProcPravegaCluster`
      */
     public void start() throws Exception {
+        inProcPravegaCluster.prettyPrintConfig();
         inProcPravegaCluster.start();
     }
 

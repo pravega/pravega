@@ -47,6 +47,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -55,6 +56,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 
 @Slf4j
 @Builder
+@ToString
 public class InProcPravegaCluster implements AutoCloseable {
 
     private static final int THREADPOOL_SIZE = 20;
@@ -146,9 +148,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
-            if (this.isInMemStorage) {
-                this.isInProcHDFS = false;
-            }
+            this.isInProcHDFS = this.isInMemStorage ? false : true;
             return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
@@ -239,7 +239,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void startLocalHDFS() throws IOException {
         String baseDir = "temp";
-        log.info("Starting HDFS Emulator @ {}/", baseDir);
+        log.info("Starting HDFS Emulator @ {}/{}", System.getProperty("java.io.tmpdir"), baseDir);
         localHdfs = LocalHDFSEmulator.newBuilder().baseDirName(baseDir).build();
         localHdfs.start();
     }
@@ -437,5 +437,17 @@ public class InProcPravegaCluster implements AutoCloseable {
             this.zkService.close();
             this.zkService = null;
         }
+    }
+
+    public void prettyPrintConfig() {
+        String generated = this.toString();
+        int start = generated.indexOf("(")+1;
+        int end = generated.indexOf(")");
+        String[] opts = generated.substring(start, end).split(",");
+        log.info("{}", generated.substring(0, start));
+        for (String opt : opts) {
+            log.info("\t{}", opt.trim());
+        }
+        log.info("{}", generated.substring(end, generated.length()));
     }
 }
