@@ -176,7 +176,7 @@ public class SegmentStoreMetricsTests {
         assertEquals(usedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES).value());
         assertEquals(allocatedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES).value());
         assertEquals(generationSpread, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD).value());
-        assertEquals(policyDuration, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_POLICY_DURATION).value());
+        assertEquals(policyDuration, (int) MetricRegistryUtils.getTimer(MetricsNames.CACHE_POLICY_DURATION).mean(TimeUnit.MILLISECONDS));
 
         cache.close();
 
