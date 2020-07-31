@@ -29,7 +29,6 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
     @Before
     public void before() throws Exception {
         super.before();
-        this.testContext = new ExtendedS3TestContext();
     }
 
     @After
