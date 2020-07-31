@@ -51,6 +51,8 @@ public class Utils {
     public static final String PROPERTIES_FILE = "pravega.properties";
     public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
+    public static final String DEFAULT_TRUSTSTORE_PATH = "cert.pem";
+    public static final boolean VALIDATE_HOSTNAME = false;
 
     /**
      * Get Configuration from environment or system property.
@@ -90,6 +92,7 @@ public class Utils {
     }
 
     public static Service createPravegaControllerService(final URI zkUri, String serviceName, boolean enableTls) {
+        log.debug("enableTls set to {}", enableTls);
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
@@ -158,6 +161,9 @@ public class Utils {
         } else {
             log.debug("Generating config with auth enabled.");
             return ClientConfig.builder()
+                               // TLS-related client-side configuration
+                               .trustStore(DEFAULT_TRUSTSTORE_PATH)
+                               .validateHostName(VALIDATE_HOSTNAME)
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
