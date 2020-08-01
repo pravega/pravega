@@ -28,8 +28,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
     @Before
     public void before() throws Exception {
-        super.before();
         this.testContext = new ExtendedS3TestContext();
+        super.before();
     }
 
     @After
@@ -42,7 +42,6 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage()  throws Exception {
-        this.testContext = new ExtendedS3TestContext();
         return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
     }
 
@@ -78,8 +77,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Before
         public void before() throws Exception {
-            super.before();
             this.testContext = new ExtendedS3TestContext();
+            super.before();
         }
 
         @After
@@ -92,7 +91,6 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() throws Exception {
-            this.testContext = new ExtendedS3TestContext();
             return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
         }
 
@@ -115,8 +113,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Before
         public void before() throws Exception {
-            super.before();
             this.testContext = new ExtendedS3TestContext();
+            super.before();
         }
 
         @After
@@ -129,7 +127,6 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() throws Exception {
-            this.testContext = new ExtendedS3TestContext();
             return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
         }
     }
