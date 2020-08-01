@@ -975,8 +975,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else {
             logError(requestId, segment, operation, u);
-            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
-            throw new IllegalStateException("Unknown exception.", u);
+            invokeSafely(connection::send,
+                    new WireCommands.ErrorMessage(requestId, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
+                    failureHandler);
         }
 
         return null;

@@ -204,4 +204,9 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
         throw new IllegalStateException("Unexpected operation: " + tableEntriesDeltaRead);
     }
+
+    @Override
+    public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+        throw new IllegalStateException("Unexpected operation: " + errorMessage);
+    }
 }

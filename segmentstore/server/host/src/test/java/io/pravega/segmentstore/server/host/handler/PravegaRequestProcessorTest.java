@@ -1040,7 +1040,6 @@ public class PravegaRequestProcessorTest {
 
         processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", 0, 3));
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
-        order.verify(connection).send(wireCommandsCaptor.capture());
         verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(0), any());
     }
 
@@ -1078,6 +1077,9 @@ public class PravegaRequestProcessorTest {
         verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
         long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
         processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length + 1, 3));
+        order.verify(connection).send(new WireCommands.ErrorMessage(1,
+                "fromPosition can not exceed the length of the TableSegment.",
+                WireCommands.ErrorMessage.ErrorCode.valueOf(IllegalArgumentException.class)));
         verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
     }
 
