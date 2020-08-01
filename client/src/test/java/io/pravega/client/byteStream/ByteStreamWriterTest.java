@@ -11,7 +11,7 @@ package io.pravega.client.byteStream;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
