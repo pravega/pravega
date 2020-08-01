@@ -10,36 +10,50 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
-import io.netty.util.internal.ConcurrentSet;
+import java.util.concurrent.ConcurrentSkipListSet;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import java.io.Serializable;
+import java.net.URI;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -64,10 +78,17 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     static final int SCALE_WAIT_ITERATIONS = 12;
     private static final int READ_TIMEOUT = 1000;
     private static final int WRITE_THROTTLING_TIME = 100;
+    private static final Serializer<Integer> KEY_SERIALIZER = new IntegerSerializer();
+    private static final Serializer<String> VALUE_SERIALIZER = new UTF8StringSerializer();
 
     final String readerName = "reader";
     ScheduledExecutorService executorService;
     TestState testState;
+    KeyValueTableFactory keyValueTableFactory;
+    KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
+    long kvpUpdateCount = 0;
+    private KeyValueTable<Integer, String> keyValueTable;
+
 
     /**
      * This class encapsulates the information regarding the execution of a system test. This includes the references to
@@ -92,8 +113,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
-        final ConcurrentSet<UUID> committingTxn = new ConcurrentSet<>();
-        final ConcurrentSet<UUID> abortedTxn = new ConcurrentSet<>();
+        final ConcurrentSkipListSet<UUID> committingTxn = new ConcurrentSkipListSet<>();
+        final ConcurrentSkipListSet<UUID> abortedTxn = new ConcurrentSkipListSet<>();
         final boolean txnWrite;
 
         final AtomicLong writtenEvents = new AtomicLong();
@@ -550,6 +571,89 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
 
         return validEvents;
+    }
+
+    void createScope(String scopeName, StreamManager streamManager) {
+        Boolean createScopeStatus = streamManager.createScope(scopeName);
+        if (createScopeStatus) {
+            log.info("Successfully created Scope {}", scopeName);
+        }
+    }
+
+    void createKVT(String scopeName, String kvtName, KeyValueTableConfiguration config, URI controllerURIDirect) {
+        log.info("Creating KVT name:{} in scope {}", kvtName, scopeName);
+        Boolean createKvtStatus = KeyValueTableManager.create(controllerURIDirect).createKeyValueTable(scopeName, kvtName, config);
+        if (createKvtStatus) {
+            log.info("Successfully created KVT {}", kvtName);
+        }
+    }
+
+    void startKVPCreate(String scope, String kvtName, KeyValueTableFactory keyValueTableFactory, URI controllerURIDirect) {
+        testInsertUpdateGetKVP(scope, kvtName, keyValueTableFactory, controllerURIDirect);
+    }
+
+    private void testInsertUpdateGetKVP(String scope, String kvtName, KeyValueTableFactory keyValueTableFactory, URI controllerURIDirect) {
+        log.info("Start KVP operation for KVT {} of scope {}", kvtName, scope);
+        // Creating 5 threads to update KVP table entry
+        for (Integer i = 1; i < 6; i++) {
+            String value = convertStringToBinary("Hello World");
+            Integer keyId = i;
+            CompletableFuture.runAsync(() -> {
+                try {
+                    KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
+                    keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+                    log.info("Start creating KVP id:{} in KVT {}", keyId, kvtName);
+                    // Create KVP
+                    Version insertKvp = keyValueTable.put(null, keyId, value).join();
+                    // get KVP and verify the insert value length
+                    Assert.assertEquals("Value length is not matching", value.length(),
+                            keyValueTable.get(null, keyId).join().getValue().length());
+                    // Call API to update kvp table entry
+                    updateKVPEntry(scope, kvtName, keyId, keyValueTableFactory);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }, Executors.newFixedThreadPool(1));
+        }
+    }
+
+    void updateKVPEntry(String scope, String kvtName, int keyId, KeyValueTableFactory keyValueTableFactory) {
+        log.info("Scope name {} KVT name {} KVP name {}", scope, kvtName, keyId);
+        KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
+        keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+        String replaceValue = "";
+        for (int i = 1; i < 10000; i++) {
+            replaceValue = replaceValue + convertStringToBinary("Pravega");
+            Version keyVersion = keyValueTable.get(null, keyId).join().getKey().getVersion();
+            Version replaceKvp = keyValueTable.replace(null, keyId, replaceValue, keyVersion).join();
+            long keyValueLength = keyValueTable.get(null, keyId).join().getValue().length();
+            Assert.assertEquals("Value length is not matching", replaceValue.length(), keyValueLength);
+            log.info("For KVP {} number of update value {} lenght size {}", keyId, i, keyValueLength);
+            kvpUpdateCount = kvpUpdateCount + 1;
+            log.info("KVP update count {}", kvpUpdateCount);
+        }
+    }
+
+    private static class IntegerSerializer implements Serializer<Integer> {
+        public ByteBuffer serialize(Integer value) {
+            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value);
+        }
+
+        public Integer deserialize(ByteBuffer serializedValue) {
+            return serializedValue.getInt();
+        }
+    }
+
+    public static String convertStringToBinary(String input) {
+        StringBuilder result = new StringBuilder();
+        char[] chars = input.toCharArray();
+        for (char aChar : chars) {
+            result.append(String.format("%8s", Integer.toBinaryString(aChar)).replaceAll(" ", "0"));
+        } return result.toString();
+    }
+
+    public long getListKvp() {
+        return kvpUpdateCount;
     }
 
     static class TxnNotCompleteException extends RuntimeException {

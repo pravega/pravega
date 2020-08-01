@@ -144,6 +144,57 @@ abstract class AbstractFailoverTests extends AbstractReadWriteTest {
                 testState.getEventReadCount(), testState.getEventWrittenCount());
     }
 
+    void performFailoverForTestsInvolvingKVS() throws ExecutionException {
+        long kvpEntryCount = getListKvp();
+        log.info("Current insert KVP count {}", kvpEntryCount);
+        log.info("ScaleUp one Segmentstore and Controller");
+
+        // Case-64 Scale up SegmentStore one instances from 3 to 4
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(4), ExecutionException::new);
+        // Case-60 Scale up controller one instances from 2 to 3
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        log.info("Successfully scale up Controller 2 -> 3 and Segmentstore 3 -> 4");
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        assertTrue("Current KVP entry count is not greater than previousKVPCount", kvpEntryCount < getListKvp());
+        kvpEntryCount = getListKvp();
+        log.info("Insert KVP count: {} without any failover after sleep before scaling", kvpEntryCount);
+        log.info("ScaleUp more than one Segmentstore and Controller");
+
+        // Case-65 Scale up SegmentStore to 2 instances from 4 to 6
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(6), ExecutionException::new);
+        // Case-61 Scale up controller two instances from 3 to 5
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(5), ExecutionException::new);
+        log.info("Successfully scale up Segmentstore 4 -> 6 and Controller 3 -> 5");
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        assertTrue("Current KVP count is not greater than previousKVPCount", kvpEntryCount < getListKvp());
+        kvpEntryCount = getListKvp();
+        log.info("Insert KVP count: {} without any failover after sleep before more than one component scaling", kvpEntryCount);
+
+        // Case-66 Scale Down SegmentStore to more than one instances from 6 to 3
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        // Case-62 Scale Down controller to more than one instances from 5 to 2
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(2), ExecutionException::new);
+        log.info("Successfully scale down Segmentstore 6 -> 3 and Controller 5 -> 2 ");
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        assertTrue("Current list is not greater than initialKVPCount", kvpEntryCount < getListKvp());
+        kvpEntryCount = getListKvp();
+        log.info("Insert KVP count: {} without any failover after sleep and more than one component scale down", kvpEntryCount);
+
+        // Case-67 Scale Down SegmentStore one instances from 3 to 2
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        // Case-63 Scale Down controller to one instances from 2 to 1
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        log.info("Successfully scale down Segmentstore 3 -> 2 and Controller 2 -> 1");
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        assertTrue("Current list is not greater than initialKVPCount", kvpEntryCount < getListKvp());
+        kvpEntryCount = getListKvp();
+        log.info("Insert KVP count: {} without any failover after sleep and one component scale down", kvpEntryCount);
+    }
+
     void createScopeAndStream(String scope, String stream, StreamConfiguration config, StreamManager streamManager) {
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Creating scope with scope name {}", scope);

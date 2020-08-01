@@ -12,11 +12,13 @@ package io.pravega.test.system;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
@@ -39,13 +41,13 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class KvsWithFailOverTest extends AbstractKVSFailoverTest {
+public class KvsWithFailOverTest extends AbstractFailoverTests {
     static final String SCOPE_NAME = "testScope" + System.nanoTime();
     static final String KVT_NAME = "testKvt";
-    static final int KVP_COUNT = 5000;
     int controllerPodCount;
     int segmentStorePodCount;
     private StreamManager streamManager;
+    private ConnectionPool connectionPool;
 
 
     @Environment
@@ -62,7 +64,6 @@ public class KvsWithFailOverTest extends AbstractKVSFailoverTest {
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
-
         // Verify controller is running.
         controllerInstance = Utils.createPravegaControllerService(zkUri);
         assertTrue(controllerInstance.isRunning());
@@ -87,18 +88,21 @@ public class KvsWithFailOverTest extends AbstractKVSFailoverTest {
         controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(), controllerExecutorService);
         streamManager = new StreamManagerImpl(clientConfig);
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
-        keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME, controller, connectionFactory);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME, controller, connectionPool);
         // Create scope
         createScope(SCOPE_NAME, streamManager);
+        // Creating KVT
         createKVT(SCOPE_NAME, KVT_NAME, config, controllerURIDirect);
-        log.info("complete scope and kvt");
+        log.info("completed scope {} and kvt {} creation", SCOPE_NAME, KVT_NAME);
     }
 
-   @After
+    @After
     public void tearDown() throws ExecutionException {
         streamManager.close();
         keyValueTableFactory.close();
+        connectionPool.close();
         ExecutorServiceHelpers.shutdown(controllerExecutorService);
         Futures.getAndHandleExceptions(controllerInstance.scaleService(controllerPodCount), ExecutionException::new);
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(segmentStorePodCount), ExecutionException::new);
@@ -106,10 +110,12 @@ public class KvsWithFailOverTest extends AbstractKVSFailoverTest {
 
     @Test
     public void kvsWithFailOverTest() throws Exception {
-        // Start KBP operation like create, Update and Get KVP
-        startKVPCreate(SCOPE_NAME, KVT_NAME, KVP_COUNT, keyValueTableFactory, controllerURIDirect);
+        // Start KVP operation like create, Update and Get KVP
+        log.info("Start KVP operation to Update KVP entry");
+        startKVPCreate(SCOPE_NAME, KVT_NAME, keyValueTableFactory, controllerURIDirect);
         //run the failover test like scale up/down of controller and Segmentstore
-        performFailoverTest();
+        log.info("Started Segmentstore and Controller scale up and scale down");
+        performFailoverForTestsInvolvingKVS();
         log.info("Test KVS FailOver Successfully completed");
     }
 }
