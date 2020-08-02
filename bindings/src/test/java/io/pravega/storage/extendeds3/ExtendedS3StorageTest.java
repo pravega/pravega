@@ -10,11 +10,6 @@
 package io.pravega.storage.extendeds3;
 
 import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Config;
-import com.emc.object.s3.bean.ObjectKey;
-import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.DeleteObjectsRequest;
-import com.emc.object.util.ConfigUri;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
@@ -28,14 +23,10 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.IdempotentStorageTestBase;
-import io.pravega.test.common.TestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
@@ -53,11 +44,11 @@ import static org.junit.Assert.assertTrue;
  */
 @Slf4j
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
-    private TestContext setup;
+    private ExtendedS3TestContext setup;
 
     @Before
     public void setUp() throws Exception {
-        this.setup = new TestContext();
+        this.setup = new ExtendedS3TestContext();
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
         StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
@@ -292,11 +283,11 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
      * Tests the InMemoryStorage adapter with a RollingStorage wrapper.
      */
     public static class RollingStorageTests extends RollingStorageTestBase {
-        private TestContext setup;
+        private ExtendedS3TestContext setup;
 
         @Before
         public void setUp() throws Exception {
-            this.setup = new TestContext();
+            this.setup = new ExtendedS3TestContext();
         }
 
         @After
@@ -314,42 +305,4 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     }
 
     //endregion
-
-    private static class TestContext {
-        private static final String BUCKET_NAME_PREFIX = "pravegatest-";
-        private final ExtendedS3StorageConfig adapterConfig;
-        private final S3JerseyClient client;
-        private final S3ImplBase s3Proxy;
-        private final int port = TestUtils.getAvailableListenPort();
-        private final String configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
-        private final S3Config s3Config;
-
-        TestContext() throws Exception {
-            String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
-            this.adapterConfig = ExtendedS3StorageConfig.builder()
-                    .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
-                    .with(ExtendedS3StorageConfig.BUCKET, bucketName)
-                    .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
-                    .build();
-            s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
-            s3Proxy = new S3ProxyImpl(configUri, s3Config);
-            s3Proxy.start();
-            client = new S3JerseyClientWrapper(s3Config, s3Proxy);
-            client.createBucket(bucketName);
-            List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream()
-                    .map(object -> new ObjectKey(object.getKey()))
-                    .collect(Collectors.toList());
-
-            if (!keys.isEmpty()) {
-                client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
-            }
-        }
-
-        void close() throws Exception {
-            if (client != null) {
-                client.destroy();
-            }
-            s3Proxy.stop();
-        }
-    }
 }

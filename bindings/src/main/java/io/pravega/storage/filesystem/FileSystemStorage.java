@@ -11,7 +11,6 @@ package io.pravega.storage.filesystem;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -78,17 +77,6 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 @Slf4j
 public class FileSystemStorage implements SyncStorage {
     //region members
-
-    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
-
-    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_WRITE,
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
 
     private final FileSystemStorageConfig config;
     private final AtomicBoolean closed;
@@ -176,7 +164,6 @@ public class FileSystemStorage implements SyncStorage {
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         execute(handle.getSegmentName(), () -> doDelete(handle));
     }
-
 
     @Override
     public void truncate(SegmentHandle handle, long offset) {
@@ -316,7 +303,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(FileSystemWrapper.READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         Path parent = path.getParent();
@@ -380,14 +367,14 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_ONLY_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_ONLY_PERMISSION);
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void doUnseal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_WRITE_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_WRITE_PERMISSION);
         LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }
