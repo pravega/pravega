@@ -10,13 +10,23 @@
 package io.pravega.segmentstore.storage;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.serialization.RevisionDataOutput;
 import lombok.Getter;
 
 /**
  * A generic rolling policy that can be applied to any Storage unit.
  */
 public final class SegmentRollingPolicy {
-    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE);
+    /**
+     * The max allowed value for chunk length.
+     */
+    public static final long MAX_CHUNK_LENGTH = RevisionDataOutput.COMPACT_LONG_MAX;
+
+    /**
+     * Max rolling length is max 62 bit unsigned number (2^62-1) therefore it requires only 62 bits for storage.
+     * This allows us to use CompactLong in serialization everywhere. The resulting value is large enough for practical purposes.
+     */
+    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(MAX_CHUNK_LENGTH);
 
     /**
      * Maximum length, as allowed by this Rolling Policy.
