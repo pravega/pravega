@@ -11,6 +11,7 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1ContainerBuilder;
 import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
@@ -40,6 +41,7 @@ import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
@@ -80,6 +82,7 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
+    static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
@@ -437,6 +440,24 @@ public abstract class AbstractService implements Service {
                                                                                                      .build())
                                                                                .build())
                                         .build();
+    }
+
+    public CompletableFuture<V1ConfigMap> setupTLS() {
+            V1ConfigMap configMap = Futures.getThrowingException(k8sClient.getConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE));
+            return k8sClient.deleteConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE)
+                        .thenCompose(v -> k8sClient.createConfigMap(NAMESPACE, addDefaultTlsConfiguration(configMap)));
+    }
+
+    private V1ConfigMap addDefaultTlsConfiguration(V1ConfigMap configMap) {
+            return configMap
+                        .putDataItem("TLS_ENABLED", "true")
+                        .putDataItem("TLS_KEY_FILE", "/opt/pravega/conf/server-key.key")
+                        .putDataItem("TLS_CERT_FILE", "/opt/pravega/conf/server-cert.crt")
+                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/server-cert.crt")
+                        .putDataItem("TLS_ENABLED_FOR_SEGMENT_STORE", "true")
+                        .putDataItem("REST_KEYSTORE_FILE_PATH", "/opt/pravega/conf/server.keystore.jks")
+                        .putDataItem("REST_KEYSTORE_PASSWORD_FILE_PATH", "/opt/pravega/conf/server.keystore.jks.passwd");
+
     }
 
     @Override

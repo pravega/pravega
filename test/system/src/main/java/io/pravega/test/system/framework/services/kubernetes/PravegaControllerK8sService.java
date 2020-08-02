@@ -51,6 +51,13 @@ public class PravegaControllerK8sService extends AbstractService {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
         }
+        if (this.enableTls) {
+            enableTLS();
+        }
+        if (wait) {
+            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
+                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
+        }
     }
 
     @Override
@@ -116,5 +123,12 @@ public class PravegaControllerK8sService extends AbstractService {
                                return CompletableFuture.completedFuture(null);
                            }
                        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void enableTLS() {
+           Futures.getThrowingException(setupTLS());
+           scaleService(0);
+           scaleService(DEFAULT_CONTROLLER_COUNT);
     }
 }
