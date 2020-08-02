@@ -15,13 +15,14 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
-import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.S3FileSystemImpl;
@@ -65,38 +66,21 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
+                        new LocalExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor())
+                        : new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 
-
-    /**
-     * We are declaring a local factory here because we need a factory that creates adapters that interact
-     * with the local file system for the purposes of testing. Ideally, however, we should mock the extended
-     * S3 service rather than implement the storage functionality directly in the adapter.
-     */
-    private class LocalExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
-
-        @Override
-        public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
-            return new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
-        }
-
-        @Override
-        public String getName() {
-            return "LocalExtendedStorageFactory";
-        }
-    }
-
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
-        private final ExtendedS3StorageConfig config;
-        private final ScheduledExecutorService storageExecutor;
+        protected final ExtendedS3StorageConfig config;
+        protected final ScheduledExecutorService storageExecutor;
 
         LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
             this.config = Preconditions.checkNotNull(config, "config");
@@ -114,7 +98,25 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
+            return getStorage(client);
+        }
+
+        protected Storage getStorage(S3JerseyClient client) {
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
+        }
+    }
+
+    private class LocalExtendedS3SimpleStorageFactory extends LocalExtendedS3StorageFactory {
+
+        LocalExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
+            super(config, executor);
+        }
+
+        protected Storage getStorage(S3JerseyClient client) {
+            return new ChunkedSegmentStorage(
+                    new ExtendedS3ChunkStorage(client, this.config),
+                    this.storageExecutor,
+                    ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }
     }
     //endregion
