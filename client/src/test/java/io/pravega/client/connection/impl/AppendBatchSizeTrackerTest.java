@@ -68,7 +68,7 @@ public class AppendBatchSizeTrackerTest {
                 tracker.recordAck(i-100);
             }
         }
-        assertTrue(tracker.getAppendBlockSize() >= size * 40);
+        assertTrue(tracker.getAppendBlockSize() >= size * 45);
     }
     
 }
