@@ -21,6 +21,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
+import lombok.var;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -163,7 +164,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        val h = segmentStorage1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = "Hello".getBytes();
         segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
@@ -222,7 +223,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        val h = segmentStorage1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = "Hello".getBytes();
         segmentStorage1.write(h, offset, new ByteArrayInputStream(b1), b1.length, null).join();
         offset += b1.length;
@@ -239,7 +240,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
         checkSystemSegmentsLayout(segmentStorage2);
 
-        val h2 = segmentStorage2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk Data to from first instance.
         segmentStorage1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
@@ -288,7 +289,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash);
             checkSystemSegmentsLayout(segmentStorageInLoop);
 
-            val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
+            var h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
             if (null != oldhunkStorageManager) {
                 oldhunkStorageManager.write(oldHandle, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
@@ -319,8 +320,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         byte[] out = new byte[Math.toIntExact(offset)];
         val hr = segmentStorageFinal.openRead(systemSegmentName).join();
         segmentStorageFinal.read(hr, 0, out, 0, Math.toIntExact(offset), null).join();
-        val expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
-        val actual = new String(out);
+        var expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
+        var actual = new String(out);
         Assert.assertEquals(expected, actual);
     }
 
@@ -359,7 +360,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash);
             checkSystemSegmentsLayout(segmentStorageInLoop);
 
-            val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
+            var h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
             if (null != oldhunkStorageManager) {
                 // Add some junk to previous instance after failover
@@ -416,8 +417,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         byte[] out = new byte[Math.toIntExact(offset - offsetToTruncateAt)];
         val hr = segmentStorageFinal.openRead(systemSegmentName).join();
         segmentStorageFinal.read(hr, offsetToTruncateAt, out, 0, Math.toIntExact(offset - offsetToTruncateAt), null).join();
-        val expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
-        val actual = new String(out);
+        var expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
+        var actual = new String(out);
         Assert.assertEquals(expected, actual);
     }
 
@@ -497,7 +498,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        val h = segmentStorage1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         val b1 = validWriteBeforeFailure.getBytes();
         byte[] garbage1 = initialGarbageThatIsTruncated.getBytes();
         int garbage1Length = garbage1.length;
@@ -516,7 +517,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
         checkSystemSegmentsLayout(segmentStorage2);
 
-        val h2 = segmentStorage2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk Data to both system segment and journal file.
         val innerGarbageBytes = garbageAfterFailure.getBytes();
@@ -564,7 +565,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
-        val h = segmentStorage1.openWrite(systemSegmentName).join();
+        var h = segmentStorage1.openWrite(systemSegmentName).join();
         segmentStorage1.write(h, offset, new ByteArrayInputStream("JUNKJUNKJUNK".getBytes()), 12, null).join();
         offset += 12;
         val b1 = "Hello".getBytes();
@@ -581,7 +582,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash);
         checkSystemSegmentsLayout(segmentStorage2);
 
-        val h2 = segmentStorage2.openWrite(systemSegmentName).join();
+        var h2 = segmentStorage2.openWrite(systemSegmentName).join();
 
         // Write Junk data to both system segment and journal file.
         segmentStorage1.write(h, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
