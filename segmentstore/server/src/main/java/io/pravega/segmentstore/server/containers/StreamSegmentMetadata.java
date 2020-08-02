@@ -353,7 +353,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized SegmentProperties getSnapshot() {
-        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
+        return StreamSegmentInformation.from(this)
+                .deletedInStorage(deletedInStorage)
+                .sealedInStorage(sealedInStorage)
+                .storageLength(storageLength)
+                .attributes(new HashMap<>(getAttributes())).build();
     }
 
     @Override

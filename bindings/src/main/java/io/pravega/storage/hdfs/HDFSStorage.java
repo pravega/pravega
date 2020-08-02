@@ -212,7 +212,7 @@ class HDFSStorage implements SyncStorage {
 
         try {
             return HDFS_RETRY.run(() -> {
-                int totalBytesRead  = readInternal(handle, buffer, offset, bufferOffset, length);
+                int totalBytesRead = readInternal(handle, buffer, offset, bufferOffset, length);
                 HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
                 HDFSMetrics.READ_BYTES.add(totalBytesRead);
                 LoggerHelpers.traceLeave(log, "read", traceId, handle, offset, totalBytesRead);
@@ -327,7 +327,6 @@ class HDFSStorage implements SyncStorage {
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
 
-
     @Override
     public void truncate(SegmentHandle handle, long offset) {
         throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
@@ -338,8 +337,6 @@ class HDFSStorage implements SyncStorage {
         ensureInitializedAndNotClosed();
         return false;
     }
-
-
 
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
@@ -559,7 +556,6 @@ class HDFSStorage implements SyncStorage {
         return new Path(String.format(NAME_FORMAT, getPathPrefix(segmentName), SEALED));
     }
 
-
     /**
      * Gets the filestatus representing the segment.
      *
@@ -581,7 +577,7 @@ class HDFSStorage implements SyncStorage {
         val result = Arrays.stream(rawFiles)
                 .sorted(this::compareFileStatus)
                 .collect(Collectors.toList());
-        return result.get(result.size() -1);
+        return result.get(result.size() - 1);
     }
 
     private int compareFileStatus(FileStatus f1, FileStatus f2) {
@@ -611,7 +607,7 @@ class HDFSStorage implements SyncStorage {
         if (pos2 <= 0) {
             throw new FileNameFormatException(fileName, "File must be in the following format: " + EXAMPLE_NAME_FORMAT);
         }
-        if ( pos2 == fileName.length() - 1 || fileName.regionMatches(pos2 + 1, SEALED, 0, SEALED.length()) ) {
+        if (pos2 == fileName.length() - 1 || fileName.regionMatches(pos2 + 1, SEALED, 0, SEALED.length())) {
             //File is sealed. This is the final version
             return MAX_EPOCH;
         }
@@ -697,10 +693,10 @@ class HDFSStorage implements SyncStorage {
         private final Iterator<SegmentProperties> results;
 
         HDFSSegmentIterator(FileStatus[] results, java.util.function.Predicate<FileStatus> patternMatchPredicate) {
-                this.results = Arrays.asList(results).stream()
-                        .filter(patternMatchPredicate)
-                        .map(this::toSegmentProperties)
-                        .iterator();
+            this.results = Arrays.asList(results).stream()
+                    .filter(patternMatchPredicate)
+                    .map(this::toSegmentProperties)
+                    .iterator();
         }
 
         public SegmentProperties toSegmentProperties(FileStatus fileStatus) {
