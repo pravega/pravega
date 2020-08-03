@@ -13,17 +13,33 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * InMemoryMetadataStore stores the key-values in memory.
  */
 public class InMemoryMetadataStore extends BaseMetadataStore {
+    /**
+     * Optional callback to invoke  during {@link BaseMetadataStore#read(String)} call.
+     */
+    @Getter
+    @Setter
+    Consumer<TransactionData> readCallback;
+
+    /**
+     * Optional callback to invoke during {@link BaseMetadataStore#writeAll(Collection)} call.
+     */
+    @Getter
+    @Setter
+    Consumer<Collection<TransactionData>> writeCallback;
 
     private final AtomicBoolean entryTracker = new AtomicBoolean(false);
 
@@ -31,6 +47,8 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      * Write through cache.
      */
     private final Map<String, TransactionData> backingStore = new ConcurrentHashMap<>();
+
+
 
     /**
      * Reads a metadata record for the given key.
@@ -41,14 +59,19 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      */
     protected TransactionData read(String key) throws StorageMetadataException {
         synchronized (this) {
-            val retValue = backingStore.get(key);
+            TransactionData retValue = backingStore.get(key);
             if (null == retValue) {
-                return TransactionData.builder()
+                retValue = TransactionData.builder()
                         .key(key)
                         .persisted(true)
                         .dbObject(this)
                         .build();
             }
+
+            if (readCallback != null) {
+                readCallback.accept(retValue);
+            }
+
             return retValue;
         }
     }
@@ -63,6 +86,10 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
         synchronized (this) {
             Preconditions.checkState(!entryTracker.getAndSet(true), "writeAll should never be called concurrently");
             try {
+                if (writeCallback != null) {
+                    writeCallback.accept(dataList);
+                }
+
                 for (TransactionData data : dataList) {
                     Preconditions.checkState(null != data.getKey());
                     val key = data.getKey();

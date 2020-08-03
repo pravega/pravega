@@ -33,6 +33,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +52,7 @@ import java.util.stream.Collectors;
  *
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(String...)}
  *
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
@@ -103,11 +106,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private static final int MAX_ENTRIES_IN_TXN_BUFFER = 5000;
 
     /**
-     * Lock for synchronization.
-     */
-    private final Object lock = new Object();
-
-    /**
      * Indicates whether this instance is fenced or not.
      */
     private final AtomicBoolean fenced;
@@ -143,13 +141,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Begins a new transaction.
      *
+     * @param keysToLock Array of keys to lock for this transaction.
      * @return Returns a new instance of MetadataTransaction.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public MetadataTransaction beginTransaction() throws StorageMetadataException {
-        // Each transaction gets a unique number which is monotinically increasing.
-        return new MetadataTransaction(this, version.incrementAndGet());
+    public MetadataTransaction beginTransaction(String... keysToLock) throws StorageMetadataException {
+        // Each transaction gets a unique number which is monotonically increasing.
+        return new MetadataTransaction(this, version.incrementAndGet(), keysToLock);
     }
 
     /**
@@ -209,7 +208,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
         // Step 2 : Check whether transaction is safe to commit.
         // This check needs to be atomic, with absolutely no possibility of re-entry
-        synchronized (lock) {
+        val lockWrapper = LockWrapper.writeLock(txn.getKeysToLock());
+        try {
+            lockWrapper.lock();
             for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
                 String key = entry.getKey();
                 val transactionData = entry.getValue();
@@ -272,6 +273,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 toAdd.put(key, data);
             }
             bufferedTxnData.putAll(toAdd);
+        } finally {
+            lockWrapper.unlock();
         }
 
         //  Step 5 : evict if required.
@@ -315,8 +318,12 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
         // Search in the buffer.
         if (null == data) {
-            synchronized (lock) {
+            val lockWrapper = LockWrapper.readLock(txn.getKeysToLock());
+            try {
+                lockWrapper.lock();
                 dataFromBuffer = bufferedTxnData.get(key);
+            } finally {
+                lockWrapper.unlock();
             }
             // If we did not find in buffer then load it from store
             if (null == dataFromBuffer) {
@@ -367,12 +374,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             copyForBuffer.setValue(fromDb.getValue().deepCopy());
         }
         // Put this value in bufferedTxnData buffer.
-        synchronized (lock) {
+        val lockWrapper = LockWrapper.writeLock(key);
+        try {
+            lockWrapper.lock();
             // If some other transaction beat us then use that value.
             TransactionData oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
             if (oldValue != null) {
                 copyForBuffer = oldValue;
             }
+        } finally {
+            lockWrapper.unlock();
         }
         return copyForBuffer;
     }
@@ -525,6 +536,138 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     protected void setVersion(long version) {
         this.version.set(version);
+    }
+
+    /**
+     * Helper class to encapsulates lock over group of keys.
+     */
+    private static class LockWrapper {
+        /**
+         * Global map to track active locks.
+         */
+        private static final HashMap<String, LockData> LOCKS = new HashMap<>();
+
+        /**
+         * Keys to lock.
+         */
+        private final String[] keysToLock;
+
+        /**
+         * Keeps track of acquired locks.
+         */
+        private final Lock[] locks;
+
+        /**
+         * Keeps track of number of locks are acquired.
+         */
+        private int aquiredLockCount = 0;
+
+        /**
+         * Whether to acquire read locks or write locks.
+         */
+        private boolean isReadOnly;
+
+        /**
+         * Constructs a {@link LockWrapper} instance.
+         * @param isReadOnly Whether to acquire read only locks or writable locks.
+         * @param keysToLock Keys to lock.
+         */
+        LockWrapper(Boolean isReadOnly, String... keysToLock) {
+            Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
+            this.keysToLock = keysToLock;
+            this.locks = new Lock[keysToLock.length];
+            this.isReadOnly = isReadOnly;
+        }
+
+        /**
+         * Creates a LockWrapper for reading.
+         * @param keysToLock Keys to lock.
+         * @return LockWrapper instance.
+         */
+        static LockWrapper readLock(String... keysToLock) {
+            return new LockWrapper(true, keysToLock);
+        }
+
+        /**
+         * Creates a LockWrapper for writing.
+         * @param keysToLock Keys to lock.
+         * @return LockWrapper instance.
+         */
+        static LockWrapper writeLock(String... keysToLock) {
+            return new LockWrapper(false, keysToLock);
+        }
+
+        /**
+         * Acquires all required locks.
+         */
+        void lock() {
+            for (val key: keysToLock) {
+                // Get existing lock.
+                LockData lockData;
+                synchronized (LOCKS) {
+                    lockData = LOCKS.get(key);
+                    // Add if this is a new key.
+                    if (null == lockData) {
+                        lockData = new LockData(new ReentrantReadWriteLock());
+                        LOCKS.put(key, lockData);
+                    }
+                    // Increment ref count.
+                    lockData.count++;
+                }
+
+                // Lock.
+                Lock lock = isReadOnly ? lockData.lock.readLock() : lockData.lock.writeLock();
+                lock.lock();
+
+                // Keep track of locks acquired.
+                locks[aquiredLockCount++] = lock;
+            }
+        }
+
+        /**
+         * Releases all acquired locks.
+         */
+        void unlock() {
+            for (int i = 0; i < aquiredLockCount; i++) {
+                // Unlock.
+                locks[i].unlock();
+
+                // Update lock data.
+                LockData lockData;
+                synchronized (LOCKS) {
+                    lockData = LOCKS.get(keysToLock[i]);
+                    // Decrement ref count.
+                    lockData.count--;
+                    // clean up if required.
+                    if (0 == lockData.count) {
+                        LOCKS.remove(keysToLock[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Data for tracking locks in {@link LockWrapper} .
+     */
+    private static class LockData {
+        /**
+         * Underlying ReadWriteLock lock.
+         */
+        final ReadWriteLock lock;
+
+        /**
+         * Reference count.
+         */
+        int count;
+
+        /**
+         * Constructor.
+         * @param lock ReadWriteLock lock to use.
+         */
+        LockData(ReadWriteLock lock) {
+            this.lock = lock;
+        }
     }
 
     /**

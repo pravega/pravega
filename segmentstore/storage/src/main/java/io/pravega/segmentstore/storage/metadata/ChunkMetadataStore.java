@@ -78,10 +78,11 @@ public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Begins a new transaction.
      *
+     * @param keysToLock Array of keys to lock for this transaction.
      * @return Returns a new instance of {@link MetadataTransaction}.
      * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    MetadataTransaction beginTransaction() throws StorageMetadataException;
+    MetadataTransaction beginTransaction(String... keysToLock) throws StorageMetadataException;
 
     /**
      * Retrieves the metadata for given key.

@@ -29,6 +29,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -94,6 +95,7 @@ public class SystemJournal {
      * Index of current journal file.
      */
     @Getter
+    @GuardedBy("lock")
     private int currentFileIndex;
 
     /**
@@ -111,7 +113,14 @@ public class SystemJournal {
     /**
      * Offset at which next log will be written.
      */
+    @GuardedBy("lock")
     private long systemJournalOffset;
+
+    /**
+     * Handle to current journal file.
+     */
+    @GuardedBy("lock")
+    private ChunkHandle currentHandle;
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -159,7 +168,7 @@ public class SystemJournal {
      */
     public void bootstrap() throws Exception {
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
             val chunkStartOffsets = new HashMap<String, Long>();
 
@@ -208,9 +217,6 @@ public class SystemJournal {
         Preconditions.checkState(null != records);
         Preconditions.checkState(records.size() > 0);
 
-        // Open the underlying chunk to write.
-        ChunkHandle h = getChunkHandleForSystemJournal();
-
         SystemJournalRecordBatch batch = SystemJournalRecordBatch.builder().systemJournalRecords(records).build();
         ByteArraySegment bytes;
         try {
@@ -220,17 +226,13 @@ public class SystemJournal {
         }
         // Persist
         synchronized (lock) {
-            val bytesWritten = chunkStorage.write(h, systemJournalOffset, bytes.getLength(),
-                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()));
-            Preconditions.checkState(bytesWritten == bytes.getLength());
-            systemJournalOffset += bytesWritten;
+            writeToJournal(bytes);
             // Add a new log file if required.
             if (!chunkStorage.supportsAppend() || !config.isAppendEnabled()) {
-                currentFileIndex++;
-                systemJournalOffset = 0;
+                startNewJournalFile();
             }
         }
-        log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, h.getChunkName(), batch);
+        log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
     }
 
     /**
@@ -471,17 +473,6 @@ public class SystemJournal {
         return NameUtils.getSystemJournalFileName(containerId, epoch, currentFileIndex);
     }
 
-    private ChunkHandle getChunkHandleForSystemJournal() throws ChunkStorageException {
-        ChunkHandle h;
-        val systemLogName = getSystemJournalChunkName();
-        try {
-            h = chunkStorage.openWrite(systemLogName);
-        } catch (ChunkNotFoundException e) {
-            h = chunkStorage.create(systemLogName);
-        }
-        return h;
-    }
-
     /**
      * Apply truncate action to the segment metadata.
      */
@@ -561,20 +552,42 @@ public class SystemJournal {
 
         // Write snapshot
         val snapshotFile = getSystemJournalChunkName(containerId, epoch, 0);
-        ChunkHandle h = chunkStorage.create(snapshotFile);
+        currentHandle = chunkStorage.create(snapshotFile);
         ByteArraySegment bytes;
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
         } catch (IOException e) {
             throw new ChunkStorageException(getSystemJournalChunkName(), "Unable to serialize", e);
         }
-        // Persist
         synchronized (lock) {
-            val bytesWritten = chunkStorage.write(h, systemJournalOffset, bytes.getLength(),
-                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()));
-            Preconditions.checkState(bytesWritten == bytes.getLength());
+            // Persist
+            writeToJournal(bytes);
+            // Start new journal.
+            startNewJournalFile();
         }
+
+    }
+
+    /**
+     * Writes given ByteArraySegment to journal.
+     * @param bytes
+     * @throws ChunkStorageException
+     */
+    private void writeToJournal(ByteArraySegment bytes) throws ChunkStorageException {
+        val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
+                new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()));
+        Preconditions.checkState(bytesWritten == bytes.getLength());
+        systemJournalOffset += bytesWritten;
+    }
+
+    /**
+     * Adds a new System journal file.
+     * @throws ChunkStorageException
+     */
+    private void startNewJournalFile() throws ChunkStorageException {
         currentFileIndex++;
+        systemJournalOffset = 0;
+        currentHandle = chunkStorage.create(getSystemJournalChunkName());
     }
 
     /**

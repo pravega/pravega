@@ -42,6 +42,8 @@ import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -475,7 +477,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         TestContext testContext = getTestContext();
+        testSimpleScenario(testSegmentName, policy, testContext);
+    }
 
+    private void testSimpleScenario(String testSegmentName, SegmentRollingPolicy policy, TestContext testContext) throws Exception {
         // Step 1: Create segment.
         val h = testContext.storageManager.create(testSegmentName, policy, null).get();
         Assert.assertEquals(h.getSegmentName(), testSegmentName);
@@ -1675,6 +1680,198 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         checkDataRead(testSegmentName, testContext, truncateAt, total);
     }
 
+    @Test
+    public void testParallelSegmentOperations() throws Exception {
+        int numberOfRequests = 10;
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        TestContext testContext = getTestContext();
+
+        CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
+        for (int i = 0; i < numberOfRequests; i++) {
+            String testSegmentName = "test" + i;
+            val f = CompletableFuture.runAsync( () -> {
+                try {
+                    testSimpleScenario(testSegmentName, policy, testContext);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            });
+            futures[i] = f;
+        }
+        CompletableFuture.allOf(futures).join();
+    }
+
+    @Test
+    public void testParallelSegmentOperationsWithReentry() throws Exception {
+        int numberOfRequests = 10;
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+
+        TestContext testContext = getTestContext();
+
+        if (!(testContext.metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        // Step 1: Populate system segment.
+        // Write some data to system segment so that we can read it back in call back.
+        val systemSegment = "SystemSegment";
+        val h = testContext.storageManager.create(systemSegment, policy, null).get();
+        testContext.storageManager.write(h, 0, new ByteArrayInputStream(new byte[1]), 1, null).join();
+
+        // Step 2: Setup call backs.
+        // Set up a call back which will be invoked during get call.
+        ((InMemoryMetadataStore) testContext.metadataStore).setReadCallback(transactionData -> {
+            // Make sure we don't invoke read for system segment itself.
+            if (!transactionData.getKey().equals(systemSegment)) {
+                try {
+                    checkDataRead(systemSegment, testContext, 0, 1);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            }
+        });
+        // Set up a call back which will be invoked during writeAll call.
+        ((InMemoryMetadataStore) testContext.metadataStore).setWriteCallback(transactionDataList -> {
+            // Make sure we don't invoke read for system segment itself.
+            if (transactionDataList.stream().filter(t -> t.getKey().equals(systemSegment)).findAny().isPresent()) {
+                try {
+                    checkDataRead(systemSegment, testContext, 0, 1);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            }
+        });
+
+        // Step 3: Perform operations on multiple segments.
+        CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
+        for (int i = 0; i < numberOfRequests; i++) {
+            String testSegmentName = "test" + i;
+            val f = CompletableFuture.runAsync(() -> {
+                try {
+                    testSimpleScenario(testSegmentName, policy, testContext);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            });
+            futures[i] = f;
+        }
+        CompletableFuture.allOf(futures).join();
+    }
+
+    @Test
+    public void testParallelReadRequestsOnSingleSegment() throws Exception {
+        int numberOfRequests = 10;
+        String testSegmentName = "testSegment";
+
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        TestContext testContext = getTestContext();
+
+        // Step 1: Create system segment.
+        val h = testContext.storageManager.create(testSegmentName, policy, null).get();
+        Assert.assertEquals(h.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h.isReadOnly());
+
+        // Step 2: Write some data.
+        long writeAt = 0;
+        for (int i = 1; i < 5; i++) {
+            testContext.storageManager.write(h, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            writeAt += i;
+        }
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, 2, 5);
+        TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkChunksExistInStorage(testContext.storageProvider, testContext.metadataStore, testSegmentName);
+
+        // Step 3: Read data back.
+        CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
+        for (int i = 0; i < numberOfRequests; i++) {
+            val f = CompletableFuture.runAsync( () -> {
+                try {
+                    // Check getStreamSegmentInfo.
+                    SegmentProperties info = testContext.storageManager.getStreamSegmentInfo(testSegmentName, null).get();
+                    Assert.assertFalse(info.isSealed());
+                    Assert.assertFalse(info.isDeleted());
+                    Assert.assertEquals(info.getName(), testSegmentName);
+                    Assert.assertEquals(info.getLength(), 10);
+                    Assert.assertEquals(info.getStartOffset(), 0);
+
+                    checkDataRead(testSegmentName, testContext, 0, 10);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            });
+            futures[i] = f;
+        }
+        CompletableFuture.allOf(futures).join();
+    }
+
+    @Test
+    public void testParallelReadRequestsOnSingleSegmentWithReentry() throws Exception {
+        int numberOfRequests = 10;
+        String testSegmentName = "testSegment";
+
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        TestContext testContext = getTestContext();
+        if (!(testContext.metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        // Step 1: Populate dummy system segment segment.
+        // Write some data to system segment so that we can read it back in call back.
+        val systemSegment = "SystemSegment";
+        val hSystem = testContext.storageManager.create(systemSegment, policy, null).get();
+        testContext.storageManager.write(hSystem, 0, new ByteArrayInputStream(new byte[1]), 1, null).join();
+
+        // Step 2: Setup call backs that read system segment on each read.
+        // Set up a call back which will be invoked during get call.
+        ((InMemoryMetadataStore) testContext.metadataStore).setReadCallback(transactionData -> {
+            // Make sure we don't invoke read for system segment itself.
+            if (!transactionData.getKey().equals(systemSegment)) {
+                try {
+                    checkDataRead(systemSegment, testContext, 0, 1);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            }
+        });
+
+        // Step 3: Create test segment.
+        val h = testContext.storageManager.create(testSegmentName, policy, null).get();
+        Assert.assertEquals(h.getSegmentName(), testSegmentName);
+        Assert.assertFalse(h.isReadOnly());
+
+        // Step 4: Write some data to test segment.
+        long writeAt = 0;
+        for (int i = 1; i < 5; i++) {
+            testContext.storageManager.write(h, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            writeAt += i;
+        }
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, 2, 5);
+        TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkChunksExistInStorage(testContext.storageProvider, testContext.metadataStore, testSegmentName);
+
+        // Step 5: Read back data concurrently.
+        CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
+        for (int i = 0; i < numberOfRequests; i++) {
+            val f = CompletableFuture.runAsync( () -> {
+                try {
+                    // Check getStreamSegmentInfo.
+                    SegmentProperties info = testContext.storageManager.getStreamSegmentInfo(testSegmentName, null).get();
+                    Assert.assertFalse(info.isSealed());
+                    Assert.assertFalse(info.isDeleted());
+                    Assert.assertEquals(info.getName(), testSegmentName);
+                    Assert.assertEquals(info.getLength(), 10);
+                    Assert.assertEquals(info.getStartOffset(), 0);
+
+                    checkDataRead(testSegmentName, testContext, 0, 10);
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            });
+            futures[i] = f;
+        }
+        CompletableFuture.allOf(futures).join();
+    }
+
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
         val hRead = testContext.storageManager.openRead(testSegmentName).get();
 
@@ -1794,7 +1991,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, int maxRollingLength, int ownerEpoch) throws Exception {
-            try (val txn = metadataStore.beginTransaction()) {
+            try (val txn = metadataStore.beginTransaction(new String[] {testSegmentName})) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
                         .maxRollinglength(maxRollingLength)
                         .name(testSegmentName)
@@ -1811,7 +2008,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
-            try (val txn = metadataStore.beginTransaction()) {
+            try (val txn = metadataStore.beginTransaction(new String[] {testSegmentName})) {
                 String firstChunk = null;
                 String lastChunk = null;
 

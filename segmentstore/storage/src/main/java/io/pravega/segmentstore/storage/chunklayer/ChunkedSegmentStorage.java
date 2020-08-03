@@ -198,7 +198,7 @@ public class ChunkedSegmentStorage implements Storage {
         return execute(() -> {
             long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 checkSegmentExists(streamSegmentName, segmentMetadata);
                 segmentMetadata.checkInvariants();
@@ -288,7 +288,7 @@ public class ChunkedSegmentStorage implements Storage {
             long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, rollingPolicy);
             Timer timer = new Timer();
 
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 // Retrieve metadata and make sure it does not exist.
                 SegmentMetadata oldSegmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 if (null != oldSegmentMetadata) {
@@ -341,7 +341,7 @@ public class ChunkedSegmentStorage implements Storage {
             int chunksAddedCount = 0;
             boolean isCommited = false;
 
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(handle.getSegmentName())) {
                 boolean didSegmentLayoutChange = false;
 
                 // Retrieve metadata.
@@ -606,7 +606,7 @@ public class ChunkedSegmentStorage implements Storage {
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             Preconditions.checkArgument(!handle.isReadOnly(), "handle");
 
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(handle.getSegmentName())) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 // Validate preconditions.
                 checkSegmentExists(streamSegmentName, segmentMetadata);
@@ -641,7 +641,7 @@ public class ChunkedSegmentStorage implements Storage {
             Preconditions.checkArgument(offset >= 0, "offset");
             String targetSegmentName = targetHandle.getSegmentName();
 
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(targetHandle.getSegmentName(), sourceSegment)) {
 
                 SegmentMetadata targetSegmentMetadata = (SegmentMetadata) txn.get(targetSegmentName);
 
@@ -934,7 +934,7 @@ public class ChunkedSegmentStorage implements Storage {
             Timer timer = new Timer();
 
             String streamSegmentName = handle.getSegmentName();
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
 
                 // Check preconditions
@@ -987,7 +987,7 @@ public class ChunkedSegmentStorage implements Storage {
             Preconditions.checkArgument(offset >= 0, "offset");
 
             String streamSegmentName = handle.getSegmentName();
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
 
                 // Check preconditions
@@ -1093,7 +1093,7 @@ public class ChunkedSegmentStorage implements Storage {
             long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 checkSegmentExists(streamSegmentName, segmentMetadata);
                 segmentMetadata.checkInvariants();
@@ -1133,7 +1133,7 @@ public class ChunkedSegmentStorage implements Storage {
                         offset, bufferOffset, length, buffer.length));
             }
 
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
 
                 // Validate preconditions.
@@ -1236,7 +1236,7 @@ public class ChunkedSegmentStorage implements Storage {
         return execute(() -> {
             long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 if (null == segmentMetadata) {
                     throw new StreamSegmentNotExistsException(streamSegmentName);
@@ -1262,7 +1262,7 @@ public class ChunkedSegmentStorage implements Storage {
         return execute(() -> {
             long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            try (MetadataTransaction txn = metadataStore.beginTransaction()) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(streamSegmentName)) {
                 SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(streamSegmentName);
                 val retValue = segmentMetadata == null ? false : segmentMetadata.isActive();
                 LoggerHelpers.traceLeave(log, "exists", traceId, retValue);

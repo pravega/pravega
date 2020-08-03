@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  * This implementation delegates all calls to underlying {@link ChunkMetadataStore}.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(String...)}
  * <ul>
  * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload
  * of{@link MetadataTransaction#commit()}.</li>
@@ -98,14 +98,22 @@ public class MetadataTransaction implements AutoCloseable {
     private Callable<Void> externalCommitStep;
 
     /**
+     * Array of keys to lock for this transaction.
+     */
+    @Getter
+    private final String[] keysToLock;
+
+    /**
      * Constructor.
      *
      * @param store   Underlying metadata store.
      * @param version Version number of the transactions.
+     * @param keysToLock Array of keys to lock for this transaction.
      */
-    public MetadataTransaction(ChunkMetadataStore store, long version) {
+    public MetadataTransaction(ChunkMetadataStore store, long version, String... keysToLock) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.version = version;
+        this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
         data = new ConcurrentHashMap<String, BaseMetadataStore.TransactionData>();
     }
 

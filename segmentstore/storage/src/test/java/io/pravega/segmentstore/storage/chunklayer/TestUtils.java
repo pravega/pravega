@@ -118,7 +118,7 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static StorageMetadata get(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
             return txn.get(key);
         }
     }
@@ -132,7 +132,7 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static SegmentMetadata getSegmentMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
             return (SegmentMetadata) txn.get(key);
         }
     }
@@ -146,7 +146,7 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ChunkMetadata getChunkMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
             return (ChunkMetadata) txn.get(key);
         }
     }
@@ -160,7 +160,7 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ArrayList<ChunkMetadata> getChunkList(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
             val segmentMetadata = getSegmentMetadata(metadataStore, key);
             Assert.assertNotNull(segmentMetadata);
             ArrayList<ChunkMetadata> chunkList = new ArrayList<ChunkMetadata>();
