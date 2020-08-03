@@ -2358,8 +2358,8 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
+            out.writeUTF(message == null ? "" : message);
             out.writeInt(errorCode.getCode());
-            out.writeUTF(message);
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
