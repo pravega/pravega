@@ -178,7 +178,3 @@ fi
 #delete the pod that was created.
 echo "Deleting pod task-pv-pod that was used to copy the test artifacts"
 kubectl delete po task-pv-pod --now
-
-#create namespace for cluster deployment.
-echo "Creating Namespace  $nameSpace"
-kubectl create namespace $nameSpace

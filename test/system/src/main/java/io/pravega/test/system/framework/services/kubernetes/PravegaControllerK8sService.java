@@ -27,8 +27,6 @@ public class PravegaControllerK8sService extends AbstractService {
 
     private final URI zkUri;
     private final ImmutableMap<String, String> properties;
-    //private static final boolean IS_OPERATOR_VERSION_ABOVE_050 = isOperatorVersionAbove050();
-    //private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("imageVersionPrOp", "latest");
 
     public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties) {
         super(id);
@@ -95,11 +93,9 @@ public class PravegaControllerK8sService extends AbstractService {
                         .thenCompose(o -> {
                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
                            Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
-                           //Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
 
                            int currentControllerCount = ((Double) pravegaSpec.get("controllerReplicas")).intValue();
                            int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
-                           //int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
                            log.debug("Current instance counts : Controller {} SegmentStore {}.",
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentControllerCount != newInstanceCount) {

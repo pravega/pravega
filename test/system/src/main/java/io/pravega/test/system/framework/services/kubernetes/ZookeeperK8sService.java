@@ -57,7 +57,6 @@ public class ZookeeperK8sService extends AbstractService {
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeperclusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
-    private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
     private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
@@ -122,109 +121,6 @@ public class ZookeeperK8sService extends AbstractService {
                                                      getZookeeperDeployment(getID(), instanceCount))
                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), instanceCount));
     }
-
-    private V1beta1ClusterRoleBinding getClusterRoleBinding() {
-        return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
-                                                     .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                                                     .withMetadata(new V1ObjectMetaBuilder()
-                                                                           .withName("default-account-zookeeper-operator")
-                                                                           .build())
-                                                     .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")
-                                                                                              .withName(NAMESPACE)
-                                                                                              .withNamespace(NAMESPACE)
-                                                                                              .build())
-                                                     .withRoleRef(new V1beta1RoleRefBuilder().withKind("ClusterRole")
-                                                                                             .withName("zookeeper-operator")
-                                                                                             .withApiGroup("rbac.authorization.k8s.io")
-                                                                                             .build()).build();
-    }
-
-    private V1beta1CustomResourceDefinition getZKOperatorCRD() {
-
-        return new V1beta1CustomResourceDefinitionBuilder()
-                .withApiVersion("apiextensions.k8s.io/v1beta1")
-                .withKind("CustomResourceDefinition")
-                .withMetadata(new V1ObjectMetaBuilder().withName("zookeeper-clusters.zookeeper.pravega.io").build())
-                .withSpec(new V1beta1CustomResourceDefinitionSpecBuilder()
-                                  .withGroup(CUSTOM_RESOURCE_GROUP)
-                                  .withNames(new V1beta1CustomResourceDefinitionNamesBuilder()
-                                                     .withKind("ZookeeperCluster")
-                                                     .withListKind("ZookeeperClusterList")
-                                                     .withPlural(CUSTOM_RESOURCE_PLURAL)
-                                                     .withSingular("zookeeper-cluster")
-                                                     .withShortNames("zk")
-                                                     .build())
-                                  .withScope("Namespaced")
-                                  .withVersion(CUSTOM_RESOURCE_VERSION)
-                                  .withNewSubresources()
-                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
-                                  .endSubresources()
-                                  .build())
-                .build();
-
-    }
-
-    private V1beta1ClusterRole getClusterRole() {
-        return new V1beta1ClusterRoleBuilder()
-                .withKind("ClusterRole")
-                .withApiVersion("rbac.authorization.k8s.io/v1beta1")
-                .withMetadata(new V1ObjectMetaBuilder().withName("zookeeper-operator").build())
-                .withRules(new V1beta1PolicyRuleBuilder().withApiGroups(CUSTOM_RESOURCE_GROUP)
-                                                         .withResources("*")
-                                                         .withVerbs("*")
-                                                         .build(),
-                           new V1beta1PolicyRuleBuilder().withApiGroups("")
-                                                         .withResources("pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets")
-                                                         .withVerbs("*")
-                                                         .build(),
-                           new V1beta1PolicyRuleBuilder().withApiGroups("apps")
-                                                         .withResources("deployments", "daemonsets", "replicasets", "statefulsets")
-                                                         .withVerbs("*")
-                                                         .build(),
-                           new V1beta1PolicyRuleBuilder().withApiGroups("policy")
-                                                         .withResources("poddisruptionbudgets")
-                                                         .withVerbs("*")
-                                                         .build())
-                .build();
-    }
-
-
-    private V1Deployment getDeployment() {
-        V1Container container = new V1ContainerBuilder().withName("zookeeper-operator")
-                                                        .withImage(ZOOKEEPER_OPERATOR_IMAGE)
-                                                        .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
-                                                        .withCommand("zookeeper-operator")
-                                                        .withImagePullPolicy(IMAGE_PULL_POLICY)
-                                                        .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
-                                                                                      .withValueFrom(new V1EnvVarSourceBuilder()
-                                                                                                             .withFieldRef(new V1ObjectFieldSelectorBuilder()
-                                                                                                                                   .withFieldPath("metadata.namespace")
-                                                                                                                                   .build()).build()).build(),
-                                                                 new V1EnvVarBuilder().withName("OPERATOR_NAME")
-                                                                                      .withValueFrom(new V1EnvVarSourceBuilder()
-                                                                                                             .withFieldRef(new V1ObjectFieldSelectorBuilder()
-                                                                                                                                   .withFieldPath("metadata.name")
-                                                                                                                                   .build()).build()).build())
-                                                        .build();
-        return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName("zookeeper-operator")
-                                                                               .withNamespace(NAMESPACE)
-                                                                               .build())
-                                        .withKind("Deployment")
-                                        .withApiVersion("apps/v1")
-                                        .withSpec(new V1DeploymentSpecBuilder().withMinReadySeconds(MIN_READY_SECONDS)
-                                                                               .withSelector(new V1LabelSelectorBuilder()
-                                                                                                     .withMatchLabels(ImmutableMap.of("name", "zookeeper-operator"))
-                                                                                                     .build())
-                                                                               .withTemplate(new V1PodTemplateSpecBuilder()
-                                                                                                     .withMetadata(new V1ObjectMetaBuilder()
-                                                                                                                           .withLabels(ImmutableMap.of("name", "zookeeper-operator"))
-                                                                                                                           .build())
-                                                                                                     .withSpec(new V1PodSpecBuilder()
-                                                                                                                       .withContainers(container)
-                                                                                                                       .build()).build()).build())
-                                        .build();
-    }
-
     private Map<String, Object> getZookeeperDeployment(final String deploymentName, final int clusterSize) {
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", "zookeeper.pravega.io/v1beta1")
