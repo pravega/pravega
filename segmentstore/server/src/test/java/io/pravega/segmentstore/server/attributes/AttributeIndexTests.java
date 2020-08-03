@@ -877,7 +877,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 WriteInterceptor wi = this.writeInterceptor;
                 if (wi != null) {
                     return wi.apply(handle.getSegmentName(), offset, data, length, this.wrappedStorage)
-                            .thenCompose(handled -> handled ? CompletableFuture.completedFuture(null) : super.write(handle, offset, data, length, timeout));
+                             .thenCompose(handled -> handled ? CompletableFuture.completedFuture(null) : super.write(handle, offset, data, length, timeout));
                 } else {
                     return super.write(handle, offset, data, length, timeout);
                 }
