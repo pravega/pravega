@@ -11,11 +11,12 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.collect.Streams;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
@@ -49,7 +50,7 @@ public class KeyValueTableManagerImplTest {
     private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());
 
     @Before
-    public void setUp() {
+    public void setUp() throws ConnectionFailedException {
         this.connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         Mockito.doAnswer(invocation -> {
@@ -62,8 +63,7 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.SegmentAlreadyExists(request.getRequestId(), request.getSegment(), ""));
             }
             return null;
-        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateTableSegment.class),
-                Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).send(Mockito.any(WireCommands.CreateTableSegment.class));
 
         Mockito.doAnswer(invocation -> {
             WireCommands.DeleteTableSegment request = invocation.getArgument(0);
@@ -75,8 +75,7 @@ public class KeyValueTableManagerImplTest {
                         new WireCommands.NoSuchSegment(request.getRequestId(), request.getSegment(), "", 0L));
             }
             return null;
-        }).when(connection).sendAsync(Mockito.any(WireCommands.DeleteTableSegment.class),
-                Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).send(Mockito.any(WireCommands.DeleteTableSegment.class));
 
         this.connectionFactory.provideConnection(SERVER_LOCATION, connection);
         this.controller = new MockController(SERVER_LOCATION.getEndpoint(), SERVER_LOCATION.getPort(), this.connectionFactory, true);

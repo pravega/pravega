@@ -13,9 +13,9 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
@@ -70,7 +70,7 @@ class TableSegmentImpl implements TableSegment {
     @Getter
     private final long segmentId;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final DelegationTokenProvider tokenProvider;
     /**
      * We only retry {@link AuthenticationException} and {@link ConnectionFailedException}. Any other exceptions are not
@@ -92,16 +92,16 @@ class TableSegmentImpl implements TableSegment {
      *
      * @param segment           A {@link Segment} representing the Pravega Table Segment this instance will interact with.
      * @param controller        The {@link Controller} to use.
-     * @param connectionFactory The {@link ConnectionFactory} to use.
+     * @param connectionPool The {@link ConnectionPool} to use.
      * @param clientConfig      The {@link KeyValueTableClientConfiguration} to use to configure this client.
      * @param tokenProvider     A Token provider.
      */
-    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
+    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionPool connectionPool,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
         this.segmentName = segment.getKVTScopedName();
         this.segmentId = segment.getSegmentId();
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
+        this.connectionPool = connectionPool;
         this.tokenProvider = tokenProvider;
         this.retry = Retry
                 .withExpBackoff(clientConfig.getInitialBackoffMillis(), clientConfig.getBackoffMultiple(), clientConfig.getRetryAttempts(), clientConfig.getMaxBackoffMillis())
@@ -152,7 +152,7 @@ class TableSegmentImpl implements TableSegment {
             result = fetchSlice(resultBuilder);
         } else {
             // The request has to be split into multiple calls and then combined.
-            val processor = new OrderedProcessor<Void>(MAX_GET_CONCURRENT_REQUESTS, this.connectionFactory.getInternalExecutor());
+            val processor = new OrderedProcessor<Void>(MAX_GET_CONCURRENT_REQUESTS, this.connectionPool.getInternalExecutor());
             val futures = new ArrayList<CompletableFuture<Void>>();
             int index = 0;
             while (index < wireKeys.size()) {
@@ -184,7 +184,7 @@ class TableSegmentImpl implements TableSegment {
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
                 args.getState())
-                .asSequential(this.connectionFactory.getInternalExecutor());
+                .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     @Override
@@ -193,7 +193,7 @@ class TableSegmentImpl implements TableSegment {
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
                 args.getState())
-                .asSequential(this.connectionFactory.getInternalExecutor());
+                .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     /**
@@ -483,7 +483,7 @@ class TableSegmentImpl implements TableSegment {
         return this.retry.runAsync(
                 () -> getOrCreateState()
                         .thenCompose(state -> action.apply(state, state.nextRequestId())),
-                this.connectionFactory.getInternalExecutor());
+                this.connectionPool.getInternalExecutor());
     }
 
     /**
@@ -513,7 +513,7 @@ class TableSegmentImpl implements TableSegment {
                             .getEndpointForSegment(this.segmentName)
                             .thenCompose(uri -> this.tokenProvider
                                     .retrieveToken()
-                                    .thenApply(token -> new ConnectionState(new RawClient(uri, this.connectionFactory), token))),
+                                    .thenApply(token -> new ConnectionState(new RawClient(uri, this.connectionPool), token))),
                     result);
         }
 
