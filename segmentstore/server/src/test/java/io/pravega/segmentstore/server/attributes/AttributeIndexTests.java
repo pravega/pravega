@@ -12,9 +12,12 @@ package io.pravega.segmentstore.server.attributes;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -42,6 +45,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -628,6 +632,72 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability of the Attribute Index to recover correctly after an update has been successfully written to Storage,
+     * but the previous value of the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} has been truncated out without
+     * having the new value persisted (most likely due to a system crash).
+     * In this case, the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} value should be ignored and the index should
+     * be attempted to be read from Storage without providing hints to where to start reading from.
+     */
+    @Test
+    public void testTruncatedRootPointer() {
+        val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        val config = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 1024)
+                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 8)
+                .build();
+        final int attributeCount = 20;
+        val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        val expectedValues = new HashMap<UUID, Long>();
+        long nextValue = 0;
+        long previousRootPointer = -1;
+        boolean invalidRootPointer = false;
+        for (UUID attributeId : attributes) {
+            val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+            val value = nextValue++;
+            expectedValues.put(attributeId, value);
+            val updateBatch = Collections.singletonMap(attributeId, value);
+
+            val rootPointer = idx.update(updateBatch, TIMEOUT).join();
+            val startOffset = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset();
+            if (previousRootPointer >= 0) {
+                // We always set the Root Pointer to be one "value behind". Since we truncate the Attribute Segment with
+                // every update (small rolling size), doing this ensures that its value should always be less than the
+                // segment's start offset. This is further validated by asserting that invalidRootPointer is true at the
+                // end of this loop.
+                context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID)
+                        .updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, previousRootPointer));
+                invalidRootPointer |= previousRootPointer < startOffset;
+            }
+
+            previousRootPointer = rootPointer;
+
+            // Clean up the index cache and force a reload. Verify that we can read from the index.
+            context.index.cleanup(null);
+            val storageRead = new AtomicBoolean();
+            context.storage.readInterceptor = (name, offset, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+            val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+            checkIndex(idx2, expectedValues);
+            Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
+        }
+
+        Assert.assertTrue("No invalid Root Pointers generated during the test.", invalidRootPointer);
+
+        // 3. Remove all values (and thus force an update - validates conditional updates still work in this case).
+        context.index.cleanup(null);
+        val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        idx2.update(toDelete(expectedValues.keySet()), TIMEOUT).join();
+        expectedValues.replaceAll((key, v) -> Attributes.NULL_ATTRIBUTE_VALUE);
+        checkIndex(idx2, expectedValues);
+    }
+
+    /**
      * Tests the ability to create the Attribute Segment only upon the first write.
      */
     @Test
@@ -771,6 +841,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         private class TestStorage extends AsyncStorageWrapper {
             private final SyncStorage wrappedStorage;
+            private final Map<String, Long> startOffsets;
             private WriteInterceptor writeInterceptor;
             private SealInterceptor sealInterceptor;
             private ReadInterceptor readInterceptor;
@@ -778,6 +849,31 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             TestStorage(SyncStorage syncStorage, Executor executor) {
                 super(syncStorage, executor);
                 this.wrappedStorage = syncStorage;
+                this.startOffsets = new ConcurrentHashMap<>();
+            }
+
+            @Override
+            public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+                // We need to simulate the ChunkedSegmentStorage (correct) behavior for truncating segments. While the
+                // legacy RollingStorage would approximate a StartOffset to an offset at most equal to the requested
+                // Truncation Offset, the ChunkedSegmentStorage is very strict about that, so it will deny any read prior
+                // to that offset. In addition, the ChunkedSegmentStorage also returns the correct StartOffset as part of
+                // getStreamSegmentInfo while RollingStorage does not.
+                return super.truncate(handle, offset, timeout)
+                        .thenRun(() -> this.startOffsets.put(handle.getSegmentName(), offset));
+            }
+
+            @Override
+            public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+                return super.getStreamSegmentInfo(streamSegmentName, timeout)
+                        .thenApply(si -> {
+                            val startOffset = this.startOffsets.getOrDefault(streamSegmentName, -1L);
+                            if (startOffset >= 0) {
+                                return StreamSegmentInformation.from(si).startOffset(startOffset).build();
+                            } else {
+                                return si;
+                            }
+                        });
             }
 
             @Override
@@ -793,6 +889,11 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
             @Override
             public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+                val startOffset = this.startOffsets.getOrDefault(handle.getSegmentName(), -1L);
+                if (startOffset >= 0 && offset < startOffset) {
+                    return Futures.failedFuture(new StreamSegmentTruncatedException(handle.getSegmentName(), startOffset, offset));
+                }
+
                 ReadInterceptor ri = this.readInterceptor;
                 if (ri != null) {
                     return ri.apply(handle.getSegmentName(), offset, this.wrappedStorage)
