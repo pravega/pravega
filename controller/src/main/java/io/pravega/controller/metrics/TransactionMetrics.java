@@ -226,7 +226,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     public static synchronized void reset() {
-        TransactionMetrics old = INSTANCE.getAndSet(new TransactionMetrics());
+        TransactionMetrics old = INSTANCE.get();
         if (old != null) {
             old.createTransactionLatency.close();
             old.createTransactionSegmentsLatency.close();
@@ -237,5 +237,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
             old.abortTransactionSegmentsLatency.close();
             old.abortingTransactionLatency.close();
         }
+        INSTANCE.set(new TransactionMetrics());
     }
 }

@@ -366,7 +366,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * Resets the OpsStatLogger objects to their initial state..
      */
     public static synchronized void reset() {
-        StreamMetrics old = INSTANCE.getAndSet(new StreamMetrics());
+        StreamMetrics old = INSTANCE.get();
         if (old != null) {
             old.createStreamLatency.close();
             old.deleteStreamLatency.close();
@@ -376,5 +376,6 @@ public final class StreamMetrics extends AbstractControllerMetrics {
             old.createScopeLatency.close();
             old.deleteScopeLatency.close();
         }
+        INSTANCE.set(new StreamMetrics());
     }
 }
