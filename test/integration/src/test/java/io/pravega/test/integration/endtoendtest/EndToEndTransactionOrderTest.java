@@ -39,6 +39,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -76,6 +77,9 @@ public class EndToEndTransactionOrderTest {
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
 
+    final int controllerPort = TestUtils.getAvailableListenPort();
+    final String serviceHost = "localhost";
+    final int servicePort = TestUtils.getAvailableListenPort();
     ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
@@ -99,7 +103,12 @@ public class EndToEndTransactionOrderTest {
         zkTestServer = new TestingServerStarter().start();
         int port = Config.SERVICE_PORT;
 
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
+                false,
+                controllerPort,
+                serviceHost,
+                servicePort,
+                Config.HOST_STORE_CONTAINER_COUNT);
         controller = controllerWrapper.getController();
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -118,7 +127,7 @@ public class EndToEndTransactionOrderTest {
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
-        server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
+        server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
                 true, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
@@ -242,7 +251,7 @@ public class EndToEndTransactionOrderTest {
                         eventToTxnMap.put(i1, transaction.getTxnId());
                         txnToWriter.put(transaction.getTxnId(), writerId);
                     } catch (Throwable e) {
-                        log.error("test exception writing events {}", e);
+                        log.error("test exception writing events", e);
                         throw new CompletionException(e);
                     }
                 }), executor)
