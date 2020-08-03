@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
+<configuration scan="true" scanPeriod="30 seconds">
+    <logger name="org.apache.zookeeper" level="WARN"/>
+
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>standalone.log</file>
+        <encoder>
+            <charset>UTF-8</charset>
+            <Pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</Pattern>
+        </encoder>
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <Pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</Pattern>
+        </encoder>
+    </appender>
+
+    <logger name="io.pravega.local" level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    <logger name="io.pravega.controller.server.ControllerServiceMain" level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    <logger name="io.pravega.segmentstore.server.host.ServiceStarter" level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    <logger name="io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner" level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <root level="${log.level:-INFO}">
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>
