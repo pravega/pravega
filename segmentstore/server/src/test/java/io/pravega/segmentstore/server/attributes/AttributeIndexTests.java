@@ -854,9 +854,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
             @Override
             public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
-                // We need to simulate the ChunkStorageProvider (correct) behavior for truncating segments. While the
+                // We need to simulate the ChunkedSegmentStorage (correct) behavior for truncating segments. While the
                 // legacy RollingStorage would approximate a StartOffset to an offset at most equal to the requested
-                // Truncation Offset, the ChunkStorageProvider is very strict about that, so it will deny any read prior
+                // Truncation Offset, the ChunkedSegmentStorage is very strict about that, so it will deny any read prior
                 // to that offset. In addition, the ChunkStorageProvide also returns the correct StartOffset as part of
                 // getStreamSegmentInfo while RollingStorage does not.
                 return super.truncate(handle, offset, timeout)
