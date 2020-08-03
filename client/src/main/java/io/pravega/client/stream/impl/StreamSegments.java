@@ -10,11 +10,9 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.control.impl.SegmentCollection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.hash.HashHelper;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -23,28 +21,15 @@ import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * The segments that within a stream at a particular point in time.
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 @Slf4j
-public class StreamSegments {
-    private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
-    
-    /**
-     * Maps the upper end of a range to the corresponding segment. The range in the value is the
-     * range of keyspace the segment has been assigned. The range in the value is NOT the same as
-     * the difference between two keys. The keys correspond to the range that the client
-     * should route to, where as the one in the value is the range the segment it assigned. These
-     * may be different if a client still has a preceding segment in its map. In which case a
-     * segment's keys may not contain the full assigned range.
-     */
-    private final NavigableMap<Double, SegmentWithRange> segments;
-    @Getter
-    private final String delegationToken;
+public class StreamSegments extends SegmentCollection {
+    private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");  // DO NOT change this string.
 
     /**
      * Creates a new instance of the StreamSegments class.
@@ -54,37 +39,18 @@ public class StreamSegments {
      * @param delegationToken Delegation token to access the segments in the segmentstore
      */
     public StreamSegments(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
-        this.segments = Collections.unmodifiableNavigableMap(segments);
-        this.delegationToken = delegationToken;
-        verifySegments();
+        super(segments, delegationToken);
     }
 
-    private void verifySegments() {
-        if (!segments.isEmpty()) {
-            Preconditions.checkArgument(segments.firstKey() > 0.0, "Nonsense value for segment.");
-            Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
-            Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
-        }
-    }
-    
-    public Segment getSegmentForKey(String key) {
-        return getSegmentForKey(HASHER.hashToRange(key));
+    @Override
+    protected double hashToRange(String key) {
+        return HASHER.hashToRange(key);
     }
 
-    public Segment getSegmentForKey(double key) {
-        Preconditions.checkArgument(key >= 0.0);
-        Preconditions.checkArgument(key <= 1.0);
-        return segments.ceilingEntry(key).getValue().getSegment();
+    public int getNumberOfSegments() {
+        return segments.size();
     }
 
-    public Collection<Segment> getSegments() {
-        ArrayList<Segment> result = new ArrayList<>(segments.size());
-        for (SegmentWithRange seg : segments.values()) {
-            result.add(seg.getSegment());
-        }
-        return result;
-    }
-    
     public StreamSegments withReplacementRange(Segment segment, StreamSegmentsWithPredecessors replacementRanges) {
         SegmentWithRange replacedSegment = findReplacedSegment(segment);
         verifyReplacementRange(replacedSegment, replacementRanges);
@@ -111,7 +77,7 @@ public class StreamSegments {
             }
         }
         removeDuplicates(result);
-        return new StreamSegments(result, delegationToken);
+        return new StreamSegments(result, getDelegationToken());
     }
     
     /**
@@ -187,10 +153,5 @@ public class StreamSegments {
             upperReplacementRange = Math.max(upperReplacementRange, range.getRange().getHigh());
         }
         return upperReplacementRange;
-    }
-
-    @Override
-    public String toString() {
-        return "StreamSegments:" + segments.toString();
     }
 }

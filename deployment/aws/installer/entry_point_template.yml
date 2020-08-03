@@ -30,10 +30,9 @@
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     JAVA_OPTS: |
-      -Dcontroller.service.port=9090
-      -Dcontroller.service.restPort=10080
-      -Dcontroller.zk.url=ZKNODE:2181
-      -Dconfig.controller.metricenableCSVReporter=false
+      -Dcontroller.service.rpc.listener.port=9090
+      -Dcontroller.service.rest.listener.port=10080
+      -Dcontroller.zk.connect.uri=ZKNODE:2181
       -Xmx512m
       -XX:OnError="kill -9 p%"
       -XX:+ExitOnOutOfMemoryError
@@ -51,8 +50,7 @@
     ZK_URL: ZKNODE:2181
     CONTROLLER_URL: tcp://CONTROLLERNODE:9090
     JAVA_OPTS: |
-      -Dmetrics.enableCSVReporter=false
-      -Dbookkeeper.zkAddress=ZKNODE:2181
+      -Dbookkeeper.zk.connect.uri=ZKNODE:2181
       -Xmx900m
       -XX:OnError="kill -9 p%"
       -XX:+ExitOnOutOfMemoryError

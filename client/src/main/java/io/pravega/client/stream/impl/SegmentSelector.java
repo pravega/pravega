@@ -9,6 +9,9 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -102,6 +105,12 @@ public class SegmentSelector {
 
         if (successors == null) {
             return Collections.emptyList();
+        } else if (successors.getSegmentToPredecessor().isEmpty()) {
+            log.warn("Stream {} is sealed since no successor segments found for segment {} ", sealedSegment.getStream(), sealedSegment);
+            Exception e = new IllegalStateException("Writes cannot proceed since the stream is sealed");
+            removeAllWriters().forEach(pendingEvent -> pendingEvent.getAckFuture()
+                                                                   .completeExceptionally(e));
+            return Collections.emptyList();
         } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
         }
@@ -131,9 +140,11 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
+    private List<PendingEvent> updateSegments(StreamSegments newStreamSegments, Consumer<Segment>
             segmentSealedCallBack) {
-        currentSegments = newSteamSegments;
+        Preconditions.checkState(newStreamSegments.getNumberOfSegments() > 0,
+                "Writers cannot proceed writing since the stream %s is sealed", stream);
+        currentSegments = newStreamSegments;
         createMissingWriters(segmentSealedCallBack);
 
         List<PendingEvent> toResend = new ArrayList<>();

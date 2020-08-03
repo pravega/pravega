@@ -9,40 +9,15 @@
  */
 package io.pravega.client.stream.impl;
 
-import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -75,11 +50,36 @@ import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 
 public class EventStreamReaderTest {
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -238,10 +238,21 @@ public class EventStreamReaderTest {
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
-        assertEquals(buffer1, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertEquals(buffer3, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        assertNull(reader.readNextEvent(0).getEvent());
+        EventRead<byte[]> e = reader.readNextEvent(0);
+        assertEquals(buffer1, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertEquals(buffer2, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(2 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertEquals(buffer3, ByteBuffer.wrap(e.getEvent()));
+        assertEquals(new Long(3 * (WireCommands.TYPE_PLUS_LENGTH_SIZE + Integer.BYTES)),
+                e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
+        e = reader.readNextEvent(0);
+        assertNull(e.getEvent());
+        assertEquals(new Long(-1), e.getPosition().asImpl().getOffsetForOwnedSegment(Segment.fromScopedName("Foo/Bar/0")));
         reader.close();
     }
 
@@ -311,6 +322,7 @@ public class EventStreamReaderTest {
                                                                            Mockito.mock(Controller.class));
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
+        Mockito.when(groupState.canAcquireSegmentIfNeeded()).thenReturn(true);
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any()))
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment1, 0, 0.5), 0L))
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment2, 0.5, 1.0), 0L))
@@ -1024,7 +1036,7 @@ public class EventStreamReaderTest {
                                                            Mockito.mock(WatermarkReaderImpl.class)), Mockito.mock(Controller.class));
     }
 
-    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,
+    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionPool connectionPool,
                                                                                       Controller controller,
                                                                                       MockSegmentStreamFactory streamFactory,
                                                                                       Stream stream, String readerId,
@@ -1038,7 +1050,7 @@ public class EventStreamReaderTest {
         controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
         controller.createStream(stream.getScope(), readerGroupStream, StreamConfiguration.builder()
                                                                                          .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionPool,
                                                                 streamFactory, streamFactory, streamFactory,
                                                                 streamFactory);
 

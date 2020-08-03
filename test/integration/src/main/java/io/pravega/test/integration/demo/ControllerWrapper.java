@@ -30,8 +30,9 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -115,13 +116,17 @@ public class ControllerWrapper implements AutoCloseable {
                     .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
                     .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
                     .abortStreamName(NameUtils.getInternalNameForStream("abortStream"))
+                    .kvtStreamName(NameUtils.getInternalNameForStream("kvTableStream"))
                     .commitStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .abortStreamScalingPolicy(ScalingPolicy.fixed(2))
                     .scaleStreamScalingPolicy(ScalingPolicy.fixed(2))
+                    .kvtStreamScalingPolicy(ScalingPolicy.fixed(5))
                     .commitReaderGroupName("commitStreamReaders")
                     .commitReaderGroupSize(1)
                     .abortReaderGroupName("abortStreamReaders")
                     .abortReaderGroupSize(1)
+                    .kvtReaderGroupName("kvtStreamReaders")
+                    .kvtReaderGroupSize(1)
                     .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                     .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
                     .build());
@@ -154,6 +159,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .eventProcessorConfig(eventProcessorConfig)
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(restServerConfig)
+                .retentionFrequency(Duration.ofSeconds(1))
                 .build();
 
         controllerServiceMain = new ControllerServiceMain(serviceConfig);

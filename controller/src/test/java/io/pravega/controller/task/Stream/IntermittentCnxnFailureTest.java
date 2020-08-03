@@ -10,8 +10,9 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -19,12 +20,14 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -32,10 +35,19 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,6 +59,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -56,6 +69,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class IntermittentCnxnFailureTest {
 
@@ -75,23 +89,37 @@ public class IntermittentCnxnFailureTest {
 
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private ConnectionFactory connectionFactory;
-    
+    private ConnectionPool connectionPool;
+    @Mock
+    private KVTableMetadataStore kvtStore;
+    @Mock
+    private TableMetadataTasks kvtMetadataTasks;
+    private StatsProvider statsProvider = null;
+
     @Before
     public void setup() throws Exception {
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
+
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
-        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
+        segmentHelperMock = spy(new SegmentHelper(connectionPool, hostStore, executor));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
@@ -102,21 +130,42 @@ public class IntermittentCnxnFailureTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
-        controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+        controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
-
+        StreamMetrics.initialize();
         controllerService.createScope(SCOPE).get();
     }
 
     @After
     public void tearDown() throws Exception {
+        statsProvider.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
         zkClient.close();
         zkServer.close();
-        connectionFactory.close();
+        connectionPool.close();
+        StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+    }
+
+    @Test
+    public void failedScopeOperationsTest() throws ExecutionException, InterruptedException {
+        final String testScope = "testScope2";
+
+        // Simulate a stream store failure when creating a scope and verify that the failed metrics are updated.
+        final Controller.CreateScopeStatus createScopeStatus = Controller.CreateScopeStatus.newBuilder()
+                .setStatus(Controller.CreateScopeStatus.Status.FAILURE).build();
+        when(streamStore.createScope(anyString())).thenReturn(CompletableFuture.completedFuture(createScopeStatus));
+        assertEquals(createScopeStatus, controllerService.createScope(testScope).get());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
+
+        // Simulate a stream store failure when deleting a scope and verify that the failed metrics are updated.
+        final Controller.DeleteScopeStatus deleteScopeStatus = Controller.DeleteScopeStatus.newBuilder()
+                .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build();
+        when(streamStore.deleteScope(anyString())).thenReturn(CompletableFuture.completedFuture(deleteScopeStatus));
+        assertEquals(deleteScopeStatus, controllerService.deleteScope(testScope).get());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
     }
 
     @Test

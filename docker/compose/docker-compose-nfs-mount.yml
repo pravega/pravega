@@ -10,7 +10,7 @@
 version: '2'
 services:
   zookeeper:
-    image: zookeeper:3.5.4-beta
+    image: zookeeper:3.6.1
     ports:
       - "2181:2181"
 
@@ -58,9 +58,8 @@ services:
       ZK_URL: zookeeper:2181
       REST_SERVER_PORT: 10080
       JAVA_OPTS: |
-        -Dcontroller.service.port=9090
-        -Dcontroller.service.restPort=10080
-        -Dconfig.controller.metricenableCSVReporter=false
+        -Dcontroller.service.rpc.listener.port=9090
+        -Dcontroller.service.rest.listener.port=10080
         -Xmx512m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
@@ -87,11 +86,10 @@ services:
       ZK_URL: zookeeper:2181
       CONTROLLER_URL: tcp://${HOST_IP}:9090
       JAVA_OPTS: |
-        -Dmetrics.enableCSVReporter=false
-        -Dpravegaservice.publishedIPAddress=${HOST_IP}
-        -Dbookkeeper.bkEnsembleSize=2
-        -Dbookkeeper.bkAckQuorumSize=2
-        -Dbookkeeper.bkWriteQuorumSize=2
+        -Dpravegaservice.service.published.host.nameOrIp=${HOST_IP}
+        -Dbookkeeper.ensemble.size=2
+        -Dbookkeeper.ack.quorum.size=2
+        -Dbookkeeper.write.quorum.size=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError

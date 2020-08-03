@@ -10,8 +10,10 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -21,14 +23,18 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import lombok.NonNull;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -44,6 +50,87 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         return 1;
     }
 
+    @Test (timeout = 10000)
+    public void writerCreationTest() throws Exception {
+        EventStreamClientFactory clientFactory = mock(EventStreamClientFactory.class);
+        CompletableFuture<Void> createWriterLatch = new CompletableFuture<>();
+        doAnswer(x -> {
+            createWriterLatch.complete(null);
+            throw new RuntimeException();
+        }).when(clientFactory).createEventWriter(any(), any(), any());
+
+        TestAutoScaleProcessor failingWriterProcessor = new TestAutoScaleProcessor(
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                clientFactory,
+                executorService());
+        String segmentStreamName = "scope/myStreamSegment/0.#epoch.0";
+        failingWriterProcessor.notifyCreated(segmentStreamName);
+        assertFalse(failingWriterProcessor.isInitializeStarted());
+        AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
+
+        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true", 
+                () -> failingWriterProcessor.bootstrapOnce(clientFactory, w),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
+        failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        assertFalse(failingWriterProcessor.isInitializeStarted());
+        
+        failingWriterProcessor.setTimeMillis(20 * 60000L);
+        failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        // the above should initiate the bootstrap.
+        assertTrue(failingWriterProcessor.isInitializeStarted());
+
+        // since we are throwing on writer creation, wait until the writer is invoked once at least
+        createWriterLatch.join();
+
+        // now close the processor. The writer future should get cancelled.
+        failingWriterProcessor.close();
+        assertTrue(failingWriterProcessor.getWriterFuture().isCancelled());
+
+        // create new processor and let the writer get created 
+        TestAutoScaleProcessor processor = new TestAutoScaleProcessor(
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                clientFactory,
+                executorService());
+
+        LinkedBlockingQueue<AutoScaleEvent> queue = new LinkedBlockingQueue<>();
+        EventStreamWriter<AutoScaleEvent> writerMock = createWriter(queue::add);
+        doAnswer(x -> writerMock).when(clientFactory).createEventWriter(any(), any(), any());
+
+        processor.notifyCreated(segmentStreamName);
+        
+        // report a low rate to trigger a scale down 
+        processor.setTimeMillis(21 * 60000L);
+        processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
+        assertTrue(processor.isInitializeStarted());
+
+        AssertExtensions.assertEventuallyEquals(writerMock, () -> processor.getWriterFuture().join(), 10000L);
+        AutoScaleEvent event = queue.take();
+        assertEquals(event.getDirection(), AutoScaleEvent.DOWN);
+        
+        processor.close();
+        
+        // create third writer, this time supply the writer directly
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
+        
+        // verify that when writer is set, we are able to get the processor initialized
+        TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
+                AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
+                executorService());
+        
+        processor2.notifyCreated(segmentStreamName);
+        assertFalse(processor2.isInitializeStarted());
+        processor2.setTimeMillis(20 * 60000L);
+        processor2.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
+        // the above should create a writer future. 
+        assertTrue(processor2.isInitializeStarted());
+
+        assertTrue(Futures.isSuccessful(processor2.getWriterFuture()));
+        processor2.close();
+        verify(writer, times(1)).close();
+    }
+    
     @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -241,4 +328,30 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             }
         };
     }
+
+    private static class TestAutoScaleProcessor extends AutoScaleProcessor {
+        private AtomicLong timeMillis = new AtomicLong();
+        
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+            super(configuration, executor);
+        }
+
+        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+            super(writer, configuration, executor);
+        }
+
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor) {
+            super(configuration, clientFactory, executor);
+        }
+
+        @Override
+        protected long getTimeMillis() {
+            return timeMillis.get();
+        }
+
+        protected void setTimeMillis(long time) {
+            timeMillis.set(time);
+        }
+    }
+
 }

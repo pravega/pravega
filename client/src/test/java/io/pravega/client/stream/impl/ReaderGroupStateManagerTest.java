@@ -15,7 +15,7 @@ import com.google.common.collect.Sets;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -66,8 +66,8 @@ public class ReaderGroupStateManagerTest {
     private static class MockControllerWithSuccessors extends MockController {
         private StreamSegmentsWithPredecessors successors;
 
-        public MockControllerWithSuccessors(String endpoint, int port, ConnectionFactory connectionFactory, StreamSegmentsWithPredecessors successors) {
-            super(endpoint, port, connectionFactory, false);
+        public MockControllerWithSuccessors(String endpoint, int port, ConnectionPool connectionPool, StreamSegmentsWithPredecessors successors) {
+            super(endpoint, port, connectionPool, false);
             this.successors = successors;
         }
 
@@ -588,6 +588,8 @@ public class ReaderGroupStateManagerTest {
 
         reader1.readerShutdown(new PositionImpl(segments1));
 
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+
         Map<SegmentWithRange, Long> segmentsRecovered = reader2.acquireNewSegmentsIfNeeded(0, new PositionImpl(segments2));
         assertFalse(segmentsRecovered.isEmpty());
         assertEquals(2, segmentsRecovered.size());
@@ -632,7 +634,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(s3, 3L);
         segments.put(s4, 4L);
         segments.put(s5, 5L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit( ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
                 clock::get);
@@ -683,20 +685,22 @@ public class ReaderGroupStateManagerTest {
 
         assertNotNull(reader1.findSegmentToReleaseIfRequired());
         reader1.releaseSegment(new Segment(scope, stream, 0), 0, 0,
-                               new PositionImpl(ImmutableMap.of(s0, Long.valueOf(10), s1, Long.valueOf(11), s2, Long.valueOf(12))));
+                               new PositionImpl(ImmutableMap.of(s0, 10L, s1, 11L, s2, 12L)));
         assertNull(reader1.findSegmentToReleaseIfRequired());
 
         assertNotNull(reader2.findSegmentToReleaseIfRequired());
         reader2.releaseSegment(new Segment(scope, stream, 3), 3, 0,
-                               new PositionImpl(ImmutableMap.of(s3, Long.valueOf(13), s4, Long.valueOf(14), s5, Long.valueOf(15))));
+                               new PositionImpl(ImmutableMap.of(s3, 13L, s4, 14L, s5, 15L)));
         assertNull(reader2.findSegmentToReleaseIfRequired());
+
+        clock.addAndGet(ReaderGroupStateManager.TIME_UNIT.toNanos());
 
         Map<SegmentWithRange, Long> segments3 = reader3.acquireNewSegmentsIfNeeded(0, new PositionImpl(Collections.emptyMap()));
         assertEquals(2, segments3.size());
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
-        reader3.updateLagIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, Long.valueOf(20), s3, Long.valueOf(23))));
+        reader3.updateLagIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, 20L, s3, 23L)));
         assertNull(reader1.findSegmentToReleaseIfRequired());
         assertNull(reader2.findSegmentToReleaseIfRequired());
         assertNull(reader3.findSegmentToReleaseIfRequired());

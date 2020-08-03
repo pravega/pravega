@@ -18,6 +18,8 @@ import java.util.function.Predicate;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * Unit tests for the TypedProperties class.
  */
@@ -29,6 +31,7 @@ public class TypedPropertiesTests {
             TypedPropertiesTests::getStringValue,
             propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)),
+            propertyId -> toString(TypedPropertiesTests.getDoubleValue(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getEnumValue(propertyId)));
 
@@ -63,6 +66,16 @@ public class TypedPropertiesTests {
         populateData(props);
         testData(props, TypedProperties::getLong, TypedPropertiesTests::isInt64);
     }
+    
+    /**
+     * Tests the ability to get a property as a Double.
+     */
+    @Test
+    public void testGetDouble() throws Exception {
+        Properties props = new Properties();
+        populateData(props);
+        testData(props, TypedProperties::getDouble, TypedPropertiesTests::isDouble);
+    }
 
     /**
      * Tests the ability to get a property as a Boolean.
@@ -86,6 +99,29 @@ public class TypedPropertiesTests {
                 TypedPropertiesTests::isEnum);
     }
 
+    @Test
+    public void testPropertyWithLegacyPropertySpecified() {
+        Properties props1 = new Properties();
+        props1.setProperty("ns1.legacyPropertyKey", "configValue");
+        TypedProperties typedProps = new TypedProperties(props1, "ns1");
+        String config = typedProps.get(Property.named(
+                "newPropertyKey", "default", "legacyPropertyKey"));
+        assertEquals("configValue", config);
+    }
+
+
+
+    @Test
+    public void testLegacyPropertyTakesPrecedenceOverNewOnesWhenSpecified() {
+        Properties props1 = new Properties();
+        props1.setProperty("ns1.newPropertyKey", "new");
+        props1.setProperty("ns1.legacyPropertyKey", "old");
+        TypedProperties typedProps = new TypedProperties(props1, "ns1");
+        String config = typedProps.get(Property.named(
+                "newPropertyKey", "default", "legacyPropertyKey"));
+        assertEquals("old", config);
+    }
+
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
         for (int componentId = 0; componentId < TypedPropertiesTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
@@ -101,7 +137,7 @@ public class TypedPropertiesTests {
                     if (valueValidator.test(config.get(stringProperty))) {
                         // This is a value that should exist and be returned by methodToTest.
                         String actualValue = toString(methodToTest.apply(config, property));
-                        Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
+                        assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
                         AssertExtensions.assertThrows(
                                 String.format("TypedProperties returned property and interpreted it with the wrong type. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
@@ -169,6 +205,10 @@ public class TypedPropertiesTests {
     private static long getInt64Value(int propertyId) {
         return propertyId + (long) Integer.MAX_VALUE * 2;
     }
+    
+    private static double getDoubleValue(int propertyId) {
+        return propertyId * 1.5;
+    }
 
     private static boolean getBooleanValue(int propertyId) {
         return propertyId % 2 == 1;
@@ -196,9 +236,14 @@ public class TypedPropertiesTests {
 
     private static boolean isInt64(String propertyValue) {
         char firstChar = propertyValue.charAt(0);
-        return Character.isDigit(firstChar) || firstChar == '-'; // this will accept both Int32 and Int64.
+        return !propertyValue.contains(".") && (Character.isDigit(firstChar) || firstChar == '-'); // this will accept both Int32 and Int64.
     }
 
+    private static boolean isDouble(String propertyValue) {
+        char firstChar = propertyValue.charAt(0);
+        return propertyValue.contains(".") && (Character.isDigit(firstChar) || firstChar == '-' || firstChar == '.'); 
+    }
+    
     private static boolean isBoolean(String propertyValue) {
         return propertyValue.equalsIgnoreCase("true") || propertyValue.equalsIgnoreCase("false");
     }

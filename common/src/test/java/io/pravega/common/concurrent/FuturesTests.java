@@ -9,9 +9,12 @@
  */
 package io.pravega.common.concurrent;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,20 +25,110 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static io.pravega.common.concurrent.Futures.exceptionallyComposeExpecting;
+import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static org.junit.Assert.assertEquals;
+
 /**
  * Unit tests for the Futures class.
  */
-public class FuturesTests {
+public class FuturesTests extends ThreadPooledTestSuite {
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
+    @Test
+    public void testGetThrowingExceptions() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals("success", getThrowingException(future));
+        CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
+        failedFuture.completeExceptionally(new RuntimeException("fail"));
+        assertThrows("",
+                     () -> getThrowingException(failedFuture),
+                     e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
+    }
+    
+    @Test
+    public void testGetAndHandleException() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals("success", getAndHandleExceptions(future, RuntimeException::new));
+        CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
+        failedFuture.completeExceptionally(new IllegalArgumentException("fail"));
+        assertThrows("",
+                     () -> getAndHandleExceptions(failedFuture, RuntimeException::new),
+                     e -> e.getMessage().equals("java.lang.IllegalArgumentException: fail") && e.getClass().equals(RuntimeException.class));
+    }
+    
+    @Test
+    public void testExceptionallyExpecting() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals("success", exceptionallyExpecting(future, e -> e instanceof RuntimeException, "failed").join());
+        future = new CompletableFuture<String>();
+        future.completeExceptionally(new RuntimeException());
+        assertEquals("failed", exceptionallyExpecting(future, e -> e instanceof RuntimeException, "failed").join());
+    }
+    
+    @Test
+    public void testExceptionallyComposeExpecting() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals("success", exceptionallyComposeExpecting(future, e -> e instanceof RuntimeException, () -> completedFuture("failed")).join());
+        future = new CompletableFuture<String>();
+        future.completeExceptionally(new RuntimeException());
+        assertEquals("failed", exceptionallyComposeExpecting(future, e -> e instanceof RuntimeException, () -> completedFuture("failed")).join());
+    }
+    
+    @Test
+    public void testToVoid() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals(null, Futures.toVoid(future).join());
+        CompletableFuture<String> failedFuture = new CompletableFuture<String>();
+        failedFuture.completeExceptionally(new RuntimeException("fail"));
+        assertThrows("",
+                     () -> Futures.toVoid(failedFuture).join(),
+                     e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
+    }
+    
+    @Test
+    public void testToVoidExpecting() {
+        CompletableFuture<String> future = new CompletableFuture<String>();
+        future.complete("success");
+        assertEquals(null, Futures.toVoidExpecting(future, "success", RuntimeException::new).join());
+        CompletableFuture<String> failedFuture = new CompletableFuture<String>();
+        failedFuture.completeExceptionally(new RuntimeException("fail"));
+        assertThrows("",
+                     () -> Futures.toVoidExpecting(failedFuture, "success", RuntimeException::new).join(),
+                     e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
+        CompletableFuture<String> wrongFuture = new CompletableFuture<String>();
+        wrongFuture.complete("fail");
+        assertThrows("",
+                     () -> Futures.toVoidExpecting(wrongFuture, "success", RuntimeException::new).join(),
+                     e -> e.getClass().equals(RuntimeException.class));
+    }
+    
     /**
      * Tests the failedFuture() method.
      */
@@ -537,6 +630,29 @@ public class FuturesTests {
                 ex -> ex instanceof IntentionalException);
     }
 
+    @Test
+    public void testTimeout() {
+        Supplier<CompletableFuture<Integer>> supplier = CompletableFuture::new;
+        CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), "", executorService());
+        AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
+    }
+
+    @Test
+    public void testCompleteOn() {
+        val successfulFuture = new CompletableFuture<Integer>();
+        CompletableFuture<Integer> result = Futures.completeOn(successfulFuture, executorService());
+        successfulFuture.complete(1);
+        Assert.assertEquals("Expected completion value for successful future.", Integer.valueOf(1), result.join());
+
+        val failedFuture = new CompletableFuture<Integer>();
+        CompletableFuture<Integer> failedResult = Futures.completeOn(failedFuture, executorService());
+        failedFuture.completeExceptionally(new IntentionalException());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Failed future throws exception.",
+                () -> failedResult,
+                ex -> ex instanceof IntentionalException);
+    }
+    
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
         ArrayList<CompletableFuture<Integer>> result = new ArrayList<>();
         for (int i = 0; i < count; i++) {

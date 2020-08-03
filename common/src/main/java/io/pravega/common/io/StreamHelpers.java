@@ -11,9 +11,11 @@ package io.pravega.common.io;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import org.slf4j.Logger;
 
 /**
  * Miscellaneous operations on Streams.
@@ -35,9 +37,9 @@ public final class StreamHelpers {
      */
     public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException {
         Preconditions.checkNotNull(stream, "stream");
-        Preconditions.checkNotNull(stream, "target");
+        Preconditions.checkNotNull(target, "target");
         Preconditions.checkElementIndex(startOffset, target.length, "startOffset");
-        Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
+        Exceptions.checkArgument(maxLength >= 0, "maxLength", "must be a non-negative number.");
 
         int totalBytesRead = 0;
         while (totalBytesRead < maxLength) {
@@ -72,4 +74,21 @@ public final class StreamHelpers {
 
         return ret;
     }
+    
+    /**
+     * Closes a stream, logging a warning if it fails.
+     * 
+     * @param toClose the stream/socket etc to close
+     * @param log the logger to log a warning with.
+     * @param message the message to log in the event of an exception
+     * @param args template args for the message.
+     */
+    public static void closeQuietly(Closeable toClose, Logger log, String message, Object... args) {
+        try {
+            toClose.close();
+        } catch (IOException e) {
+            log.warn(message, args);
+        }
+    }
+    
 }

@@ -9,12 +9,19 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.collect.Lists;
+import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -26,6 +33,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -33,10 +42,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,12 +72,33 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testListScopes() {
+        when(this.mockControllerService.listScopes(any(), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("a", "b", "c"), "last")));
+        when(this.mockControllerService.listScopes(eq("last"), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "last")));
+        AsyncIterator<String> iterator = this.testController.listScopes();
+        Assert.assertEquals(iterator.getNext().join(), "a");
+        Assert.assertEquals(iterator.getNext().join(), "b");
+        Assert.assertEquals(iterator.getNext().join(), "c");
+        Assert.assertNull(iterator.getNext().join());
+    }
+    
+    @Test
     public void testCreateScope() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.createScope(any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder()
                         .setStatus(Controller.CreateScopeStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createScope("scope").join());
 
+        when(this.mockControllerService.getScope("scope")).thenReturn(
+                CompletableFuture.completedFuture("scope"));
+        Assert.assertTrue(this.testController.checkScopeExists("scope").join());
+
+        when(this.mockControllerService.getScope("scope2")).thenReturn(
+                Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found")));
+        Assert.assertFalse(this.testController.checkScopeExists("scope2").join());
+        
         when(this.mockControllerService.createScope(any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateScopeStatus.newBuilder()
                         .setStatus(Controller.CreateScopeStatus.Status.SCOPE_EXISTS).build()));
@@ -139,6 +166,13 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
+
+        when(this.mockControllerService.getStream("scope", "stream")).thenReturn(
+                CompletableFuture.completedFuture(StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()));
+        Assert.assertTrue(this.testController.checkStreamExists("scope", "stream").join());
+        when(this.mockControllerService.getStream("scope", "notExist")).thenReturn(
+                Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream not found")));
+        Assert.assertFalse(this.testController.checkStreamExists("scope", "notExist").join());
 
         when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
@@ -322,4 +356,112 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
                 new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
     }
+
+    @Test
+    public void testCreateKeyValueTable() {
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS).build()));
+        Assert.assertFalse(this.testController.createKeyValueTable("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatus(Controller.CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createKeyValueTable("scope", "kvtable1",
+                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetCurrentSegmentsKeyValueTable() throws Exception {
+        Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("kvtable").build();
+        Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
+        Controller.SegmentId segment2 = Controller.SegmentId.newBuilder().setSegmentId(2).setStreamInfo(info).build();
+        Controller.SegmentId segment3 = Controller.SegmentId.newBuilder().setSegmentId(3).setStreamInfo(info).build();
+
+        Controller.SegmentRange segmentRange1 = Controller.SegmentRange.newBuilder().setSegmentId(segment1).setMinKey(0.1).setMaxKey(0.3).build();
+        Controller.SegmentRange segmentRange2 = Controller.SegmentRange.newBuilder().setSegmentId(segment2).setMinKey(0.4).setMaxKey(0.6).build();
+        Controller.SegmentRange segmentRange3 = Controller.SegmentRange.newBuilder().setSegmentId(segment3).setMinKey(0.7).setMaxKey(1.0).build();
+
+        List<Controller.SegmentRange> segmentsList = new ArrayList<Controller.SegmentRange>(3);
+        segmentsList.add(segmentRange1);
+        segmentsList.add(segmentRange2);
+        segmentsList.add(segmentRange3);
+
+        when(this.mockControllerService.getCurrentSegmentsKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(segmentsList));
+        KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
+        Assert.assertEquals(3, segments.getSegments().size());
+    }
+
+    @Test
+    public void testListKeyValueTable() throws Exception {
+        List<String> tablelist = new ArrayList<String>();
+        tablelist.add("kvtable1");
+        Pair<List<String>, String> listOfKVTables = new ImmutablePair<>(tablelist, "");
+        when(this.mockControllerService.listKeyValueTables(anyString(), anyString(), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(listOfKVTables));
+        KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
+        Assert.assertEquals("kvtable1", info.getKeyValueTableName());
+    }
+
+    @Test
+    public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteKeyValueTable("scope", "kvtable1").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable2").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatus(Controller.DeleteKVTableStatus.Status.TABLE_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteKeyValueTable("scope", "kvtable3").join());
+
+        when(this.mockControllerService.deleteKeyValueTable(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteKeyValueTable("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
 }

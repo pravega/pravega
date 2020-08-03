@@ -17,10 +17,11 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -56,6 +57,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 @Slf4j
 public class StreamMetricsTest {
@@ -150,6 +152,55 @@ public class StreamMetricsTest {
     }
 
     @Test(timeout = 30000)
+    public void testStreamsAndScopesBasicMetricsTests() throws Exception {
+        String scopeName = "scopeBasic";
+        String streamName = "streamBasic";
+
+        // Here, the system scope and streams are already created.
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        controllerWrapper.getControllerService().createScope(scopeName).get();
+        if (!controller.createStream(scopeName, streamName, config).get()) {
+            log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + scopeName);
+            return;
+        }
+        // Check that the new scope and stream are accounted in metrics.
+        assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
+        assertEquals(9, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+
+        // Update the Stream.
+        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
+
+        // Seal the Stream.
+        controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+
+        // Delete the Stream and Scope and check for the respective metrics.
+        controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
+        controllerWrapper.getControllerService().deleteScope(scopeName).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+
+        // Exercise the metrics for failed stream and scope creation/deletion.
+        StreamMetrics.getInstance().createScopeFailed("failedScope");
+        StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().deleteScopeFailed("failedScope");
+        StreamMetrics.getInstance().deleteStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
+    }
+
+    @Test(timeout = 30000)
     public void testSegmentSplitMerge() throws Exception {
         String scaleScopeName = "scaleScope";
         String scaleStreamName = "scaleStream";
@@ -228,5 +279,48 @@ public class StreamMetricsTest {
         AssertExtensions.assertEventuallyEquals(true, () -> transaction2.checkStatus().equals(Transaction.Status.ABORTED), 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)) != null, 10000);
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ABORT_TRANSACTION, streamTags(txScopeName, txStreamName)).count());
+    }
+
+    @Test(timeout = 30000)
+    public void testRollingTxnMetrics() throws Exception {
+        String scaleRollingTxnScopeName = "scaleRollingTxnScope";
+        String scaleRollingTxnStreamName = "scaleRollingTxnStream";
+
+        controllerWrapper.getControllerService().createScope(scaleRollingTxnScopeName).get();
+        if (!controller.createStream(scaleRollingTxnScopeName, scaleRollingTxnStreamName, config).get()) {
+            fail("Stream " + scaleRollingTxnScopeName + "/" + scaleRollingTxnStreamName + " for scale testing already existed, test failed");
+        }
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scaleRollingTxnScopeName, ClientConfig.builder()
+                .controllerURI(URI.create("tcp://localhost:" + controllerPort)).build());
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer = clientFactory.createTransactionalEventWriter(Stream.of(scaleRollingTxnScopeName, scaleRollingTxnStreamName).getStreamName(),
+                new JavaSerializer<>(), EventWriterConfig.builder().build());
+        Transaction<String> transaction = writer.beginTxn();
+        transaction.writeEvent("Transactional content");
+
+        //split to 3 segments
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.25);
+        keyRanges.put(0.25, 0.75);
+        keyRanges.put(0.75, 1.0);
+
+        Stream scaleRollingTxnStream = new StreamImpl(scaleRollingTxnScopeName, scaleRollingTxnStreamName);
+        if (!controller.scaleStream(scaleRollingTxnStream, Collections.singletonList(0L), keyRanges, executor).getFuture().get()) {
+            fail("Scale stream: splitting segment into three failed, exiting");
+        }
+
+        assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+        assertEquals(0, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value());
+
+        transaction.flush();
+        transaction.commit();
+
+        String message = "Inconsistency found between metadata and metrics";
+        AssertExtensions.assertEventuallyEquals(message, 3L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 500, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 2L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
+        AssertExtensions.assertEventuallyEquals(message, 1L, () -> (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scaleRollingTxnScopeName, scaleRollingTxnStreamName)).value(), 200, 30000);
     }
 }

@@ -9,37 +9,11 @@
  */
 package io.pravega.client.stream.impl;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.mockito.Mockito.mock;
-
-import io.pravega.client.state.Revision;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
-
-import io.pravega.common.io.serialization.RevisionDataInput;
-import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.AllArgsConstructor;
-import lombok.val;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
+import io.pravega.client.state.Revision;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventPointer;
@@ -65,8 +39,31 @@ import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail.UpdateDistanceToTailSerializer;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
 import lombok.Cleanup;
+import lombok.val;
+import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Mockito.mock;
 
 public class SerializationTest {
     
@@ -124,7 +121,7 @@ public class SerializationTest {
         }
 
         public PositionImpl getPostionImpl() {
-            return new PositionImpl(ownedSegments, segmentRanges);
+            return new PositionImpl(ownedSegments, segmentRanges, null);
         }
     }
 

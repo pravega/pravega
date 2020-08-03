@@ -16,11 +16,15 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.ZKScope;
+import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
@@ -36,7 +40,7 @@ import java.util.stream.Collectors;
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
      * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
@@ -152,6 +156,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.getChildren(SCOPE_ROOT_PATH)
                 .thenApply(children -> children.stream().filter(x -> !x.equals(ZKScope.STREAMS_IN_SCOPE)).collect(Collectors.toList()));
+    }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
+        // Pagination not supported for zk based store. 
+        throw new UnsupportedOperationException();
     }
 
     @Override

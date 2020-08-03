@@ -117,7 +117,7 @@
                   },
                   {
                     "key": "env",
-                    "value": "HOST_OPTS=\"-Dpravegaservice.zkURL=master.mesos:2181\" \"-Ddlog.hostname=master.mesos\" \"-Ddlog.port=2181\" \"-Dhdfs.hdfsUrl=hdfs.marathon.containerip.dcos.thisdcos.directory:8020\" \"-DautoScale.muteInSeconds=120\" \"-DautoScale.cooldownInSeconds=120\"  \"-DautoScale.cacheExpiryInSeconds=120\" \"-DautoScale.cacheCleanUpInSeconds=120\" \"-DautoScale.controllerUri=tcp://controller.pravega.marathon.mesos:9090\" \"-Dlog.level=INFO\""
+                    "value": "HOST_OPTS=\"-Dpravegaservice.zk.connect.uri=master.mesos:2181\" \"-Ddlog.hostname=master.mesos\" \"-Ddlog.port=2181\" \"-Dhdfs.connect.uri=hdfs.marathon.containerip.dcos.thisdcos.directory:8020\" \"-DautoScale.mute.time.seconds=120\" \"-DautoScale.cooldown.time.seconds=120\"  \"-DautoScale.cache.expiry.seconds=120\" \"-DautoScale.cache.cleanUp.interval.seconds=120\" \"-DautoScale.controller.connect.uri=tcp://controller.pravega.marathon.mesos:9090\" \"-Dlog.level=INFO\""
                   }
                   ],
 		  "forcePullImage": true
@@ -168,7 +168,7 @@
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
-        				  "value": "SERVER_OPTS=\"-Dcontroller.zk.url=master.mesos:2181\" \"-Dcontroller.service.port=9090\" \"-Dcontroller.service.restPort=9091\" \"-Dlog.level=INFO\""
+        				  "value": "SERVER_OPTS=\"-Dcontroller.zk.connect.uri=master.mesos:2181\" \"-Dcontroller.service.rpc.listener.port=9090\" \"-Dcontroller.service.rest.listener.port=9091\" \"-Dlog.level=INFO\""
                         },
                         { "key": "env",
                           "value": "JAVA_OPTS=-Xmx512m"
