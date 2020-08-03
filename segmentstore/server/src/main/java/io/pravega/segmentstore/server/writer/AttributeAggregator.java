@@ -240,7 +240,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         return this.dataSource.sealAttributes(this.metadata.getId(), timer.getRemaining());
     }
 
-    public void queueRootPointerUpdate(long newRootPointer, long lastSeqNo) {
+    private void queueRootPointerUpdate(long newRootPointer, long lastSeqNo) {
         if (this.lastRootPointer.getAndSet(new RootPointerInfo(newRootPointer, lastSeqNo)) == null) {
             // There was nothing else executing now.
             // Initiate an async loop that will execute as long as we have a new value.
