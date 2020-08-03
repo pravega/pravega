@@ -445,9 +445,9 @@ public class InProcPravegaCluster implements AutoCloseable {
         int start = auto.indexOf("(") + 1;
         int end = auto.indexOf(")");
         String[] opts = auto.substring(start, end).split(",");
-        StringBuilder result = new StringBuilder(String.format("%s\n", auto.substring(0, start)));
+        StringBuilder result = new StringBuilder(String.format("%s%n", auto.substring(0, start)));
         for (String opt : opts) {
-            result.append(String.format("\t%s\n", opt.trim()));
+            result.append(String.format("\t%s%n", opt.trim()));
         }
         result.append(auto.substring(end, auto.length()));
         return result.toString();
