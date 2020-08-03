@@ -21,7 +21,7 @@ alongside Pravega on separate nodes.
 
 ### Filesystem
 
-HDFS is the default Tier 2 storage which is also called Long Term Storage. If it is easier to mount an nfs share, then Filesystem can be used in place of HDFS. The following configuration options are necessary to configure the Filesystem as Long Term Storage.
+If it is easier to mount a NFS share, then FILESYSTEM can be used in place of HDFS. The following configuration options are necessary to configure the FILESYSTEM as Long Term Storage.
 pravegaservice.storage.impl.name = FILESYSTEM
 filesystem.root = /mnt/tier2
 where /mnt/tier2 is replaced with your nfs share and FILESYSTEM is a keyword.

@@ -64,7 +64,7 @@ $ pravega-<version>/bin/pravega-standalone
 
 ##  With Long Term Storage
 
-When the streams are required to be persisted between server restarts, a tier 2 storage is required by Pravega. For Example, a mounted nfs-share can be used can be used a tier2 storage. Only the Segment store requires its host to be configured with this storage. The controller and segment store are run as different processes. The long term storage is set up only on the latter. These steps are described in [Manual Installation](manual-install.md).
+When the streams are required to be persisted between server restarts, a Tier 2 storage is required by Pravega. For Example, a mounted NFS share can be used as Tier 2 storage. Only the Segment Store requires its host to be configured with this storage. The Controller and Segment Store are run as different processes. These steps are described in [Manual Installation](manual-install.md).
 
 ### From Docker Image
 
