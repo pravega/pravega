@@ -339,6 +339,7 @@ project ('bindings') {
         implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs-client', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'io.netty', name: 'netty-codec-http', version: nettyVersion
