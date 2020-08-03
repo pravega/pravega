@@ -113,15 +113,15 @@ public final class MetricsNames {
     public static final String STORAGE_LARGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.large_concat_count"; // Counter
 
     // Cache stats
-    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";               // Counter
-    public static final String CACHE_APPEND_BYTES = PREFIX + "segmentstore.cache.append_bytes";             // Counter
-    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";                 // Counter
-    public static final String CACHE_DELETE_BYTES = PREFIX + "segmentstore.cache.delete_bytes";             // Counter
-    public static final String CACHE_STORED_SIZE_BYTES = PREFIX + "segmentstore.cache.stored_size_bytes";   // Gauge
-    public static final String CACHE_USED_SIZE_BYTES = PREFIX + "segmentstore.cache.used_size_bytes";       // Gauge
-    public static final String CACHE_ALLOC_SIZE_BYTES = PREFIX + "segmentstore.cache.allocated_size_bytes"; // Gauge
-    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";                 // Histogram
-    public static final String CACHE_POLICY_DURATION = PREFIX + "segmentstore.cache.policy_duration_ms";    // Timer
+    public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";                                     // Counter
+    public static final String CACHE_APPEND_BYTES = PREFIX + "segmentstore.cache.append_bytes";                                   // Counter
+    public static final String CACHE_READ_BYTES = PREFIX + "segmentstore.cache.read_bytes";                                       // Counter
+    public static final String CACHE_DELETE_BYTES = PREFIX + "segmentstore.cache.delete_bytes";                                   // Counter
+    public static final String CACHE_STORED_SIZE_BYTES = PREFIX + "segmentstore.cache.stored_size_bytes";                         // Gauge
+    public static final String CACHE_USED_SIZE_BYTES = PREFIX + "segmentstore.cache.used_size_bytes";                             // Gauge
+    public static final String CACHE_ALLOC_SIZE_BYTES = PREFIX + "segmentstore.cache.allocated_size_bytes";                       // Gauge
+    public static final String CACHE_GENERATION_SPREAD = PREFIX + "segmentstore.cache.gen";                                       // Histogram
+    public static final String CACHE_MANAGER_ITERATION_DURATION = PREFIX + "segmentstore.cache.manager_iteration_duration_ms";    // Timer
 
     // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = PREFIX + "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue. Per-container Histogram

@@ -165,18 +165,18 @@ public class SegmentStoreMetricsTests {
         int usedBytes = 1000;
         int allocatedBytes = 100;
         int generationSpread = 10;
-        int policyDuration = 1;
+        int managerIterationDuration = 1;
 
         int containerId = new Random().nextInt(Integer.MAX_VALUE);
         @Cleanup
         SegmentStoreMetrics.CacheManager cache = new SegmentStoreMetrics.CacheManager();
-        cache.report(new CacheState(storedBytes, usedBytes, 0, allocatedBytes, storedBytes), generationSpread, policyDuration);
+        cache.report(new CacheState(storedBytes, usedBytes, 0, allocatedBytes, storedBytes), generationSpread, managerIterationDuration);
 
         assertEquals(storedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_STORED_SIZE_BYTES).value());
         assertEquals(usedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES).value());
         assertEquals(allocatedBytes, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES).value());
         assertEquals(generationSpread, (int) MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD).value());
-        assertEquals(policyDuration, (int) MetricRegistryUtils.getTimer(MetricsNames.CACHE_POLICY_DURATION).mean(TimeUnit.MILLISECONDS));
+        assertEquals(managerIterationDuration, (int) MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION).mean(TimeUnit.MILLISECONDS));
 
         cache.close();
 
@@ -184,7 +184,7 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
-        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_POLICY_DURATION));
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
     }
 
 

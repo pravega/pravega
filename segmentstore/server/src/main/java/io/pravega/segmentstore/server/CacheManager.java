@@ -279,7 +279,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
         boolean reducedInIteration;
         boolean reducedOverall = false;
-        Timer cachePolicyTimer = new Timer();
+        Timer iterationDuration = new Timer();
         do {
             reducedInIteration = updateClients();
             if (reducedInIteration) {
@@ -302,7 +302,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         } while (reducedInIteration && oldestChanged);
         this.metrics.report(this.lastCacheState.get(),
                 currentStatus == null ? 0 : currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration(),
-                cachePolicyTimer.getElapsedMillis());
+                iterationDuration.getElapsedMillis());
         return reducedOverall;
     }
 
