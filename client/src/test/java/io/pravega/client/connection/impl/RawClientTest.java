@@ -6,7 +6,7 @@
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.netty.impl;
+package io.pravega.client.connection.impl;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
@@ -21,11 +21,10 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.AssertExtensions;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
-import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -35,11 +34,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RawClientTest {
-
+    
     private final long requestId = 1L;
 
     @Test
-    public void testHello() {
+    public void testHello() throws ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -50,14 +49,13 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
-        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
-                                             Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).send(Mockito.eq(new WireCommands.Hello(0, 0)));
         rawClient.close();
         Mockito.verify(connection).close();
     }
 
     @Test
-    public void testRequestReply() throws InterruptedException, ExecutionException {
+    public void testRequestReply() throws InterruptedException, ExecutionException, ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -71,8 +69,7 @@ public class RawClientTest {
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
-        Mockito.verify(connection).sendAsync(Mockito.eq(request),
-                                             Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).send(Mockito.eq(request));
         assertFalse(future.isDone());
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
         DataAppended reply = new DataAppended(requestId, id, 1, 0, -1);
@@ -82,7 +79,7 @@ public class RawClientTest {
     }
 
     @Test
-    public void testExceptionHandling() {
+    public void testExceptionHandling() throws ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -99,7 +96,7 @@ public class RawClientTest {
 
         CompletableFuture<Reply> future = rawClient.sendRequest(requestId, request1);
         // Verify if the request was sent over the connection.
-        Mockito.verify(connection).sendAsync(Mockito.eq(request1), Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).send(Mockito.eq(request1));
         assertFalse("Since there is no response the future should not be completed", future.isDone());
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
         processor.processingFailure(new ConnectionFailedException("Custom error"));
@@ -111,7 +108,7 @@ public class RawClientTest {
         WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
         future = rawClient.sendRequest(2L, request2);
         // Verify if the request was sent over the connection.
-        Mockito.verify(connection).sendAsync(Mockito.eq(request2), Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).send(Mockito.eq(request2));
         assertFalse("Since there is no response the future should not be completed", future.isDone());
         processor = connectionFactory.getProcessor(endpoint);
         processor.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(2L, "", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
@@ -122,7 +119,7 @@ public class RawClientTest {
     }
 
     @Test
-    public void testOverloadConstructor() {
+    public void testOverloadConstructor() throws ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -133,10 +130,8 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(endpoint, connectionFactory);
 
         rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
-        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
-                Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).send(Mockito.eq(new WireCommands.Hello(0, 0)));
         rawClient.close();
         Mockito.verify(connection).close();
     }
-
 }
