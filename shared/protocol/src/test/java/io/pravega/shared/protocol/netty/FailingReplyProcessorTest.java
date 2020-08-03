@@ -89,6 +89,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableRead(new TableRead(0, "", null)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
-    }       
+        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new WireCommands.ErrorMessage(0, "", null)));
+    }
     
 }
