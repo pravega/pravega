@@ -36,7 +36,7 @@ public class SingleThreadEndToEndTest {
         @Cleanup
         EventStreamReader<Integer> reader = setupUtils.getIntegerReader("stream");
 
-        EventRead<Integer> event = reader.readNextEvent(100);
+        EventRead<Integer> event = reader.readNextEvent(10000);
         Assert.assertEquals(1, (int) event.getEvent());
     }
 
