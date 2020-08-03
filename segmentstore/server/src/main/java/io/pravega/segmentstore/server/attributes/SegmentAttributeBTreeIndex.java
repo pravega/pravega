@@ -476,7 +476,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                         // step 1) above fails (it is not atomic). However, if both 1) and 2) complete but 3) doesn't, then
                         // it's possible that the existing Root Pointer has been truncated out. In this case, it should be
                         // safe to ignore it and let the BTreeIndex read the file from the end (as it does in this case).
-                        log.warn("{}: Root Pointer ({}) is below Attribute Segment's StartOffset ({}). Ignoring.", this.traceObjectId, rootPointer, segmentInfo.getStartOffset());
+                        log.info("{}: Root Pointer ({}) is below Attribute Segment's StartOffset ({}). Ignoring.", this.traceObjectId, rootPointer, segmentInfo.getStartOffset());
                         rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer();
                     }
 

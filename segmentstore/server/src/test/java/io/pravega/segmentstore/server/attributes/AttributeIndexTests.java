@@ -667,6 +667,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             val rootPointer = idx.update(updateBatch, TIMEOUT).join();
             val startOffset = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset();
             if (previousRootPointer >= 0) {
+                // We always set the Root Pointer to be one "value behind". Since we truncate the Attribute Segment with
+                // every update (small rolling size), doing this ensures that its value should always be less than the
+                // segment's start offset. This is further validated by asserting that invalidRootPointer is true at the
+                // end of this loop.
                 context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID)
                         .updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, previousRootPointer));
                 invalidRootPointer |= previousRootPointer < startOffset;
