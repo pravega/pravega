@@ -264,7 +264,7 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
-        Exceptions.checkNotClosed(closed.get(), this);
+        checkIfClosed();
         try {
             encoder.write(cmd);
         } catch (IOException e) {
@@ -276,13 +276,19 @@ public class TcpClientConnection implements ClientConnection {
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
-        Exceptions.checkNotClosed(closed.get(), this);
+        checkIfClosed();
         try {
             encoder.write(append);
         } catch (IOException e) {
             log.warn("Error writing to connection: {}", e.toString());
             close();
             throw new ConnectionFailedException(e);
+        }
+    }
+
+    private void checkIfClosed() throws ConnectionFailedException {
+        if (closed.get()) {
+            throw new ConnectionFailedException("Connection already closed");
         }
     }
 
