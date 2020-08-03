@@ -10,33 +10,25 @@
 package io.pravega.storage.extendeds3;
 
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+
 import java.util.concurrent.ExecutorService;
 
 /**
  * Factory for ExtendedS3 Storage adapters.
  */
+@RequiredArgsConstructor
 public class ExtendedS3StorageFactory implements StorageFactory {
+    @NonNull
     private final ExtendedS3StorageConfig config;
+    @NonNull
     private final ExecutorService executor;
-
-    /**
-     * Creates a new instance of the NFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
-     * @param executor An executor to use for background operations.
-     */
-    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
-    }
 
     @Override
     public Storage createStorageAdapter() {

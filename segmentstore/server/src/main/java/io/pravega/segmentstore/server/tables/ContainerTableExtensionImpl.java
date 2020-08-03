@@ -387,6 +387,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 }, this.executor);
     }
 
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        logRequest("entryDeltaIterator", segmentName);
+        return newDeltaIterator(segmentName, fromPosition, fetchTimeout);
+    }
+
     //endregion
 
     //region Helpers
@@ -457,13 +463,51 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 });
     }
 
+    @SuppressWarnings("unchecked")
+    public <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newDeltaIterator(@NonNull String segmentName, long fromPosition, @NonNull Duration fetchTimeout) {
+        return this.segmentContainer
+                .forSegment(segmentName, fetchTimeout)
+                .thenComposeAsync(segment -> {
+                    SegmentProperties properties = segment.getInfo();
+                    if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
+                        throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
+                    }
+                    long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
+                    // All of the most recent keys will exist beyond the compactionOffset.
+                    long startOffset = Math.max(fromPosition, compactionOffset);
+                    // We should clear if the starting position may have been truncated out due to compaction.
+                    boolean shouldClear = fromPosition < compactionOffset;
+                    // Maximum length of the TableSegment we want to read until.
+                    int maxLength = (int) (properties.getLength() - startOffset);
+
+                    TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
+                        return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
+                                item.getKey().serialize(),
+                                Collections.singletonList((T) item.getValue())));
+                    };
+                    val iterator = TableEntryDeltaIterator.<IteratorItem<T>>builder()
+                            .segment(segment)
+                            .entrySerializer(serializer)
+                            .executor(executor)
+                            .maxLength(maxLength)
+                            .startOffset(startOffset)
+                            .currentBatchOffset(startOffset)
+                            .fetchTimeout(fetchTimeout)
+                            .resultConverter(converter)
+                            .shouldClear(shouldClear)
+                            .build();
+
+                    return CompletableFuture.completedFuture(iterator);
+                }, this.executor);
+    }
+
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newHashIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
                                                                                   @NonNull GetBucketReader<T> createBucketReader,
                                                                                   @NonNull BiFunction<KeyTranslator, T, T> translateItem) {
         Preconditions.checkArgument(args.getPrefixFilter() == null, "Cannot perform a KeyHash iteration with a prefix.");
         UUID fromHash;
         try {
-            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorState.deserialize(args.getSerializedState()).getKeyHash());
+            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorStateImpl.deserialize(args.getSerializedState()).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
             throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
@@ -481,7 +525,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(args.getFetchTimeout()))
                         .thenApply(result -> {
                             result = translateItems(result, segmentInfo, true, translateItem);
-                            return new IteratorItemImpl<>(new IteratorState(bucket.getHash()).serialize(), result);
+                            return new IteratorItemImpl<>(new IteratorStateImpl(bucket.getHash()).serialize(), result);
                         });
 
         // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.

@@ -10,7 +10,7 @@
 package io.pravega.controller.mocks;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -24,6 +24,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -39,7 +40,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -53,7 +53,7 @@ import static org.mockito.Mockito.spy;
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class), mock(ScheduledExecutorService.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
@@ -95,7 +95,7 @@ public class SegmentHelperMock {
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionPool.class), mock(HostControllerStore.class), mock(ScheduledExecutorService.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
