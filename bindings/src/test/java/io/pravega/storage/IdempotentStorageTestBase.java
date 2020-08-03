@@ -132,10 +132,9 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
     /**
      * This test case simulates two hosts writing at the same offset at the same time.
-     * @throws Exception if an unexpected error occurred.
      */
     @Test(timeout = 30000)
-    public void testParallelWriteTwoHosts() throws Exception {
+    public void testParallelWriteTwoHosts() {
         String segmentName = "foo_write";
         int appendCount = 5;
 
@@ -182,10 +181,9 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
     /**
      * This test case simulates host crashing during concat and retrying the operation.
-     * @throws Exception if an unexpected error occurred.
      */
     @Test(timeout = 30000)
-    public void testPartialConcat() throws Exception {
+    public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
         String newConcatSegmentName = "foo_concat0";

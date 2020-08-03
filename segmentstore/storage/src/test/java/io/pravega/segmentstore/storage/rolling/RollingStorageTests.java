@@ -354,7 +354,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         // Attempt to concat, but intentionally fail the deletion of the source header.
         baseStorage.deleteFailure = sn -> sn.equals(sourceHandle.getHeaderHandle().getSegmentName()) ? new IntentionalException() : null;
         AssertExtensions.assertThrows(
-                "Unexpected exception when doing concat.",
+                "Unexpected exception when doing native concat.",
                 () -> s.concat(targetHandle, initialTargetLength, sourceSegmentName),
                 ex -> ex instanceof IntentionalException);
 

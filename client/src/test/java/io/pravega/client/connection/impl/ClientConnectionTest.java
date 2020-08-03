@@ -42,25 +42,25 @@ import static org.junit.Assert.assertTrue;
 public class ClientConnectionTest {
 
     private static class ReplyProcessor extends FailingReplyProcessor {
-        AtomicBoolean failure = new AtomicBoolean(false);
+        AtomicBoolean falure = new AtomicBoolean(false);
         List<Reply> replies = new Vector<>();
 
         @Override
         public void process(Reply reply) {
             if (reply.isFailure()) {
-                failure.set(true);
+                falure.set(true);
             }
             replies.add(reply);
         }
         
         @Override
         public void processingFailure(Exception error) {
-            failure.set(true);
+            falure.set(true);
         }
 
         @Override
         public void connectionDropped() {
-            failure.set(true);
+            falure.set(true);
         }
     }
 
@@ -88,7 +88,7 @@ public class ClientConnectionTest {
         clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
         wireCommand = messages.take();
         assertEquals(WireCommandType.APPEND_BLOCK, wireCommand.getType());
-        assertFalse(processor.failure.get());
+        assertFalse(processor.falure.get());
     }
 
     @Test
@@ -106,7 +106,7 @@ public class ClientConnectionTest {
         clientConnection.send(new WireCommands.SetupAppend(1, new UUID(1, 2), "segment", ""));
         clientConnection.send(new Append("segment", new UUID(1, 2), 1, new Event(Unpooled.EMPTY_BUFFER), 2));
         server.sendReply(new WireCommands.AuthTokenCheckFailed(1, "Injected error"));
-        AssertExtensions.assertEventuallyEquals(true, () -> processor.failure.get(), 5000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
     }
 
     @Test
@@ -129,7 +129,7 @@ public class ClientConnectionTest {
             server.sendReply(new WireCommands.DataAppended(i, writerId, i, i - 1, i * 100));
         }
         AssertExtensions.assertEventuallyEquals(100, () -> processor.replies.size(), 5000);
-        assertFalse(processor.failure.get());
+        assertFalse(processor.falure.get());
     }
     
     @Test
@@ -155,8 +155,6 @@ public class ClientConnectionTest {
             }
         });
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
-        AssertExtensions.assertThrows(ConnectionFailedException.class,
-                () -> clientConnection.send(new Append("segment", writerId, 100, new Event(Unpooled.wrappedBuffer(payload)), 1)));
     }
     
     @Test(timeout = 15000)
@@ -179,8 +177,6 @@ public class ClientConnectionTest {
             }
         });
         assertTrue(clientConnection.toString(), clientConnection.isClosed());
-        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> clientConnection.send(new WireCommands.KeepAlive()));
-
     }
     
     @Test(timeout = 15000)
@@ -235,7 +231,7 @@ public class ClientConnectionTest {
         clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
         clientConnection.send(new Append("segment", writerId, 1, new Event(Unpooled.wrappedBuffer(payload)), 1));
         server.sendReply(new WireCommands.DataAppended(1, writerId, 1, 0, 100));
-        AssertExtensions.assertEventuallyEquals(true, () -> processor.failure.get(), 5000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processor.falure.get(), 5000);
     }
     
     @Test
@@ -266,7 +262,7 @@ public class ClientConnectionTest {
         assertEquals(AppendBlock.class, server.getReadCommands().take().getClass());
         assertEquals(AppendBlockEnd.class, server.getReadCommands().take().getClass());
         assertTrue(server.getReadCommands().isEmpty());
-        assertFalse(processor.failure.get());
+        assertFalse(processor.falure.get());
     }
 
 }

@@ -24,13 +24,13 @@ public abstract class ThreadPooledTestSuite {
     private ScheduledExecutorService executorService = null;
 
     @Before
-    public void before() throws Exception {
+    public void before() {
         int threadPoolSize = getThreadPoolSize();
         this.executorService = threadPoolSize == INLINE_THREAD_COUNT ? new InlineExecutor() : createExecutorService(threadPoolSize);
     }
 
     @After
-    public void after() throws Exception {
+    public void after() throws InterruptedException {
         this.executorService.shutdownNow();
         this.executorService.awaitTermination(5, TimeUnit.SECONDS);
     }

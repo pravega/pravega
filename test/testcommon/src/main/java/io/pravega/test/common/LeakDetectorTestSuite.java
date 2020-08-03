@@ -40,7 +40,7 @@ public abstract class LeakDetectorTestSuite extends ThreadPooledTestSuite {
 
     @Override
     @Before
-    public void before() throws Exception {
+    public void before() {
         super.before();
         InternalLoggerFactory.setDefaultFactory(new ResourceLeakLoggerFactory());
         this.originalLevel = ResourceLeakDetector.getLevel();
@@ -49,7 +49,7 @@ public abstract class LeakDetectorTestSuite extends ThreadPooledTestSuite {
 
     @Override
     @After
-    public void after() throws Exception {
+    public void after() throws InterruptedException {
         super.after();
         ResourceLeakDetector.setLevel(this.originalLevel);
     }
