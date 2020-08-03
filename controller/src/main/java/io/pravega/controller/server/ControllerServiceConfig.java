@@ -16,7 +16,6 @@ import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 
-import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -97,10 +96,4 @@ public interface ControllerServiceConfig {
      * @return Whether REST server is enabled, and its configuration if it is enabled.
      */
     Optional<RESTServerConfig> getRestServerConfig();
-
-    /**
-     * Frequency at which periodic retention jobs should be performed for each stream. 
-     * @return Duration for retention frequency.
-     */
-    Duration getRetentionFrequency();
 }

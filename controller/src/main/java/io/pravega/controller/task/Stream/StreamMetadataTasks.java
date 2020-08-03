@@ -84,11 +84,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
@@ -104,9 +102,9 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  */
 public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
+    private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
 
-    private final AtomicLong retentionFrequencyMillis;
-    
+
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final SegmentHelper segmentHelper;
@@ -116,14 +114,14 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private EventHelper eventHelper;
 
+
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                final ScheduledExecutorService eventExecutor, final String hostId,
-                               GrpcAuthHelper authHelper, RequestTracker requestTracker, final long retentionFrequencyMillis) {
+                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, new Context(hostId),
                 authHelper, requestTracker);
-        this.retentionFrequencyMillis.set(retentionFrequencyMillis);
     }
 
     @VisibleForTesting
@@ -158,7 +156,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
         this.setReady();
     }
 
@@ -306,7 +303,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<StreamCutRecord> generateStreamCutIfRequired(String scope, String stream,
                                                                            StreamCutReferenceRecord previous, long recordingTime,
                                                                            OperationContext context, String delegationToken) {
-        if (previous == null || recordingTime - previous.getRecordingTime() > retentionFrequencyMillis.get()) {
+        if (previous == null || recordingTime - previous.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
             return Futures.exceptionallyComposeExpecting(
                     previous == null ? CompletableFuture.completedFuture(null) :
                             streamMetadataStore.getStreamCutRecord(scope, stream, previous, context, executor),

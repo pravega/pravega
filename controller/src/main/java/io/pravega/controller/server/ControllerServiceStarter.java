@@ -240,13 +240,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
-                    serviceConfig.getRetentionFrequency().toMillis());
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
-            Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
+            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
