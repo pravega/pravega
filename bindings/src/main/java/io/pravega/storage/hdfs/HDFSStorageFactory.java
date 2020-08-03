@@ -9,33 +9,26 @@
  */
 package io.pravega.storage.hdfs;
 
-import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+
 import java.util.concurrent.Executor;
 
 /**
  * Factory for HDFS Storage adapters.
  */
+@RequiredArgsConstructor
 public class HDFSStorageFactory implements StorageFactory {
+    @NonNull
     private final HDFSStorageConfig config;
-    private final Executor executor;
 
-    /**
-     * Creates a new instance of the HDFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
-     * @param executor An executor to use for background operations.
-     */
-    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
-        this.executor = executor;
-    }
+    @NonNull
+    private final Executor executor;
 
     @Override
     public Storage createStorageAdapter() {

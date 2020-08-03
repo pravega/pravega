@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -56,7 +57,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkedSegmentStorage) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                 .withStorageFactory(setup -> this.storageFactory)
                 .withDataLogFactory(setup -> this.durableDataLogFactory);
@@ -69,7 +70,13 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     @Override
     @Test
     public void testEndToEnd() throws Exception {
-        endToEndProcess(false);
+        endToEndProcess(false, false);
+    }
+
+    @Override
+    @Test
+    @Ignore ("NoOpStorage does not support ChunkedSegmentStorage yet.")
+    public void testEndToEndWithChunkedStorage() {
     }
 
     /**
@@ -79,6 +86,12 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
     @Override
     @Test
     public void testEndToEndWithFencing() throws Exception {
-        endToEndProcessWithFencing(false);
+        endToEndProcessWithFencing(false, false);
+    }
+
+    @Override
+    @Test
+    @Ignore ("NoOpStorage does not support ChunkedSegmentStorage yet.")
+    public void testEndToEndWithFencingWithChunkedStorage() {
     }
 }
