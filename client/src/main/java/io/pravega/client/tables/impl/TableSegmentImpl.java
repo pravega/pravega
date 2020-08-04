@@ -13,9 +13,9 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
@@ -26,6 +26,7 @@ import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.OrderedProcessor;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.Retry;
@@ -36,15 +37,19 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
@@ -58,12 +63,14 @@ import org.slf4j.LoggerFactory;
 class TableSegmentImpl implements TableSegment {
     // region Members
 
+    private static final int MAX_GET_KEY_BATCH_SIZE = TableSegment.MAXIMUM_BATCH_LENGTH / (TableSegment.MAXIMUM_KEY_LENGTH + TableSegment.MAXIMUM_VALUE_LENGTH);
+    private static final int MAX_GET_CONCURRENT_REQUESTS = 5;
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TableSegmentImpl.class));
     private final String segmentName;
     @Getter
     private final long segmentId;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final DelegationTokenProvider tokenProvider;
     /**
      * We only retry {@link AuthenticationException} and {@link ConnectionFailedException}. Any other exceptions are not
@@ -85,16 +92,16 @@ class TableSegmentImpl implements TableSegment {
      *
      * @param segment           A {@link Segment} representing the Pravega Table Segment this instance will interact with.
      * @param controller        The {@link Controller} to use.
-     * @param connectionFactory The {@link ConnectionFactory} to use.
+     * @param connectionPool The {@link ConnectionPool} to use.
      * @param clientConfig      The {@link KeyValueTableClientConfiguration} to use to configure this client.
      * @param tokenProvider     A Token provider.
      */
-    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionFactory connectionFactory,
+    TableSegmentImpl(@NonNull Segment segment, @NonNull Controller controller, @NonNull ConnectionPool connectionPool,
                      @NonNull KeyValueTableClientConfiguration clientConfig, DelegationTokenProvider tokenProvider) {
         this.segmentName = segment.getKVTScopedName();
         this.segmentId = segment.getSegmentId();
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
+        this.connectionPool = connectionPool;
         this.tokenProvider = tokenProvider;
         this.retry = Retry
                 .withExpBackoff(clientConfig.getInitialBackoffMillis(), clientConfig.getBackoffMultiple(), clientConfig.getRetryAttempts(), clientConfig.getMaxBackoffMillis())
@@ -138,11 +145,36 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public CompletableFuture<List<TableSegmentEntry>> get(@NonNull Iterator<ByteBuf> keys) {
         val wireKeys = rawKeysToWireCommand(keys);
+        val resultBuilder = new GetResultBuilder(wireKeys);
+        CompletableFuture<Void> result;
+        if (wireKeys.size() <= MAX_GET_KEY_BATCH_SIZE) {
+            // The entire request can be satisfied using a single call.
+            result = fetchSlice(resultBuilder);
+        } else {
+            // The request has to be split into multiple calls and then combined.
+            val processor = new OrderedProcessor<Void>(MAX_GET_CONCURRENT_REQUESTS, this.connectionPool.getInternalExecutor());
+            val futures = new ArrayList<CompletableFuture<Void>>();
+            int index = 0;
+            while (index < wireKeys.size()) {
+                final int sliceStart = index;
+                final int sliceLength = Math.min(MAX_GET_KEY_BATCH_SIZE, wireKeys.size() - sliceStart);
+                futures.add(processor.execute(() -> fetchSlice(resultBuilder.slice(sliceStart, sliceStart + sliceLength))));
+                index += sliceLength;
+            }
+
+            result = Futures.allOf(futures);
+            result.thenRun(processor::close);
+        }
+
+        return result.thenApply(v -> resultBuilder.get());
+    }
+
+    private CompletableFuture<Void> fetchSlice(GetResultBuilder resultBuilder) {
         return execute((state, requestId) -> {
-            val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), wireKeys);
+            val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), resultBuilder.getWireKeys());
 
             return sendRequest(request, state, WireCommands.TableRead.class)
-                    .thenApply(reply -> fromWireCommand(reply.getEntries()));
+                    .thenAccept(reply -> fromWireCommand(reply.getEntries(), resultBuilder::add));
         });
     }
 
@@ -152,7 +184,7 @@ class TableSegmentImpl implements TableSegment {
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
                 args.getState())
-                .asSequential(this.connectionFactory.getInternalExecutor());
+                .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     @Override
@@ -161,7 +193,7 @@ class TableSegmentImpl implements TableSegment {
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
                 args.getState())
-                .asSequential(this.connectionFactory.getInternalExecutor());
+                .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     /**
@@ -279,7 +311,13 @@ class TableSegmentImpl implements TableSegment {
      */
     private List<WireCommands.TableKey> rawKeysToWireCommand(Iterator<ByteBuf> keys) {
         ArrayList<WireCommands.TableKey> result = new ArrayList<>();
-        keys.forEachRemaining(key -> result.add(toWireCommand(TableSegmentKey.unversioned(key))));
+        AtomicInteger serializationLength = new AtomicInteger();
+        keys.forEachRemaining(key -> {
+            val k = toWireCommand(TableSegmentKey.unversioned(key));
+            serializationLength.addAndGet(k.size());
+            result.add(k);
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return result;
     }
 
@@ -291,7 +329,13 @@ class TableSegmentImpl implements TableSegment {
      */
     private List<WireCommands.TableKey> keysToWireCommand(Iterator<TableSegmentKey> keys) {
         ArrayList<WireCommands.TableKey> result = new ArrayList<>();
-        keys.forEachRemaining(k -> result.add(toWireCommand(k)));
+        AtomicInteger serializationLength = new AtomicInteger();
+        keys.forEachRemaining(k -> {
+            val key = toWireCommand(k);
+            serializationLength.addAndGet(key.size());
+            result.add(key);
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return result;
     }
 
@@ -303,8 +347,14 @@ class TableSegmentImpl implements TableSegment {
      */
     private WireCommands.TableEntries entriesToWireCommand(Iterator<TableSegmentEntry> tableEntries) {
         ArrayList<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> result = new ArrayList<>();
-        tableEntries.forEachRemaining(entry -> result.add(new AbstractMap.SimpleImmutableEntry<>(
-                toWireCommand(entry.getKey()), toWireCommand(entry.getValue()))));
+        AtomicInteger serializationLength = new AtomicInteger();
+        tableEntries.forEachRemaining(entry -> {
+            val key = toWireCommand(entry.getKey());
+            val value = toWireCommand(entry.getValue());
+            serializationLength.addAndGet(key.size() + value.size());
+            result.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
+        });
+        checkBatchSize(result.size(), serializationLength.get());
         return new WireCommands.TableEntries(result);
     }
 
@@ -402,10 +452,22 @@ class TableSegmentImpl implements TableSegment {
      * @return A List of {@link TableSegmentEntry} instances.
      */
     private List<TableSegmentEntry> fromWireCommand(WireCommands.TableEntries reply) {
-        return reply.getEntries()
-                .stream()
-                .map(this::fromWireCommand)
-                .collect(Collectors.toList());
+        val result = new ArrayList<TableSegmentEntry>(reply.getEntries().size());
+        fromWireCommand(reply, result::add);
+        return result;
+    }
+
+    /**
+     * Deserializes the {@link TableSegmentEntry} instances from a {@link WireCommands.TableEntries} and invokes the given
+     * callback, in order, for each of them.
+     *
+     * @param reply    The {@link WireCommands.TableEntries}.
+     * @param callback A {@link Consumer} that will be invoked for each deserialized {@link TableSegmentEntry}.
+     */
+    private void fromWireCommand(WireCommands.TableEntries reply, Consumer<TableSegmentEntry> callback) {
+        for (val e : reply.getEntries()) {
+            callback.accept(fromWireCommand(e));
+        }
     }
 
     /**
@@ -421,7 +483,7 @@ class TableSegmentImpl implements TableSegment {
         return this.retry.runAsync(
                 () -> getOrCreateState()
                         .thenCompose(state -> action.apply(state, state.nextRequestId())),
-                this.connectionFactory.getInternalExecutor());
+                this.connectionPool.getInternalExecutor());
     }
 
     /**
@@ -451,7 +513,7 @@ class TableSegmentImpl implements TableSegment {
                             .getEndpointForSegment(this.segmentName)
                             .thenCompose(uri -> this.tokenProvider
                                     .retrieveToken()
-                                    .thenApply(token -> new ConnectionState(new RawClient(uri, this.connectionFactory), token))),
+                                    .thenApply(token -> new ConnectionState(new RawClient(uri, this.connectionPool), token))),
                     result);
         }
 
@@ -476,6 +538,65 @@ class TableSegmentImpl implements TableSegment {
     private static boolean isRetryableException(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         return ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
+    }
+
+    private void checkBatchSize(int count, int serializationLength) {
+        Preconditions.checkArgument(count <= TableSegment.MAXIMUM_BATCH_KEY_COUNT,
+                "Too many items. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_KEY_COUNT, count);
+        Preconditions.checkArgument(serializationLength <= TableSegment.MAXIMUM_BATCH_LENGTH,
+                "Batch serialization too big. Expected at most %s, actual %s.", TableSegment.MAXIMUM_BATCH_LENGTH, serializationLength);
+    }
+
+    //endregion
+
+    //region GetResultBuilder
+
+    /**
+     * Helps build the result for get() calls.
+     */
+    @ThreadSafe
+    private static class GetResultBuilder {
+        @Getter
+        private final List<WireCommands.TableKey> wireKeys;
+        @GuardedBy("entries")
+        private final TableSegmentEntry[] entries;
+        private final int startIndex;
+        private final int endIndex;
+        @GuardedBy("entries")
+        private int index;
+
+        GetResultBuilder(List<WireCommands.TableKey> wireKeys) {
+            this(wireKeys, new TableSegmentEntry[wireKeys.size()], 0, wireKeys.size());
+        }
+
+        private GetResultBuilder(List<WireCommands.TableKey> wireKeys, TableSegmentEntry[] entries, int startIndex, int endIndex) {
+            Preconditions.checkArgument(startIndex >= 0 && startIndex < endIndex && endIndex <= entries.length);
+            this.wireKeys = wireKeys;
+            this.entries = entries;
+            this.startIndex = startIndex;
+            this.index = startIndex;
+            this.endIndex = endIndex;
+        }
+
+        GetResultBuilder slice(int startIndex, int endIndex) {
+            synchronized (this.entries) {
+                Preconditions.checkArgument(this.startIndex == 0 && this.endIndex == this.entries.length);
+                return new GetResultBuilder(this.wireKeys.subList(startIndex, endIndex), this.entries, startIndex, endIndex);
+            }
+        }
+
+        void add(TableSegmentEntry e) {
+            synchronized (this.entries) {
+                Preconditions.checkElementIndex(this.index, this.endIndex);
+                this.entries[this.index++] = e;
+            }
+        }
+
+        List<TableSegmentEntry> get() {
+            synchronized (this.entries) {
+                return Arrays.asList(this.entries);
+            }
+        }
     }
 
     //endregion

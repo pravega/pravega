@@ -12,8 +12,10 @@ package io.pravega.controller.server;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
@@ -26,10 +28,10 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
-import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.BucketServiceFactory;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
 import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -51,12 +53,12 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
-import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
 import java.net.InetAddress;
 import java.net.URI;
@@ -70,7 +72,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -92,6 +93,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService watermarkingExecutor;
 
     private ConnectionFactory connectionFactory;
+    private ConnectionPool connectionPool;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -226,8 +228,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             
             ClientConfig clientConfig = clientConfigBuilder.build();
-            connectionFactory = connectionFactoryRef.orElse(new ConnectionFactoryImpl(clientConfig));
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionFactory, hostStore));
+            connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
+            connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore, controllerExecutor));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),
@@ -237,12 +240,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
+                    serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
-            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+            Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
@@ -293,7 +297,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
+                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
                         eventExecutor);
 
                 // Bootstrap and start it asynchronously.
@@ -461,7 +465,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("closing segment helper");
                 segmentHelper.close();
             }
-
+            log.info("Closing connection pool");
+            connectionPool.close();
+            
             log.info("Closing connection factory");
             connectionFactory.close();
 

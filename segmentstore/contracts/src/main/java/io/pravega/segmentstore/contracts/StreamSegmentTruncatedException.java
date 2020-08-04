@@ -9,11 +9,19 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import lombok.Getter;
+
 /**
  * An Exception that indicates a StreamSegment has been truncated and certain offsets cannot be accessed anymore.
  */
 public class StreamSegmentTruncatedException extends StreamSegmentException {
     private static final long serialVersionUID = 1L;
+
+    /**
+     * Lowest accessible offset for the segment.
+     */
+    @Getter
+    final long startOffset;
 
     /**
      * Creates a new instance of the StreamSegmentTruncatedException class.
@@ -24,6 +32,7 @@ public class StreamSegmentTruncatedException extends StreamSegmentException {
      */
     public StreamSegmentTruncatedException(String segmentName, String message, Throwable ex) {
         super(segmentName, message, ex);
+        this.startOffset = 0;
     }
 
     /**
@@ -33,5 +42,17 @@ public class StreamSegmentTruncatedException extends StreamSegmentException {
      */
     public StreamSegmentTruncatedException(long startOffset) {
         super("", String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
+        this.startOffset = startOffset;
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentTruncatedException class.
+     * @param segmentName Name of the truncated Segment.
+     * @param startOffset First valid offset of the StreamSegment.
+     * @param requestedOffset Requested offset.
+     */
+    public StreamSegmentTruncatedException(String segmentName, long startOffset, long requestedOffset) {
+        super(segmentName, String.format("Segment truncated: Lowest accessible offset is %d. (%d was requested)", startOffset, requestedOffset));
+        this.startOffset = startOffset;
     }
 }

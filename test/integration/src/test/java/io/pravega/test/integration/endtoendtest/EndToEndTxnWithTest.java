@@ -13,8 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -119,7 +119,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
@@ -145,7 +145,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction2.writeEvent("0", "txntest2");
         transaction2.commit();
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
@@ -171,7 +171,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, STREAM, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
@@ -200,7 +200,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
@@ -219,9 +219,9 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
-        AssertExtensions.assertThrows("high timeout period not honoured",
+        AssertExtensions.assertThrows("lease value too large, max value is 120000",
                 () -> createTxn(clientFactory, highTimeoutConfig, "test"),
-                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
+                e -> e instanceof IllegalArgumentException);
     }
 
     @Test(timeout = 20000)
@@ -237,7 +237,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
@@ -268,7 +268,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertEventuallyEquals(Transaction.Status.COMMITTED, txn1::checkStatus, 5000);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
