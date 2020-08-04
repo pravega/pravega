@@ -19,6 +19,13 @@ Setup a HDFS storage cluster running **HDFS version 2.7+**. HDFS is used as Tier
 sufficient capacity to store the contents of all the streams. The storage cluster is recommended to be run
 alongside Pravega on separate nodes.
 
+### Filesystem
+
+If it is easier to mount a NFS share, then FILESYSTEM can be used in place of HDFS. The following configuration options are necessary to configure the FILESYSTEM as Long Term Storage.
+pravegaservice.storage.impl.name = FILESYSTEM
+filesystem.root = /mnt/tier2
+where /mnt/tier2 is replaced with your nfs share and FILESYSTEM is a keyword.
+
 ### Java
 
 Install the latest Java 8 from [java.oracle.com](http://java.oracle.com). Packages are available
@@ -26,20 +33,20 @@ for all major operating systems.
 
 ### Zookeeper
 
-Pravega requires **Zookeeper 3.5.4-beta**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
+Pravega requires **Zookeeper 3.6.1**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
 
-This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.4-beta.tar.gz](https://archive.apache.org/dist/zookeeper/zookeeper-3.5.4-beta/zookeeper-3.5.4-beta.tar.gz).
+This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.6.1](https://archive.apache.org/dist/zookeeper/zookeeper-3.6.1/apache-zookeeper-3.6.1.tar.gz).
 
-For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.4-beta/zookeeperStarted.html).
+For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.6.1/zookeeperStarted.html).
 
 ### Bookkeeper
 
-Pravega requires **Bookkeeper 4.7.3**. At least 3 Bookkeeper servers are recommended for a quorum.
+Pravega requires **Bookkeeper 4.9.2**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.7.3-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.7.3//bookkeeper-server-4.7.3-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.9.2-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.9.2/bookkeeper-server-4.9.2-bin.tar.gz).
 
-For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.7.3/getting-started).
-Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.7.3` directory.
+For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.9.2/getting-started).
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.9.2` directory.
 
 #### Bookkeeper Configuration
 
@@ -56,7 +63,7 @@ indexDirectories=/bk/index
 
 ### Initializing Zookeeper paths
 
-The following paths need to be created in Zookeeper. Open the `zookeeper-3.5.4-beta` directory on the Zookeeper servers and run the following paths:
+The following paths need to be created in Zookeeper. Open the `zookeeper-3.6.1` directory on the Zookeeper servers and run the following paths:
 
 ```
 bin/zkCli.sh -server $ZK_URL create /pravega
@@ -142,12 +149,12 @@ In the file `conf/config.properties`, make the following changes as mentioned:
 Replace `<zk-ip>`, `<controller-ip>` and `<hdfs-ip>` with the IPs of the respective services.
 
 ```
-pravegaservice.zkURL=<zk-ip>:2181
-bookkeeper.zkAddress=<zk-ip>:2181
-autoScale.controllerUri=tcp://<controller-ip>:9090
+pravegaservice.zk.connect.uri=<zk-ip>:2181
+bookkeeper.zk.connect.uri=<zk-ip>:2181
+autoScale.controller.connect.uri=tcp://<controller-ip>:9090
 
 # Settings required for HDFS
-hdfs.hdfsUrl=<hdfs-ip>:8020
+hdfs.connect.uri=<hdfs-ip>:8020
 ```
 
 After making the configuration changes, the segment store can be run using the following command:

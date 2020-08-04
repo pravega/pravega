@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -17,7 +17,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.Version;
 import lombok.extern.slf4j.Slf4j;
 
 import static org.mockito.Mockito.mock;

@@ -10,13 +10,13 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
@@ -54,7 +54,7 @@ public class EndToEndAutoScaleUpTest {
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
 
-            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -77,7 +77,7 @@ public class EndToEndAutoScaleUpTest {
 
             controller.createStream("test", "test", CONFIG).get();
             @Cleanup
-            MockClientFactory clientFactory = new MockClientFactory("test", controller);
+            MockClientFactory clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventStreamWriter<String> test = clientFactory.createEventWriter(

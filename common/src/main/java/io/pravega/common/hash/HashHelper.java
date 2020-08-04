@@ -10,11 +10,17 @@
 package io.pravega.common.hash;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 public class HashHelper {
 
@@ -41,12 +47,12 @@ public class HashHelper {
     public int hash(byte[] array, int offset, int length) {
         return hash.hashBytes(array, offset, length).asInt();
     }
-    
+
     public UUID toUUID(String str) {
         assert hash.bits() == 128;
         return bytesToUUID(hash.hashUnencodedChars(str).asBytes());
     }
-    
+
     /**
      * Converts a 128 bit array into a UUID.
      * Copied from UUID's private constructor.
@@ -79,8 +85,14 @@ public class HashHelper {
         return Hashing.consistentHash(hash.hashBytes(array), numBuckets);
     }
 
-    public int hashToBucket(ArrayView array, int numBuckets) {
-        return Hashing.consistentHash(hash.hashBytes(array.array(), array.arrayOffset(), array.getLength()), numBuckets);
+    public int hashToBucket(BufferView bufferView, int numBuckets) {
+        HashBuilder builder = newBuilder();
+        bufferView.collect(builder::put);
+        return Hashing.consistentHash(builder.getHashCode(), numBuckets);
+    }
+
+    public HashBuilder newBuilder() {
+        return new HashBuilder(hash.newHasher());
     }
 
     /**
@@ -94,6 +106,28 @@ public class HashHelper {
     }
 
     /**
+     * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
+     *
+     * @param bufs The input {@link ByteBuffer}s to hash.
+     * @return Uniformly distributed double between 0 and 1.
+     */
+    public double hashToRange(ByteBuffer... bufs) {
+        Preconditions.checkArgument(bufs.length > 0, "At least one buffer expected.");
+        HashCode result;
+        if (bufs.length == 1) {
+            result = hash.hashBytes(bufs[0]);
+        } else {
+            Hasher h = hash.newHasher();
+            for (ByteBuffer buf : bufs) {
+                h.putBytes(buf);
+            }
+            result = h.hash();
+        }
+
+        return longToDoubleFraction(result.asLong());
+    }
+
+    /**
      * Turns the leading 54 bits of a long into a double between 0 and 1.
      *
      * @param value The input.
@@ -102,5 +136,22 @@ public class HashHelper {
     static double longToDoubleFraction(long value) {
         long shifted = (value >> 12) & MASK;
         return Double.longBitsToDouble(LEADING_BITS + shifted) - 1;
+    }
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    public final class HashBuilder {
+        private final Hasher hasher;
+
+        public void put(ByteBuffer bb) {
+            this.hasher.putBytes(bb);
+        }
+
+        private HashCode getHashCode() {
+            return hasher.hash();
+        }
+
+        public int getAsInt() {
+            return getHashCode().asInt();
+        }
     }
 }

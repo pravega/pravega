@@ -11,7 +11,8 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
@@ -21,6 +22,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.SegmentRecord;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -29,7 +31,9 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -43,8 +47,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,6 +61,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -69,7 +76,8 @@ import org.apache.commons.lang3.tuple.Pair;
 @AllArgsConstructor
 @Slf4j
 public class ControllerService {
-
+    private final KVTableMetadataStore kvtMetadataStore;
+    private final TableMetadataTasks kvtMetadataTasks;
     private final StreamMetadataStore streamStore;
     private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -93,6 +101,60 @@ public class ControllerService {
                 throw Exceptions.sneakyThrow(e);
             }
         }, executor);
+    }
+
+    public CompletableFuture<CreateKeyValueTableStatus> createKeyValueTable(String scope, String kvtName,
+                                                                            final KeyValueTableConfiguration kvtConfig,
+                                                                            final long createTimestamp) {
+        Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        Timer timer = new Timer();
+        try {
+            NameUtils.validateUserKeyValueTableName(kvtName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create KeyValueTable failed due to invalid name {}", kvtName);
+            return CompletableFuture.completedFuture(
+                    CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
+        }
+        return kvtMetadataTasks.createKeyValueTable(scope, kvtName, kvtConfig, createTimestamp)
+                .thenApplyAsync(status -> {
+                    reportCreateKVTableMetrics(scope, kvtName, kvtConfig.getPartitionCount(), status, timer.getElapsed());
+                    return CreateKeyValueTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
+    }
+
+    public CompletableFuture<List<SegmentRange>> getCurrentSegmentsKeyValueTable(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable");
+
+        // Fetch active segments from segment store.
+        return kvtMetadataStore.getActiveSegments(scope, kvtName, null, executor)
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, kvtName), executor);
+    }
+
+    /**
+     * List existing KeyValueTables in specified scope.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of KeyValueTables to return.
+     * @return List of KeyValueTables in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return kvtMetadataStore.listKeyValueTables(scope, token, limit, executor);
+    }
+
+
+    public CompletableFuture<DeleteKVTableStatus> deleteKeyValueTable(final String scope, final String kvtName) {
+        Exceptions.checkNotNullOrEmpty(scope, "Scope Name");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable Name");
+        Timer timer = new Timer();
+        return kvtMetadataTasks.deleteKeyValueTable(scope, kvtName, null)
+                .thenApplyAsync(status -> {
+                    reportDeleteKVTableMetrics(scope, kvtName, status, timer.getElapsed());
+                    return DeleteKVTableStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -284,7 +346,7 @@ public class ControllerService {
 
     private SegmentRange convert(final String scope,
                                  final String stream,
-                                 final StreamSegmentRecord segment) {
+                                 final SegmentRecord segment) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
@@ -330,7 +392,7 @@ public class ControllerService {
                 });
     }
 
-    private List<SegmentRange> getSegmentRanges(List<StreamSegmentRecord> activeSegments, String scope, String stream) {
+    private List<SegmentRange> getSegmentRanges(List<? extends SegmentRecord> activeSegments, String scope, String stream) {
         List<SegmentRange> listOfSegment = activeSegments
                 .stream()
                 .map(segment -> convert(scope, stream, segment))
@@ -426,6 +488,7 @@ public class ControllerService {
      */
     public CompletableFuture<CreateScopeStatus> createScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Timer timer = new Timer();
         try {
             NameUtils.validateScopeName(scope);
         } catch (IllegalArgumentException | NullPointerException e) {
@@ -433,7 +496,7 @@ public class ControllerService {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
-        return streamStore.createScope(scope);
+        return streamStore.createScope(scope).thenApply(r -> reportCreateScopeMetrics(scope, r, timer.getElapsed()));
     }
 
     /**
@@ -444,7 +507,8 @@ public class ControllerService {
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        return streamStore.deleteScope(scope);
+        Timer timer = new Timer();
+        return streamStore.deleteScope(scope).thenApply(r -> reportDeleteScopeMetrics(scope, r, timer.getElapsed()));
     }
 
     /**
@@ -481,6 +545,17 @@ public class ControllerService {
     }
 
     /**
+     * List Scopes in cluster from continuation token and limit it to number of elements specified by limit parameter.
+     *
+     * @param token continuation token
+     * @param limit number of elements to return.  
+     * @return List of scopes.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listScopes(final String token, final int limit) {
+        return streamStore.listScopes(token, limit, executor);
+    }
+
+    /**
      * Retrieve a scope.
      *
      * @param scopeName Name of Scope.
@@ -492,6 +567,22 @@ public class ControllerService {
     }
 
     // Metrics reporting region
+    private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
+                                           Duration latency) {
+        if (status.equals(CreateKeyValueTableStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createKeyValueTable(scope, kvtName, initialSegments, latency);
+        } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createKeyValueTableFailed(scope, kvtName);
+        }
+    }
+
+    private void reportDeleteKVTableMetrics(String scope, String kvtName, DeleteKVTableStatus.Status status, Duration latency) {
+        if (status.equals(DeleteKVTableStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteKeyValueTable(scope, kvtName, latency);
+        } else if (status.equals(DeleteKVTableStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteKeyValueTableFailed(scope, kvtName);
+        }
+    }
 
     private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
                                            Duration latency) {
@@ -500,6 +591,15 @@ public class ControllerService {
         } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().createStreamFailed(scope, streamName);
         }
+    }
+
+    private CreateScopeStatus reportCreateScopeMetrics(String scope, CreateScopeStatus status, Duration latency) {
+        if (status.getStatus().equals(CreateScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createScope(latency);
+        } else if (status.getStatus().equals(CreateScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createScopeFailed(scope);
+        }
+        return status;
     }
 
     private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
@@ -534,14 +634,20 @@ public class ControllerService {
         }
     }
 
+    private DeleteScopeStatus reportDeleteScopeMetrics(String scope, DeleteScopeStatus status, Duration latency) {
+        if (status.getStatus().equals(DeleteScopeStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteScope(latency);
+        } else if (status.getStatus().equals(DeleteScopeStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteScopeFailed(scope);
+        }
+        return status;
+    }
+
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
         return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor)
                           .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor))
-                .handle((r, e) -> {
-                    Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
-                    if (e != null) {
-                        response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
-                    } else {
+                .thenApply(r -> {
+                        Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
                         switch (r) {
                             case SUCCESS:
                                 response.setResult(Controller.TimestampResponse.Status.SUCCESS);
@@ -556,8 +662,7 @@ public class ControllerService {
                                 response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
                                 break;
                         }
-                    }
-                    return response.build();
+                        return response.build();
                 });
     }
  

@@ -10,8 +10,9 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.Beta;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -47,9 +48,9 @@ public class TableService extends SegmentContainerCollection implements TableSto
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
         return invokeExtension(segmentName,
-                e -> e.createSegment(segmentName, timeout),
+                e -> e.createSegment(segmentName, sorted, timeout),
                 "createSegment", segmentName);
     }
 
@@ -82,6 +83,13 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
+    public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.put(segmentName, entries, tableSegmentOffset, timeout),
+                "put", segmentName, entries.size());
+    }
+
+    @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
         return invokeExtension(segmentName,
                 e -> e.remove(segmentName, keys, timeout),
@@ -89,24 +97,38 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.remove(segmentName, keys, tableSegmentOffset, timeout),
+                "remove", segmentName, keys.size());
+    }
+
+    @Override
+    public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
         return invokeExtension(segmentName,
                 e -> e.get(segmentName, keys, timeout),
                 "get", segmentName, keys.size());
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         return invokeExtension(segmentName,
-                e -> e.keyIterator(segmentName, serializedState, fetchTimeout),
-                "get", segmentName, serializedState != null, fetchTimeout);
+                e -> e.keyIterator(segmentName, args),
+                "get", segmentName, args);
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
         return invokeExtension(segmentName,
-                e -> e.entryIterator(segmentName, serializedState, fetchTimeout),
-                "get", segmentName, serializedState != null, fetchTimeout);
+                e -> e.entryIterator(segmentName, args),
+                "get", segmentName, args);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        return invokeExtension(segmentName,
+                e -> e.entryDeltaIterator(segmentName, fromPosition, fetchTimeout),
+                "entryDeltaIterator", segmentName, fromPosition, fetchTimeout);
     }
 
     //endregion

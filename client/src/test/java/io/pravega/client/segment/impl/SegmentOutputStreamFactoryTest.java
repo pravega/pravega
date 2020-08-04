@@ -9,10 +9,10 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.impl.Controller;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import org.junit.Before;
@@ -32,7 +32,7 @@ public class SegmentOutputStreamFactoryTest {
     @Mock
     private Controller controller;
     @Mock
-    private ConnectionFactory cf;
+    private ConnectionPool cp;
     @Mock
     private ScheduledExecutorService executor;
 
@@ -42,8 +42,8 @@ public class SegmentOutputStreamFactoryTest {
 
     @Before
     public void setup() {
-        when(cf.getInternalExecutor()).thenReturn(executor);
-        factory = new SegmentOutputStreamFactoryImpl(controller, cf);
+        when(cp.getInternalExecutor()).thenReturn(executor);
+        factory = new SegmentOutputStreamFactoryImpl(controller, cp);
     }
 
     @Test

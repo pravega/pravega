@@ -236,12 +236,11 @@ public class ControllerMetricsTest {
     @Test(timeout = 25000)
     public void zookeeperMetricsTest() throws Exception {
         Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(CONTROLLER_ZK_SESSION_EXPIRATION);
-        Assert.assertNull(zkSessionExpirationCounter);
+        double previousCount = zkSessionExpirationCounter == null ? 0.0 : zkSessionExpirationCounter.count();
         controllerWrapper.forceClientSessionExpiry();
-        while (zkSessionExpirationCounter == null) {
-            Thread.sleep(100);
-            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(CONTROLLER_ZK_SESSION_EXPIRATION);
-        }
-        Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
+        AssertExtensions.assertEventuallyEquals(previousCount + 1.0, () -> {
+            Counter counter = MetricRegistryUtils.getCounter(CONTROLLER_ZK_SESSION_EXPIRATION);
+            return counter == null ? 0 : counter.count();
+        }, 25000L);
     }
 }

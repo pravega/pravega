@@ -116,7 +116,7 @@ public class RequestSweeper implements FailoverSweeper {
                                     tasks.entrySet().stream().map(entry ->
                                             streamMetadataTasks.writeEvent(entry.getValue())
                                                                .thenCompose(v ->
-                                                                       metadataStore.removeTaskFromIndex(oldHostId, entry.getKey()))
+                                                                       streamMetadataTasks.removeTaskFromIndex(oldHostId, entry.getKey()))
                                                                .thenApply(v -> entry.getKey()))
                                          .collect(Collectors.toList())), executor);
     }

@@ -64,6 +64,9 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
+import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -177,6 +180,28 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return builder.build();
     }
 
+    /**
+     * Initializes storage.
+     *
+     * @throws Exception
+     */
+    private void initializeStorage() throws Exception {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+
+        if (this.storage instanceof ChunkedSegmentStorage) {
+            ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
+
+            // Initialize storage metadata table segment
+            ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
+            String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
+
+            val metadata = new TableBasedMetadataStore(s, tableExtension);
+
+            // Bootstrap
+            chunkedStorage.bootstrap(this.metadata.getContainerId(), metadata);
+        }
+    }
+
     //endregion
 
     //region AutoCloseable Implementation
@@ -253,7 +278,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> initializeSecondaryServices() {
-        this.storage.initialize(this.metadata.getContainerEpoch());
+        try {
+            initializeStorage();
+        } catch (Exception ex) {
+            return Futures.failedFuture(ex);
+        }
         return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 
@@ -878,6 +907,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("append", this.segmentId, data.getLength());
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
+            return processAppend(operation, new TimeoutTimer(timeout))
+                    .thenApply(v -> operation.getStreamSegmentOffset());
+        }
+
+        @Override
+        public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout) {
+            ensureRunning();
+            logRequest("append", this.segmentId, data.getLength());
+            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, offset, data, attributeUpdates);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }

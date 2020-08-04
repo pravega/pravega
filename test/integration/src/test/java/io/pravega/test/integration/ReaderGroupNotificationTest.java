@@ -12,8 +12,8 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -25,7 +25,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
@@ -51,8 +51,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -123,7 +123,7 @@ public class ReaderGroupNotificationTest {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://localhost"))
                                                                                     .build());
         @Cleanup
@@ -143,8 +143,7 @@ public class ReaderGroupNotificationTest {
         writer.writeEvent("0", "data2").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build());
         @Cleanup
@@ -199,7 +198,7 @@ public class ReaderGroupNotificationTest {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://localhost"))
                                                                                     .build());
         @Cleanup
@@ -220,8 +219,7 @@ public class ReaderGroupNotificationTest {
         assertTrue(controller.sealStream(SCOPE, streamName).get()); // seal stream
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
-                connectionFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, streamName)).groupRefreshTimeMillis(0).build());
         @Cleanup
