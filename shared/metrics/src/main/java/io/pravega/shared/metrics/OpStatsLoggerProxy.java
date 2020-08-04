@@ -52,4 +52,9 @@ public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger, OpStatsLogger
     protected OpStatsLoggerProxy getSelf() {
         return this;
     }
+
+    @Override
+    protected OpStatsLogger getNullInstance() {
+        return NullStatsLogger.NULLOPSTATSLOGGER;
+    }
 }

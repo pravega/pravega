@@ -35,4 +35,11 @@ public class MeterProxy extends MetricProxy<Meter, MeterProxy> implements Meter 
     protected MeterProxy getSelf() {
         return this;
     }
+
+    @Override
+    protected Meter getNullInstance() {
+        return NullStatsLogger.NULLMETER;
+    }
+    
+    
 }

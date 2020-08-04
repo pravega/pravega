@@ -42,7 +42,7 @@ abstract class MetricProxy<MetricT extends Metric, SelfT extends MetricProxy<Met
 
     @Override
     public void close() {
-        MetricT i = this.instance.getAndSet(null);
+        MetricT i = this.instance.getAndSet(getNullInstance());
         if (i != null) {
             i.close();
             this.closeCallback.accept(getSelf());
@@ -53,6 +53,8 @@ abstract class MetricProxy<MetricT extends Metric, SelfT extends MetricProxy<Met
      * All implementations should return 'this'. (Workaround to Java's lack of variance)
      */
     protected abstract SelfT getSelf();
+    
+    protected abstract MetricT getNullInstance();
     
     /**
      * Gets the id of the underlying metric.

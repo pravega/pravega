@@ -32,4 +32,9 @@ class GaugeProxy extends MetricProxy<Gauge, GaugeProxy> implements Gauge {
     protected GaugeProxy getSelf() {
         return this;
     }
+
+    @Override
+    protected Gauge getNullInstance() {
+        return NullStatsLogger.NULLGAUGE;
+    }
 }
