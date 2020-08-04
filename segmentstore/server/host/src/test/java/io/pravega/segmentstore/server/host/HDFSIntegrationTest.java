@@ -78,6 +78,5 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
                         : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
-
     //endregion
 }

@@ -97,6 +97,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
     private static final int CONTAINER_COUNT = 4;
+    private static final long DEFAULT_EPOCH = 1;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -118,7 +119,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
             .build();
 
-    private StorageFactory readOnlyStorageFactory = null;
+    private StorageFactory storageFactory = null;
     private ScheduledExecutorService executorService = executorService();
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
@@ -199,10 +200,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         ArrayList<ByteBuf> appendBuffers = new ArrayList<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
-        try (val builder = createBuilder(0);
-             val readOnlyBuilder = createReadOnlyBuilder()) {
+        try (val builder = createBuilder(0)) {
             val segmentStore = builder.createStreamSegmentService();
-            val readOnlySegmentStore = readOnlyBuilder.createStreamSegmentService();
 
             segmentNames = createSegments(segmentStore);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
@@ -216,24 +215,25 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished appending data.");
 
             // Wait for flushing the segments to tier2
-            waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished waiting for segments in Storage.");
 
             // Get the persistent storage from readOnlySegmentStore.
-            Storage storage = getReadOnlyStorageFactory().createStorageAdapter();
+            Storage storage = getStorageFactory().createStorageAdapter();
+            storage.initialize(DEFAULT_EPOCH);
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
             @Cleanup DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, context.dataLogFactory,
                     executorService);
-            context.storageFactory = getReadOnlyStorageFactory();
+            context.storageFactory = getStorageFactory();
 
             // Start a debug segment container corresponding tpo each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getReadOnlyStorageFactory(),
+                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getStorageFactory(),
                         context.getDefaultExtensions(), executorService);
 
                 Services.startAsync(localContainer, executorService).join();
@@ -507,8 +507,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private StorageFactory getReadOnlyStorageFactory() {
-        return this.readOnlyStorageFactory;
+    private StorageFactory getStorageFactory() {
+        return this.storageFactory;
     }
 
     private ServiceBuilder createBuilder(int instanceId, boolean useChunkedSegmentStorage) throws Exception {
@@ -537,20 +537,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @return              A newly created ServiceBuilder instance.
      * @throws Exception    In case of any exception occurred during execution.
      */
-    private ServiceBuilder createReadOnlyBuilder() throws Exception {
-        // Copy base config properties to a new object.
-        val props = new Properties();
-        this.configBuilder.build().forEach(props::put);
-
-        // Create a new config (so we don't alter the base one) and set the ReadOnlySegmentStore to true).
-        val configBuilder = ServiceBuilderConfig.builder()
-                .include(props)
-                .include(ServiceConfig.builder()
-                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true));
-
-        val builder = createBuilder(configBuilder, 0);
-        builder.initialize();
-        this.readOnlyStorageFactory = builder.getStorageFactory();
+    private ServiceBuilder createBuilder(int instanceId) throws Exception {
+        val builder = createBuilder(this.configBuilder, instanceId, false);
+        try {
+            builder.initialize();
+            this.storageFactory = builder.getStorageFactory();
+        } catch (Throwable ex) {
+            builder.close();
+            throw ex;
+        }
         return builder;
     }
 

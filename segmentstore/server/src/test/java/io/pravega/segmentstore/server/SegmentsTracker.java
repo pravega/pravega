@@ -143,8 +143,18 @@ public class SegmentsTracker implements StreamSegmentStore, TableStore {
     }
 
     @Override
+    public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
+        return this.tableStore.put(segmentName, entries, tableSegmentOffset, timeout);
+    }
+
+    @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
         return this.tableStore.remove(segmentName, keys, timeout);
+    }
+
+    @Override
+    public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
+        return this.tableStore.remove(segmentName, keys, tableSegmentOffset, timeout);
     }
 
     @Override
@@ -160,5 +170,10 @@ public class SegmentsTracker implements StreamSegmentStore, TableStore {
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorArgs args) {
         return this.tableStore.entryIterator(segmentName, args);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
+        return this.tableStore.entryDeltaIterator(segmentName, fromPosition, fetchTimeout);
     }
 }

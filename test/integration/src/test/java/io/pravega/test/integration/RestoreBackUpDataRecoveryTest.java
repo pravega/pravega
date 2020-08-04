@@ -15,9 +15,11 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -87,6 +89,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -371,6 +374,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         private final String serviceHost = "localhost";
         private ControllerWrapper controllerWrapper;
         private Controller controller;
+        private URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
 
         ControllerStarter(int bkPort, int servicePort) throws InterruptedException {
             this.controllerWrapper = new ControllerWrapper("localhost:" + bkPort, false,
@@ -405,11 +409,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Created two streams.");
 
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerStarter.controllerURI).build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory, connectionFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
 
         log.info("Writing events on to stream: {}", STREAM1);
         writeEvents(STREAM1, clientFactory); // write 300 events on one segment
@@ -486,9 +491,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
         log.info("Started segment store and controller again.");
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerStarter.controllerURI).build());
         clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
-        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory, connectionFactory);
+        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
 
         // Try creating the same segments again with the new controller
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
@@ -503,10 +509,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     public void createScopeStream(Controller controller, String scopeName, String streamName) {
-        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
-            streamManager.createScope(scopeName);
-            streamManager.createStream(scopeName, streamName, config);
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+             StreamManager streamManager = new StreamManagerImpl(controller, cp)) {
+            //create a scope
+            Boolean createScopeStatus = streamManager.createScope(scopeName);
+            log.info("Create scope status {}", createScopeStatus);
+            //create a stream
+            Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, config);
+            log.info("Create stream status {}", createStreamStatus);
         }
     }
 
