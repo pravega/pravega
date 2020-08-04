@@ -88,7 +88,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
     private static final String SCOPE = "test";
     private static final int NUM_SEGMENTS = 10;
     private static final int NUM_EVENTS = 10;
-    private static final int THREAD_COUNT = 3;
+    private static final int NUM_THREADS = 3;
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
@@ -125,7 +125,6 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
 
     @After
     public void tearDown() throws Exception {
-        executorService().shutdownNow();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -134,7 +133,7 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
 
     @Override
     public int getThreadPoolSize() {
-           return THREAD_COUNT;
+           return NUM_THREADS;
     }
     
     @Test(timeout = 40000)
@@ -397,6 +396,10 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         return listOfEpochs;
     }
 
+    /*
+     * get the parameter for manually scaling the stream to
+     * a number of uniformly partitioned segments.
+     */
     Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         return new ImmutablePair<>(getSegmentsToSeal(sortedCurrentSegments), getNewRanges());
     }
