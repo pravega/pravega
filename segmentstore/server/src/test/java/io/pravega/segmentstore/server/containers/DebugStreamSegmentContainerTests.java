@@ -284,7 +284,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
 
     public static class TestContext implements AutoCloseable {
-        public StorageFactory storageFactory;
+        public final StorageFactory storageFactory;
         public final DurableDataLogFactory dataLogFactory;
         public final ReadIndexFactory readIndexFactory;
         public final AttributeIndexFactory attributeIndexFactory;

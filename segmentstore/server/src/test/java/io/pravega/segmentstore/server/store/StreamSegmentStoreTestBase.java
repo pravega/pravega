@@ -223,12 +223,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             storage.initialize(DEFAULT_EPOCH);
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
-            @Cleanup DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
+            @Cleanup
+            DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, context.dataLogFactory,
                     executorService);
-            context.storageFactory = getStorageFactory();
 
-            // Start a debug segment container corresponding tpo each container Id and put it in the Hashmap with the Id.
+            // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new

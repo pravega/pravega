@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 public interface DebugSegmentContainer extends SegmentContainer {
 
     /**
-     * Updates container metadata table by creating a segment with the given details. This is used during the data recovery
+     * Updates container metadata table by with the given details of a segment. This is used during the data recovery
      * process when a segment exists in the long term storage, but not in the durable data log.
      * @param streamSegmentName         Name of the segment to be created.
      * @param length                    Length of the segment to be created.
