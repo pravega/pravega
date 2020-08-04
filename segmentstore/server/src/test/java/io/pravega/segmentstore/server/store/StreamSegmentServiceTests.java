@@ -42,7 +42,7 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkedSegmentStorage) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig.build())
                              .withStorageFactory(setup -> this.storageFactory)
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
