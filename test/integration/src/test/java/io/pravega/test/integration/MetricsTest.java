@@ -14,10 +14,8 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -167,9 +165,8 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 120000)
     public void metricsTimeBasedCacheEvictionTest() throws Exception {
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-             StreamManager streamManager = new StreamManagerImpl(controller, cp)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
 
@@ -177,9 +174,9 @@ public class MetricsTest extends ThreadPooledTestSuite {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory)) {
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());

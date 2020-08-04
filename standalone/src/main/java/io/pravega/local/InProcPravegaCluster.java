@@ -36,7 +36,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
 import java.io.IOException;
@@ -281,7 +280,6 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.DataLogType.INMEMORY :
                                 ServiceConfig.DataLogType.BOOKKEEPER)
-                        .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.StorageType.INMEMORY :
                                 ServiceConfig.StorageType.FILESYSTEM))

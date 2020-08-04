@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
-import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
@@ -31,7 +30,6 @@ import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -430,15 +428,13 @@ public class PravegaTablesStoreHelper {
                                      List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
                                                                 .collect(Collectors.toList());
                                      log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     // if the returned token and result are empty, return the incoming token so that 
-                                     // callers can resume from that token. 
-                                     return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
+                                     return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
                                  } finally {
                                      releaseKeys(result.getItems());
                                  }
                              }, executor);
     }
-    
+
     /**
      * Method to get paginated list of entries with a continuation token.
      * @param tableName tableName
@@ -465,18 +461,11 @@ public class PravegaTablesStoreHelper {
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                        // if the returned token and result are empty, return the incoming token so that 
-                        // callers can resume from that token. 
-                        return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
+                        return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
                     } finally {
                         releaseEntries(result.getItems());
                     }
                 }, executor);
-    }
-
-    private ByteBuf getNextToken(ByteBuf continuationToken, IteratorItem<?> result) {
-        return result.getItems().isEmpty() && result.getState().isEmpty() ?
-                continuationToken : Unpooled.wrappedBuffer(result.getState().toBytes());
     }
 
     /**

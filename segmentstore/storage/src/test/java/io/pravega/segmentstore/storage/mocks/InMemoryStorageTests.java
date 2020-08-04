@@ -16,11 +16,9 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.test.common.AssertExtensions;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.TimeUnit;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;

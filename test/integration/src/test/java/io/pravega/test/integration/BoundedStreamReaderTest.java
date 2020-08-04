@@ -59,7 +59,6 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -68,7 +67,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
+public class BoundedStreamReaderTest {
 
     private static final String SCOPE = "testScope";
     private static final String STREAM1 = "testStream1";
@@ -91,7 +90,6 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
 
     @Before
     public void setUp() throws Exception {
-        super.before();
         executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
@@ -119,7 +117,6 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
-        super.after();
     }
 
     @Test(timeout = 60000)

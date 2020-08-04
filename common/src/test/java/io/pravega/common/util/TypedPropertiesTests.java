@@ -31,7 +31,6 @@ public class TypedPropertiesTests {
             TypedPropertiesTests::getStringValue,
             propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)),
-            propertyId -> toString(TypedPropertiesTests.getDoubleValue(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getEnumValue(propertyId)));
 
@@ -65,16 +64,6 @@ public class TypedPropertiesTests {
         Properties props = new Properties();
         populateData(props);
         testData(props, TypedProperties::getLong, TypedPropertiesTests::isInt64);
-    }
-    
-    /**
-     * Tests the ability to get a property as a Double.
-     */
-    @Test
-    public void testGetDouble() throws Exception {
-        Properties props = new Properties();
-        populateData(props);
-        testData(props, TypedProperties::getDouble, TypedPropertiesTests::isDouble);
     }
 
     /**
@@ -205,10 +194,6 @@ public class TypedPropertiesTests {
     private static long getInt64Value(int propertyId) {
         return propertyId + (long) Integer.MAX_VALUE * 2;
     }
-    
-    private static double getDoubleValue(int propertyId) {
-        return propertyId * 1.5;
-    }
 
     private static boolean getBooleanValue(int propertyId) {
         return propertyId % 2 == 1;
@@ -236,14 +221,9 @@ public class TypedPropertiesTests {
 
     private static boolean isInt64(String propertyValue) {
         char firstChar = propertyValue.charAt(0);
-        return !propertyValue.contains(".") && (Character.isDigit(firstChar) || firstChar == '-'); // this will accept both Int32 and Int64.
+        return Character.isDigit(firstChar) || firstChar == '-'; // this will accept both Int32 and Int64.
     }
 
-    private static boolean isDouble(String propertyValue) {
-        char firstChar = propertyValue.charAt(0);
-        return propertyValue.contains(".") && (Character.isDigit(firstChar) || firstChar == '-' || firstChar == '.'); 
-    }
-    
     private static boolean isBoolean(String propertyValue) {
         return propertyValue.equalsIgnoreCase("true") || propertyValue.equalsIgnoreCase("false");
     }

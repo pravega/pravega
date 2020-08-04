@@ -12,9 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -31,6 +28,13 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.control.impl.Controller;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -42,19 +46,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class ControllerEventProcessorsTest {
     ScheduledExecutorService executor;
@@ -87,7 +84,7 @@ public class ControllerEventProcessorsTest {
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
         HostControllerStore hostStore = mock(HostControllerStore.class);
-        ConnectionPool connectionPool = mock(ConnectionPool.class);
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
         KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
@@ -174,8 +171,8 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
-                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
-                kvtStore, kvtTasks, system, executor);
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtStore, kvtTasks,
+                system, executor);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -189,7 +186,7 @@ public class ControllerEventProcessorsTest {
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
-        ConnectionPool connectionPool = mock(ConnectionPool.class);
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
         KVTableMetadataStore kvtStore = mock(KVTableMetadataStore.class);
@@ -241,8 +238,8 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
-                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                kvtStore, kvtTasks, system, executor);
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, kvtStore, kvtTasks,
+                system, executor);
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);

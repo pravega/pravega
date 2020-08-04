@@ -9,7 +9,7 @@
  */
 package io.pravega.client;
 
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -56,7 +56,7 @@ public interface EventStreamClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static EventStreamClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new SocketConnectionFactoryImpl(config);
+        val connectionFactory = new ConnectionFactoryImpl(config);
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);
     }

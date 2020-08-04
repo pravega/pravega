@@ -12,10 +12,9 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
@@ -38,8 +37,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -59,7 +58,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
     private PravegaConnectionListener serverListener = null;
-    private ConnectionPool connectionPool;
+    private ConnectionFactory connectionFactory;
     private TestingServer zkTestServer = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller;
@@ -92,17 +91,15 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
         //4. Create Scope
         this.controller.createScope(SCOPE).get();
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionPool);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE, this.controller, this.connectionFactory);
     }
 
 
     @After
     public void tearDown() throws Exception {
         this.controller.close();
-        this.connectionPool.close();
+        this.connectionFactory.close();
         this.controllerWrapper.close();
         this.serverListener.close();
         this.serviceBuilder.close();

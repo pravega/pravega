@@ -12,25 +12,18 @@ package io.pravega.client.admin.impl;
 import com.google.common.collect.Lists;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Before;
@@ -39,10 +32,17 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import static org.junit.Assert.assertEquals;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -98,7 +98,8 @@ public class StreamManagerImplTest {
                                  .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -109,7 +110,8 @@ public class StreamManagerImplTest {
                                                                              false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                                                            connectionFactory, true);
@@ -136,7 +138,7 @@ public class StreamManagerImplTest {
     }
 
     @Test(timeout = 10000)
-    public void testSealedStream() throws ConnectionFailedException {
+    public void testSealedStream() {
         final String streamName = "stream";
         final Stream stream = new StreamImpl(defaultScope, streamName);
 
@@ -152,7 +154,8 @@ public class StreamManagerImplTest {
                                  .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -163,7 +166,8 @@ public class StreamManagerImplTest {
                                          false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = spy(new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true));
@@ -199,7 +203,7 @@ public class StreamManagerImplTest {
     }
 
     @Test(timeout = 10000)
-    public void testListScopes() throws ConnectionFailedException {
+    public void testListScopes() {
         // Setup Mocks
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
@@ -212,7 +216,8 @@ public class StreamManagerImplTest {
                                  .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -223,7 +228,8 @@ public class StreamManagerImplTest {
                                          false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);
@@ -253,7 +259,7 @@ public class StreamManagerImplTest {
     }
 
     @Test(timeout = 10000)
-    public void testListStreamInScope() throws ConnectionFailedException {
+    public void testListStreamInScope() {
         // Setup Mocks
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
@@ -266,7 +272,8 @@ public class StreamManagerImplTest {
                                  .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -277,7 +284,8 @@ public class StreamManagerImplTest {
                                          false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);

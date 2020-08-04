@@ -9,14 +9,17 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.test.common.AssertExtensions;
+import static org.junit.Assert.assertEquals;
+
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import lombok.Data;
+
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import io.pravega.test.common.AssertExtensions;
+
+import lombok.Data;
 
 public class JavaSerializerTest {
 

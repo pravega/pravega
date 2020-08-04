@@ -178,9 +178,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         //compute read length based on current offset up to which the events are read.
         int updatedReadLength = computeReadLength(offset + buffer.dataAvailable());
         if (!receivedEndOfSegment && !receivedTruncated && updatedReadLength > 0 && outstandingRequest == null) {
-            if (log.isTraceEnabled()) {
-                log.trace("Issuing read request for segment {} of {} bytes", getSegmentId(), updatedReadLength);
-            }
+            log.trace("Issuing read request for segment {} of {} bytes", getSegmentId(), updatedReadLength);
             CompletableFuture<SegmentRead> r = asyncInput.read(offset + buffer.dataAvailable(), updatedReadLength);
             outstandingRequest = Futures.cancellableFuture(r, SegmentRead::release);
         }

@@ -14,8 +14,8 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
@@ -40,8 +40,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.Before;
@@ -76,7 +76,7 @@ public class ReaderGroupImplTest {
     @Mock
     private Controller controller;
     @Mock
-    private ConnectionPool connectionPool;
+    private ConnectionFactory connectionFactory;
     @Mock
     private StateSynchronizer<ReaderGroupState> synchronizer;
     @Mock
@@ -94,7 +94,7 @@ public class ReaderGroupImplTest {
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
-                updateSerializer, clientFactory, controller, connectionPool);
+                updateSerializer, clientFactory, controller, connectionFactory);
     }
 
     @Test(expected = IllegalArgumentException.class)

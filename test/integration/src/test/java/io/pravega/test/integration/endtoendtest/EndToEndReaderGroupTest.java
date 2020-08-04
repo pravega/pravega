@@ -15,8 +15,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -69,14 +69,15 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                                                                     connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
 
@@ -115,14 +116,15 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                                                                     connectionFactory);
         // Create a ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                  .stream("test/test").build());
@@ -174,14 +176,15 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         // Create ReaderGroup and reader.
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory,
+                                                                     connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder()
                                                                  .disableAutomaticCheckpoints()
                                                                  .stream(Stream.of(scopeA, streamName))

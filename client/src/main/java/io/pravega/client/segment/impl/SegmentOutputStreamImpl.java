@@ -9,32 +9,13 @@
  */
 package io.pravega.client.segment.impl;
 
-import static com.google.common.base.Preconditions.checkState;
-
-import java.util.AbstractMap;
-import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
-import javax.annotation.concurrent.GuardedBy;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenExpiredException;
-import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.Flow;
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -58,10 +39,26 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.google.common.base.Preconditions.checkState;
 
 
 /**
@@ -80,7 +77,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Getter
     private final boolean useConnectionPooling;
     private final Controller controller;
-    private final ConnectionPool connectionPool;
+    private final ConnectionFactory connectionFactory;
     private final UUID writerId;
     private final Consumer<Segment> resendToSuccessorsCallback;
     private final State state = new State();
@@ -410,7 +407,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      .runInExecutor(() -> {
                          log.debug("Invoking resendToSuccessors call back for {} on writer {}", wireCommand, writerId);
                          resendToSuccessorsCallback.accept(Segment.fromScopedName(getSegmentName()));
-                     }, connectionPool.getInternalExecutor())
+                     }, connectionFactory.getInternalExecutor())
                      .thenRun(() -> {
                          log.trace("Release inflight latch for writer {}", writerId);
                          state.waitingInflight.release();
@@ -421,7 +418,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private void ackUpTo(long ackLevel) {
             final List<PendingEvent> pendingEvents = state.removeInflightBelow(ackLevel);
             // Complete the futures and release buffer in a different thread.
-            connectionPool.getInternalExecutor().execute(() -> {
+            connectionFactory.getInternalExecutor().execute(() -> {
                 for (PendingEvent toAck : pendingEvents) {
                     if (toAck.getAckFuture() != null) {
                         toAck.getAckFuture().complete(null);
@@ -589,10 +586,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          .thenComposeAsync((PravegaNodeUri uri) -> {
                              log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
                              return establishConnection(uri);
-                         }, connectionPool.getInternalExecutor())
-                         .thenCombineAsync(tokenProvider.retrieveToken(),
-                                           AbstractMap.SimpleEntry<ClientConnection, String>::new,
-                                           connectionPool.getInternalExecutor())
+                         }, connectionFactory.getInternalExecutor())
+
+                         .thenCombineAsync(tokenProvider.retrieveToken(), AbstractMap.SimpleEntry<ClientConnection, String>::new,
+                                 connectionFactory.getInternalExecutor())
+
                          .thenComposeAsync(pair -> {
                              ClientConnection connection = pair.getKey();
                              String token = pair.getValue();
@@ -624,16 +622,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                  throw Exceptions.sneakyThrow(t);
                              });
 
-                         }, connectionPool.getInternalExecutor());
-                 }, connectionPool.getInternalExecutor());
+                         }, connectionFactory.getInternalExecutor());
+                 }, connectionFactory.getInternalExecutor());
         }, new CompletableFuture<ClientConnection>());
     }
 
     private CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri uri) {
         if (useConnectionPooling) {
-            return connectionPool.getClientConnection(Flow.from(requestId), uri, responseProcessor);
+            return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
         } else {
-            return connectionPool.getClientConnection(uri, responseProcessor);
+            return connectionFactory.establishConnection(uri, responseProcessor);
         }
     }
 

@@ -12,9 +12,8 @@ package io.pravega.test.integration.endtoendtest;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -29,15 +28,16 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -100,16 +100,17 @@ public class ScopeTest {
 
         @Cleanup
         Controller controller = controllerWrapper.getController();
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build();
         @Cleanup
-        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
 
         controllerWrapper.getControllerService().createScope(scope).get();
         controller.createStream(scope, streamName1, config).get();
         controller.createStream(scope, streamName2, config).get();
         controller.createStream(scope, streamName3, config).get();
-        @Cleanup
-        StreamManager manager = new StreamManagerImpl(controller, cp);
+
+        StreamManager manager = new StreamManagerImpl(controller, connectionFactory);
 
         Iterator<Stream> iterator = manager.listStreams(scope);
         assertTrue(iterator.hasNext());

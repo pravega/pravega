@@ -11,9 +11,9 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
-import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.connection.impl.ClientConnection.CompletedCallback;
-import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -35,7 +35,6 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.List;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
@@ -1162,13 +1162,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     private static class MockControllerWithTokenTask extends MockController {
-        final ConnectionPool cp;
+        final ConnectionFactory cf;
         final CompletableFuture<Void> signal;
 
-        public MockControllerWithTokenTask(String endpoint, int port, ConnectionPool connectionPool,
+        public MockControllerWithTokenTask(String endpoint, int port, ConnectionFactory connectionFactory,
                                            boolean callServer, CompletableFuture<Void> signal) {
-            super(endpoint, port, connectionPool, callServer);
-            this.cp = connectionPool;
+            super(endpoint, port, connectionFactory, callServer);
+            this.cf = connectionFactory;
             this.signal = signal;
         }
 
@@ -1177,7 +1177,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             return CompletableFuture.supplyAsync(() -> {
                 signal.complete(null);
                 return "my-test-token";
-            }, cp.getInternalExecutor());
+            }, cf.getInternalExecutor());
         }
     }
 }

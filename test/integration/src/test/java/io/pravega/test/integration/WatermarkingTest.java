@@ -15,11 +15,8 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -38,7 +35,7 @@ import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
@@ -54,6 +51,13 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
@@ -71,16 +75,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -178,12 +176,9 @@ public class WatermarkingTest {
         scale(controller, streamObj, config);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
-                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                        connectionFactory.getInternalExecutor()),
-                connectionFactory);
+        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
@@ -202,7 +197,7 @@ public class WatermarkingTest {
         
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
         
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
@@ -349,12 +344,9 @@ public class WatermarkingTest {
         scale(controller, streamObj, config);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
-                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                        connectionFactory.getInternalExecutor()),
-                connectionFactory);
+        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
@@ -373,7 +365,7 @@ public class WatermarkingTest {
 
         // read events from the stream
         @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
 
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();

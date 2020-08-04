@@ -12,8 +12,7 @@ package io.pravega.controller.rest.v1;
 import com.google.common.collect.ImmutableMap;
 import io.grpc.ServerBuilder;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -34,6 +33,20 @@ import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.TestUtils;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MultivaluedHashMap;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -50,19 +63,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
 import static org.junit.Assert.assertEquals;
@@ -126,7 +126,7 @@ public class StreamMetaDataAuthFocusedTests {
     private static File passwordHandlerInputFile;
 
     @SuppressWarnings("checkstyle:StaticVariableName")
-    private static ConnectionFactory connectionFactory;
+    private static ConnectionFactoryImpl connectionFactory;
     
     // We want to ensure that the tests in this class are run one after another (in no particular sequence), as we
     // are using a shared server (for execution efficiency). We use this in setup and teardown method initiazers
@@ -186,7 +186,7 @@ public class StreamMetaDataAuthFocusedTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,

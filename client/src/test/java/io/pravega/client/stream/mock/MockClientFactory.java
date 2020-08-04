@@ -12,9 +12,7 @@ package io.pravega.client.stream.mock;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -27,31 +25,27 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import java.util.function.Supplier;
+import lombok.Getter;
 
-public class MockClientFactory extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-
+public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
+    private final ConnectionFactoryImpl connectionFactory;
+    @Getter
+    private final Controller controller;
     private final ClientFactoryImpl impl;
 
-    private MockClientFactory(String scope, ClientConfig config, ConnectionPoolImpl connectionPool, MockSegmentStreamFactory ioFactory) {
-        super(scope, new MockController("localhost", 0, connectionPool, false), connectionPool);
-        this.impl = new ClientFactoryImpl(scope, controller, connectionPool, ioFactory, ioFactory, ioFactory, ioFactory);
-    }
-    
-    private MockClientFactory(String scope, ClientConfig config, MockSegmentStreamFactory ioFactory) {
-        this(scope, config, new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config)), ioFactory);
-    }
-    
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this(scope, ClientConfig.builder().build(), ioFactory);
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.controller = new MockController("localhost", 0, connectionFactory, false);
+        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
     }
 
-    public MockClientFactory(String scope, Controller controller, ConnectionPool connectionPool) {
-        super(scope, controller, connectionPool);
-        this.impl = new ClientFactoryImpl(scope, controller, connectionPool);
+    public MockClientFactory(String scope, Controller controller) {
+        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        this.controller = controller;
+        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
     }
 
     @Override
@@ -101,7 +95,6 @@ public class MockClientFactory extends AbstractClientFactoryImpl implements Even
 
     @Override
     public void close() {
-        this.controller.close();
-        this.impl.close();
+        this.connectionFactory.close();
     }
 }

@@ -470,12 +470,6 @@ project('test:integration') {
         into "conf"
     }
 
-    test {
-		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=selftest"]
-    }
-
     dependencies {
         compile project(':common')
         compile project(':client')

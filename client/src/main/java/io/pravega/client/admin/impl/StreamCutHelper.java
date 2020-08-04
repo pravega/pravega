@@ -9,7 +9,7 @@
  */
 package io.pravega.client.admin.impl;
 
-import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -22,11 +22,12 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper class to obtain the current HEAD and TAIL {@link StreamCut}s for a given {@link Stream}.
@@ -36,9 +37,9 @@ public class StreamCutHelper {
     private final Controller controller;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
 
-    public StreamCutHelper(Controller controller, ConnectionPool connectionPool) {
+    public StreamCutHelper(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
-        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
 
     /**

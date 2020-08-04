@@ -11,8 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -87,7 +87,7 @@ public class LargeEventTest extends AbstractReadWriteTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
         @Cleanup
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                                                                            .clientConfig(Utils.buildClientConfig(controllerUri))

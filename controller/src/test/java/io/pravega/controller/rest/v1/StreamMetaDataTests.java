@@ -11,8 +11,7 @@ package io.pravega.controller.rest.v1;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -24,7 +23,6 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
-import io.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
@@ -44,6 +42,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
+
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -68,6 +67,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -98,7 +98,7 @@ public class StreamMetaDataTests {
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
-    private ConnectionFactory connectionFactory;
+    private ConnectionFactoryImpl connectionFactory;
     
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
@@ -188,9 +188,9 @@ public class StreamMetaDataTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                        .controllerURI(URI.create("tcp://localhost"))
-                                                                        .build());
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
                 connectionFactory);
         restServer.startAsync();

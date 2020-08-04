@@ -9,8 +9,9 @@
  */
 package io.pravega.client.stream.notifications;
 
-import io.pravega.client.stream.notifications.notifier.AbstractNotifier;
 import java.util.concurrent.ScheduledExecutorService;
+
+import io.pravega.client.stream.notifications.notifier.AbstractNotifier;
 
 public class CustomNotifier extends AbstractNotifier<CustomNotification> {
 

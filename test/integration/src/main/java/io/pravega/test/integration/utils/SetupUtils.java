@@ -14,9 +14,9 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionPoolImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -26,7 +26,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -37,7 +39,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.UUID;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
@@ -54,7 +55,7 @@ public final class SetupUtils {
     
     // The different services.
     @Getter
-    private ScheduledExecutorService executor = null;
+    private ConnectionFactory connectionFactory = null;
     @Getter
     private Controller controller = null;
     @Getter
@@ -94,10 +95,10 @@ public final class SetupUtils {
             log.warn("Services already started, not attempting to start again");
             return;
         }
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
+        this.connectionFactory = new ConnectionFactoryImpl(clientConfig, new ConnectionPoolImpl(clientConfig), numThreads);
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                                             executor);
-        this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
+                                             connectionFactory.getInternalExecutor());
+        this.clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
         
         // Start zookeeper.
         this.zkTestServer = new TestingServerStarter().start();
@@ -138,7 +139,7 @@ public final class SetupUtils {
         this.zkTestServer.close();
         this.clientFactory.close();
         this.controller.close();
-        this.executor.shutdown();
+        this.connectionFactory.close();
     }
 
     /**

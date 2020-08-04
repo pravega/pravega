@@ -10,9 +10,8 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -89,7 +88,7 @@ public class IntermittentCnxnFailureTest {
 
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
-    private ConnectionPool connectionPool;
+    private ConnectionFactory connectionFactory;
     @Mock
     private KVTableMetadataStore kvtStore;
     @Mock
@@ -117,9 +116,9 @@ public class IntermittentCnxnFailureTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        segmentHelperMock = spy(new SegmentHelper(connectionPool, hostStore, executor));
+        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore, executor));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt());
@@ -144,7 +143,7 @@ public class IntermittentCnxnFailureTest {
         streamStore.close();
         zkClient.close();
         zkServer.close();
-        connectionPool.close();
+        connectionFactory.close();
         StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
     }

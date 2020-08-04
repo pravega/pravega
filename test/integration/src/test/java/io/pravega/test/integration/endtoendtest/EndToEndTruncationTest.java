@@ -9,16 +9,45 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.integration.ReadWriteUtils.readEvents;
+import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
+import static java.util.stream.Collectors.toList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -61,35 +90,9 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.ReadWriteUtils;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static io.pravega.shared.NameUtils.computeSegmentId;
-import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static io.pravega.test.integration.ReadWriteUtils.readEvents;
-import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
-import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTruncationTest {
@@ -164,9 +167,9 @@ public class EndToEndTruncationTest {
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
 
-        MockController controller = new MockController(endpoint, port, streamManager.getConnectionPool(), true);
+        MockController controller = new MockController(endpoint, port, streamManager.getConnectionFactory(), true);
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
-                                                                                                  streamManager.getConnectionPool());
+                                                                                                  streamManager.getConnectionFactory());
         Segment segment = new Segment(scope, streamName, 0);
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
@@ -206,7 +209,7 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
@@ -235,7 +238,8 @@ public class EndToEndTruncationTest {
         controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                   .stream("test/test").build());
 
@@ -265,7 +269,7 @@ public class EndToEndTruncationTest {
         controller.updateStream("test", "test", config).get();
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://" + serviceHost))
                 .build());
         @Cleanup
@@ -294,7 +298,8 @@ public class EndToEndTruncationTest {
         writer.writeEvent("2", "truncationTest2").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test").build());
 
@@ -338,7 +343,7 @@ public class EndToEndTruncationTest {
         controller.updateStream(scope, streamName, config).get();
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
@@ -379,7 +384,7 @@ public class EndToEndTruncationTest {
         controller.updateStream("test", "test", config).get();
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
@@ -418,7 +423,8 @@ public class EndToEndTruncationTest {
 
         //Read the event back.
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                                                   .stream("test/test").build());
         @Cleanup
@@ -566,7 +572,7 @@ public class EndToEndTruncationTest {
         controllerWrapper.getControllerService().createScope(scope).join();
         controller.createStream(scope, streamName, config).join();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -588,7 +594,7 @@ public class EndToEndTruncationTest {
 
         // Instantiate readers to consume from Stream.
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
         groupManager.createReaderGroup(readerGroupName,
                                        ReaderGroupConfig.builder()
                                                         .automaticCheckpointIntervalMillis(100)

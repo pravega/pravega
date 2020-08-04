@@ -11,18 +11,12 @@ package io.pravega.test.system;
 
 import com.google.common.primitives.Longs;
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -45,8 +39,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
+
 import lombok.Cleanup;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -121,28 +115,22 @@ public class ByteClientTest extends AbstractSystemTest {
         ExecutorServiceHelpers.shutdown(READER_EXECUTOR);
     }
 
-    ByteStreamClientFactory createClientFactory(String scope) {
-        ClientConfig config = ClientConfig.builder().build();
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                       .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
-                                                       connectionFactory.getInternalExecutor());
-        ConnectionPool pool = new ConnectionPoolImpl(config, connectionFactory);
-        val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, pool);
-        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, pool);
-        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, pool);
-        return new ByteStreamClientImpl(scope, controller, pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
-    }
-    
     /**
      * This test verifies the correctness of basic read/write functionality of {@link ByteStreamReader} and {@link ByteStreamWriter}.
      */
     @Test
     public void byteClientTest() throws IOException {
         log.info("byteClientTest:: with security enabled: {}", Utils.AUTH_ENABLED);
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                                           .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
+                connectionFactory.getInternalExecutor());
+
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
         @Cleanup
-        ByteStreamClientFactory byteStreamClient = createClientFactory(SCOPE);
+        ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
         @Cleanup("closeAndSeal")
         ByteStreamWriter writer = byteStreamClient.createByteStreamWriter(STREAM);
         @Cleanup
@@ -206,9 +194,14 @@ public class ByteClientTest extends AbstractSystemTest {
         log.info("byteClientTruncationTest:: with security enabled: {}", Utils.AUTH_ENABLED);
 
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM_TRUNCATION, config));
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
+        ControllerImplConfig controllerConfig = ControllerImplConfig.builder().clientConfig(Utils.buildClientConfig(controllerURI)).build();
+        ControllerImpl controller = new ControllerImpl(controllerConfig, connectionFactory.getInternalExecutor());
         log.info("Invoking byteClientTruncationTest test with Controller URI: {}", controllerURI);
         @Cleanup
-        ByteStreamClientFactory factory = createClientFactory(SCOPE);
+        ByteStreamClientFactory factory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
         @Cleanup("closeAndSeal")
         ByteStreamWriter writer = factory.createByteStreamWriter(STREAM);
         @Cleanup

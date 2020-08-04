@@ -10,8 +10,8 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
@@ -44,9 +44,9 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
     public AbstractScaleTests() {
         controllerURI = createControllerURI();
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        connectionFactory = new ConnectionFactoryImpl(clientConfig);
         controller = createController(clientConfig);
-        clientFactory = new ClientFactoryImpl(SCOPE, getController(), connectionFactory);
+        clientFactory = new ClientFactoryImpl(SCOPE, getController(), new ConnectionFactoryImpl(clientConfig));
     }
 
     private ControllerImpl createController(final ClientConfig clientConfig) {

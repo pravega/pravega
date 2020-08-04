@@ -9,12 +9,8 @@
  */
 package io.pravega.client.segment.impl;
 
-import java.util.UUID;
-import java.util.function.Consumer;
-
 import com.google.common.annotations.VisibleForTesting;
-
-import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.control.impl.Controller;
@@ -23,6 +19,8 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.NameUtils;
+import java.util.UUID;
+import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,14 +30,14 @@ import lombok.extern.slf4j.Slf4j;
 public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactory {
 
     private final Controller controller;
-    private final ConnectionPool cp;
+    private final ConnectionFactory cf;
     private final Consumer<Segment> nopSegmentSealedCallback = s -> log.error("Transaction segment: {} cannot be sealed", s);
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
                                                                 DelegationTokenProvider tokenProvider) {
         return new SegmentOutputStreamImpl(NameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
-                                           config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(), nopSegmentSealedCallback,
+                                           config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), nopSegmentSealedCallback,
                                            getRetryFromConfig(config), tokenProvider);
     }
 
@@ -47,7 +45,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
                                                             EventWriterConfig config, DelegationTokenProvider tokenProvider) {
         SegmentOutputStreamImpl result =
-                new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(), segmentSealedCallback,
+                new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), segmentSealedCallback,
                                             getRetryFromConfig(config), tokenProvider);
         try {
             result.getConnection();
@@ -60,7 +58,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
                                                             DelegationTokenProvider tokenProvider) {
-        return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(),
+        return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
                                            Callbacks::doNothing, getRetryFromConfig(config), tokenProvider);
     }
 

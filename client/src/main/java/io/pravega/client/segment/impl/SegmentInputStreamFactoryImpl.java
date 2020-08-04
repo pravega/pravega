@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.control.impl.Controller;
@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
 
     private final Controller controller;
-    private final ConnectionPool cp;
+    private final ConnectionFactory cf;
 
     @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment) {
@@ -46,7 +46,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment,
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment), hasData);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
@@ -71,7 +71,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider, long startOffset) {
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment, tokenProvider, null);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider, null);
         async.getConnection();
         return new SegmentInputStreamImpl(async, startOffset);
     }

@@ -116,7 +116,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
+        clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 

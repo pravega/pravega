@@ -18,17 +18,14 @@ import java.util.concurrent.ScheduledExecutorService;
 public interface StorageFactoryCreator {
     /**
      * API to create a storage factory with given configuration.
-     *
-     * @param storageFactoryInfo Properties of storage factory to create.
-     * @param setup              Configuration for the factory.
-     * @param executor           The storage factory is expected to use this ExecutorService for execution of its tasks.
+     * @param setup     Configuration for the factory.
+     * @param executor  The storage factory is expected to use this ExecutorService for execution of its tasks.
      */
-    StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor);
+    StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor);
 
     /**
-     * The properties of the available storage factories.
-     *
-     * @return The array of StorageFactoryInfo.
+     * The unique name for the storage factory.
+     * @return  Unique name for the storage factory.
      */
-    StorageFactoryInfo[] getStorageFactories();
+    String getName();
 }

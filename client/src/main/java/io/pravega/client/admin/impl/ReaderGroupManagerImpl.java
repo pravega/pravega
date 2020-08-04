@@ -11,12 +11,9 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -28,8 +25,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
@@ -56,22 +55,24 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
-    private final AbstractClientFactoryImpl clientFactory;
+    private final SynchronizerClientFactory clientFactory;
     private final Controller controller;
+    private final ConnectionFactory connectionFactory;
 
     public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor());
 
-        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(config, connectionFactory);
-        this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionPool);
+        this.connectionFactory = connectionFactory;
+        this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, AbstractClientFactoryImpl clientFactory) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
+        this.connectionFactory = connectionFactory;
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
@@ -118,7 +119,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
-                                   clientFactory, controller, clientFactory.getConnectionPool());
+                                   clientFactory, controller, connectionFactory);
     }
 
     @Override

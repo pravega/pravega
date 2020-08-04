@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
-import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;

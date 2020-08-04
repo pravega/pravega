@@ -12,45 +12,35 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.ConfigSetup;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
-import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
-import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
-import lombok.val;
 import org.junit.Test;
 
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class StorageLoaderTest {
 
     private StorageFactory expectedFactory;
 
     @Test
-    public void testNoOpWithInMemoryStorage() throws Exception {
+    public void testNoOpWithWithInMemoryStorage() throws Exception {
         ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(StorageExtraConfig.builder()
-                            .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
+                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
                 .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, 1)
-                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
 
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
                     StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
+                    expectedFactory = loader.load(setup, "INMEMORY", executor);
                     return expectedFactory;
                 });
         builder.initialize();
@@ -59,47 +49,16 @@ public class StorageLoaderTest {
 
         configBuilder
                 .include(StorageExtraConfig.builder()
-                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false));
+                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false));
 
         builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
                     StorageLoader loader = new StorageLoader();
-                    expectedFactory = loader.load(setup, "INMEMORY", StorageLayoutType.ROLLING_STORAGE, executor);
+                    expectedFactory = loader.load(setup, "INMEMORY", executor);
                     return expectedFactory;
                 });
         builder.initialize();
         assertTrue(expectedFactory instanceof InMemoryStorageFactory);
         builder.close();
-    }
-
-    @Test
-    public void testFileSystemStorage() throws Exception {
-        val storageType = ServiceConfig.StorageType.FILESYSTEM;
-        ConfigSetup configSetup = mock(ConfigSetup.class);
-        val extraConfig = StorageExtraConfig.builder()
-                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
-                .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.ROLLING_STORAGE);
-        assertTrue(factory instanceof FileSystemStorageFactory);
-    }
-
-    @Test
-    public void testSimpleFileSystemStorage() throws Exception {
-        val storageType = ServiceConfig.StorageType.FILESYSTEM;
-        ConfigSetup configSetup = mock(ConfigSetup.class);
-        val extraConfig = StorageExtraConfig.builder()
-                .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
-                .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
-
-        val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE);
-        assertTrue(factory instanceof FileSystemSimpleStorageFactory);
-    }
-
-    private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
-        StorageLoader loader = new StorageLoader();
-        return loader.load(setup, name, storageLayoutType, executor);
     }
 }

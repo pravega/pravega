@@ -29,13 +29,6 @@ import org.junit.Test;
 public abstract class RollingStorageTestBase extends StorageTestBase {
     protected static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
 
-    /**
-     * Indicates the layout format to test.
-     * For AsycStorageWrapper and RollingStorage it is set to true.
-     * For ChunkedSegmentStorage set to false.
-     */
-    protected boolean useOldLayout = true;
-
     @Override
     public void testFencing() throws Exception {
         // Fencing is left up to the underlying Storage implementation to handle. There's nothing to test here.
@@ -86,15 +79,13 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         writeStream.write(writeBuffer);
 
         // Get a read handle, which will also fetch the number of chunks for us.
-        if (useOldLayout) {
-            val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
-            Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
-            val writtenData = writeStream.toByteArray();
-            byte[] readBuffer = new byte[writtenData.length];
-            int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
-            Assert.assertArrayEquals("Unexpected data read back.", writtenData, readBuffer);
-        }
+        val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
+        Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
+        val writtenData = writeStream.toByteArray();
+        byte[] readBuffer = new byte[writtenData.length];
+        int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
+        Assert.assertArrayEquals("Unexpected data read back.", writtenData, readBuffer);
     }
 
     @Test
@@ -129,10 +120,8 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         writeStream.write(writeBuffer);
 
         // Get a read handle, which will also fetch the number of chunks for us.
-        if (useOldLayout) {
-            val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
-            Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
-        }
+        val readHandle = (RollingSegmentHandle) s.openRead(segmentName).join();
+        Assert.assertEquals("Unexpected number of chunks created.", 1, readHandle.chunks().size());
     }
 
     @Test
@@ -160,26 +149,24 @@ public abstract class RollingStorageTestBase extends StorageTestBase {
         s.write(writeHandle, 0, sequenceInputStream, totalWriteLength, TIMEOUT).join();
 
         // Check rollover actually happened as expected.
-        if (useOldLayout) {
-            RollingSegmentHandle checkHandle = (RollingSegmentHandle) s.openWrite(segmentName).join();
-            val chunks = checkHandle.chunks();
-            int numberOfRollovers = totalWriteLength / maxLength;
-            Assert.assertEquals(numberOfRollovers + 1, chunks.size());
+        RollingSegmentHandle checkHandle = (RollingSegmentHandle) s.openWrite(segmentName).join();
+        val chunks = checkHandle.chunks();
+        int numberOfRollovers = totalWriteLength / maxLength;
+        Assert.assertEquals(numberOfRollovers + 1, chunks.size());
 
-            for (int i = 0; i < numberOfRollovers; i++) {
-                Assert.assertEquals(maxLength * i, chunks.get(i).getStartOffset());
-                Assert.assertEquals(maxLength, chunks.get(i).getLength());
-            }
-            // Last chunk has index == numberOfRollovers, as list is 0 based.
-            Assert.assertEquals(numberOfRollovers * maxLength, chunks.get(numberOfRollovers).getStartOffset());
-            Assert.assertEquals(1, chunks.get(numberOfRollovers).getLength());
-
-            // Now validate the contents written.
-            val readHandle = s.openRead(segmentName).join();
-            byte[] output = new byte[totalWriteLength];
-            s.read(readHandle, 0, output, 0, totalWriteLength, TIMEOUT).join();
-            Assert.assertEquals(seq1 + seq2, new String(output));
+        for (int i = 0; i < numberOfRollovers; i++) {
+            Assert.assertEquals(maxLength * i, chunks.get(i).getStartOffset());
+            Assert.assertEquals(maxLength, chunks.get(i).getLength());
         }
+        // Last chunk has index == numberOfRollovers, as list is 0 based.
+        Assert.assertEquals(numberOfRollovers * maxLength, chunks.get(numberOfRollovers).getStartOffset());
+        Assert.assertEquals(1, chunks.get(numberOfRollovers).getLength());
+
+        // Now validate the contents written.
+        val readHandle = s.openRead(segmentName).join();
+        byte[] output = new byte[totalWriteLength];
+        s.read(readHandle, 0, output, 0, totalWriteLength, TIMEOUT).join();
+        Assert.assertEquals(seq1 + seq2, new String(output));
     }
 
     @Override

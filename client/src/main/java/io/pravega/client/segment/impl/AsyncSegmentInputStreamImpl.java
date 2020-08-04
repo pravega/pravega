@@ -13,9 +13,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.connection.impl.ClientConnection;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.Flow;
+import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.control.impl.Controller;
@@ -45,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
-    private final ConnectionPool connectionPool;
+    private final ConnectionFactory connectionFactory;
 
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -151,15 +151,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionPool connectionPool, Segment segment,
+    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
                                        DelegationTokenProvider tokenProvider, Semaphore dataAvailable) {
         super(segment);
         this.tokenProvider = tokenProvider;
         Preconditions.checkNotNull(controller);
-        Preconditions.checkNotNull(connectionPool);
+        Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
         this.controller = controller;
-        this.connectionPool = connectionPool;
+        this.connectionFactory = connectionFactory;
         this.replyAvailable = dataAvailable;
     }
 
@@ -204,7 +204,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                                 }
                             })
                     );
-        }, connectionPool.getInternalExecutor()), connectionPool.getInternalExecutor());
+        }, connectionFactory.getInternalExecutor()), connectionFactory.getInternalExecutor());
     }
         
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
@@ -217,15 +217,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             outstandingRequests.put(request.getOffset(), result);
         }
         log.trace("Sending read request {}", request);
-        try {
-            c.send(request);
-        } catch (ConnectionFailedException cfe) {
-            log.error("Error while sending request {} to Pravega node {} :", request, c, cfe);
-            synchronized (lock) {
-                outstandingRequests.remove(request.getOffset());
+        c.sendAsync(request, cfe -> {
+            if (cfe != null) {
+                log.error("Error while sending request {} to Pravega node {} :", request, c, cfe);
+                synchronized (lock) {
+                    outstandingRequests.remove(request.getOffset());
+                }
+                result.completeExceptionally(cfe);                
             }
-            result.completeExceptionally(cfe);                
-        }
+        });
         return result;
     }
 
@@ -260,7 +260,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
             synchronized (lock) {
                 if (connection == null) {
-                    connection = connectionPool.getClientConnection(Flow.from(requestId), uri, responseProcessor);
+                    connection = connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
                 }
                 return connection;
             }

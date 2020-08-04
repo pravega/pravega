@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -65,7 +65,7 @@ public class ConditionalOutputStreamTest {
                 }
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         assertTrue(cOut.write(data, 0));
         assertFalse(cOut.write(data, 1));
         assertTrue(cOut.write(data, 2));
@@ -113,7 +113,7 @@ public class ConditionalOutputStreamTest {
                 }                
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         assertTrue(cOut.write(data, 0));
         assertEquals(3, count.get());
     }
@@ -129,7 +129,7 @@ public class ConditionalOutputStreamTest {
                                                               argument.getWriterId(), 0));
                 return null;
             }
-        }).when(mock).send(any(SetupAppend.class));
+        }).when(mock).sendAsync(any(SetupAppend.class), any(ClientConnection.CompletedCallback.class));
     }
 
     @Test(timeout = 10000)
@@ -157,7 +157,7 @@ public class ConditionalOutputStreamTest {
                                                                    argument.getEventNumber()));
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> cOut.write(data, 0));
     }
     
@@ -191,7 +191,7 @@ public class ConditionalOutputStreamTest {
                 }
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         replies.add(true);
         replies.add(false);
         assertTrue(cOut.write(data, 0));

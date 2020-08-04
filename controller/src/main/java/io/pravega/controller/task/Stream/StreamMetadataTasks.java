@@ -84,11 +84,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
@@ -104,9 +102,9 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  */
 public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
+    private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
 
-    private final AtomicLong retentionFrequencyMillis;
-    
+
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final SegmentHelper segmentHelper;
@@ -116,14 +114,14 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private EventHelper eventHelper;
 
+
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                                final ScheduledExecutorService eventExecutor, final String hostId,
-                               GrpcAuthHelper authHelper, RequestTracker requestTracker, final long retentionFrequencyMillis) {
+                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, eventExecutor, new Context(hostId),
                 authHelper, requestTracker);
-        this.retentionFrequencyMillis.set(retentionFrequencyMillis);
     }
 
     @VisibleForTesting
@@ -158,7 +156,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
         this.setReady();
     }
 
@@ -306,7 +303,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<StreamCutRecord> generateStreamCutIfRequired(String scope, String stream,
                                                                            StreamCutReferenceRecord previous, long recordingTime,
                                                                            OperationContext context, String delegationToken) {
-        if (previous == null || recordingTime - previous.getRecordingTime() > retentionFrequencyMillis.get()) {
+        if (previous == null || recordingTime - previous.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
             return Futures.exceptionallyComposeExpecting(
                     previous == null ? CompletableFuture.completedFuture(null) :
                             streamMetadataStore.getStreamCutRecord(scope, stream, previous, context, executor),
@@ -324,32 +321,27 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
                                              RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-        Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
-        if (!truncationRecord.isPresent()) {
-            log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
-            return CompletableFuture.completedFuture(null);
-        }
-        log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
-                                                                                newRecord.getRecordingTime(), newRecord.getRecordingSize());
-        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
-                   .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                   .thenCompose(started -> {
-                       if (started) {
-                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord.get(), context, executor);
+        return findTruncationRecord(policy, retentionSet, newRecord, recordingTime)
+                .map(record -> streamMetadataStore.getStreamCutRecord(scope, stream, record, context, executor)
+                        .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
+                        .thenCompose(started -> {
+                            if (started) {
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
                             } else {
                                 throw new RuntimeException("Could not start truncation");
-                       }
-                   })
-                   .exceptionally(e -> {
-                       if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                           // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                           log.debug(requestId, "Cannot truncate at given " +
+                            }
+                        })
+                        .exceptionally(e -> {
+                            if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                log.debug(requestId, "Cannot truncate at given " +
                                         "streamCut because it intersects with existing truncation point");
                                 return null;
-                           } else {
+                            } else {
                                 throw new CompletionException(e);
-                          }
-                       });
+                            }
+                        })
+                ).orElse(CompletableFuture.completedFuture(null));
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,

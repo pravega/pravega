@@ -19,10 +19,4 @@ public class PravegaNodeUri {
     @NonNull
     private final String endpoint;
     private final int port;
-    
-    
-    @Override
-    public String toString() {
-        return endpoint + ":" + port;
-    }
 }

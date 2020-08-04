@@ -10,17 +10,12 @@
 package io.pravega.client;
 
 import com.google.common.annotations.Beta;
-import com.google.common.base.Preconditions;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import lombok.val;
 
 /**
@@ -41,14 +36,10 @@ public interface ByteStreamClientFactory extends AutoCloseable {
      * @return Instance of ByteStreamClientFactory implementation.
      */
     static ByteStreamClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new SocketConnectionFactoryImpl(config);
+        val connectionFactory = new ConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
-        val connectionPool = new ConnectionPoolImpl(config, Preconditions.checkNotNull(connectionFactory));
-        val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
-        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
-        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
-        return new ByteStreamClientImpl(scope, controller, connectionPool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
     /**

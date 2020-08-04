@@ -14,12 +14,11 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -28,10 +27,11 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -40,23 +40,23 @@ import lombok.extern.slf4j.Slf4j;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
-    private final ConnectionPool connectionPool;
+    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
     
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
-        this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
+        this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
+    public StreamManagerImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.executor = null;
         this.controller = controller;
-        this.connectionPool = connectionPool;
-        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
+        this.connectionFactory = connectionFactory;
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @Override
@@ -182,8 +182,8 @@ public class StreamManagerImpl implements StreamManager {
         if (this.executor != null) {
             ExecutorServiceHelpers.shutdown(this.executor);
         }
-        if (this.connectionPool != null) {
-            this.connectionPool.close();
+        if (this.connectionFactory != null) {
+            this.connectionFactory.close();
         }
     }
 }
