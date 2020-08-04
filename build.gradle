@@ -470,6 +470,12 @@ project('test:integration') {
         into "conf"
     }
 
+    test {
+		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -551,6 +557,18 @@ project('test:integration') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
         systemProperties System.getProperties()
+    }
+
+    /**
+     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool.
+     * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
+     */
+    task startInteractiveDemo(type: JavaExec) {
+        main = "io.pravega.test.integration.demo.interactive.InteractiveDemo"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+        systemProperties System.getProperties()
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
     }
 }
 
@@ -720,7 +738,7 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
-        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/standalone-logback.xml")
         systemProperties 'singlenode.configurationFile' : new File("${project.rootDir}/config/standalone-config.properties")
 
         if (systemProperties.get("extDirs") != null) {
@@ -1021,12 +1039,14 @@ task javadocs(type: Javadoc) {
     ext.projects = [':client']
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
-    source = files(projects.collect {
-        project(it).sourceSets.main.allJava
-    })
-    classpath = files(projects.collect {
-        project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
-    })
+
+    projects.collect {
+        dependsOn project(it).delombok
+
+        source += project(it).delombok.outputDir
+        classpath += project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
+    }
+
     failOnError = true
     exclude "**/impl/**"
     options.addBooleanOption("Xdoclint:all,-reference", true)

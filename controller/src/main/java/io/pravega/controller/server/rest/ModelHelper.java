@@ -11,6 +11,7 @@ package io.pravega.controller.server.rest;
 
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
@@ -19,6 +20,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Provides translation between the Model classes and its REST representation.
@@ -57,8 +59,8 @@ public class ModelHelper {
                             createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
-                    retentionPolicy = RetentionPolicy.byTime(
-                            Duration.ofDays(createStreamRequest.getRetentionPolicy().getValue()));
+                    retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                            createStreamRequest.getRetentionPolicy().getValue());
                     break;
             }
         }
@@ -100,8 +102,8 @@ public class ModelHelper {
                             updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
-                    retentionPolicy = RetentionPolicy.byTime(
-                            Duration.ofDays(updateStreamRequest.getRetentionPolicy().getValue()));
+                    retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                                                        updateStreamRequest.getRetentionPolicy().getValue());
                     break;
             }
         }
@@ -143,8 +145,22 @@ public class ModelHelper {
                     break;
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
-                    retentionConfig.setValue(
-                            Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays());
+                    TimeBasedRetention timeRetention = new TimeBasedRetention();
+                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
+                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays();
+                    long daysInMs = Duration.ofDays(days).toMillis();
+                    long hours = 0L, minutes = 0L;
+                    if (totalMilliSecs == daysInMs) {
+                        // retention is specified only in days
+                        hours = 0L;
+                        minutes = 0L;
+                        retentionConfig.setValue(days);
+                    } else {
+                        hours = TimeUnit.MILLISECONDS.toHours(totalMilliSecs - daysInMs);
+                        minutes = getMinsFromMillis(totalMilliSecs, daysInMs, hours);
+                        retentionConfig.setValue(0L);
+                    }
+                    retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
                     break;
             }
         }
@@ -155,5 +171,33 @@ public class ModelHelper {
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         return streamProperty;
+    }
+
+    private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {
+        Duration retentionDuration = (timeRetention != null && retentionInDays == 0) ?
+                Duration.ofDays(timeRetention.getDays())
+                        .plusHours(timeRetention.getHours())
+                        .plusMinutes(timeRetention.getMinutes())
+                :  Duration.ofDays(retentionInDays);
+        return RetentionPolicy.byTime(retentionDuration);
+    }
+
+    /**
+     * This method takes total retention duration in milliseconds and
+     * computes minutes from remainder ms after subtracting (daysInMs + hoursInMs)
+     * @param totalDurationInMs retention duration in milliseconds
+     * @param daysInMs milliseconds for days in the retention duration
+     * @param hours hours in the retention duration. This absolute value not in ms.
+     * */
+    private static long getMinsFromMillis(long totalDurationInMs, long daysInMs, long hours) {
+        long remainderMs = 0L;
+        if (hours > 0) {
+            long hoursInMs = Duration.ofHours(hours).toMillis();
+            remainderMs = totalDurationInMs - (daysInMs + hoursInMs);
+        } else {
+            // hours = 0
+            remainderMs = totalDurationInMs - daysInMs;
+        }
+        return TimeUnit.MILLISECONDS.toMinutes(remainderMs);
     }
 }

@@ -41,6 +41,21 @@ public interface Controller extends AutoCloseable {
     // Controller Apis for administrative action for streams
 
     /**
+     * Check if scope exists. 
+     * 
+     * @param scopeName name of scope. 
+     * @return CompletableFuture which when completed will indicate if scope exists or not. 
+     */
+    CompletableFuture<Boolean> checkScopeExists(final String scopeName);
+    
+    /**
+     * Gets an async iterator on scopes.
+     *
+     * @return An AsyncIterator which can be used to iterate over all scopes. 
+     */
+    AsyncIterator<String> listScopes();
+
+    /**
      * API to create a scope. The future completes with true in the case the scope did not exist
      * when the controller executed the operation. In the case of a re-attempt to create the
      * same scope, the future completes with false to indicate that the scope existed when the
@@ -83,6 +98,15 @@ public interface Controller extends AutoCloseable {
      *         indicate that the stream was added because it did not already exist.
      */
     CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
+
+    /**
+     * Check if stream exists. 
+     *
+     * @param scopeName name of scope. 
+     * @param streamName name of stream. 
+     * @return CompletableFuture which when completed will indicate if stream exists or not. 
+     */
+    CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
 
     /**
      * API to update the configuration of a stream.

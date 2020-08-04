@@ -12,6 +12,7 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -69,9 +70,24 @@ public final class NameUtils {
     private static final String EPOCH_DELIMITER = ".#epoch.";
 
     /**
+     * Format for chunk name with segment name , epoch and offset.
+     */
+    private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
+
+    /**
      * Format for Container Metadata Segment name.
      */
     private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
+
+    /**
+     * Format for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = "_system/containers/storage_metadata_%d";
+
+    /**
+     * Format for Container System Journal file name.
+     */
+    private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -103,6 +119,7 @@ public final class NameUtils {
      */
     @Getter(AccessLevel.PACKAGE)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
+
 
     //endregion
 
@@ -231,6 +248,18 @@ public final class NameUtils {
     }
 
     /**
+     * Gets the name of the SegmentChunk for the given segment, epoch and offset.
+     *
+     * @param segmentName The name of the Segment to get the SegmentChunk name for.
+     * @param epoch       The epoch of the container.
+     * @param offset      The starting offset of the SegmentChunk.
+     * @return formatted chunk name.
+     */
+    public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
+        return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
+    }
+
+    /**
      * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
      * per container.
      *
@@ -240,6 +269,29 @@ public final class NameUtils {
     public static String getMetadataSegmentName(int containerId) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
         return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
+     * per container.
+     *
+     * @param containerId The Id of the Container.
+     * @return The Metadata Segment name.
+     */
+    public static String getStorageMetadataSegmentName(int containerId) {
+        Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
+        return String.format(STORAGE_METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Gets file name of SystemJournal for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param currentFileIndex Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
+        return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
     }
 
     /**
@@ -327,6 +379,20 @@ public final class NameUtils {
         sb.append(EPOCH_DELIMITER);
         sb.append(epoch);
         return sb.toString();
+    }
+
+    /**
+     * Returns a list representing the components of a scoped Stream/Key-Value Table name.
+     *
+     * @param scopedName The scoped name.
+     * @return A list containing the components. If the scoped name was properly formatted, this list should have
+     * two elements: element index 0 has the scope name and element index 1 has the stream name.
+     * @throws IllegalStateException If 'scopedName' is not in the form 'scope/name`.
+     */
+    public static List<String> extractScopedNameTokens(String scopedName) {
+        String[] tokens = scopedName.split("/");
+        Preconditions.checkArgument(tokens.length == 2, "Unexpected format for '%s'. Expected format '<scope-name>/<name>'.", scopedName);
+        return Arrays.asList(tokens);
     }
 
     /**

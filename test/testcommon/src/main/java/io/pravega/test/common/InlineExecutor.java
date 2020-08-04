@@ -30,7 +30,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
  * An Executor that runs commands that don't have a delay inline when they are submitted.
  * Delayed tasks are run on a background thread.
  */
-public class InlineExecutor implements ScheduledExecutorService {
+public class InlineExecutor implements ScheduledExecutorService, AutoCloseable {
     private final ScheduledExecutorService delayedExecutor;
 
     public InlineExecutor() {
@@ -42,6 +42,11 @@ public class InlineExecutor implements ScheduledExecutorService {
         command.run();
     }
 
+    @Override
+    public void close() {
+        shutdown();
+    }
+    
     @Override
     public void shutdown() {
         delayedExecutor.shutdown();
