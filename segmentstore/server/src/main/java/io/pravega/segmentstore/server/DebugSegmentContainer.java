@@ -16,12 +16,13 @@ import java.util.concurrent.CompletableFuture;
 public interface DebugSegmentContainer extends SegmentContainer {
 
     /**
-     * Updates container metadata table by with the given details of a segment. This is used during the data recovery
+     * Updates container metadata table with the given details of a segment. This is used during the data recovery
      * process when a segment exists in the long term storage, but not in the durable data log.
-     * @param streamSegmentName         Name of the segment to be created.
-     * @param length                    Length of the segment to be created.
-     * @param isSealed                  Sealed status of the segment to be created.
-     * @return                          A newly created segment.
+     * @param streamSegmentName         Name of the segment to be registered.
+     * @param length                    Length of the segment to be registered.
+     * @param isSealed                  Sealed status of the segment to be registered.
+     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
+     * completed. If the operation failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> registerExistingSegment(String streamSegmentName, long length, boolean isSealed);
 }

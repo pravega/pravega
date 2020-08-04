@@ -33,7 +33,7 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     /**
      * Creates a new instance of the DebugStreamSegmentContainer class.
      *
-     * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param debugSegmentContainerId  The Id of the debugSegmentContainer.
      * @param config                   The ContainerConfig to use for this DebugStreamSegmentContainer.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
@@ -44,11 +44,11 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
      *                                 {@link SegmentContainerExtension}s to be associated with that instance.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    DebugStreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+    DebugStreamSegmentContainer(int debugSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
                                 ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
                                 WriterFactory writerFactory, StorageFactory storageFactory,
                                 SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
-        super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
+        super(debugSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
                 storageFactory, createExtensions, executor);
         this.config = config;
     }
