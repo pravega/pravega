@@ -13,8 +13,8 @@ import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventWriterConfig;
@@ -43,14 +43,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutableTriple;
-import org.apache.commons.lang3.tuple.Triple;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +58,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -111,7 +110,7 @@ public class EndToEndTransactionOrderTest {
                 Config.HOST_STORE_CONTAINER_COUNT);
         controller = controllerWrapper.getController();
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
 
         internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
@@ -137,8 +136,8 @@ public class EndToEndTransactionOrderTest {
 
         controller.createStream("test", "test", config).get();
 
-        clientFactory = new MockClientFactory("test", controller);
-        readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+        clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
+        readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         readerGroupManager.createReaderGroup("readergrp",
                                              ReaderGroupConfig.builder()
                                                               .automaticCheckpointIntervalMillis(2000)

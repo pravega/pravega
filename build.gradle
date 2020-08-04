@@ -330,7 +330,7 @@ project('segmentstore:storage:impl') {
     }
 }
 
-project ('adapter') {
+project ('bindings') {
     dependencies {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
@@ -412,7 +412,7 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        compile project(':adapter')
+        compile project(':bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -420,7 +420,7 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
-        testCompile project(path:':adapter', configuration:'testRuntime')
+        testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     }
 
@@ -468,6 +468,12 @@ project('test:integration') {
 
     applicationDistribution.from('src/config') {
         into "conf"
+    }
+
+    test {
+		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
     }
 
     dependencies {
@@ -707,7 +713,7 @@ project('standalone') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        compile project(':adapter')
+        compile project(':bindings')
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
