@@ -104,8 +104,11 @@ public final class Config {
     public static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named(
             "security.auth.enable", false, "auth.enabled");
 
-    public static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named(
+    public static final Property<String> PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE = Property.named(
             "security.pwdAuthHandler.accountsDb.location", "", "auth.userPasswordFile");
+
+    public static final Property<Boolean> PROPERTY_PWD_AUTH_HANDLER_NEWFORMAT_ENABLED = Property.named(
+            "security.pwdAuthHandler.acl.newFormat.enable", true);
 
     public static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named(
             "security.auth.delegationToken.signingKey.basis", "", "auth.tokenSigningKey");
@@ -219,6 +222,7 @@ public final class Config {
     public static final String TOKEN_SIGNING_KEY;
     public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
     public static final String TLS_ENABLED_FOR_SEGMENT_STORE;
+    public static final boolean ACL_NEWFORMAT_ENABLED;
 
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
@@ -295,9 +299,10 @@ public final class Config {
         CLUSTER_MIN_REBALANCE_INTERVAL = p.getInt(PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS);
 
         AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTH_ENABLED);
-        USER_PASSWORD_FILE = p.get(PROPERTY_AUTH_PASSWORD_FILE);
+        USER_PASSWORD_FILE = p.get(PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
         ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
+        ACL_NEWFORMAT_ENABLED = p.getBoolean(PROPERTY_PWD_AUTH_HANDLER_NEWFORMAT_ENABLED);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);

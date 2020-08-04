@@ -15,6 +15,7 @@ import static io.pravega.auth.AuthHandler.Permissions.*;
 
 import io.pravega.auth.AuthException;
 import io.pravega.controller.mocks.FakeAuthHandler;
+import io.pravega.controller.server.rpc.auth.handler.AuthHandlerManager;
 import org.junit.Before;
 import org.junit.Test;
 

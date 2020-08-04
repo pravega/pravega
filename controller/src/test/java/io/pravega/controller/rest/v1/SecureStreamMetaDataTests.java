@@ -11,7 +11,7 @@ package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
+import io.pravega.controller.server.rpc.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;

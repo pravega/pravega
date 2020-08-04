@@ -24,7 +24,7 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.AuthContext;
+import io.pravega.controller.server.rpc.auth.handler.AuthContext;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;

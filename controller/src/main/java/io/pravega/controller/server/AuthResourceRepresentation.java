@@ -120,6 +120,7 @@ public final class AuthResourceRepresentation {
      */
     public static String ofKeyValueTableInScope(String scopeName, String kvtName) {
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
-        return String.format("%s/_kvtable/%s", ofStreamsInScope(scopeName), kvtName);
+        return String.format("" +
+                "", ofStreamsInScope(scopeName), kvtName);
     }
 }

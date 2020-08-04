@@ -15,6 +15,7 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
+import io.pravega.controller.server.rpc.auth.handler.AuthHandlerManager;
 
 import javax.ws.rs.core.Response;
 import java.security.Principal;

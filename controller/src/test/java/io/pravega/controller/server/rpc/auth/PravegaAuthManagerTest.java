@@ -18,6 +18,7 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.controller.server.rpc.auth.handler.AuthHandlerManager;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;

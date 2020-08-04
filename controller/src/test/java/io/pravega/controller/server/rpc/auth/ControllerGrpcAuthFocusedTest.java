@@ -20,7 +20,6 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.control.impl.PravegaCredentialsWrapper;
@@ -44,6 +43,8 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.rpc.auth.handler.AuthInterceptor;
+import io.pravega.controller.server.rpc.auth.handler.impl.PasswordAuthHandler;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
@@ -198,8 +199,8 @@ public class ControllerGrpcAuthFocusedTest {
                 true,
                 2);
 
-        AuthHandler authHandler = new PasswordAuthHandler();
-        ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+        authHandler.initialize(AUTH_FILE.getAbsolutePath());
 
         String uniqueServerName = String.format("Test server name: %s", getClass());
 

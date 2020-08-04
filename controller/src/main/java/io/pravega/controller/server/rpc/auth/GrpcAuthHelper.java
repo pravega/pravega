@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
+import io.pravega.controller.server.rpc.auth.handler.AuthContext;
 import io.pravega.shared.security.token.JsonWebToken;
 
 import java.util.HashMap;
