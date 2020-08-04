@@ -33,11 +33,8 @@ import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
-import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -66,8 +63,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -293,7 +288,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         public final CacheManager cacheManager;
 
         TestContext(ScheduledExecutorService scheduledExecutorService) {
-            this.storageFactory = new WatchableInMemoryStorageFactory(scheduledExecutorService);
+            this.storageFactory = new InMemoryStorageFactory(scheduledExecutorService);
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, scheduledExecutorService);
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
@@ -316,31 +311,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.dataLogFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
-        }
-    }
-
-    private static class WatchableInMemoryStorageFactory extends InMemoryStorageFactory {
-        private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
-
-        public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
-            super(executor);
-        }
-
-        @Override
-        public Storage createStorageAdapter() {
-            return new WatchableAsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
-        }
-
-        private class WatchableAsyncStorageWrapper extends AsyncStorageWrapper {
-            public WatchableAsyncStorageWrapper(SyncStorage syncStorage, Executor executor) {
-                super(syncStorage, executor);
-            }
-
-            @Override
-            public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
-                return super.truncate(handle, offset, timeout)
-                        .thenRun(() -> truncationOffsets.put(handle.getSegmentName(), offset));
-            }
         }
     }
 }
