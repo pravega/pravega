@@ -466,7 +466,20 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
         return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
                 .thenApply(segmentInfo -> {
+                    // Get the root pointer from the Segment's Core Attributes.
                     long rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
+                    if (rootPointer != BTreeIndex.IndexInfo.EMPTY.getRootPointer() && rootPointer < segmentInfo.getStartOffset()) {
+                        // The Root Pointer is invalid as it points to an offset prior to the Attribute Segment's Start Offset.
+                        // The Attribute Segment is updated in 3 sequential steps: 1) Write new BTree pages, 2) Truncate and
+                        // 3) Update root Pointer.
+                        // The purpose of the Root Pointer is to provide a location of a consistently written update in case
+                        // step 1) above fails (it is not atomic). However, if both 1) and 2) complete but 3) doesn't, then
+                        // it's possible that the existing Root Pointer has been truncated out. In this case, it should be
+                        // safe to ignore it and let the BTreeIndex read the file from the end (as it does in this case).
+                        log.info("{}: Root Pointer ({}) is below Attribute Segment's StartOffset ({}). Ignoring.", this.traceObjectId, rootPointer, segmentInfo.getStartOffset());
+                        rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer();
+                    }
+
                     return new BTreeIndex.IndexInfo(segmentInfo.getLength(), rootPointer);
                 });
     }
