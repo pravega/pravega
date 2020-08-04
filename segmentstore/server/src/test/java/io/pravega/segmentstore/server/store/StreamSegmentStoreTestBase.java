@@ -219,6 +219,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished waiting for segments in Storage.");
 
             // Get the persistent storage from readOnlySegmentStore.
+            @Cleanup
             Storage storage = getStorageFactory().createStorageAdapter();
             storage.initialize(DEFAULT_EPOCH);
 
