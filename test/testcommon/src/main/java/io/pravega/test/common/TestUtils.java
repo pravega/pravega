@@ -53,6 +53,7 @@ public class TestUtils {
                 return candidatePort;
             } catch (IOException e) {
                 // Do nothing. Try another port.
+                NEXT_PORT.addAndGet(new Random().nextInt());
             }
         }
         throw new IllegalStateException(
