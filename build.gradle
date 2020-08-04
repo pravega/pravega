@@ -470,6 +470,12 @@ project('test:integration') {
         into "conf"
     }
 
+    test {
+		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -732,7 +738,7 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
-        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/standalone-logback.xml")
         systemProperties 'singlenode.configurationFile' : new File("${project.rootDir}/config/standalone-config.properties")
 
         if (systemProperties.get("extDirs") != null) {
