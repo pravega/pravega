@@ -12,7 +12,6 @@ package io.pravega.client.control.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
@@ -159,11 +158,12 @@ public class ControllerImpl implements Controller {
      * @param config        The configuration for this client implementation.
      * @param executor      The executor service to be used for handling retries.
      */
+    @SuppressWarnings("deprecation")
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory(executor))
-                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
+                                .defaultLoadBalancingPolicy("round_robin")
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
