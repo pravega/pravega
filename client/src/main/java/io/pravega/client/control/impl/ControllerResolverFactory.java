@@ -15,7 +15,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import io.grpc.Attributes;
 import io.grpc.EquivalentAddressGroup;
-import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
@@ -65,7 +64,7 @@ class ControllerResolverFactory extends NameResolver.Factory {
 
     @Nullable
     @Override
-    public NameResolver newNameResolver(URI targetUri, Attributes params) {
+    public NameResolver newNameResolver(URI targetUri, NameResolver.Args params) {
         final String scheme = targetUri.getScheme();
         if (!SCHEME_DISCOVER.equals(scheme) && !SCHEME_DISCOVER_TLS.equals(scheme) &&
                 !SCHEME_DIRECT.equals(scheme) && !SCHEME_DIRECT_SSL.equals(scheme) && !SCHEME_DIRECT_TLS.equals(scheme)) {
@@ -134,6 +133,7 @@ class ControllerResolverFactory extends NameResolver.Factory {
          * @param enableDiscovery   Whether to use the controller's discovery API.
          * @param executor          The executor to run resolve tasks on.
          */
+        @SuppressWarnings("deprecation")
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
                                final boolean enableDiscovery, ScheduledExecutorService executor) {
             this.authority = authority;
@@ -150,7 +150,7 @@ class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
                         .nameResolverFactory(new ControllerResolverFactory(executor))
-                        .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
+                        .defaultLoadBalancingPolicy("round_robin")
                         .usePlaintext()
                         .build());
             } else {

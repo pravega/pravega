@@ -37,7 +37,7 @@ public class TestUtils {
     private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
 
     /**
-     * A helper method to get a random free port.
+     * A helper method to get a random free TCP port.
      *
      * @return free port.
      */
@@ -46,6 +46,9 @@ public class TestUtils {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
             try {
                 ServerSocket serverSocket = new ServerSocket(candidatePort);
+                //Enabling SO_REUSEADDR prior to binding the socket using bind(SocketAddress) allows the socket
+                //to be bound even though a previous connection is in a timeout state.
+                serverSocket.setReuseAddress(true);
                 serverSocket.close();
                 return candidatePort;
             } catch (IOException e) {

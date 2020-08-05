@@ -12,7 +12,6 @@ package io.pravega.client.control.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
@@ -120,6 +119,8 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.controller.stream.api.grpc.v1.Controller.*;
+
 /**
  * RPC based client implementation of Stream Controller V1 API.
  */
@@ -157,11 +158,12 @@ public class ControllerImpl implements Controller {
      * @param config        The configuration for this client implementation.
      * @param executor      The executor service to be used for handling retries.
      */
+    @SuppressWarnings("deprecation")
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory(executor))
-                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
+                                .defaultLoadBalancingPolicy("round_robin")
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
@@ -298,6 +300,51 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "checkScopeExists", scopeName, requestId);
+
+        final CompletableFuture<Boolean> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ExistsResponse> callback = new RPCAsyncCallback<>(requestId, "checkScopeExists", scopeName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "checkScopeExists", scopeName)
+                                                             .checkScopeExists(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture().thenApply(ExistsResponse::getExists);
+        }, this.executor);
+        return result.whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "checkScopeExists {} failed: ", scopeName, e);
+            }
+            LoggerHelpers.traceLeave(log, "checkScopeExists", traceId, scopeName, requestId);
+        });
+    }
+
+    @Override
+    public AsyncIterator<String> listScopes() {
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "listScopes");
+        long requestId = requestIdGenerator.get();
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<String>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<ScopesResponse> callback = new RPCAsyncCallback<>(requestId, "listScopes");
+                        
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listScopes")
+                                                                    .listScopes(ScopesRequest
+                                                                  .newBuilder().setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                       .thenApply(x -> {
+                                               List<String> result = x.getScopesList();
+                                               return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                       });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listStreams", traceId);
+        }
+    }
+    
+    @Override
     public AsyncIterator<Stream> listStreams(String scopeName) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "listStreams", scopeName);
@@ -415,6 +462,27 @@ public class ControllerImpl implements Controller {
                 log.warn(requestId, "createStream {}/{} failed: ", scope, streamName, e);
             }
             LoggerHelpers.traceLeave(log, "createStream", traceId, streamConfig, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "checkStreamExists", scopeName, streamName, requestId);
+
+        final CompletableFuture<Boolean> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ExistsResponse> callback = new RPCAsyncCallback<>(requestId, "checkStreamExists", scopeName, streamName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "checkStreamExists", scopeName, streamName)
+                                                             .checkStreamExists(StreamInfo.newBuilder().setScope(scopeName)
+                                                                                          .setStream(streamName).build(), callback);
+            return callback.getFuture().thenApply(ExistsResponse::getExists);
+        }, this.executor);
+        return result.whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "checkStreamExists {}/{} failed: ", scopeName, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "checkStreamExists", traceId, scopeName, streamName, requestId);
         });
     }
 
@@ -1434,7 +1502,23 @@ public class ControllerImpl implements Controller {
                     .createScope(scopeInfo, callback);
         }
 
-        public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
+        public void listScopes(ScopesRequest request, 
+                                       RPCAsyncCallback<ScopesResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .listScopes(request, callback);
+        }
+
+        public void checkScopeExists(ScopeInfo request, RPCAsyncCallback<ExistsResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .checkScopeExists(request, callback);
+        }
+
+        public void checkStreamExists(StreamInfo request, RPCAsyncCallback<ExistsResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .checkStreamExists(request, callback);
+        }
+        
+        public void listStreamsInScope(StreamsInScopeRequest request, 
                                        RPCAsyncCallback<StreamsInScopeResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .listStreamsInScope(request, callback);

@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ReferenceCountUtil;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
@@ -30,6 +31,7 @@ import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
+
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -82,13 +84,7 @@ public class PravegaTablesStoreHelper {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
 
-        cache = new Cache(x -> {
-            TableCacheKey<?> entryKey = (TableCacheKey<?>) x;
-
-            // Since there are be multiple tables, we will cache `table+key` in our cache
-            return getEntry(entryKey.getTable(), entryKey.getKey(), entryKey.fromBytesFunc)
-                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
-        });
+        cache = new Cache();
         this.authHelper = authHelper;
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
         this.numOfRetries = numOfRetries;
@@ -103,8 +99,18 @@ public class PravegaTablesStoreHelper {
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String table, String key, Function<byte[], T> fromBytes) {
-        return cache.getCachedData(new TableCacheKey<>(table, key, fromBytes))
-                    .thenApply(this::getVersionedMetadata);
+        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key, fromBytes);
+        VersionedMetadata<?> cached = cache.getCachedData(cacheKey);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(getVersionedMetadata(cached));
+        } else {
+            return getEntry(table, key, fromBytes)
+                    .thenApply(v -> {
+                        VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
+                        cache.put(cacheKey, record);
+                        return record;
+                    });
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -428,13 +434,15 @@ public class PravegaTablesStoreHelper {
                                      List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
                                                                 .collect(Collectors.toList());
                                      log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
+                                     // if the returned token and result are empty, return the incoming token so that 
+                                     // callers can resume from that token. 
+                                     return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
                                  } finally {
                                      releaseKeys(result.getItems());
                                  }
                              }, executor);
     }
-
+    
     /**
      * Method to get paginated list of entries with a continuation token.
      * @param tableName tableName
@@ -461,11 +469,18 @@ public class PravegaTablesStoreHelper {
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());
-                        return new AbstractMap.SimpleEntry<>(Unpooled.wrappedBuffer(result.getState().toBytes()), items);
+                        // if the returned token and result are empty, return the incoming token so that 
+                        // callers can resume from that token. 
+                        return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
                     } finally {
                         releaseEntries(result.getItems());
                     }
                 }, executor);
+    }
+
+    private ByteBuf getNextToken(ByteBuf continuationToken, IteratorItem<?> result) {
+        return result.getItems().isEmpty() && result.getState().isEmpty() ?
+                continuationToken : Unpooled.wrappedBuffer(result.getState().toBytes());
     }
 
     /**

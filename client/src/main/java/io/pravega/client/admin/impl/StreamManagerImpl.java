@@ -14,11 +14,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -26,13 +27,11 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BlockingAsyncIterator;
 import io.pravega.shared.NameUtils;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -41,23 +40,23 @@ import java.util.concurrent.ScheduledExecutorService;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
     
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
-        this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
-        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
+        this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(Controller controller, ConnectionFactory connectionFactory) {
+    public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
         this.executor = null;
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
-        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
+        this.connectionPool = connectionPool;
+        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
     @Override
@@ -108,6 +107,13 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public Iterator<String> listScopes() {
+        log.info("Listing scopes");
+        AsyncIterator<String> asyncIterator = controller.listScopes();
+        return asyncIterator.asIterator();
+    }
+
+    @Override
     public boolean createScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
@@ -115,11 +121,23 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean checkScopeExists(String scopeName) {
+        log.info("Checking if scope {} exists", scopeName);
+        return  Futures.getThrowingException(controller.checkScopeExists(scopeName));
+    }
+
+    @Override
     public Iterator<Stream> listStreams(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Listing streams in scope: {}", scopeName);
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
-        return new BlockingAsyncIterator<>(asyncIterator);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public boolean checkStreamExists(String scopeName, String streamName) {
+        log.info("Checking if stream {} exists in scope {}", streamName, scopeName);
+        return  Futures.getThrowingException(controller.checkStreamExists(scopeName, streamName));
     }
 
     @Override
@@ -164,8 +182,8 @@ public class StreamManagerImpl implements StreamManager {
         if (this.executor != null) {
             ExecutorServiceHelpers.shutdown(this.executor);
         }
-        if (this.connectionFactory != null) {
-            this.connectionFactory.close();
+        if (this.connectionPool != null) {
+            this.connectionPool.close();
         }
     }
 }
