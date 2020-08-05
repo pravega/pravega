@@ -7,12 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth.handler.impl;
+package io.pravega.controller.server.security.auth.handler.impl;
 
 import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import org.junit.Test;
@@ -43,7 +43,7 @@ public class PasswordAuthHandlerTest {
         String password = "password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
 
         Principal principal = authHandler.authenticate(prepareToken(username, password));
         assertNotNull(principal);
@@ -56,7 +56,7 @@ public class PasswordAuthHandlerTest {
         String password = "password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
         authHandler.authenticate(prepareToken(username, "bad-password"));
     }
 
@@ -66,7 +66,7 @@ public class PasswordAuthHandlerTest {
         String password = "password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
         Principal principal = authHandler.authenticate(prepareToken("user-nonexistent", password));
     }
 
@@ -136,29 +136,6 @@ public class PasswordAuthHandlerTest {
         assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("/", principal));
         assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("testscope2", principal));
         assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("testscope/teststream2", principal));
-    }
-
-    @Test
-    public void aclsInNewFormatAreHonoredForNewResourceFormat() {
-
-    }
-
-    @Test
-    public void aclsInNewFormatAreHonoredForOldResourceFormat() {
-        String username = "test-user";
-        String password = "test-password";
-        List<String> resources = Arrays.asList("/", "_scope/testscope", "_scope/testscope/_stream/teststream");
-        List<AuthHandler.Permissions> permissions =
-                Arrays.asList(AuthHandler.Permissions.NONE, AuthHandler.Permissions.READ, AuthHandler.Permissions.READ);
-        ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
-                resources, permissions);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
-        Principal principal = authHandler.authenticate(prepareToken(username, password));
-
-        assertEquals(AuthHandler.Permissions.NONE, authHandler.authorize("/", principal));
-        assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("testscope", principal));
-        assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("testscope/teststream", principal));
-
     }
 
     //endregion

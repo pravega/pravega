@@ -21,7 +21,7 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.kvtable.KVTableState;

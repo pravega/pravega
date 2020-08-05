@@ -7,11 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth.handler.impl;
+package io.pravega.controller.server.security.auth.handler.impl;
 
-import io.pravega.auth.AuthHandler;
+import com.google.common.annotations.VisibleForTesting;
+import lombok.Data;
 
-public interface AclAuthorizer {
+import java.util.List;
 
-    AuthHandler.Permissions authorize(AccessControlList accessControlList, String resource);
+@VisibleForTesting
+@Data
+class AccessControlList {
+    private final String encryptedPassword;
+    private final List<AccessControlEntry> acl;
 }

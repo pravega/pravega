@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth.handler.impl;
+package io.pravega.controller.server.security.auth.handler.impl;
 
 import io.pravega.auth.AuthHandler;
 
-class OldFormatAclAuthorizer implements AclAuthorizer {
+class OldFormatAclAuthorizer extends AclAuthorizer {
 
     @Override
     public AuthHandler.Permissions authorize(AccessControlList accessControlList, String resource) {

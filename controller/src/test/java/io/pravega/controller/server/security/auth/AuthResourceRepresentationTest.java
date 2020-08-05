@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server;
+package io.pravega.controller.server.security.auth;
 
+import static io.pravega.controller.server.security.auth.AuthResourceRepresentation.DOMAIN_PART_SUFFIX;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
@@ -20,17 +21,18 @@ public class AuthResourceRepresentationTest {
 
     @Test
     public void testOfScopesReturnsValidResourceStr() {
-        assertEquals("/", AuthResourceRepresentation.ofScopes());
+        assertEquals(DOMAIN_PART_SUFFIX + "/", AuthResourceRepresentation.ofScopes());
     }
 
     @Test
     public void testOfAScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofScope("testScopeName"));
+        assertEquals(DOMAIN_PART_SUFFIX + "/scope:testScopeName",
+                AuthResourceRepresentation.ofScope("testScopeName"));
     }
 
     @Test
     public void testOfStreamsInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofStreamsInScope("testScopeName"));
+        assertEquals(DOMAIN_PART_SUFFIX + "/scope:testScopeName", AuthResourceRepresentation.ofStreamsInScope("testScopeName"));
     }
 
     @Test (expected = NullPointerException.class)

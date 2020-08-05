@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server;
+package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
 
@@ -28,6 +28,15 @@ import io.pravega.common.Exceptions;
  */
 public final class AuthResourceRepresentation {
 
+    public static final String DOMAIN_PART_SUFFIX = "prn::";
+    static final String TAG_SCOPE = "scope";
+    static final String TAG_STREAM = "stream";
+    static final String TAG_READERGROUP = "reader-group";
+
+
+
+    private static final String ROOT_RESOURCE = String.format("%s/%s", DOMAIN_PART_SUFFIX, "/");
+
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of scopes
      * in the system.
@@ -35,7 +44,7 @@ public final class AuthResourceRepresentation {
      * @return a string representing the collections of scopes in the system
      */
     public static String ofScopes() {
-        return "/";
+        return ROOT_RESOURCE;
     }
 
     /**
@@ -48,7 +57,8 @@ public final class AuthResourceRepresentation {
      */
     public static String ofScope(String scopeName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        return scopeName;
+
+        return String.format("%s/%s:%s", DOMAIN_PART_SUFFIX, TAG_SCOPE, scopeName);
     }
 
     /**
@@ -61,7 +71,7 @@ public final class AuthResourceRepresentation {
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
     public static String ofStreamsInScope(String scopeName) {
-        return Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        return ofScope(scopeName);
     }
 
     /**

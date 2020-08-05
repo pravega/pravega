@@ -11,6 +11,8 @@ package io.pravega.controller.server.rpc.auth;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -10,7 +10,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;

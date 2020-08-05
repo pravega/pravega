@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import static org.junit.Assert.assertEquals;
 
+import io.pravega.controller.server.security.auth.UserPrincipal;
 import org.junit.Test;
 
 /**

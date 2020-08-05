@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth.handler.impl;
+package io.pravega.controller.server.security.auth.handler.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
@@ -18,8 +18,8 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
-import io.pravega.controller.server.rpc.auth.UserPrincipal;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.UserPrincipal;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -41,19 +41,19 @@ import lombok.extern.slf4j.Slf4j;
 public class PasswordAuthHandler implements AuthHandler {
     private final ConcurrentHashMap<String, AccessControlList> userMap;
     private final StrongPasswordProcessor encryptor;
-    private final boolean isNewAclFormatEnabled;
+    private final boolean isOldAclFormatEnabled;
 
     public PasswordAuthHandler() {
         userMap = new ConcurrentHashMap<>();
         encryptor = StrongPasswordProcessor.builder().build();
-        isNewAclFormatEnabled = Config.ACL_NEWFORMAT_ENABLED;
+        isOldAclFormatEnabled = Config.OLD_RESOURCE_FORMAT_ENABLED;
     }
 
     @VisibleForTesting
-    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean areAclsInNewFormat) {
+    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean areAclsInOldFormat) {
         userMap = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
-        isNewAclFormatEnabled = areAclsInNewFormat;
+        isOldAclFormatEnabled = areAclsInOldFormat;
     }
 
     private void loadPasswordFile(String userPasswordFile) {
@@ -141,79 +141,7 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     private Permissions authorizeForUser(AccessControlList accessControlList, String resource) {
-        if (this.isNewAclFormatEnabled) {
-            return interpretPermissions(accessControlList, resource);
-        } else {
-            return interpretPermissionsUsingOldAclFormat(accessControlList, resource);
-        }
-    }
-
-    private Permissions interpretPermissions(AccessControlList accessControlList, String resource) {
-        Permissions result = Permissions.NONE;
-
-        for (AccessControlEntry accessControlEntry : accessControlList.getAcl()) {
-
-            if (accessControlEntry.isResource(resource)) {
-                // Example: resource = "myscope", accessControlEntry-resource = "myscope"
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-
-            if (accessControlEntry.isResource("*") && accessControlEntry.hasHigherPermissionsThan(result)) {
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-        }
-        return result;
-    }
-
-    private Permissions interpretPermissionsUsingOldAclFormat(AccessControlList accessControlList, String resource) {
-        Permissions result = Permissions.NONE;
-
-        /*
-         *  `*` Means a wildcard.
-         *  If It is a direct match, return the ACLs.
-         *  If it is a partial match, the target has to end with a `/`
-         */
-        for (AccessControlEntry accessControlEntry : accessControlList.getAcl()) {
-
-            // Separating into different blocks, to make the code more understandable.
-            // It makes the code look a bit strange, but it is still simpler and easier to decipher than what it be
-            // if we combine the conditions.
-
-            if (accessControlEntry.isResource(resource)) {
-                // Example: resource = "myscope", accessControlEntry-resource = "myscope"
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-
-            if (accessControlEntry.isResource("/*") && !resource.contains("/")) {
-                // Example: resource = "myscope", accessControlEntry-resource ="/*"
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-
-            if (accessControlEntry.resourceEndsWith("/") && accessControlEntry.resourceStartsWith(resource)) {
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-
-            // Say, resource is myscope/mystream. ACL specifies permission for myscope/*.
-            // Auth should return the the ACL's permissions in that case.
-            if (resource.contains("/") && !resource.endsWith("/")) {
-                String[] values = resource.split("/");
-                if (accessControlEntry.isResource(values[0] + "/*")) {
-                    result = accessControlEntry.getPermissions();
-                    break;
-                }
-            }
-
-            if (accessControlEntry.isResource("*") && accessControlEntry.hasHigherPermissionsThan(result)) {
-                result = accessControlEntry.getPermissions();
-                break;
-            }
-        }
-        return result;
+        return AclAuthorizer.instance(this.isOldAclFormatEnabled).authorize(accessControlList, resource);
     }
 
     private List<AccessControlEntry> getAcls(String aclString) {

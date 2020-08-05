@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -142,7 +142,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
-                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(), 
+                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker);
 
         String scope = "scope1";

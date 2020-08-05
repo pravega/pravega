@@ -11,7 +11,7 @@ package io.pravega.controller.mocks;
 
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.rpc.auth.UserPrincipal;
+import io.pravega.controller.server.security.auth.UserPrincipal;
 
 import java.security.Principal;
 

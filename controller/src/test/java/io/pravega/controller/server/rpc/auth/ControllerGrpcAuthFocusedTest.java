@@ -43,8 +43,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.rpc.auth.handler.AuthInterceptor;
-import io.pravega.controller.server.rpc.auth.handler.impl.PasswordAuthHandler;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
