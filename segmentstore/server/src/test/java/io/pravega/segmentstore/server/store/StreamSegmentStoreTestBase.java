@@ -120,7 +120,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .build();
 
     private StorageFactory storageFactory = null;
-    private ScheduledExecutorService executorService = executorService();
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
