@@ -28,7 +28,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import lombok.var;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -331,7 +330,7 @@ public class SystemJournal {
                 // Read contents.
                 val systemLogName = getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover);
                 byte[] contents = getContents(systemLogName);
-                var input = new ByteArrayInputStream(contents);
+                val input = new ByteArrayInputStream(contents);
 
                 // Apply record batches from the file.
                 // Loop is exited with eventual EOFException.
@@ -339,7 +338,7 @@ public class SystemJournal {
                     try {
                         val batch = BATCH_SERIALIZER.deserialize(input);
                         if (null != batch.getSystemJournalRecords()) {
-                            for (var record : batch.getSystemJournalRecords()) {
+                            for (val record : batch.getSystemJournalRecords()) {
                                 log.debug("SystemJournal[{}] Processing system log record ={}.", epoch, record);
                                 // ChunkAddedRecord.
                                 if (record instanceof ChunkAddedRecord) {
