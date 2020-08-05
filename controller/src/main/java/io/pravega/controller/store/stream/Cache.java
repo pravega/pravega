@@ -15,12 +15,8 @@ import io.pravega.controller.store.VersionedMetadata;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Cache for asynchronously retrieving and loading records from underlying store using the supplied loader.
- * This uses Guava's loading cache and takes a loader function for loading entries into the cache. 
- * This class caches Futures which hold the metadata record with version. The cache  
- * can hold any value under the VersionedMetadata wrapper.
- * The values are by default held for 2 minutes after creation unless invalidated explicitly.
- * The maximum number of records that can be held in the cache is 10000. 
+ * The cache for storing versioned records against a cache key.
+ * Cache key is an interface and users of this cache and provide any cache key implementation. 
  */
 public class Cache {
     private static final int MAX_CACHE_SIZE = 10000;
