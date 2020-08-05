@@ -231,9 +231,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
+                // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+                DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, containerId);
+
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, getStorageFactory(),
+                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                         context.getDefaultExtensions(), executorService);
 
                 Services.startAsync(localContainer, executorService).join();

@@ -61,8 +61,6 @@ public class DataRecoveryTestUtils {
         log.info("Recovery started for all containers...");
         Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
         for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
-            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-            deleteContainerMetadataSegments(storage, debugStreamSegmentContainer.getKey());
 
             ContainerTableExtension ext = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
             AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getKey()),
@@ -146,7 +144,7 @@ public class DataRecoveryTestUtils {
      * @param storage       Long term storage to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    private static void deleteContainerMetadataSegments(Storage storage, int containerId) {
+    public static void deleteContainerMetadataSegments(Storage storage, int containerId) {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         deleteSegment(storage, metadataSegmentName);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
