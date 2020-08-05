@@ -9,6 +9,10 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.ConfigurationException;
+import io.pravega.common.util.Property;
+import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,13 +23,22 @@ import lombok.NonNull;
  * Configuration for {@link ChunkedSegmentStorage}.
  */
 @AllArgsConstructor
-@Builder(toBuilder = true)
+@Builder(toBuilder = true, builderMethodName = "instanceBuilder")
 public class ChunkedSegmentStorageConfig {
+    public static final Property<Long> MIN_SIZE_LIMIT_FOR_CONCAT = Property.named("concat.size.bytes.min", 0L);
+    public static final Property<Long> MAX_SIZE_LIMIT_FOR_CONCAT = Property.named("concat.size.bytes.max", Long.MAX_VALUE);
+    public static final Property<Integer> MAX_BUFFER_SIZE_FOR_APPENDS = Property.named("appends.buffer.size.bytes.max", 1024 * 1024);
+    public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
+    public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
+    public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
+    public static final Property<Boolean> APPEND_DISABLED = Property.named("appends.disable", false);
+    public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
+
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
      */
-    public static final ChunkedSegmentStorageConfig DEFAULT_CONFIG = ChunkedSegmentStorageConfig.builder()
-            .minSizeLimitForConcat(0)
+    public static final ChunkedSegmentStorageConfig DEFAULT_CONFIG = ChunkedSegmentStorageConfig.instanceBuilder()
+            .minSizeLimitForConcat(0L)
             .maxSizeLimitForConcat(Long.MAX_VALUE)
             .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)
             .maxBufferSizeForChunkDataTransfer(1024 * 1024)
@@ -34,6 +47,8 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunks(16 * 1024)
             .appendsDisabled(false)
             .build();
+
+    static final String COMPONENT_CODE = "storage";
 
     /**
      * Size of chunk in bytes above which it is no longer considered a small object.
@@ -84,4 +99,30 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private boolean appendsDisabled;
+
+    /**
+     * Creates a new instance of the ChunkedSegmentStorageConfig class.
+     *
+     * @param properties The TypedProperties object to read Properties from.
+     */
+    ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
+        this.appendsDisabled = properties.getBoolean(APPEND_DISABLED);
+        this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
+        this.minSizeLimitForConcat = properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT);
+        this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
+        this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
+        this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
+        this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
+        long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
+        this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
+    }
+
+    /**
+     * Creates a new ConfigBuilder that can be used to create instances of this class.
+     *
+     * @return A new Builder for this class.
+     */
+    public static ConfigBuilder<ChunkedSegmentStorageConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, ChunkedSegmentStorageConfig::new);
+    }
 }

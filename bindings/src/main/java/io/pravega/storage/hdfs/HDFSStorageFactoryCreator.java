@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -41,7 +42,9 @@ public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(storageFactoryInfo.getName().equals("HDFS"));
         if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
-            return new HDFSSimpleStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
+            return new HDFSSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(HDFSStorageConfig::builder),
+                    executor);
         } else {
             return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
         }
