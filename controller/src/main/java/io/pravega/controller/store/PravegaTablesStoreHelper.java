@@ -84,13 +84,7 @@ public class PravegaTablesStoreHelper {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
 
-        cache = new Cache(x -> {
-            TableCacheKey<?> entryKey = (TableCacheKey<?>) x;
-
-            // Since there are be multiple tables, we will cache `table+key` in our cache
-            return getEntry(entryKey.getTable(), entryKey.getKey(), entryKey.fromBytesFunc)
-                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
-        });
+        cache = new Cache();
         this.authHelper = authHelper;
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
         this.numOfRetries = numOfRetries;
@@ -105,8 +99,18 @@ public class PravegaTablesStoreHelper {
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String table, String key, Function<byte[], T> fromBytes) {
-        return cache.getCachedData(new TableCacheKey<>(table, key, fromBytes))
-                    .thenApply(this::getVersionedMetadata);
+        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key, fromBytes);
+        VersionedMetadata<?> cached = cache.getCachedData(cacheKey);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(getVersionedMetadata(cached));
+        } else {
+            return getEntry(table, key, fromBytes)
+                    .thenApply(v -> {
+                        VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
+                        cache.put(cacheKey, record);
+                        return record;
+                    });
+        }
     }
 
     @SuppressWarnings("unchecked")
