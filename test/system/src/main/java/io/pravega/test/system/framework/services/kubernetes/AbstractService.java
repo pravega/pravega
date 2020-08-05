@@ -453,7 +453,7 @@ public abstract class AbstractService implements Service {
                         .putDataItem("TLS_ENABLED", "true")
                         .putDataItem("TLS_KEY_FILE", "/opt/pravega/conf/server-key.key")
                         .putDataItem("TLS_CERT_FILE", "/opt/pravega/conf/server-cert.crt")
-                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/server-cert.crt")
+                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/client.truststore.jks")
                         .putDataItem("TLS_ENABLED_FOR_SEGMENT_STORE", "true")
                         .putDataItem("REST_KEYSTORE_FILE_PATH", "/opt/pravega/conf/server.keystore.jks")
                         .putDataItem("REST_KEYSTORE_PASSWORD_FILE_PATH", "/opt/pravega/conf/server.keystore.jks.passwd");
