@@ -34,19 +34,26 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import io.pravega.controller.util.Config;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.controller.util.Config.PROPERTY_OLD_RESOURCE_FORMAT_ENABLED;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
     private final ConcurrentHashMap<String, AccessControlList> userMap;
     private final StrongPasswordProcessor encryptor;
+
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final boolean isOldAclFormatEnabled;
 
     public PasswordAuthHandler() {
         userMap = new ConcurrentHashMap<>();
         encryptor = StrongPasswordProcessor.builder().build();
-        isOldAclFormatEnabled = Config.OLD_RESOURCE_FORMAT_ENABLED;
+        isOldAclFormatEnabled = shouldUseOldAclFormat();
+        log.info("Old resource format is {}", isOldAclFormatEnabled ? "enabled" : "disabled");
     }
 
     @VisibleForTesting
@@ -54,6 +61,15 @@ public class PasswordAuthHandler implements AuthHandler {
         userMap = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
         isOldAclFormatEnabled = areAclsInOldFormat;
+    }
+
+    private boolean shouldUseOldAclFormat() {
+        String propertyValue = System.getProperty(PROPERTY_OLD_RESOURCE_FORMAT_ENABLED.getName());
+        if (propertyValue == null) {
+            return false;
+        } else {
+            return propertyValue.trim().equalsIgnoreCase("true");
+        }
     }
 
     private void loadPasswordFile(String userPasswordFile) {

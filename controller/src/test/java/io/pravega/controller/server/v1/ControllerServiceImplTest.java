@@ -22,6 +22,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -107,7 +108,8 @@ public abstract class ControllerServiceImplTest {
     public void setUp() throws Exception {
         controllerSpied = spy(getControllerService());
         this.controllerService = new ControllerServiceImpl(controllerSpied, 
-                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2,
+                AuthorizationResource.create(true));
     }
     
     @Test

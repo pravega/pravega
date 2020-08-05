@@ -9,10 +9,8 @@
  */
 package io.pravega.controller.server.security.auth;
 
-import io.pravega.common.Exceptions;
-
 /**
- * A utility class with methods for preparing string representations of auth-protected resources.
+ * Returns string representations of auth-protected resources.
  * <p>
  * Background:
  * <p>
@@ -26,16 +24,15 @@ import io.pravega.common.Exceptions;
  *     <li>An object is represented by an instance of <i>this</i> class.</li>
  * </ul>
  */
-public final class AuthResourceRepresentation {
+public abstract class AuthorizationResource {
 
-    public static final String DOMAIN_PART_SUFFIX = "prn::";
-    static final String TAG_SCOPE = "scope";
-    static final String TAG_STREAM = "stream";
-    static final String TAG_READERGROUP = "reader-group";
-
-
-
-    private static final String ROOT_RESOURCE = String.format("%s/%s", DOMAIN_PART_SUFFIX, "/");
+    public static AuthorizationResource create(boolean useLegacyFormat) {
+        if (useLegacyFormat) {
+            return new AuthorizationResourceImpl();
+        } else {
+            return new LegacyAuthorizationResourceImpl();
+        }
+    }
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of scopes
@@ -43,9 +40,7 @@ public final class AuthResourceRepresentation {
      *
      * @return a string representing the collections of scopes in the system
      */
-    public static String ofScopes() {
-        return ROOT_RESOURCE;
-    }
+    public abstract String ofScopes();
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified scope.
@@ -55,11 +50,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public static String ofScope(String scopeName) {
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-
-        return String.format("%s/%s:%s", DOMAIN_PART_SUFFIX, TAG_SCOPE, scopeName);
-    }
+    public abstract String ofScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of streams
@@ -70,9 +61,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public static String ofStreamsInScope(String scopeName) {
-        return ofScope(scopeName);
-    }
+    public abstract String ofStreamsInScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified stream within
@@ -84,10 +73,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public static String ofStreamInScope(String scopeName, String streamName) {
-        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-        return String.format("%s/%s", ofStreamsInScope(scopeName), streamName);
-    }
+    public abstract String ofStreamInScope(String scopeName, String streamName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of reader
@@ -98,10 +84,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public static String ofReaderGroupsInScope(String scopeName) {
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        return scopeName;
-    }
+    public abstract String ofReaderGroupsInScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified reader group
@@ -113,10 +96,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public static String ofReaderGroupInScope(String scopeName, String readerGroupName) {
-        Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
-        return String.format("%s/%s", ofReaderGroupsInScope(scopeName), readerGroupName);
-    }
+    public abstract String ofReaderGroupInScope(String scopeName, String readerGroupName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified KeyValueTable
@@ -128,9 +108,5 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} or {@code kvtName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code kvtName} are empty
      */
-    public static String ofKeyValueTableInScope(String scopeName, String kvtName) {
-        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
-        return String.format("" +
-                "", ofStreamsInScope(scopeName), kvtName);
-    }
+    public abstract String ofKeyValueTableInScope(String scopeName, String kvtName);
 }
