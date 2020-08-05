@@ -613,7 +613,7 @@ public class ZkStreamTest {
         Integer position = stream.getStreamPosition().join();
         assertEquals(0, position.intValue());
         ZKStoreHelper.ZkCacheKey<Integer> key = new ZKStoreHelper.ZkCacheKey<>(stream.getCreationPath(), position.toString(), x -> BitConverter.readInt(x, 0));
-        VersionedMetadata<?> cachedCreationTime = storeHelper.getCache().getCachedData(key).join();
+        VersionedMetadata<?> cachedCreationTime = storeHelper.getCache().getCachedData(key);
         // verify that both timestamps are same
         assertEquals(creationTime, cachedCreationTime.getObject());
         // delete stream.
@@ -634,7 +634,7 @@ public class ZkStreamTest {
         AssertExtensions.assertFutureThrows("Stream deleted", stream.getCreationTime(), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         
         // verify that cached entries still exist. 
-        VersionedMetadata<?> cachedCreationTimeExists = storeHelper.getCache().getCachedData(key).join();
+        VersionedMetadata<?> cachedCreationTimeExists = storeHelper.getCache().getCachedData(key);
         assertEquals(cachedCreationTime.getObject(), cachedCreationTimeExists.getObject());
         
         // create stream again.
@@ -647,7 +647,7 @@ public class ZkStreamTest {
         assertEquals(1, positionNew.intValue());
 
         ZKStoreHelper.ZkCacheKey<Integer> keyNew = new ZKStoreHelper.ZkCacheKey<>(stream.getCreationPath(), positionNew.toString(), x -> BitConverter.readInt(x, 0));
-        VersionedMetadata<?> cachedCreationTimeNew = storeHelper.getCache().getCachedData(keyNew).join();
+        VersionedMetadata<?> cachedCreationTimeNew = storeHelper.getCache().getCachedData(keyNew);
         // verify that both times are different
         assertNotEquals(creationTime, creationTimeNew);
         assertNotEquals(cachedCreationTime.getObject(), cachedCreationTimeNew.getObject());
