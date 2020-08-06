@@ -151,30 +151,29 @@ public class TableMetadataTasks implements AutoCloseable {
      *
      * @param scope      scope.
      * @param kvtName    KeyValueTable name.
-     * @param contextOpt optional context
      * @return delete status.
      */
-    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName,
-                                                                     final KVTOperationContext contextOpt) {
-        final KVTOperationContext context = contextOpt == null ? kvtMetadataStore.createContext(scope, kvtName) : contextOpt;
+    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName) {
         final long requestId = requestTracker.getRequestIdFor("deleteKeyValueTable", scope, kvtName);
-
-        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(
-            kvtMetadataStore.getState(scope, kvtName, false, context, executor),
-            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
-            .thenCompose(state -> {
-                if (KVTableState.UNKNOWN.equals(state)) {
-                    return CompletableFuture.completedFuture(DeleteKVTableStatus.Status.TABLE_NOT_FOUND);
-                }
-                return kvtMetadataStore.getKVTable(scope, kvtName, context).getId()
-                        .thenCompose(id -> {
-                            DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
-                            return eventHelper.addIndexAndSubmitTask(deleteEvent,
-                                    () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
-                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName)))
-                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
+        return RetryHelper.withRetriesAsync(() -> {
+                    KVTOperationContext context = kvtMetadataStore.createContext(scope, kvtName);
+                    return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
+                        .thenCompose(state -> {
+                            if (KVTableState.UNKNOWN.equals(state)) {
+                                return CompletableFuture.completedFuture(DeleteKVTableStatus.Status.TABLE_NOT_FOUND);
+                            } else {
+                                return kvtMetadataStore.getKVTable(scope, kvtName, context).getId()
+                                        .thenCompose(id -> {
+                                            DeleteTableEvent deleteEvent = new DeleteTableEvent(scope, kvtName, requestId, UUID.fromString(id));
+                                            return eventHelper.addIndexAndSubmitTask(deleteEvent,
+                                                    () -> kvtMetadataStore.setState(scope, kvtName, KVTableState.DELETING, context, executor))
+                                                    .thenCompose(x -> eventHelper.checkDone(() -> isDeleted(scope, kvtName, context)))
+                                                    .thenApply(y -> DeleteKVTableStatus.Status.SUCCESS);
+                                        });
+                            }
                         });
-            }), e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
+                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
     }
 
     public CompletableFuture<Void> deleteSegments(String scope, String kvt, Set<Long> segmentsToDelete,
@@ -195,8 +194,8 @@ public class TableMetadataTasks implements AutoCloseable {
                                                 false, delegationToken, requestId), executor));
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName) {
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, null, executor),
+    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN)) {
