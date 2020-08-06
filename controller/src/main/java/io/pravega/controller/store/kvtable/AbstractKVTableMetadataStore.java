@@ -100,7 +100,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
             assert kvt.getName().equals(name);
         } else {
             kvt = cache.getUnchecked(new ImmutablePair<>(scope, name));
-            log.info("GOT KVT from cache: {}/{}", kvt.getScopeName(), kvt.getName());
+            log.debug("Got KVTable from cache: {}/{}", kvt.getScopeName(), kvt.getName());
             kvt.refresh();
         }
         return kvt;
@@ -196,14 +196,15 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
                                                 final String name,
                                                 final KVTOperationContext context,
                                                 final Executor executor) {
-        KeyValueTable kvt = getKVTable(scope, name, context);
-        return Futures.exceptionallyExpecting(kvt.getActiveEpochRecord(true)
-                        .thenApply(epoch -> epoch.getSegments().stream().map(KVTSegmentRecord::getSegmentNumber)
+        KVTOperationContext kvtContext = (context == null) ? createContext(scope, name) : context;
+        return Futures.exceptionallyExpecting(CompletableFuture.completedFuture(getKVTable(scope, name, kvtContext))
+                .thenCompose(kvt -> kvt.getActiveEpochRecord(true))
+                            .thenApply(epoch -> epoch.getSegments().stream().map(KVTSegmentRecord::getSegmentNumber)
                                 .reduce(Integer::max).get())
                         .thenCompose(lastActiveSegment -> recordLastKVTableSegment(scope, name, lastActiveSegment, context, executor)),
                 DATA_NOT_FOUND_PREDICATE, null)
                 .thenCompose(v -> deleteFromScope(scope, name, context, executor))
-                .thenCompose(v -> Futures.completeOn(kvt.delete(), executor))
+                .thenCompose(v -> Futures.completeOn(getKVTable(scope, name, kvtContext).delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
 
