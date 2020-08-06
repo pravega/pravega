@@ -20,7 +20,7 @@ import lombok.Data;
 public class EventWriterConfig implements Serializable {
     
     private static final long serialVersionUID = 1L;
-    private final int initalBackoffMillis;
+    private final int initialBackoffMillis;
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
@@ -51,6 +51,9 @@ public class EventWriterConfig implements Serializable {
     /**
      * Automatically invoke {@link EventStreamWriter#noteTime(long)} passing
      * {@link System#currentTimeMillis()} on a regular interval.
+     *
+     * @param automaticallyNoteTime Interval to regularly invoke {@link EventStreamWriter#noteTime(long)}.
+     * @return Interval to regularly invoke {@link EventStreamWriter#noteTime(long)}.
      */
     private final boolean automaticallyNoteTime;
 
