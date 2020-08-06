@@ -189,7 +189,7 @@ public interface TableStore {
      * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#getKey()} {@link TableKey#hasVersion() hasVersion() } is true and
      * {@link TableEntry#getKey()} {@link TableKey#getVersion()} does not match the Table Entry's Key current Table Version. </li>
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
-     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.<\li>
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@code tableSegmentOffset} and the actual segment length.<\li>
      * </ul>
      */
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout);
@@ -233,7 +233,7 @@ public interface TableStore {
      * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#getVersion()}.
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@param tableSegmentOffset} and the actual segment length.
+     * <li>{@link BadOffsetException} If there is a mismatch between the provided {@code tableSegmentOffset} and the actual segment length.
      * </ul>
      */
     CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout);
@@ -314,7 +314,7 @@ public interface TableStore {
      * @param fromPosition      The position to begin iteration at.
      * @param fetchTimeout      Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableEntry} instances starting at {@param fromPosition}. If the operation failed, the Future will be failed with the
+     * over all the {@link TableEntry} instances starting at {@code fromPosition}. If the operation failed, the Future will be failed with the
      * causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.

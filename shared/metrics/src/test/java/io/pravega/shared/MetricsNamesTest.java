@@ -71,7 +71,7 @@ public class MetricsNamesTest {
 
     @Test
     public void testMetricKeyWithSingleNull() {
-        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", (String) null);
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", null, null);
         assertEquals("metric", keys.getCacheKey());
         assertEquals("metric", keys.getRegistryKey());
     }
