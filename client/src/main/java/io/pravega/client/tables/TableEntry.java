@@ -38,7 +38,7 @@ public class TableEntry<KeyT, ValueT> {
      *
      * @return The value associated to the {@link TableKey}.
      */
-     private final ValueT value;
+    private final ValueT value;
 
     /**
      * Creates a new {@link TableEntry} with no specific version. When used with {@link KeyValueTable#replaceAll}, this
