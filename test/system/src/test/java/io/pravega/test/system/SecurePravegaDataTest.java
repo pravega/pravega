@@ -71,7 +71,7 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
     public void initialize() throws ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
+        URI controllerUri = ensureSecureControllerRunning(zkUri);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
