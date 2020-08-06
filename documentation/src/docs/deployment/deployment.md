@@ -28,8 +28,8 @@ The following prerequisites are required for running Pravega in all modes.
 The following prerequisites are required for running in production. These are only required for running in distributed mode.
 
 - External HDFS 2.7
-- Zookeeper 3.5.4-beta
-- Bookkeeper 4.7.3
+- Zookeeper 3.6.1
+- Bookkeeper 4.9.2
 
 For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
