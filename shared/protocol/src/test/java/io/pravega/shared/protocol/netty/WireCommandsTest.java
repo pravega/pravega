@@ -880,6 +880,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         testCommand(cmd);
     }
 
+    @Test
+    public void testErrorMessage() throws IOException {
+        Class exception = IllegalArgumentException.class;
+        WireCommands.ErrorMessage.ErrorCode code = WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION;
+        WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, testString1, code);
+        testCommand(cmd);
+        assertTrue(cmd.getErrorCode().getExceptionType().equals(exception));
+        assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exception).equals(code));
+    }
+
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
             Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {
         testReleasableCommand(fromBuf, fromStream, getRefCnt, 1);
