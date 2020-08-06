@@ -146,7 +146,6 @@ public abstract class KVTableMetadataStoreTest {
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
         assertTrue(store.checkTableExists(scopeName, kvtName).join());
-
         store.deleteKeyValueTable(scopeName, kvtName, null, executor).get();
         assertFalse(store.checkTableExists(scopeName, kvtName).join());
     }

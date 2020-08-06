@@ -145,7 +145,7 @@ public abstract class TableMetadataTasksTest {
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
 
         // delete KVTable
-        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1, null);
+        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
 
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
@@ -193,7 +193,7 @@ public abstract class TableMetadataTasksTest {
 
         //Delete KVTable times out
         AssertExtensions.assertFutureThrows("delete timedout",
-                kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
+                kvtTasks.deleteKeyValueTable(SCOPE, tableName),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 

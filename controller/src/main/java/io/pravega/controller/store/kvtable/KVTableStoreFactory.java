@@ -13,21 +13,21 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
-
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class KVTableStoreFactory {
 
     public static KVTableMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
-                                                   final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
+                                                   final GrpcAuthHelper authHelper, final ScheduledExecutorService executor,
+                                                   final StreamMetadataStore streamStore) {
         switch (storeClient.getType()) {
             case PravegaTable:
                 return new PravegaTablesKVTMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
             case InMemory:
-                return new InMemoryKVTMetadataStore(executor);
+                return new InMemoryKVTMetadataStore(streamStore, executor);
             case Zookeeper:
                 return new ZookeeperKVTMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             default:
@@ -47,7 +47,7 @@ public class KVTableStoreFactory {
     }
     
     @VisibleForTesting
-    public static KVTableMetadataStore createInMemoryStore(final Executor executor) {
-        return new InMemoryKVTMetadataStore(executor);
+    public static KVTableMetadataStore createInMemoryStore(final StreamMetadataStore streamStore, final ScheduledExecutorService executor) {
+        return new InMemoryKVTMetadataStore(streamStore, executor);
     }
 }

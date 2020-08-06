@@ -32,16 +32,13 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Creat
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
-import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
-import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.EventHelper;
@@ -50,9 +47,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 
 import org.junit.After;
-
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
@@ -103,7 +98,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        this.kvtStore = KVTableStoreFactory.createInMemoryStore(executorService);
+        this.kvtStore = KVTableStoreFactory.createInMemoryStore(streamStore, executorService);
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
@@ -112,9 +107,6 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
         tableEventHelper.setRequestEventWriter(new ControllerEventTableWriterMock(tableRequestHandler, executorService));
-
-        Map<String, InMemoryScope> scopeMap = ((InMemoryStreamMetadataStore) streamStore).getScopes();
-        ((InMemoryKVTMetadataStore) this.kvtStore).setScopes(scopeMap);
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
