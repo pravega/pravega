@@ -756,7 +756,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(final StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.asImpl().getStream();
-        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", stream);
 
         return getSegmentsBetweenStreamCuts(from, StreamCut.UNBOUNDED).whenComplete((x, e) -> {
             if (e != null) {
@@ -781,7 +781,7 @@ public class ControllerImpl implements Controller {
             if (e != null) {
                 log.warn("getSegments for {} failed: ", stream.getStreamName(), e);
             }
-            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+            LoggerHelpers.traceLeave(log, "getSegments", traceId);
         });
     }
 
@@ -840,6 +840,9 @@ public class ControllerImpl implements Controller {
         }).whenComplete((x, e) -> {
                          if (e != null) {
                              log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
+                         }
+                         if (x.getNumberOfSegments() == 0 ) {
+                             log.warn("getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
                          }
                          LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
                      });

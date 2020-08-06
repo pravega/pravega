@@ -386,6 +386,10 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
                     // dont send any response
+                } else if (request.getStream().equals("sealedStream")) {
+                    // empty response if the Stream is sealed.
+                    responseObserver.onNext( SegmentRanges.newBuilder().build());
+                    responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -1159,6 +1163,9 @@ public class ControllerImplTest {
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
         AssertExtensions.assertFutureThrows("Should throw Exception", streamSegments, throwable -> true);
+
+        streamSegments = controllerClient.getCurrentSegments("scope1", "sealedStream");
+        assertTrue(streamSegments.get().getNumberOfSegments() == 0);
     }
 
     @Test
