@@ -23,10 +23,10 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -119,8 +119,12 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Buffer for reading and writing transaction data entries to underlying KV store.
      * This allows lazy storing and avoiding unnecessary load for recently/frequently updated key value pairs.
      */
-    @GuardedBy("lock")
     private final ConcurrentHashMap<String, TransactionData> bufferedTxnData;
+
+    /**
+     * {@link MultiKeyLockManager} instance that manages locks.
+     */
+    private final MultiKeyLockManager lockManager = new MultiKeyLockManager();
 
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
@@ -208,9 +212,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
         // Step 2 : Check whether transaction is safe to commit.
         // This check needs to be atomic, with absolutely no possibility of re-entry
-        val lockWrapper = LockWrapper.writeLock(txn.getKeysToLock());
+        val writeLock = lockManager.writeLock(txn.getKeysToLock());
         try {
-            lockWrapper.lock();
+            writeLock.lock();
             for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
                 String key = entry.getKey();
                 val transactionData = entry.getValue();
@@ -274,7 +278,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             }
             bufferedTxnData.putAll(toAdd);
         } finally {
-            lockWrapper.unlock();
+            writeLock.unlock();
         }
 
         //  Step 5 : evict if required.
@@ -318,12 +322,12 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
 
         // Search in the buffer.
         if (null == data) {
-            val lockWrapper = LockWrapper.readLock(txn.getKeysToLock());
+            val readLock = lockManager.readLock(txn.getKeysToLock());
             try {
-                lockWrapper.lock();
+                readLock.lock();
                 dataFromBuffer = bufferedTxnData.get(key);
             } finally {
-                lockWrapper.unlock();
+                readLock.unlock();
             }
             // If we did not find in buffer then load it from store
             if (null == dataFromBuffer) {
@@ -374,16 +378,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             copyForBuffer.setValue(fromDb.getValue().deepCopy());
         }
         // Put this value in bufferedTxnData buffer.
-        val lockWrapper = LockWrapper.writeLock(key);
+        val writeLock = lockManager.writeLock(key);
         try {
-            lockWrapper.lock();
+            writeLock.lock();
             // If some other transaction beat us then use that value.
             TransactionData oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
             if (oldValue != null) {
                 copyForBuffer = oldValue;
             }
         } finally {
-            lockWrapper.unlock();
+            writeLock.unlock();
         }
         return copyForBuffer;
     }
@@ -539,13 +543,68 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     /**
-     * Helper class to encapsulates lock over group of keys.
+     * Helper class to encapsulates management of locks over group of keys.
      */
-    private static class LockWrapper {
+    static class MultiKeyLockManager {
         /**
-         * Global map to track active locks.
+         * Map to track active locks.
          */
-        private static final HashMap<String, LockData> LOCKS = new HashMap<>();
+        private final HashMap<String, LockData> keyToLockMap = new HashMap<>();
+
+        /**
+         * Creates a LockWrapper for reading.
+         * @param keysToLock Keys to lock.
+         * @return LockWrapper instance.
+         */
+        MultiKeyLock readLock(String... keysToLock) {
+            return new MultiKeyLock(this, true, keysToLock);
+        }
+
+        /**
+         * Creates a LockWrapper for writing.
+         * @param keysToLock Keys to lock.
+         * @return LockWrapper instance.
+         */
+        MultiKeyLock writeLock(String... keysToLock) {
+            return new MultiKeyLock(this, false, keysToLock);
+        }
+
+        private LockData addReference(String key) {
+            LockData lockData;
+            synchronized (keyToLockMap) {
+                lockData = keyToLockMap.get(key);
+                // Add if this is a new key.
+                if (null == lockData) {
+                    lockData = new LockData(new ReentrantReadWriteLock());
+                    keyToLockMap.put(key, lockData);
+                }
+                // Increment ref count.
+                lockData.count++;
+            }
+            return lockData;
+        }
+
+        private void releaseReference(String key) {
+            synchronized (keyToLockMap) {
+                LockData lockData = keyToLockMap.get(key);
+                // Decrement ref count.
+                lockData.count--;
+                // clean up if required.
+                if (0 == lockData.count) {
+                    keyToLockMap.remove(key);
+                }
+            }
+        }
+    }
+
+    /**
+     * Helper class that encapsulates lock over group of keys.
+     */
+    static class MultiKeyLock {
+        /**
+         * {@link MultiKeyLockManager} instance managing this lock.
+         */
+        private final MultiKeyLockManager lockManager;
 
         /**
          * Keys to lock.
@@ -568,33 +627,17 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         private boolean isReadOnly;
 
         /**
-         * Constructs a {@link LockWrapper} instance.
+         * Constructs a {@link MultiKeyLock} instance.
          * @param isReadOnly Whether to acquire read only locks or writable locks.
          * @param keysToLock Keys to lock.
          */
-        LockWrapper(Boolean isReadOnly, String... keysToLock) {
+        MultiKeyLock(MultiKeyLockManager lockManager, Boolean isReadOnly, String... keysToLock) {
             Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
             this.keysToLock = keysToLock;
             this.locks = new Lock[keysToLock.length];
             this.isReadOnly = isReadOnly;
-        }
-
-        /**
-         * Creates a LockWrapper for reading.
-         * @param keysToLock Keys to lock.
-         * @return LockWrapper instance.
-         */
-        static LockWrapper readLock(String... keysToLock) {
-            return new LockWrapper(true, keysToLock);
-        }
-
-        /**
-         * Creates a LockWrapper for writing.
-         * @param keysToLock Keys to lock.
-         * @return LockWrapper instance.
-         */
-        static LockWrapper writeLock(String... keysToLock) {
-            return new LockWrapper(false, keysToLock);
+            this.lockManager = lockManager;
+            Arrays.sort(keysToLock);
         }
 
         /**
@@ -603,17 +646,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         void lock() {
             for (val key: keysToLock) {
                 // Get existing lock.
-                LockData lockData;
-                synchronized (LOCKS) {
-                    lockData = LOCKS.get(key);
-                    // Add if this is a new key.
-                    if (null == lockData) {
-                        lockData = new LockData(new ReentrantReadWriteLock());
-                        LOCKS.put(key, lockData);
-                    }
-                    // Increment ref count.
-                    lockData.count++;
-                }
+                LockData lockData = lockManager.addReference(key);
 
                 // Lock.
                 Lock lock = isReadOnly ? lockData.lock.readLock() : lockData.lock.writeLock();
@@ -628,29 +661,20 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Releases all acquired locks.
          */
         void unlock() {
-            for (int i = 0; i < aquiredLockCount; i++) {
+            for (int i = aquiredLockCount -1; i >= 0; i--) {
                 // Unlock.
                 locks[i].unlock();
 
                 // Update lock data.
-                LockData lockData;
-                synchronized (LOCKS) {
-                    lockData = LOCKS.get(keysToLock[i]);
-                    // Decrement ref count.
-                    lockData.count--;
-                    // clean up if required.
-                    if (0 == lockData.count) {
-                        LOCKS.remove(keysToLock[i]);
-                    }
-                }
+                lockManager.releaseReference(keysToLock[i]);
             }
         }
     }
 
     /**
-     * Data for tracking locks in {@link LockWrapper} .
+     * Data for tracking locks in {@link MultiKeyLockManager} .
      */
-    private static class LockData {
+    static class LockData {
         /**
          * Underlying ReadWriteLock lock.
          */
