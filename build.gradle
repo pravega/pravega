@@ -844,6 +844,7 @@ project('test:system') {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
         commandLine './kubernetes/setupTestPod.sh'
+        args 'optionalPravegaJavaOpts'
     }
 
     task startK8SystemTests(type: Test) {
