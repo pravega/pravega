@@ -49,14 +49,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     @Synchronized
     KeyValueTable newKeyValueTable(String scope, String name) {
-        boolean scopeExists = this.streamStore.scopeExists(name);
-        if (scopeExists) {
-               InMemoryScope kvtScope = (InMemoryScope) this.streamStore.getScope(scope);
-               if (kvtScope.checkTableExists(name)) {
-                 return kvtScope.getKeyValueTable(name);
-               }
-          }
-        return new InMemoryKVTable(scope, name);
+        throw new UnsupportedOperationException();
     }
 
     @Override
