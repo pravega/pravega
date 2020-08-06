@@ -37,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
  * {@link TableSegmentKeyVersion#NOT_EXISTS}.
  *
  * A note about {@link ByteBuf}s. All the methods defined in this interface make use of {@link ByteBuf} either directly
- * or via {@link TableSegmentKey}, {@link TableSegmentEntry}. It is expected that no implementation of the {@link TableSegment}
+ * or via {@link TableSegmentKey}/{@link TableSegmentEntry}. It is expected that no implementation of the {@link TableSegment}
  * interface will either retain ({@link ByteBuf#retain()}) or release ({@link ByteBuf#release()}) these buffers during
  * execution. The lifecycle of these buffers should be maintained externally by the calling code, using the following
  * guidelines:

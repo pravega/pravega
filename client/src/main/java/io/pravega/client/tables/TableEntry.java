@@ -21,6 +21,7 @@ import lombok.ToString;
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type
  */
+@Getter
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
 public class TableEntry<KeyT, ValueT> {
@@ -30,14 +31,14 @@ public class TableEntry<KeyT, ValueT> {
      * @return The content of {@link TableKey}.
      */
     @NonNull
-    @Getter private final TableKey<KeyT> key;
+    private final TableKey<KeyT> key;
 
     /**
      * The Value.
      *
      * @return The value associated to the {@link TableKey}.
      */
-    @Getter private final ValueT value;
+     private final ValueT value;
 
     /**
      * Creates a new {@link TableEntry} with no specific version. When used with {@link KeyValueTable#replaceAll}, this
