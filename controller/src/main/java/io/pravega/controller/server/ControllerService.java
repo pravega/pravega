@@ -150,7 +150,7 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "Scope Name");
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable Name");
         Timer timer = new Timer();
-        return kvtMetadataTasks.deleteKeyValueTable(scope, kvtName, null)
+        return kvtMetadataTasks.deleteKeyValueTable(scope, kvtName)
                 .thenApplyAsync(status -> {
                     reportDeleteKVTableMetrics(scope, kvtName, status, timer.getElapsed());
                     return DeleteKVTableStatus.newBuilder().setStatus(status).build();
