@@ -235,7 +235,6 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         routingKeys.add("2");
         routingKeys.add("3");
         writer1.writeEvent(routingKeys.get(0), "data").get();
-        Stream stream = new StreamImpl(SCOPE, streamName);
         writer1.writeEvent("0", "data").get();
         long start = System.currentTimeMillis();
         log.info("Segments before scale found as: {}", controller.getCurrentSegments(SCOPE, streamName).get());
@@ -371,15 +370,9 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= scalesToPerform,
                 () -> controller.getCurrentSegments(scopeName, streamName)
                         .thenCompose(segments -> {
-                            ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
-                                    .sorted(Comparator.comparingInt(x ->
-                                            NameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
-                                    .collect(Collectors.toList()));
-                            sorted.forEach(t -> {
-                                           log.info("SEGMENT={}", t);
-                            });
-                            listOfEpochs.add(sorted);
-                            Pair<List<Long>, Map<Double, Double>> scaleInput = getScaleInput(sorted);
+                            ArrayList<Segment> currentSegments = new ArrayList<>(segments.getSegments());
+                            listOfEpochs.add(currentSegments);
+                            Pair<List<Long>, Map<Double, Double>> scaleInput = getScaleInput(currentSegments);
                             List<Long> segmentsToSeal = scaleInput.getKey();
                             Map<Double, Double> newRanges = scaleInput.getValue();
 
@@ -400,12 +393,12 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
      * get the parameter for manually scaling the stream to
      * a number of uniformly partitioned segments.
      */
-    Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
-        return new ImmutablePair<>(getSegmentsToSeal(sortedCurrentSegments), getNewRanges());
+    Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> currentSegments) {
+        return new ImmutablePair<>(getSegmentsToSeal(currentSegments), getNewRanges());
     }
 
-    private List<Long> getSegmentsToSeal(ArrayList<Segment> sorted) {
-        return sorted.stream()
+    private List<Long> getSegmentsToSeal(ArrayList<Segment> currentSegments) {
+        return currentSegments.stream()
                 .map(Segment::getSegmentId).collect(Collectors.toList());
     }
 
