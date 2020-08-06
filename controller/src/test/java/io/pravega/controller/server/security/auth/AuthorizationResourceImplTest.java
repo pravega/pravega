@@ -9,31 +9,26 @@
  */
 package io.pravega.controller.server.security.auth;
 
-import static io.pravega.controller.server.security.auth.AuthorizationResourceImpl.DOMAIN_PART_SUFFIX;
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
 
-/**
- * Unit tests for the AuthResourceRepresentation class.
- */
-public class LegacyAuthResourceRepresentationTest {
+import static org.junit.Assert.assertEquals;
 
-    private final LegacyAuthorizationResourceImpl objectUnderTest = new LegacyAuthorizationResourceImpl();
+public class AuthorizationResourceImplTest {
+    private final AuthorizationResourceImpl objectUnderTest = new AuthorizationResourceImpl();
 
     @Test
     public void testOfScopesReturnsValidResourceStr() {
-        assertEquals(DOMAIN_PART_SUFFIX + "/", objectUnderTest.ofScopes());
+        assertEquals("prn::/", objectUnderTest.ofScopes());
     }
 
     @Test
     public void testOfAScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals(DOMAIN_PART_SUFFIX + "/scope:testScopeName", objectUnderTest.ofScope("testScopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofScope("testScopeName"));
     }
 
     @Test
     public void testOfStreamsInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals(DOMAIN_PART_SUFFIX + "/scope:testScopeName", objectUnderTest.ofStreamsInScope("testScopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofStreamsInScope("testScopeName"));
     }
 
     @Test (expected = NullPointerException.class)
@@ -48,7 +43,7 @@ public class LegacyAuthResourceRepresentationTest {
 
     @Test
     public void testOfAStreamInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName/testStreamName",
+        assertEquals("prn::/scope:testScopeName/stream:testStreamName",
                 objectUnderTest.ofStreamInScope("testScopeName", "testStreamName"));
     }
 
@@ -64,12 +59,18 @@ public class LegacyAuthResourceRepresentationTest {
 
     @Test
     public void testOfReaderGroupsInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("scopeName", objectUnderTest.ofReaderGroupsInScope("scopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofReaderGroupsInScope("testScopeName"));
     }
 
     @Test
     public void testOfAReaderGroupInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("scopeName/readerGroupName",
-                objectUnderTest.ofReaderGroupInScope("scopeName", "readerGroupName"));
+        assertEquals("prn::/scope:testScopeName/reader-group:readerGroupName",
+                objectUnderTest.ofReaderGroupInScope("testScopeName", "readerGroupName"));
+    }
+
+    @Test
+    public void testOfAKvtableInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("prn::/scope:testScopeName/key-value-table:kvtName",
+                objectUnderTest.ofKeyValueTableInScope("testScopeName", "kvtName"));
     }
 }

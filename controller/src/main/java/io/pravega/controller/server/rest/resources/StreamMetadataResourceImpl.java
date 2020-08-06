@@ -33,7 +33,7 @@ import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.security.auth.AuthorizationResource;
-import io.pravega.controller.server.security.auth.LegacyAuthorizationResourceImpl;
+import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.security.auth.RESTAuthHelper;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -75,14 +75,13 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     private final RESTAuthHelper restAuthHelper;
     private final LocalController localController;
     private final ConnectionFactory connectionFactory;
-    private final AuthorizationResource authorizationResource;
+    private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
     public StreamMetadataResourceImpl(LocalController localController, ControllerService controllerService, AuthHandlerManager pravegaAuthManager, ConnectionFactory connectionFactory) {
         this.localController = localController;
         this.controllerService = controllerService;
         this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
         this.connectionFactory = connectionFactory;
-        authorizationResource = new LegacyAuthorizationResourceImpl();
     }
 
     /**

@@ -33,43 +33,24 @@ import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.controller.util.Config.PROPERTY_OLD_RESOURCE_FORMAT_ENABLED;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
     private final ConcurrentHashMap<String, AccessControlList> userMap;
     private final StrongPasswordProcessor encryptor;
 
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
     private final boolean isOldAclFormatEnabled;
 
     public PasswordAuthHandler() {
-        userMap = new ConcurrentHashMap<>();
-        encryptor = StrongPasswordProcessor.builder().build();
-        isOldAclFormatEnabled = shouldUseOldAclFormat();
-        log.info("Old resource format is {}", isOldAclFormatEnabled ? "enabled" : "disabled");
+        this(new ConcurrentHashMap<>(), false);
     }
 
     @VisibleForTesting
-    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean areAclsInOldFormat) {
+    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean useAclsInOldFormat) {
         userMap = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
-        isOldAclFormatEnabled = areAclsInOldFormat;
-    }
-
-    private boolean shouldUseOldAclFormat() {
-        String propertyValue = System.getProperty(PROPERTY_OLD_RESOURCE_FORMAT_ENABLED.getName());
-        if (propertyValue == null) {
-            return false;
-        } else {
-            return propertyValue.trim().equalsIgnoreCase("true");
-        }
+        isOldAclFormatEnabled = useAclsInOldFormat;
     }
 
     private void loadPasswordFile(String userPasswordFile) {
@@ -157,7 +138,9 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     private Permissions authorizeForUser(AccessControlList accessControlList, String resource) {
-        return AclAuthorizer.instance(this.isOldAclFormatEnabled).authorize(accessControlList, resource);
+        AclAuthorizer aclAuthorizer = this.isOldAclFormatEnabled ? AclAuthorizer.legacyAuthorizerInstance() :
+                AclAuthorizer.instance();
+        return aclAuthorizer.authorize(accessControlList, resource);
     }
 
     private List<AccessControlEntry> getAcls(String aclString) {
@@ -176,8 +159,6 @@ public class PasswordAuthHandler implements AuthHandler {
                     Permissions.valueOf(aclVal));
         }).collect(Collectors.toList());
     }
-
-
 }
 
 

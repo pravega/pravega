@@ -43,7 +43,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
-import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -200,8 +199,7 @@ public class ControllerGrpcAuthFocusedTest {
                 authHelper,
                 requestTracker,
                 true,
-                2,
-                AuthorizationResource.create(true));
+                2);
 
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
         authHandler.initialize(AUTH_FILE.getAbsolutePath());

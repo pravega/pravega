@@ -16,29 +16,125 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static io.pravega.controller.server.security.auth.AuthorizationResourceImpl.DOMAIN_PART_SUFFIX;
 import static org.junit.Assert.assertEquals;
 
 public class NewFormatAclAuthorizerTest {
-
     private final static String DUMMY_ENCRYPTED_PWD = "Dummy encrypted value";
-
-    private AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
+    private AuthorizationResource resource = new AuthorizationResourceImpl();
 
     @Test
     public void testSuperUserAcl() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry(DOMAIN_PART_SUFFIX + "*", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("prn::*", AuthHandler.Permissions.READ_UPDATE)
         ));
 
         NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, authorizationResource.ofScopes()));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, authorizationResource.ofScope("testScope")));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, authorizationResource.ofStreamInScope("testScope", "testStream")));
 
-        /*assertTrue("pravega::/".matches(aceResourcePattern));
-        assertTrue("pravega::/scope:testscope".matches(aceResourcePattern));
-        assertTrue("pravega::/scope:testscope/stream:teststream".matches(aceResourcePattern));
-        assertTrue("pravega::/scope:testscope/readerGroup:testrg".matches(aceResourcePattern));*/
+        // Root resource
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
+
+        // Specific resources
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testScope")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofStreamInScope("testScope", "testStream")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofReaderGroupInScope("testScope", "testRgt")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofKeyValueTableInScope("testScope", "testKvt")));
+    }
+
+    @Test
+    public void testUserWithCreateScopeAccess() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
+    }
+
+    @Test
+    public void testUserWithAccessToASpecificScope() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/scope:testscope", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope")));
+    }
+
+    @Test
+    public void testUserWithAccessToAllScopes() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/scope:*", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope1")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope2")));
+    }
+
+    @Test
+    public void testUserWithAccessToAllDirectAndIndirectChildrenOfRoot() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/*", AuthHandler.Permissions.READ)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope1")));
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope2")));
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofStreamInScope(
+                "testscope", "teststream")));
+    }
+
+    @Test
+    public void testUserWithAccessToAllDirectAndIndirectChildrenOfScope() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/scope:abcscope/*", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+
+        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("abcscope")));
+        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("xyzscope")));
+
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "stream123")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "stream456")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofReaderGroupInScope("abcscope", "rg123")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofKeyValueTableInScope("abcscope", "kvt123")));
+
+        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl,
+                resource.ofStreamInScope("xyzscope", "stream123")));
+    }
+
+    @Test
+    public void testUserWithAccessToStreamPatternsInASpecificScope() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/scope:abcscope/stream:str*", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "str123")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "streaMMMMMMMMMMM")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "str")));
+    }
+
+    @Test
+    public void testUserWithAccessToStreamPatternsInAnyScope() {
+        AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
+                new AccessControlEntry("prn::/scope:*/stream:mystream", AuthHandler.Permissions.READ_UPDATE)
+        ));
+
+        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("abcscope", "mystream")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("mnoscope", "mystream")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
+                resource.ofStreamInScope("xyzscope", "mystream")));
     }
 }

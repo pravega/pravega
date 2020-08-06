@@ -16,12 +16,12 @@ abstract class AclAuthorizer {
     private final static NewFormatAclAuthorizer AUTHORIZER_FOR_NEW_FORMAT = new NewFormatAclAuthorizer();
     private final static OldFormatAclAuthorizer AUTHORIZER_FOR_LEGACY_FORMAT = new OldFormatAclAuthorizer();
 
-    static AclAuthorizer instance(boolean isOldAclAuthorizer) {
-        if (isOldAclAuthorizer) {
-            return AUTHORIZER_FOR_LEGACY_FORMAT;
-        } else {
-            return AUTHORIZER_FOR_NEW_FORMAT;
-        }
+    static AclAuthorizer legacyAuthorizerInstance() {
+        return AUTHORIZER_FOR_LEGACY_FORMAT;
+    }
+
+    static AclAuthorizer instance() {
+        return AUTHORIZER_FOR_NEW_FORMAT;
     }
 
     abstract AuthHandler.Permissions authorize(AccessControlList accessControlList, String resource);

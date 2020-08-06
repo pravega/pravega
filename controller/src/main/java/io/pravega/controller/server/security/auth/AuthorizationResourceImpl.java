@@ -16,8 +16,9 @@ public class AuthorizationResourceImpl extends AuthorizationResource {
     private static final String TAG_SCOPE = "scope";
     private static final String TAG_STREAM = "stream";
     private static final String TAG_READERGROUP = "reader-group";
+    private static final String TAG_KEYVALUETABLE = "key-value-table";
 
-    private static final String ROOT_RESOURCE = String.format("%s/%s", DOMAIN_PART_SUFFIX, "/");
+    private static final String ROOT_RESOURCE = String.format("%s/", DOMAIN_PART_SUFFIX);
 
     @Override
     public String ofScopes() {
@@ -37,21 +38,27 @@ public class AuthorizationResourceImpl extends AuthorizationResource {
 
     @Override
     public String ofStreamInScope(String scopeName, String streamName) {
-        return null;
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_STREAM, streamName);
     }
 
     @Override
     public String ofReaderGroupsInScope(String scopeName) {
-        return null;
+        return ofScope(scopeName);
     }
 
     @Override
     public String ofReaderGroupInScope(String scopeName, String readerGroupName) {
-        return null;
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_READERGROUP, readerGroupName);
     }
 
     @Override
-    public String ofKeyValueTableInScope(String scopeName, String kvtName) {
-        return null;
+    public String ofKeyValueTableInScope(String scopeName, String keyValueTableName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_KEYVALUETABLE, keyValueTableName);
     }
 }

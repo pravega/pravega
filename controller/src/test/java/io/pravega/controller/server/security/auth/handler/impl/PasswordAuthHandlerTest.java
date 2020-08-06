@@ -13,7 +13,6 @@ import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
-import io.pravega.controller.util.Config;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import org.junit.Test;
@@ -26,57 +25,19 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the password-based auth handler plugin.
  */
 public class PasswordAuthHandlerTest {
 
-    private static final String IS_OLD_ACL_FORMAT_PROP =
-            Config.PROPERTY_OLD_RESOURCE_FORMAT_ENABLED.getFullName(Config.COMPONENT_CODE);
 
     private final StrongPasswordProcessor encrypter = StrongPasswordProcessor.builder().build();
     private final Base64.Encoder base64Encoder = Base64.getEncoder();
 
 
     //region Tests verifying authentication
-
-    @Test
-    public void setsNewAclFormatByDefault() {
-        assertFalse(new PasswordAuthHandler().isOldAclFormatEnabled());
-    }
-
-    @Test
-    public void setsOldAclFormatIfConfigured() {
-        try {
-            System.setProperty(IS_OLD_ACL_FORMAT_PROP, "tRUe");
-            assertTrue(new PasswordAuthHandler().isOldAclFormatEnabled());
-        } finally {
-            System.clearProperty(IS_OLD_ACL_FORMAT_PROP);
-        }
-    }
-
-    @Test
-    public void setsNewAclFormatIfConfigured() {
-        try {
-            System.setProperty(IS_OLD_ACL_FORMAT_PROP, "faLSe");
-            assertTrue(new PasswordAuthHandler().isOldAclFormatEnabled());
-        } finally {
-            System.clearProperty(IS_OLD_ACL_FORMAT_PROP);
-        }
-    }
-
-    @Test
-    public void test() {
-        System.setProperty("security.auth.resource.oldFormat.enable", "true");
-        PasswordAuthHandler authHandler = new PasswordAuthHandler();
-        //authHandler.authorize("123", null);
-    }
-
-    //public void
 
     @Test
     public void authenticatesValidUserSuccessfully() {

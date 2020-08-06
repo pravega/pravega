@@ -26,14 +26,6 @@ package io.pravega.controller.server.security.auth;
  */
 public abstract class AuthorizationResource {
 
-    public static AuthorizationResource create(boolean useLegacyFormat) {
-        if (useLegacyFormat) {
-            return new AuthorizationResourceImpl();
-        } else {
-            return new LegacyAuthorizationResourceImpl();
-        }
-    }
-
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of scopes
      * in the system.

@@ -24,8 +24,8 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.AuthorizationResource;
+import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.LegacyAuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
@@ -113,10 +113,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
      */
     private final int pageLimit;
 
-    private final AuthorizationResource authorizationResource;
+    private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
     public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, PAGE_LIMIT, new LegacyAuthorizationResourceImpl());
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, PAGE_LIMIT);
     }
 
     @Override

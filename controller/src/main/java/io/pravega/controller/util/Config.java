@@ -45,7 +45,6 @@ import lombok.val;
 @Slf4j
 public final class Config {
 
-
     //region Property Definitions
     public static final String NULL_VALUE = "{null}";
     public static final Property<Integer> PROPERTY_CONTAINER_COUNT =
@@ -107,9 +106,6 @@ public final class Config {
 
     public static final Property<String> PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE = Property.named(
             "security.pwdAuthHandler.accountsDb.location", "", "auth.userPasswordFile");
-
-    public static final Property<Boolean> PROPERTY_OLD_RESOURCE_FORMAT_ENABLED = Property.named(
-            "security.auth.resource.oldFormat.enable", false);
 
     public static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named(
             "security.auth.delegationToken.signingKey.basis", "", "auth.tokenSigningKey");
@@ -188,7 +184,7 @@ public final class Config {
 
     public static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
-    
+
     public static final String COMPONENT_CODE = "controller";
 
     //endregion
@@ -223,7 +219,6 @@ public final class Config {
     public static final String TOKEN_SIGNING_KEY;
     public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
     public static final String TLS_ENABLED_FOR_SEGMENT_STORE;
-    public static final boolean OLD_RESOURCE_FORMAT_ENABLED;
 
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
@@ -270,7 +265,7 @@ public final class Config {
 
     // Print stack trace for all threads during shutdown
     public static final boolean DUMP_STACK_ON_SHUTDOWN;
-    
+
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
@@ -303,7 +298,6 @@ public final class Config {
         USER_PASSWORD_FILE = p.get(PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
         ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
-        OLD_RESOURCE_FORMAT_ENABLED = p.getBoolean(PROPERTY_OLD_RESOURCE_FORMAT_ENABLED);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
