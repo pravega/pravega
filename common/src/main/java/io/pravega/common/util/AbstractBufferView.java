@@ -79,7 +79,7 @@ public abstract class AbstractBufferView implements BufferView {
     protected static abstract class AbstractReader implements BufferView.Reader {
         /**
          * {@inheritDoc}
-         * Default implementation for {@link Reader#readInt()}. Derived classes should make every effort to override this
+         * Default implementation for {@code Reader#readInt()}. Derived classes should make every effort to override this
          * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
          *
          * @return The read int.
@@ -92,7 +92,7 @@ public abstract class AbstractBufferView implements BufferView {
 
         /**
          * {@inheritDoc}
-         * Default implementation for {@link Reader#readLong()}. Derived classes should make every effort to override this
+         * Default implementation for {@code Reader#readLong()}. Derived classes should make every effort to override this
          * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
          *
          * @return The read int.

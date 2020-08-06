@@ -125,7 +125,7 @@ public interface RevisionDataInput extends DataInput {
      * {@link RevisionDataOutput#writeCollection}.
      *
      * @param elementDeserializer  A Function that will decode a single element of the Collection from the given RevisionDataInput.
-     * @param newCollectionBuilder A {@link ImmutableCollection.Builder} that will create a new instance of the
+     * @param newCollectionBuilder A {@code ImmutableCollection.Builder} that will create a new instance of the
      *                             {@link ImmutableCollection} of desired type.
      * @param <T>                  Type of the elements in the Collection.
      * @param <C>                  Type of the Collection whose builder needs to be populated.
@@ -204,7 +204,7 @@ public interface RevisionDataInput extends DataInput {
      *
      * @param keyDeserializer   A Function that will decode a single Key of the Map from the given RevisionDataInput.
      * @param valueDeserializer A Function that will decode a single Value of the Map from the given RevisionDataInput.
-     * @param newMapBuilder     An {@link ImmutableMap.Builder} that will create a new instance of the {@link ImmutableMap}
+     * @param newMapBuilder     An {@code ImmutableMap.Builder} that will create a new instance of the {@link ImmutableMap}
      *                          type desired.
      * @param <K>               Type of the Keys in the Map.
      * @param <V>               Type of the Values in the Map.
