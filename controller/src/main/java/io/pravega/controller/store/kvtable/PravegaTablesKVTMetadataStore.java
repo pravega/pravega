@@ -46,7 +46,8 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     private final ScheduledExecutorService executor;
 
     @VisibleForTesting
-    PravegaTablesKVTMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
+    PravegaTablesKVTMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient,
+                                  ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
@@ -79,7 +80,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                             DELETED_KVTABLES_TABLE, key, x -> BitConverter.readInt(x, 0)),
                             null)
                             .thenCompose(existing -> {
-                                log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, kvtable);
+                                log.debug("Recording last segment {} for KeyValueTable {}/{} on deletion.", lastActiveSegment, scope, kvtable);
                                 if (existing != null) {
                                     final int oldLastActiveSegment = existing.getObject();
                                     Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
