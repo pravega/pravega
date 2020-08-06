@@ -18,6 +18,7 @@ import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -52,5 +53,16 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
                 )
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
+    }
+
+    /**
+     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments, and segments are let
+     * to be flushed to the long term storage. And then just using the long persisted storage, debug segment container
+     * registers all the segments.
+     * @throws Exception If an exception occurred.
+     */
+    @Test
+    public void testDataRecovery() throws Exception {
+        endToEndDebugSegmentContainer();
     }
 }

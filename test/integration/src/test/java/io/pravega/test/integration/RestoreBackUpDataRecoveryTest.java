@@ -36,7 +36,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.DataRecoveryTestUtils;
+import io.pravega.segmentstore.server.containers.DataRecovery;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.SegmentsTracker;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
@@ -405,10 +405,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, CONTAINER_ID);
+        DataRecovery.deleteContainerMetadataSegments(storage, CONTAINER_ID);
 
         // List segments and recover them
-        DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+        DataRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
         // Wait for metadata segment to be flushed to LTS
         String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);

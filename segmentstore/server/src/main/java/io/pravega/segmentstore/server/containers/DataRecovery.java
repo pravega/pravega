@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server;
+package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
@@ -18,7 +18,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -45,7 +44,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  * Utility methods for data recovery tests.
  */
 @Slf4j
-public class DataRecoveryTestUtils {
+public class DataRecovery {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
@@ -61,12 +60,10 @@ public class DataRecoveryTestUtils {
         log.info("Recovery started for all containers...");
         Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
         for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
-
+            // Add all segments present in the container metadata in a set for each debug segment container instance.
             ContainerTableExtension ext = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
             AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getKey()),
                     IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-            // Add all segments present in the container metadata in a set.
             Set<String> metadataSegments = new HashSet<>();
             it.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
                     .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -129,13 +126,13 @@ public class DataRecoveryTestUtils {
             val streamSegmentInfo = container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
                     .thenAccept(e -> {
                         if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
-                            container.deleteStreamSegment(segmentName, TIMEOUT).join();
-                            container.registerExistingSegment(segmentName, segmentLength, isSealed).join();
+                            container.deleteSegment(segmentName, TIMEOUT).join();
+                            container.registerSegment(segmentName, segmentLength, isSealed).join();
                         }
                     });
 
             Futures.exceptionallyComposeExpecting(streamSegmentInfo, ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException,
-                    () -> container.registerExistingSegment(segmentName, segmentLength, isSealed)).join();
+                    () -> container.registerSegment(segmentName, segmentLength, isSealed)).join();
         }
     }
 

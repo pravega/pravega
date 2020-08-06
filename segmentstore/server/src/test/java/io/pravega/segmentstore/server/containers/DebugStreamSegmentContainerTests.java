@@ -14,7 +14,6 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.DataRecoveryTestUtils;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -165,18 +164,24 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentSealedStatus[i] = RANDOM.nextBoolean();
             String name = "Segment_" + i;
             segments.add(name);
-            futures.add(localContainer.registerExistingSegment(name, segmentLengths[i], segmentSealedStatus[i]));
+            futures.add(localContainer.registerSegment(name, segmentLengths[i], segmentSealedStatus[i]));
         }
         // Creates all the segments.
         Futures.allOf(futures).join();
         log.info("Created the segments using debug segment container.");
 
+        ArrayList<CompletableFuture<Boolean>> opFutures = new ArrayList<>();
         // Verify the Segments are still there with their length & sealed status.
         for (int i = 0; i < createdSegmentCount; i++) {
             SegmentProperties props = localContainer.getStreamSegmentInfo(segments.get(i), TIMEOUT).join();
             Assert.assertEquals("Segment length mismatch ", segmentLengths[i], props.getLength());
             Assert.assertEquals("Segment sealed status mismatch", segmentSealedStatus[i], props.isSealed());
+            opFutures.add(localContainer.deleteSegment(segments.get(i), TIMEOUT));
         }
+        // Deletes all the segments.
+        Futures.allOf(opFutures).join();
+
+        // Stop the debug segment container.
         localContainer.stopAsync().awaitTerminated();
     }
 
@@ -247,7 +252,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         log.info("Recover all segments using the storage and debug segment containers.");
-        DataRecoveryTestUtils.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
+        DataRecovery.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
 
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < containerCount; containerId++) {

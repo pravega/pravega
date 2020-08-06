@@ -54,8 +54,13 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     }
 
     @Override
-    public CompletableFuture<Void> registerExistingSegment(String streamSegmentName, long length, boolean isSealed) {
+    public CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed) {
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteSegment(String segmentName, Duration timeout) {
+        return metadataStore.deleteSegment(segmentName, timeout);
     }
 }

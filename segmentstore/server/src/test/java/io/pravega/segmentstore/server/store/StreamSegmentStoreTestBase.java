@@ -31,7 +31,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.server.DataRecoveryTestUtils;
+import io.pravega.segmentstore.server.containers.DataRecovery;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
@@ -177,17 +177,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments, and segments are let
-     * to be flushed to the long term storage. And then just using the long persisted storage, debug segment container
-     * registers all the segments.
-     * @throws Exception If an exception occurred.
-     */
-    @Test
-    public void testDataRecovery() throws Exception {
-        endToEndDebugSegmentContainer();
-    }
-
-    /**
      * End to end test to verify DebugSegmentContainer process.
      * @throws Exception If an exception occurred.
      */
@@ -232,7 +221,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                DataRecoveryTestUtils.deleteContainerMetadataSegments(storage, containerId);
+                DataRecovery.deleteContainerMetadataSegments(storage, containerId);
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
@@ -244,7 +233,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             // Recover all segments from the long term storage using debug segment container.
-            DataRecoveryTestUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+            DataRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
             // Verify that segment details match post recovery.
             SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);

@@ -77,15 +77,6 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 
-    /**
-     * This method intentionally left blank as it's out of concern for ExtendedS3 Storage.
-     * Link to the issue: https://github.com/pravega/pravega/issues/4970
-     * It must be here as it is defined as abstract method in super class.
-     */
-    @Override
-    public void testDataRecovery() {
-    }
-
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
         protected final ExtendedS3StorageConfig config;
