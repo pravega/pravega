@@ -36,7 +36,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.containers.DataRecovery;
+import io.pravega.segmentstore.server.containers.SegmentsRecovery;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.SegmentsTracker;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
@@ -385,7 +385,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         this.dataLogFactory.initialize();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
-        // Create the environment for DebugSegmentContainer using the given storageFactory.
+        // Create the environment for DebugSegmentContainer.
         @Cleanup
         DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
         // Use dataLogFactory from new BK instance.
@@ -395,7 +395,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
 
-        // Recover all segments belonging to the given debug segment container
+        // Create a debug segment container instance using a new dataLog and old storage.
         DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer(CONTAINER_ID, CONTAINER_CONFIG, localDurableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
@@ -405,10 +405,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        DataRecovery.deleteContainerMetadataSegments(storage, CONTAINER_ID);
+        SegmentsRecovery.deleteContainerMetadataSegments(storage, CONTAINER_ID);
 
-        // List segments and recover them
-        DataRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+        // List segments from storage and recover them using debug segment container instance.
+        SegmentsRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
         // Wait for metadata segment to be flushed to LTS
         String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);

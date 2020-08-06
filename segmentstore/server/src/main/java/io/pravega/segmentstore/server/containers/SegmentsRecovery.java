@@ -41,10 +41,10 @@ import java.util.stream.Collectors;
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
 /**
- * Utility methods for data recovery tests.
+ * Utility methods for data recovery.
  */
 @Slf4j
-public class DataRecovery {
+public class SegmentsRecovery {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
@@ -59,13 +59,15 @@ public class DataRecovery {
                                           ExecutorService executorService) throws Exception {
         log.info("Recovery started for all containers...");
         Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
+
+        // Add all segments present in the container metadata in a set for each debug segment container instance.
         for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
-            // Add all segments present in the container metadata in a set for each debug segment container instance.
-            ContainerTableExtension ext = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
-            AsyncIterator<IteratorItem<TableKey>> it = ext.keyIterator(getMetadataSegmentName(debugStreamSegmentContainer.getKey()),
-                    IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            ContainerTableExtension tableExtension = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
+            AsyncIterator<IteratorItem<TableKey>> keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+                    debugStreamSegmentContainer.getKey()), IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(),
+                    TimeUnit.MILLISECONDS);
             Set<String> metadataSegments = new HashSet<>();
-            it.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
+            keyIterator.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
                     .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsByContainer.put(debugStreamSegmentContainer.getValue(), metadataSegments);
         }

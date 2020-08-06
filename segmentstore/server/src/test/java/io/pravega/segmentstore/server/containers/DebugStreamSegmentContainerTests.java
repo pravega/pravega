@@ -132,10 +132,10 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * It tests the ability to register an existing segment using debug segment container. Method registerExistingSegment
-     * is tested here.
+     * It tests the ability to register an existing segment and delete it using debug segment container. Methods
+     * registerSegment and deleteSegment in {@link DebugStreamSegmentContainer} are tested here.
      * The test starts a debug segment container and creates some segments using it and then verifies if the segments
-     * were created successfully.
+     * were created successfully and then deletes them.
      */
     @Test
     public void testRegisterExistingSegment() {
@@ -170,16 +170,16 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(futures).join();
         log.info("Created the segments using debug segment container.");
 
-        ArrayList<CompletableFuture<Boolean>> opFutures = new ArrayList<>();
         // Verify the Segments are still there with their length & sealed status.
         for (int i = 0; i < createdSegmentCount; i++) {
             SegmentProperties props = localContainer.getStreamSegmentInfo(segments.get(i), TIMEOUT).join();
             Assert.assertEquals("Segment length mismatch ", segmentLengths[i], props.getLength());
             Assert.assertEquals("Segment sealed status mismatch", segmentSealedStatus[i], props.isSealed());
-            opFutures.add(localContainer.deleteSegment(segments.get(i), TIMEOUT));
+
+            // Delete each of the segment at the end.
+            boolean deleted = localContainer.deleteSegment(segments.get(i), TIMEOUT).join();
+            Assert.assertTrue("deleteSegment() returned false for existing segment: " + segments.get(i), deleted);
         }
-        // Deletes all the segments.
-        Futures.allOf(opFutures).join();
 
         // Stop the debug segment container.
         localContainer.stopAsync().awaitTerminated();
@@ -252,7 +252,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         log.info("Recover all segments using the storage and debug segment containers.");
-        DataRecovery.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
+        SegmentsRecovery.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
 
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < containerCount; containerId++) {

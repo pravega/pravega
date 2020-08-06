@@ -704,7 +704,7 @@ public abstract class MetadataStore implements AutoCloseable {
                     .build();
         }
 
-        // registerExistingSegment in DebugStreamSegmentContainer uses this method to get SegmentInfo
+        // Used by DebugStreamSegmentContainer to get SegmentInfo while registering a segment.
         static ArrayView recoveredSegment(String streamSegmentName, long length, boolean isSealed) {
             StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
                     .name(streamSegmentName)
