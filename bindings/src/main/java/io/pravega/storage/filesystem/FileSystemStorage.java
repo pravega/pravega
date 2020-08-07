@@ -480,6 +480,25 @@ public class FileSystemStorage implements SyncStorage {
 
     //region FileSystemStorageWithReplace
 
+    /**
+     * {@link FileSystemStorage} implementation with "atomic" replace support.
+     *
+     * The {@link #replace} method works as follows:
+     * 1. Creates a new temporary file and writes the replacement contents in it.
+     * 2. Attempts to atomically rename (move) the temp file back into the original file. If unable to, deletes the original
+     * file and then renames it.
+     *
+     * Since there is no guarantee that this operation is atomic, all methods have an auto-recovery built-in, which works
+     * as follows:
+     * 1. If the requested segment file does exist, everything works as in {@link FileSystemStorage}. Even if there exist
+     * a temporary file, the sole existence of the base file indicates that we had an interrupted execution of {@link #replace},
+     * so we cannot rely on that temporary file's existence.
+     * 2. If the requested segment file does not exist, and there exists an associated temporary file, then the temporary
+     * file is renamed back into the original file. This is safe because we only delete the original file after we have
+     * fully written the temp file, so the latter contains all the data we wish to include.
+     * 3. If neither the segment file nor the associated temp file exist, then a {@link StreamSegmentNotExistsException}
+     * is thrown.
+     */
     @VisibleForTesting
     static class FileSystemStorageWithReplace extends FileSystemStorage {
         @VisibleForTesting
