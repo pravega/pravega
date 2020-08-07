@@ -702,20 +702,20 @@ public class ControllerGrpcAuthFocusedTest {
 
             try (FileWriter writer = new FileWriter(result.getAbsolutePath())) {
                 String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
-                writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_READ, defaultPassword, "/,READ;scope1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_3_READ, defaultPassword, "/,READ;scope1,READ;scope3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "scope2,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ;scope1/stream3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ;scope1/_kvtable/table3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "prn::*,READ_UPDATE;"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "prn::/,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_READ, defaultPassword, "prn::/,READ;prn::/scope:scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_3_READ, defaultPassword, "prn::/,READ;prn::/scope:scope1,READ;prn::/scope:scope3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "prn::/scope:scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "prn::/scope:scope2,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "prn::/scope:scope1/stream:stream1,READ_UPDATE"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "prn::/scope:scope1/stream:stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "prn::/scope:scope1/stream:stream2,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ;prn::/scope:scope1/stream:stream3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ;prn::/scope:scope1/key-value-table:table3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "prn::/scope:scope1,READ"));
             }
             return result;
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
