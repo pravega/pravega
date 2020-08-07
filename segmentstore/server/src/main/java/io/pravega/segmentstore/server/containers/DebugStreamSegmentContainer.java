@@ -58,9 +58,4 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
     }
-
-    @Override
-    public CompletableFuture<Boolean> deleteSegment(String segmentName, Duration timeout) {
-        return metadataStore.deleteSegment(segmentName, timeout);
-    }
 }

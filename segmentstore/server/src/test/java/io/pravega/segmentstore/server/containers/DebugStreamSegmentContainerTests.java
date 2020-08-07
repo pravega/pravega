@@ -132,10 +132,10 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * It tests the ability to register an existing segment and delete it using debug segment container. Methods
-     * registerSegment and deleteSegment in {@link DebugStreamSegmentContainer} are tested here.
+     * It tests the ability to register an existing segment(segment existing only in Long-Term Storage) using debug
+     * segment container. Method registerSegment in {@link DebugStreamSegmentContainer} is tested here.
      * The test starts a debug segment container and creates some segments using it and then verifies if the segments
-     * were created successfully and then deletes them.
+     * were created successfully.
      */
     @Test
     public void testRegisterExistingSegment() {
@@ -175,13 +175,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             SegmentProperties props = localContainer.getStreamSegmentInfo(segments.get(i), TIMEOUT).join();
             Assert.assertEquals("Segment length mismatch ", segmentLengths[i], props.getLength());
             Assert.assertEquals("Segment sealed status mismatch", segmentSealedStatus[i], props.isSealed());
-
-            // Delete each of the segment at the end.
-            boolean deleted = localContainer.deleteSegment(segments.get(i), TIMEOUT).join();
-            Assert.assertTrue("deleteSegment() returned false for existing segment: " + segments.get(i), deleted);
         }
-
-        // Stop the debug segment container.
         localContainer.stopAsync().awaitTerminated();
     }
 

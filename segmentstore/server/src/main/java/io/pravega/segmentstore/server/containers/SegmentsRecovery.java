@@ -128,7 +128,7 @@ public class SegmentsRecovery {
             val streamSegmentInfo = container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
                     .thenAccept(e -> {
                         if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
-                            container.deleteSegment(segmentName, TIMEOUT).join();
+                            container.metadataStore.deleteSegment(segmentName, TIMEOUT).join();
                             container.registerSegment(segmentName, segmentLength, isSealed).join();
                         }
                     });

@@ -8,7 +8,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -26,14 +25,4 @@ public interface DebugSegmentContainer extends SegmentContainer {
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed);
-
-    /**
-     * Deletes a segment from segment container metadata along with its details.
-     * @param segmentName               Name of the segment to be deleted.
-     * @param timeout                   Timeout for the operation.
-     * @return                          A CompletableFuture that, when completed normally, will contain a Boolean indicating
-     * whether  the Segment has been deleted (true means there was a Segment to delete, false means there was no segment
-     * to delete). If the operation failed, this will contain the exception that caused the failure.
-     */
-    CompletableFuture<Boolean> deleteSegment(String segmentName, Duration timeout);
 }
