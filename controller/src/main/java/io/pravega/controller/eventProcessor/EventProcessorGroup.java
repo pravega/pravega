@@ -9,13 +9,11 @@
  */
 package io.pravega.controller.eventProcessor;
 
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.EventStreamWriter;
 import com.google.common.util.concurrent.Service;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -45,17 +43,4 @@ public interface EventProcessorGroup<T extends ControllerEvent> extends Service,
      * @throws CheckpointStoreException on error accessing or updating checkpoint store.
      */
     Set<String> getProcesses() throws CheckpointStoreException;
-
-    /**
-     * Gets the checkpoints for all event processor cells in the event processor group into a consolidated map. 
-     * During a rebalance event, if previous reader (event processor cell) has relinquished a segment and 
-     * new reader (event processor cell) has attained it, it is possible that very briefly, 
-     * the old cell is yet to be removed from the event processor group. 
-     * If getSegments is requested during this small window, the same segment may be found in both their checkpoints 
-     * (very unlikely because new reader would not have had a need to checkpoint within that brief period). 
-     * However, the consolidation step will take the larger offset of the two for same segment found across different cells.  
-     * 
-     * @return A map of segment to offset for all no... 
-     */
-    Map<Segment, Long> getCheckpoint();
 }

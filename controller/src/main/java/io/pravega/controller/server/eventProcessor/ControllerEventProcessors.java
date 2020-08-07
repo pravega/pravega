@@ -13,10 +13,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -58,10 +59,11 @@ import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -85,10 +87,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     public static final EventSerializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new EventSerializer<>();
 
     // Retry configuration
-    static final String STREAM_REQUEST_EP = "streamRequestEP";
-    static final String COMMIT_TXN_EP = "commitTxnEP";
-    static final String ABORT_TXN_EP = "abortTxnEP";
-    static final String KVT_REQUEST_EP = "kvtRequestEP";
     private static final long DELAY = 100;
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
@@ -305,34 +303,58 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
             long delay = truncationInterval.get();
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(requestEventProcessors, streamMetadataTasks, STREAM_REQUEST_EP), delay, executor), executor);
+                    () -> truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks), delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(commitEventProcessors, streamMetadataTasks, COMMIT_TXN_EP), delay, executor), executor);
+                    () -> truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks), delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(abortEventProcessors, streamMetadataTasks, ABORT_TXN_EP), delay, executor), executor);
+                    () -> truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks), delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(kvtRequestEventProcessors, streamMetadataTasks, KVT_REQUEST_EP), delay, executor), executor);
+                    () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks), delay, executor), executor);
         }, executor);
     }
 
     @VisibleForTesting
-    CompletableFuture<Void> truncate(EventProcessorGroup<?> grp, StreamMetadataTasks streamMetadataTasks, 
-                                             String eventProcName) {
-        return Futures.exceptionallyExpecting(
-                Futures.allOf(grp.getCheckpoint().entrySet().stream().map(entry -> {
-                    Segment segment = entry.getKey();
-                    String scope = segment.getScope();
-                    String stream = segment.getStreamName();
-                    return streamMetadataTasks.notifyTruncateSegment(scope, stream, 
-                            new AbstractMap.SimpleEntry<>(segment.getSegmentId(), entry.getValue()),
-                            streamMetadataTasks.retrieveDelegationToken(), 0L);
-                }).collect(Collectors.toList())), e -> {
-                    log.warn("Failure while attempting to truncate event processor {}'s segments. Error message {}", 
-                            eventProcName, Exceptions.unwrap(e).getMessage());
-                    return true;
-                }, null);
+    CompletableFuture<Void> truncate(String streamName, String readergroupName, StreamMetadataTasks streamMetadataTasks) {
+        try {
+            Map<String, Position> positions = new HashMap<>();
+            for (String process : checkpointStore.getProcesses()) {
+                positions.putAll(checkpointStore.getPositions(process, readergroupName));
+            }
+            Map<Long, Long> streamcut = positions
+                    .entrySet().stream().map(x -> x.getValue() == null ? Collections.<Long, Long>emptyMap() : convertPosition(x))
+                    .reduce(Collections.emptyMap(), (x, y) -> {
+                        Map<Long, Long> result = new HashMap<>(x);
+                        y.forEach((a, b) -> {
+                            if (x.containsKey(a)) {
+                                result.put(a, Math.max(x.get(a), b));
+                            } else {
+                                result.put(a, b);
+                            }
+                        });
+                        return result;
+                    });
+            return streamMetadataTasks.startTruncation(config.getScopeName(), streamName, streamcut, null, 0L)
+                                      .handle((r, e) -> {
+                                          if (e != null) {
+                                              log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
+                                                      streamName);
+                                          } else {
+                                              log.debug("truncation for stream {} at streamcut {} submitted.", streamName, streamcut);
+                                          }
+                                          return null;
+                                      });
+        } catch (Exception e) {
+            // we will catch and log all exceptions and return a completed future so that the truncation is attempted in the
+            // next iteration
+            log.warn("Encountered exception attempting to truncate stream. {}", Exceptions.unwrap(e).getMessage());
+            return CompletableFuture.completedFuture(null);
+        }
     }
-    
+
+    private Map<Long, Long> convertPosition(Map.Entry<String, Position> x) {
+        return ((PositionImpl) x.getValue().asImpl()).getOwnedSegmentsWithOffsets().entrySet().stream().collect(Collectors.toMap(y -> y.getKey().getSegmentId(), y -> y.getValue()));
+    }
+
     private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
         return withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {

@@ -16,6 +16,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
@@ -48,13 +49,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.controller.server.eventProcessor.ControllerEventProcessors.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -99,7 +98,7 @@ public class ControllerEventProcessorsTest {
         TableMetadataTasks kvtTasks = mock(TableMetadataTasks.class);
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
-        EventProcessorGroup<ControllerEvent> processor = getProcessor(Collections::emptyMap);
+        EventProcessorGroup<ControllerEvent> processor = getProcessor();
 
         try {
             when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(processor);
@@ -231,13 +230,12 @@ public class ControllerEventProcessorsTest {
         createStreamResponsesList.get(7).complete(true);
     }
     
-    @Test(timeout = 30000L)
+    @Test(timeout = 10000L)
     public void testTruncate() throws CheckpointStoreException, InterruptedException {
         Controller controller = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
         BucketStore bucketStore = mock(BucketStore.class);
-        HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionPool connectionPool = mock(ConnectionPool.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
@@ -247,25 +245,34 @@ public class ControllerEventProcessorsTest {
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
         CountDownLatch latch = new CountDownLatch(4);
-        Map<Segment, Long> map = new HashMap<>();
-        map.put(new Segment("scope", "stream", 0L), 0L);
-        map.put(new Segment("scope", "stream", 1L), 0L);
-        map.put(new Segment("scope", "stream", 2L), 0L);
-        EventProcessorGroup<ControllerEvent> processor = spy(getProcessor(() -> {
-            latch.countDown();
-            if (latch.getCount() == 1) {
-                // let one of the processors throw the exception. this should still be retried in the next cycle.
-                throw new RuntimeException();
-            }
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            return map;
-        }));
+        Map<Segment, Long> map1 = new HashMap<>();
+        map1.put(new Segment("scope", "stream", 0L), 10L);
+        map1.put(new Segment("scope", "stream", 1L), 10L);
+        map1.put(new Segment("scope", "stream", 2L), 20L);
+        Map<Segment, Long> map2 = new HashMap<>();
+        map2.put(new Segment("scope", "stream", 0L), 20L);
+        map2.put(new Segment("scope", "stream", 2L), 10L);
+        Map<Segment, Long> map3 = new HashMap<>();
+        map3.put(new Segment("scope", "stream", 3L), 0L);
+        map3.put(new Segment("scope", "stream", 4L), 10L);
+        map3.put(new Segment("scope", "stream", 5L), 20L);
 
-        doAnswer(x -> processor).when(system).createEventProcessorGroup(any(), any(), any());
+        PositionImpl position1 = mock(PositionImpl.class);
+        when(position1.getOwnedSegmentsWithOffsets()).thenReturn(map1);
+        when(position1.asImpl()).thenReturn(position1);
+        PositionImpl position2 = mock(PositionImpl.class);
+        when(position2.getOwnedSegmentsWithOffsets()).thenReturn(map2);
+        when(position2.asImpl()).thenReturn(position2);
+        PositionImpl position3 = mock(PositionImpl.class);
+        when(position3.getOwnedSegmentsWithOffsets()).thenReturn(map3);
+        when(position3.asImpl()).thenReturn(position3);
+
+        doAnswer(x -> Sets.newHashSet("p1", "p2", "p3")).when(checkpointStore).getProcesses();
+        doAnswer(x -> Collections.singletonMap("r1", position1)).when(checkpointStore).getPositions(eq("p1"), anyString());
+        doAnswer(x -> Collections.singletonMap("r2", position2)).when(checkpointStore).getPositions(eq("p2"), anyString());
+        doAnswer(x -> Collections.singletonMap("r3", position3)).when(checkpointStore).getPositions(eq("p3"), anyString());
+        
+        doAnswer(x -> getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(controller).createScope(anyString());
         doAnswer(x -> CompletableFuture.completedFuture(null)).when(controller).createStream(anyString(), anyString(), any());
@@ -274,7 +281,22 @@ public class ControllerEventProcessorsTest {
         doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
                 any(ControllerEventProcessorConfig.class));
 
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamMetadataTasks).notifyTruncateSegment(anyString(), anyString(), any(), any(), anyLong());
+        doAnswer(x -> {
+            latch.countDown();
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            if (latch.getCount() == 1) {
+                // let one of the processors throw the exception. this should still be retried in the next cycle.
+                throw new RuntimeException();
+            } else if (latch.getCount() == 2) {
+                // let one of the processors throw the exception. this should still be retried in the next cycle.
+                return CompletableFuture.completedFuture(false);
+            }
+            return CompletableFuture.completedFuture(true);
+        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
@@ -291,13 +313,13 @@ public class ControllerEventProcessorsTest {
         latch.await();
         
         // verify that truncate method is being called periodically. 
-        verify(processorsSpied, atLeastOnce()).truncate(processor, streamMetadataTasks, STREAM_REQUEST_EP);
-        verify(processorsSpied, atLeastOnce()).truncate(processor, streamMetadataTasks, KVT_REQUEST_EP);
-        verify(processorsSpied, atLeastOnce()).truncate(processor, streamMetadataTasks, COMMIT_TXN_EP);
-        verify(processorsSpied, atLeastOnce()).truncate(processor, streamMetadataTasks, ABORT_TXN_EP);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks);
     }
 
-    private EventProcessorGroup<ControllerEvent> getProcessor(Supplier<Map<Segment, Long>> checkpointMap) {
+    private EventProcessorGroup<ControllerEvent> getProcessor() {
         return new EventProcessorGroup<ControllerEvent>() {
             @Override
             public void notifyProcessFailure(String process) throws CheckpointStoreException {
@@ -313,12 +335,7 @@ public class ControllerEventProcessorsTest {
             public Set<String> getProcesses() throws CheckpointStoreException {
                 return Sets.newHashSet("host1", "host2");
             }
-
-            @Override
-            public Map<Segment, Long> getCheckpoint() {
-                return checkpointMap.get();
-            }
-
+            
             @Override
             public Service startAsync() {
                 return null;

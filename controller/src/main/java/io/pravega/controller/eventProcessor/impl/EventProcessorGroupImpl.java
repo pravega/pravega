@@ -10,10 +10,8 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ReaderSegmentDistribution;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -38,8 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -381,26 +377,5 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     @Override
     public String toString() {
         return this.objectId;
-    }
-    
-    @Override
-    public Map<Segment, Long> getCheckpoint() {
-        return eventProcessorMap.values().stream()
-                                .map(x -> {
-                                    Position checkpoint = x.getCheckpoint();
-                                    return checkpoint == null ? Collections.<Segment, Long>emptyMap() : 
-                                            ((PositionImpl) checkpoint.asImpl()).getOwnedSegmentsWithOffsets();
-                                })
-                                .reduce(Collections.emptyMap(), (x, y) -> {
-                                    Map<Segment, Long> result = new HashMap<>(x);
-                                    y.forEach((a, b) -> {
-                                        if (x.containsKey(a)) {
-                                            result.put(a, Math.max(x.get(a), b));
-                                        } else {
-                                            result.put(a, b);
-                                        }
-                                    });
-                                    return result;
-                                });
     }
 }
