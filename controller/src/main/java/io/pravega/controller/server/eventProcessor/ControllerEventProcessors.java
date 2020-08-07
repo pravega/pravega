@@ -88,6 +88,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private static final long DELAY = 100;
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
+    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(2).toMillis();
     static final String STREAM_REQUEST_EP = "streamRequestEP";
     static final String COMMIT_TXN_EP = "commitTxnEP";
     static final String ABORT_TXN_EP = "abortTxnEP";
@@ -165,7 +166,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                                             kvtMetadataStore, executor);
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
-        this.truncationInterval = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
+        this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
     }
 
     @Override
