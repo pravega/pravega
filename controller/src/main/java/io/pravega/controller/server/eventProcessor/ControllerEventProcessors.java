@@ -85,14 +85,14 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     public static final EventSerializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new EventSerializer<>();
 
     // Retry configuration
-    private static final long DELAY = 100;
-    private static final int MULTIPLIER = 10;
-    private static final long MAX_DELAY = 10000;
-    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(2).toMillis();
     static final String STREAM_REQUEST_EP = "streamRequestEP";
     static final String COMMIT_TXN_EP = "commitTxnEP";
     static final String ABORT_TXN_EP = "abortTxnEP";
     static final String KVT_REQUEST_EP = "kvtRequestEP";
+    private static final long DELAY = 100;
+    private static final int MULTIPLIER = 10;
+    private static final long MAX_DELAY = 10000;
+    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(2).toMillis();
 
     private final String objectId;
     private final ControllerEventProcessorConfig config;
