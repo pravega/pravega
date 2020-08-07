@@ -48,6 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -66,12 +68,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 /**
  * Event processor test.
@@ -732,6 +729,64 @@ public class EventProcessorTest {
         assertTrue(eventProcessorMap.containsKey(readerIds.get(0)));
         assertTrue(eventProcessorMap.containsKey(readerIds.get(1)));
         // endregion
+    }
+
+    @Test(timeout = 10000)
+    @SuppressWarnings("unchecked")
+    public void testCheckpoint() throws Exception {
+        String systemName = "checkpoint";
+        String readerGroupName = "checkpoint";
+
+        CheckpointStore checkpointStore = spy(CheckpointStoreFactory.createInMemoryStore());
+
+        EventProcessorGroupConfig config = createEventProcessorGroupConfig(2);
+        
+        EventStreamClientFactory clientFactory = Mockito.mock(EventStreamClientFactory.class);
+
+        EventStreamReader<TestEvent> reader = Mockito.mock(EventStreamReader.class);
+        EventRead eventRead = Mockito.mock(EventRead.class);
+        Mockito.when(eventRead.isCheckpoint()).thenReturn(false);
+        Mockito.when(eventRead.getEvent()).thenReturn(new TestEvent(1));
+        PositionImpl position = mock(PositionImpl.class);
+        Map<Segment, Long> map = new HashMap<>();
+        map.put(new Segment("s", "s", 0L), 100L);
+        map.put(new Segment("s", "s", 1L), 200L);
+        map.put(new Segment("s", "s", 2L), 300L);
+        Mockito.when(position.getOwnedSegmentsWithOffsets()).thenReturn(map);
+        Mockito.when(position.asImpl()).thenReturn(position);
+        Mockito.when(eventRead.getPosition()).thenReturn(position);
+        Mockito.when(reader.readNextEvent(anyLong())).thenReturn(eventRead);
+
+        Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
+               .thenAnswer(x -> reader);
+
+        Mockito.when(clientFactory.<String>createEventWriter(anyString(), any(), any())).thenReturn(new EventStreamWriterMock<>());
+
+        ReaderGroup readerGroup = Mockito.mock(ReaderGroup.class);
+        Mockito.when(readerGroup.getGroupName()).thenReturn(readerGroupName);
+
+        ReaderGroupManager readerGroupManager = Mockito.mock(ReaderGroupManager.class);
+        Mockito.when(readerGroupManager.getReaderGroup(anyString())).then(invocation -> readerGroup);
+
+        EventProcessorSystemImpl system = new EventProcessorSystemImpl(systemName, PROCESS, SCOPE, clientFactory, readerGroupManager);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new TestEventProcessor(false))
+                .serializer(new EventSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .minRebalanceIntervalMillis(0L)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
+                    checkpointStore, executor);
+        group.awaitRunning();
+        
+        ConcurrentHashMap<String, EventProcessorCell<TestEvent>> eventProcessorMap = group.getEventProcessorMap();
+        assertEquals(2, eventProcessorMap.size());
+
+        AssertExtensions.assertEventuallyEquals(map, group::getCheckpoint, 10000L);
     }
 
     private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {

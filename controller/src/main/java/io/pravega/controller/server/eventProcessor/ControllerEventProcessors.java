@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.Controller;
@@ -55,6 +56,9 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+
+import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,7 +67,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -81,6 +88,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private static final long DELAY = 100;
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
+    static final String STREAM_REQUEST_EP = "streamRequestEP";
+    static final String COMMIT_TXN_EP = "commitTxnEP";
+    static final String ABORT_TXN_EP = "abortTxnEP";
+    static final String KVT_REQUEST_EP = "kvtRequestEP";
 
     private final String objectId;
     private final ControllerEventProcessorConfig config;
@@ -99,6 +110,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final AbortRequestHandler abortRequestHandler;
     private final TableRequestHandler kvtRequestHandler;
     private final long rebalanceIntervalMillis;
+    private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
 
     public ControllerEventProcessors(final String host,
@@ -153,6 +165,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                                             kvtMetadataStore, executor);
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
+        this.truncationInterval = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
     }
 
     @Override
@@ -288,9 +301,37 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
             streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
             tableMetadataTasks.initializeStreamWriters(clientFactory, config.getKvtStreamName());
+
+            long delay = truncationInterval.get();
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(requestEventProcessors, streamMetadataTasks, STREAM_REQUEST_EP), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(commitEventProcessors, streamMetadataTasks, COMMIT_TXN_EP), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(abortEventProcessors, streamMetadataTasks, ABORT_TXN_EP), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(kvtRequestEventProcessors, streamMetadataTasks, KVT_REQUEST_EP), delay, executor), executor);
         }, executor);
     }
 
+    @VisibleForTesting
+    CompletableFuture<Void> truncate(EventProcessorGroup<?> grp, StreamMetadataTasks streamMetadataTasks, 
+                                             String eventProcName) {
+        return Futures.exceptionallyExpecting(
+                Futures.allOf(grp.getCheckpoint().entrySet().stream().map(entry -> {
+                    Segment segment = entry.getKey();
+                    String scope = segment.getScope();
+                    String stream = segment.getStreamName();
+                    return streamMetadataTasks.notifyTruncateSegment(scope, stream, 
+                            new AbstractMap.SimpleEntry<>(segment.getSegmentId(), entry.getValue()),
+                            streamMetadataTasks.retrieveDelegationToken(), 0L);
+                }).collect(Collectors.toList())), e -> {
+                    log.warn("Failure while attempting to truncate event processor {}'s segments. Error message {}", 
+                            eventProcName, Exceptions.unwrap(e).getMessage());
+                    return true;
+                }, null);
+    }
+    
     private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
                                        final Supplier<Set<String>> processes) {
         return withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
@@ -499,5 +540,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             log.info("Awaiting termination of kvt request event processors");
             kvtRequestEventProcessors.awaitTerminated();
         }
+    }
+    
+    @VisibleForTesting
+    void setTruncationInterval(long interval) {
+        truncationInterval.set(interval);
     }
 }
