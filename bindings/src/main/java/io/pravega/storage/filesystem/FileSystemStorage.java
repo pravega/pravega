@@ -190,7 +190,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @SneakyThrows(IOException.class)
-    protected StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
+    private StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
         PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(), PosixFileAttributes.class);
         return StreamSegmentInformation.builder()
                 .name(Paths.get(root).relativize(path).toString())
@@ -363,7 +363,7 @@ public class FileSystemStorage implements SyncStorage {
         return attrs.permissions().contains(OWNER_WRITE);
     }
 
-    private Void doSeal(SegmentHandle handle) throws IOException {
+    protected Void doSeal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
@@ -480,10 +480,12 @@ public class FileSystemStorage implements SyncStorage {
 
     //region FileSystemStorageWithReplace
 
-    private static class FileSystemStorageWithReplace extends FileSystemStorage {
-        private static final String TEMP_SUFFIX = ".replace.tmp";
+    @VisibleForTesting
+    static class FileSystemStorageWithReplace extends FileSystemStorage {
+        @VisibleForTesting
+        static final String TEMP_SUFFIX = ".replace.tmp";
 
-        FileSystemStorageWithReplace(FileSystemStorageConfig config) {
+        private FileSystemStorageWithReplace(FileSystemStorageConfig config) {
             super(config);
         }
 
@@ -508,6 +510,12 @@ public class FileSystemStorage implements SyncStorage {
             String tempSegmentName = getTempSegmentName(handle.getSegmentName());
             if (super.doExists(tempSegmentName)) {
                 Files.delete(getPath(tempSegmentName));
+                try {
+                    return super.doDelete(handle);
+                } catch (IOException ex) {
+                    // It's OK if the segment file does not exist. That is likely the result of a partial replace.
+                    return null;
+                }
             }
 
             return super.doDelete(handle);
@@ -576,25 +584,35 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         private Void replaceExistingFile(String segmentName, BufferView contents) throws IOException, StreamSegmentException {
+            boolean baseExists = super.doExists(segmentName);
+            boolean shouldReseal = baseExists && super.getStreamSegmentInfo(segmentName).isSealed();
+
             // Check temp file already exists.
             String tmpSegmentName = getTempSegmentName(segmentName);
             if (super.doExists(tmpSegmentName)) {
-                if (super.doExists(segmentName)) {
+                if (baseExists) {
                     // We have both a temp file and a segment file. This is most likely the result of an incomplete replace,
                     // however we still have the original segment file around. It is safe to delete the temp file now.
+                    log.debug("Incomplete replace operation detected for '{}'. Deleting temp file before new replace attempt.", segmentName);
                     super.doDelete(super.doOpenWrite(tmpSegmentName));
                 } else {
                     // Temp file exists, but the segment file does not. This may be the result of an incomplete replace,
                     // in which case we need to finalize that one to prevent deleting (what could be) the only persisted
                     // copy of our data.
+                    log.debug("Incomplete replace operation detected for '{}'. Finalizing before new replace attempt.", segmentName);
                     finalizeRename(tmpSegmentName, segmentName);
                 }
+            } else if (!baseExists) {
+                throw new StreamSegmentNotExistsException(segmentName);
             }
 
             // Write given contents to temp file.
-            val tmpHandle = super.create(tmpSegmentName);
+            val tmpHandle = super.doCreate(tmpSegmentName);
             try {
                 super.doWrite(tmpHandle, 0, contents.getReader(), contents.getLength());
+                if (shouldReseal) {
+                    super.doSeal(tmpHandle);
+                }
             } catch (Exception ex) {
                 log.warn("Unable to write to temporary file when attempting to replace '{}'. Original file has not been touched. Cleaning up.",
                         segmentName, ex);
