@@ -36,7 +36,6 @@ import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.client.stream.notifications.notifier.EndOfDataNotifier;
 import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -57,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -364,8 +362,8 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
         AtomicInteger counter = new AtomicInteger(0);
         List<List<Segment>> listOfEpochs = new LinkedList<>();
 
-        CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= scalesToPerform,
-                () -> controller.getCurrentSegments(scopeName, streamName)
+        while (counter.incrementAndGet() <= scalesToPerform) {
+                   controller.getCurrentSegments(scopeName, streamName)
                         .thenCompose(segments -> {
                             ArrayList<Segment> currentSegments = new ArrayList<>(segments.getSegments());
                             listOfEpochs.add(currentSegments);
@@ -379,9 +377,8 @@ public class ReaderGroupNotificationTest extends LeakDetectorTestSuite {
                                         assertTrue(scaleStatus);
                                         log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
                                     });
-                        }), executor);
-
-        scaleFuture.join();
+                        }).join();
+        }
 
         return listOfEpochs;
     }
