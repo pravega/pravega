@@ -10,12 +10,19 @@
 package io.pravega.controller.server.v1;
 
 import com.google.common.base.Strings;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -46,7 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -57,6 +63,11 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 /**
  * Controller Service Implementation tests.
@@ -78,12 +89,17 @@ public abstract class ControllerServiceImplTest {
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
+    RequestTracker requestTracker = new RequestTracker(true);
+    private ControllerService controllerSpied;
+
+    abstract ControllerService getControllerService() throws Exception;
 
     @Before
-    public abstract void setup() throws Exception;
-
-    @After
-    public abstract void tearDown() throws Exception;
+    public void setUp() throws Exception {
+        controllerSpied = spy(getControllerService());
+        this.controllerService = new ControllerServiceImpl(controllerSpied,
+                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+    }
 
     @Test
     public void getControllerServersTest() {
@@ -193,7 +209,7 @@ public abstract class ControllerServiceImplTest {
         m.addAll(streamsInScopeResponse1.get().getStreamsList());
         m.addAll(streamsInScopeResponse2.get().getStreamsList());
         m.addAll(streamsInScopeResponse3.get().getStreamsList());
-        
+
         // verify that all three streams have been found
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM1)));
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM2)));
@@ -229,7 +245,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.deleteScope(ModelHelper.createScopeInfo(SCOPE3), result7);
         deleteScopeStatus = result7.get();
         assertEquals("Verify that Scope3 is infact deleted", DeleteScopeStatus.Status.SCOPE_NOT_FOUND,
-                     deleteScopeStatus.getStatus());
+                deleteScopeStatus.getStatus());
 
         // Delete Non-empty Scope SCOPE2
         ResultObserver<CreateScopeStatus> result3 = new ResultObserver<>();
@@ -255,7 +271,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.deleteScope(ModelHelper.createScopeInfo("SCOPE3"), result6);
         deleteScopeStatus = result6.get();
         assertEquals("Delete non existent scope", DeleteScopeStatus.Status.SCOPE_NOT_FOUND,
-                     deleteScopeStatus.getStatus());
+                deleteScopeStatus.getStatus());
 
         // Delete empty scope, should throw
         ResultObserver<DeleteScopeStatus> result8 = new ResultObserver<>();
@@ -321,7 +337,7 @@ public abstract class ControllerServiceImplTest {
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
-    
+
     @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
@@ -431,8 +447,8 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<Controller.StreamCutValidityResponse> result4 = new ResultObserver<>();
         this.controllerService.isStreamCutValid(Controller.StreamCut.newBuilder()
                 .setStreamInfo(streamInfo).putCut(0, 0).
-                putCut(computeSegmentId(2, 1), 0).
-                putCut(computeSegmentId(3, 1), 0).build(), result4);
+                        putCut(computeSegmentId(2, 1), 0).
+                        putCut(computeSegmentId(3, 1), 0).build(), result4);
         assertTrue(result4.get().getResponse());
     }
 
@@ -459,10 +475,10 @@ public abstract class ControllerServiceImplTest {
         //Truncate the stream
         ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
         this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
-                                                                  .setStreamInfo(StreamInfo.newBuilder()
-                                                                                           .setScope(SCOPE1)
-                                                                                           .setStream(STREAM1)
-                                                                                           .build())
+                .setStreamInfo(StreamInfo.newBuilder()
+                        .setScope(SCOPE1)
+                        .setStream(STREAM1)
+                        .build())
                 .putCut(0, 0).putCut(1, 0).putCut(2, 0).putCut(3, 0).build(), result3);
         UpdateStreamStatus truncateStreamStatus = result3.get();
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateStreamStatus.getStatus());
@@ -530,8 +546,8 @@ public abstract class ControllerServiceImplTest {
         to1.put(0L, 0L);
         to1.put(1L, 0L);
         this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
-                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
-                .putAllFrom(from1).putAllTo(to1).build(),
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .putAllFrom(from1).putAllTo(to1).build(),
                 result1);
         Assert.assertEquals(2, result1.get().getSegmentsCount());
 
@@ -541,8 +557,8 @@ public abstract class ControllerServiceImplTest {
         from2.put(0L, 0L);
         from2.put(1L, 0L);
         this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
-                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
-                .putAllFrom(from2).putAllTo(to2).build(),
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .putAllFrom(from2).putAllTo(to2).build(),
                 result2);
         Assert.assertEquals(2, result2.get().getSegmentsCount());
 
@@ -554,8 +570,8 @@ public abstract class ControllerServiceImplTest {
         to3.put(0L, 0L);
         to3.put(1L, 0L);
         this.controllerService.getSegmentsBetween(Controller.StreamCutRange.newBuilder()
-                .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
-                .putAllFrom(from3).putAllTo(to3).build(),
+                        .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                        .putAllFrom(from3).putAllTo(to3).build(),
                 result3);
         Assert.assertEquals(2, result3.get().getSegmentsCount());
     }
@@ -710,18 +726,18 @@ public abstract class ControllerServiceImplTest {
         String writer1 = "writer1";
         String stream = "mark";
         StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, stream);
-        
+
         createScopeAndStream(SCOPE1, stream, ScalingPolicy.fixed(2));
-        
+
         // call note for new writer
         Controller.StreamCut.Builder position = Controller.StreamCut.newBuilder()
-                                               .setStreamInfo(streamInfo)
-                                               .putCut(0L, 0L).putCut(1L, 0L);
+                .setStreamInfo(streamInfo)
+                .putCut(0L, 0L).putCut(1L, 0L);
         Controller.TimestampFromWriter request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(1L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(1L)
+                .setPosition(position)
+                .build();
 
         ResultObserver<Controller.TimestampResponse> resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
@@ -729,13 +745,13 @@ public abstract class ControllerServiceImplTest {
 
         // call note for existing writer with advancing time and advancing position
         position = Controller.StreamCut.newBuilder()
-                            .setStreamInfo(streamInfo)
-                            .putCut(0L, 1L).putCut(1L, 1L);
+                .setStreamInfo(streamInfo)
+                .putCut(0L, 1L).putCut(1L, 1L);
         request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(2L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(2L)
+                .setPosition(position)
+                .build();
         resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         resultObserver.get();
@@ -744,53 +760,70 @@ public abstract class ControllerServiceImplTest {
 
         // call note for existing writer with advancing time but same position
         request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(3L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(3L)
+                .setPosition(position)
+                .build();
         resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
-        
+
         // call note for existing writer with same time but advancing position
         position = Controller.StreamCut.newBuilder()
-                            .setStreamInfo(streamInfo)
-                            .putCut(0L, 2L).putCut(1L, 2L);
+                .setStreamInfo(streamInfo)
+                .putCut(0L, 2L).putCut(1L, 2L);
         request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(3L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(3L)
+                .setPosition(position)
+                .build();
         resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
-        
+
         // call note for existing writer with lower time
         position = Controller.StreamCut.newBuilder()
-                            .setStreamInfo(streamInfo)
-                            .putCut(0L, 2L).putCut(1L, 2L);
+                .setStreamInfo(streamInfo)
+                .putCut(0L, 2L).putCut(1L, 2L);
         request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(2L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(2L)
+                .setPosition(position)
+                .build();
         resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_TIME);
-        
+
         // call note for existing writer with lower position
         position = Controller.StreamCut.newBuilder()
-                            .setStreamInfo(streamInfo)
-                            .putCut(0L, 2L).putCut(1L, 1L);
+                .setStreamInfo(streamInfo)
+                .putCut(0L, 2L).putCut(1L, 1L);
         request = Controller.TimestampFromWriter.newBuilder()
-                                     .setWriter(writer1)
-                                     .setTimestamp(4L)
-                                     .setPosition(position)
-                                     .build();
+                .setWriter(writer1)
+                .setTimestamp(4L)
+                .setPosition(position)
+                .build();
         resultObserver = new ResultObserver<>();
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
 
+        // try failing request
+        doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "")))
+                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any());
+        request = Controller.TimestampFromWriter.newBuilder()
+                .setWriter(writer1)
+                .setTimestamp(4L)
+                .setPosition(position)
+                .build();
+        ResultObserver<Controller.TimestampResponse> resultObserverFailing = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserverFailing);
+        AssertExtensions.assertThrows("", resultObserverFailing::get, e -> {
+            Throwable unwrap = Exceptions.unwrap(e);
+            return unwrap instanceof StatusRuntimeException
+                    && ((StatusRuntimeException) unwrap).getStatus().getCode().equals(Status.INTERNAL.getCode());
+        });
+
+        // remove writer
         Controller.RemoveWriterRequest writerShutdownRequest = Controller.RemoveWriterRequest
                 .newBuilder().setStream(streamInfo).setWriter(writer1).build();
         ResultObserver<Controller.RemoveWriterResponse> shutdownResultObserver = new ResultObserver<>();
