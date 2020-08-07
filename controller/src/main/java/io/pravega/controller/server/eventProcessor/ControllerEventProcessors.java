@@ -90,7 +90,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private static final long DELAY = 100;
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
-    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(2).toMillis();
+    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(10).toMillis();
 
     private final String objectId;
     private final ControllerEventProcessorConfig config;
@@ -316,6 +316,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @VisibleForTesting
     CompletableFuture<Void> truncate(String streamName, String readergroupName, StreamMetadataTasks streamMetadataTasks) {
         try {
+            // 1. get all processes from checkpoint store 
+            // 2. get the all checkpoints for all readers in the readergroup for the stream.
+            // 3. consolidate all checkpoints to create a stream cut. 
+            // 4. submit a truncation job for the stream
             Map<String, Position> positions = new HashMap<>();
             for (String process : checkpointStore.getProcesses()) {
                 positions.putAll(checkpointStore.getPositions(process, readergroupName));
@@ -333,6 +337,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         });
                         return result;
                     });
+            // Start a truncation job, but handle its exception cases by simply logging it. We will not fail the future
+            // so that the loop can continue in the next iteration and attempt to truncate the stream. 
             return streamMetadataTasks.startTruncation(config.getScopeName(), streamName, streamcut, null, 0L)
                                       .handle((r, e) -> {
                                           if (e != null) {
