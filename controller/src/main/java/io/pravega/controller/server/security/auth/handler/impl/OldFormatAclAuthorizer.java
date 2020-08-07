@@ -22,7 +22,7 @@ class OldFormatAclAuthorizer extends AclAuthorizer {
          *  If It is a direct match, return the ACLs.
          *  If it is a partial match, the target has to end with a `/`
          */
-        for (AccessControlEntry accessControlEntry : accessControlList.getAcl()) {
+        for (AccessControlEntry accessControlEntry : accessControlList.getEntries()) {
 
             // Separating into different blocks, to make the code more understandable.
             // It makes the code look a bit strange, but it is still simpler and easier to decipher than what it be

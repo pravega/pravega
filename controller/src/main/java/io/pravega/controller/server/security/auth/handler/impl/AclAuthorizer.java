@@ -13,7 +13,7 @@ import io.pravega.auth.AuthHandler;
 
 abstract class AclAuthorizer {
 
-    private final static NewFormatAclAuthorizer AUTHORIZER_FOR_NEW_FORMAT = new NewFormatAclAuthorizer();
+    private final static AclAuthorizerImpl AUTHORIZER_FOR_NEW_FORMAT = new AclAuthorizerImpl();
     private final static OldFormatAclAuthorizer AUTHORIZER_FOR_LEGACY_FORMAT = new OldFormatAclAuthorizer();
 
     static AclAuthorizer legacyAuthorizerInstance() {

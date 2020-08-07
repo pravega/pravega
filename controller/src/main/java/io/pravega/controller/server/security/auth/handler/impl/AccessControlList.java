@@ -18,5 +18,5 @@ import java.util.List;
 @Data
 class AccessControlList {
     private final String encryptedPassword;
-    private final List<AccessControlEntry> acl;
+    private final List<AccessControlEntry> entries;
 }

@@ -18,7 +18,7 @@ import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 
-public class NewFormatAclAuthorizerTest {
+public class AclAuthorizerImplTest {
     private final static String DUMMY_ENCRYPTED_PWD = "Dummy encrypted value";
     private AuthorizationResource resource = new AuthorizationResourceImpl();
 
@@ -28,7 +28,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::*", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
 
         // Root resource
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
@@ -46,7 +46,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
     }
 
@@ -56,7 +56,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/scope:testscope", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope")));
     }
 
@@ -66,7 +66,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/scope:*", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope1")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope2")));
     }
@@ -77,7 +77,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/*", AuthHandler.Permissions.READ)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope1")));
         assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope2")));
         assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofStreamInScope(
@@ -90,7 +90,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/scope:abcscope/*", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
 
         assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("abcscope")));
         assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("xyzscope")));
@@ -114,7 +114,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/scope:abcscope/stream:str*", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
                 resource.ofStreamInScope("abcscope", "str123")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
@@ -129,7 +129,7 @@ public class NewFormatAclAuthorizerTest {
                 new AccessControlEntry("prn::/scope:*/stream:mystream", AuthHandler.Permissions.READ_UPDATE)
         ));
 
-        NewFormatAclAuthorizer authorizer = new NewFormatAclAuthorizer();
+        AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
                 resource.ofStreamInScope("abcscope", "mystream")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,

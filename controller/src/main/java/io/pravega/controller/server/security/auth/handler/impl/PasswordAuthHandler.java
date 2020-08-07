@@ -60,22 +60,32 @@ public class PasswordAuthHandler implements AuthHandler {
              BufferedReader lineReader = new BufferedReader(reader)) {
             String line;
             while ( !Strings.isNullOrEmpty(line = lineReader.readLine())) {
-                if (line.startsWith("#")) {
+                if (line.startsWith("#")) { // A commented line
                     continue;
                 }
-                String[] userFields = line.split(":");
-                if (userFields.length >= 2) {
-                    String acls;
-                    if (userFields.length == 2) {
-                        acls = "";
-                    } else {
-                        acls = userFields[2];
-                    }
-                    userMap.put(userFields[0], new AccessControlList(userFields[1], getAcls(acls)));
-                }
+                processUserEntry(line, this.userMap);
             }
         } catch (IOException e) {
             throw new CompletionException(e);
+        }
+    }
+
+    @VisibleForTesting
+    void processUserEntry(String line, ConcurrentHashMap<String, AccessControlList> aclsByUser) {
+        // An entry'd look like this:
+        //      testUserName:testEncryptedPassword:prn::/scope:testScope,READ_UPDATE;prn::/scope:testScope/stream:testStream;";
+
+        // Extract the username, encrypted password and the ACL (3 items)
+        String[] userFields = line.split(":", 3);
+
+        if (userFields.length >= 2) {
+            String acls;
+            if (userFields.length == 2) {
+                acls = "";
+            } else {
+                acls = userFields[2];
+            }
+            aclsByUser.put(userFields[0], new AccessControlList(userFields[1], parseAcl(acls)));
         }
     }
 
@@ -143,7 +153,7 @@ public class PasswordAuthHandler implements AuthHandler {
         return aclAuthorizer.authorize(accessControlList, resource);
     }
 
-    private List<AccessControlEntry> getAcls(String aclString) {
+    private List<AccessControlEntry> parseAcl(String aclString) {
         return  Arrays.stream(aclString.split(";")).map(acl -> {
             String[] splits = acl.split(",");
             if (splits.length == 0) {
