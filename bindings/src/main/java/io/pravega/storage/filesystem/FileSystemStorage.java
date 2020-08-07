@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -24,7 +25,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import java.util.Iterator;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,11 +46,14 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
@@ -176,32 +179,30 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. " +
-            "The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
+            "The leaked object is collected by GC. In case of a iterator in a for loop this would be fast.")
     @Override
     public Iterator<SegmentProperties> listSegments() throws IOException {
-        try {
-            return Files.find(Paths.get(config.getRoot()),
-                    Integer.MAX_VALUE,
-                    (filePath, fileAttr) -> fileAttr.isRegularFile())
-                    .map(path -> (SegmentProperties) getStreamSegmentInformation(config.getRoot(), path))
-                    .iterator();
-        } catch (IOException e) {
-            log.error("Exception occurred while listing the segments.", e);
-            throw e;
-        }
+        return Files.find(Paths.get(config.getRoot()),
+                Integer.MAX_VALUE,
+                (filePath, fileAttr) -> fileAttr.isRegularFile())
+                .map(path -> (SegmentProperties) getStreamSegmentInformation(config.getRoot(), path))
+                .iterator();
     }
 
-    @edu.umd.cs.findbugs.annotations.SuppressFBWarnings
-    @SneakyThrows
-    private static StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
-        PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(),
-                PosixFileAttributes.class);
+    @SneakyThrows(IOException.class)
+    protected StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
+        PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(), PosixFileAttributes.class);
         return StreamSegmentInformation.builder()
                 .name(Paths.get(root).relativize(path).toString())
                 .length(attrs.size())
                 .sealed(!(attrs.permissions().contains(OWNER_WRITE)))
                 .lastModified(new ImmutableDate(attrs.creationTime().toMillis()))
                 .build();
+    }
+
+    @Override
+    public SyncStorage withReplaceSupport() {
+        return new FileSystemStorageWithReplace(this.config);
     }
 
     //endregion
@@ -214,6 +215,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     //endregion
+
     @VisibleForTesting
     protected FileChannel getFileChannel(Path path, StandardOpenOption openOption) throws IOException {
         return FileChannel.open(path, openOption);
@@ -226,9 +228,9 @@ public class FileSystemStorage implements SyncStorage {
 
     //region private sync implementation
 
-    private SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
+    protected SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
-        Path path = Paths.get(config.getRoot(), streamSegmentName);
+        Path path = getPath(streamSegmentName);
 
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
@@ -238,9 +240,9 @@ public class FileSystemStorage implements SyncStorage {
         return FileSystemSegmentHandle.readHandle(streamSegmentName);
     }
 
-    private SegmentHandle doOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
+    protected SegmentHandle doOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        Path path = Paths.get(config.getRoot(), streamSegmentName);
+        Path path = getPath(streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
@@ -256,7 +258,7 @@ public class FileSystemStorage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
         Timer timer = new Timer();
 
-        Path path = Paths.get(config.getRoot(), handle.getSegmentName());
+        Path path = getPath(handle.getSegmentName());
 
         long fileSize = getFileSize(path);
         if (fileSize < offset) {
@@ -282,7 +284,7 @@ public class FileSystemStorage implements SyncStorage {
         }
     }
 
-    private SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
+    protected SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
                 PosixFileAttributes.class);
@@ -297,11 +299,11 @@ public class FileSystemStorage implements SyncStorage {
         return information;
     }
 
-    private boolean doExists(String streamSegmentName) {
+    protected boolean doExists(String streamSegmentName) {
         return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
-    private SegmentHandle doCreate(String streamSegmentName) throws IOException {
+    protected SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(FileSystemWrapper.READ_WRITE_PERMISSION);
 
@@ -315,7 +317,7 @@ public class FileSystemStorage implements SyncStorage {
         return FileSystemSegmentHandle.writeHandle(streamSegmentName);
     }
 
-    private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws Exception {
+    private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws IOException, StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
         Timer timer = new Timer();
 
@@ -323,7 +325,7 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException("Write called on a readonly handle of segment " + handle.getSegmentName());
         }
 
-        Path path = Paths.get(config.getRoot(), handle.getSegmentName());
+        Path path = getPath(handle.getSegmentName());
 
         // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
@@ -367,14 +369,14 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_ONLY_PERMISSION);
+        Files.setPosixFilePermissions(getPath(handle.getSegmentName()), FileSystemWrapper.READ_ONLY_PERMISSION);
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void doUnseal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemWrapper.READ_WRITE_PERMISSION);
+        Files.setPosixFilePermissions(getPath(handle.getSegmentName()), FileSystemWrapper.READ_WRITE_PERMISSION);
         LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }
@@ -384,16 +386,21 @@ public class FileSystemStorage implements SyncStorage {
      * We do not make the assumption that a native operation exists as this is not a common feature supported by file
      * systems. As such, a concatenation induces an important network overhead as each byte concatenated must be
      * read and written back when the storage is backed by a remote filesystem (through NFS).
-     *
+     * <p>
      * This option was preferred as other option (of having one file per transaction) will result in server side
      * fragmentation and corresponding slowdown in cluster performance.
+     *
+     * @param targetHandle  Target Handle.
+     * @param offset        Offset.
+     * @param sourceSegment Source segment name.
+     * @throws IOException If an exception occurred.
      */
-    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
+    protected Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
 
-        Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
-        Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
+        Path sourcePath = getPath(sourceSegment);
+        Path targetPath = getPath(targetHandle.getSegmentName());
 
         long length = getFileSize(sourcePath);
         try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
@@ -413,8 +420,8 @@ public class FileSystemStorage implements SyncStorage {
         }
     }
 
-    private Void doDelete(SegmentHandle handle) throws IOException {
-        Files.delete(Paths.get(config.getRoot(), handle.getSegmentName()));
+    protected Void doDelete(SegmentHandle handle) throws IOException {
+        Files.delete(getPath(handle.getSegmentName()));
         return null;
     }
 
@@ -422,12 +429,13 @@ public class FileSystemStorage implements SyncStorage {
      * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
      * StreamSegmentExceptions.
      *
-     * @param segmentName   Full name of the StreamSegment.
-     * @param operation     The function to execute.
-     * @param <R>           Return type of the operation.
+     * @param segmentName Full name of the StreamSegment.
+     * @param operation   The function to execute.
+     * @param <R>         Return type of the operation.
      * @return Instance of the return type of the operation.
+     * @throws StreamSegmentException If an exception occurred.
      */
-    private <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
+    protected <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
             return operation.call();
@@ -437,7 +445,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     private <T> T throwException(String segmentName, Exception e) throws StreamSegmentException {
-        if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
+        if (isFileNotFoundException(e)) {
             throw new StreamSegmentNotExistsException(segmentName);
         }
 
@@ -456,6 +464,189 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         throw Exceptions.sneakyThrow(e);
+    }
+
+    protected boolean isFileNotFoundException(Exception e) {
+        return e instanceof NoSuchFileException
+                || e instanceof FileNotFoundException
+                || e instanceof StreamSegmentNotExistsException;
+    }
+
+    protected Path getPath(String segmentName) {
+        return Paths.get(config.getRoot(), segmentName);
+    }
+
+    //endregion
+
+    //region FileSystemStorageWithReplace
+
+    private static class FileSystemStorageWithReplace extends FileSystemStorage {
+        private static final String TEMP_SUFFIX = ".replace.tmp";
+
+        FileSystemStorageWithReplace(FileSystemStorageConfig config) {
+            super(config);
+        }
+
+        //region FileSystemStorage Overrides
+
+        @Override
+        protected SegmentHandle doCreate(String streamSegmentName) throws IOException {
+            String tempSegmentName = getTempSegmentName(streamSegmentName);
+            if (!super.doExists(streamSegmentName) && super.doExists(tempSegmentName)) {
+                // Segment file does not exist, but temp one does. This represents an incomplete replace operation.
+                // Finalize it now and report that the Segment does indeed exist.
+                finalizeRename(getTempSegmentName(streamSegmentName), streamSegmentName);
+                throw new FileAlreadyExistsException(streamSegmentName);
+            }
+
+            return super.doCreate(streamSegmentName);
+        }
+
+        @Override
+        protected Void doDelete(SegmentHandle handle) throws IOException {
+            // Clean up any incomplete replace leftovers.
+            String tempSegmentName = getTempSegmentName(handle.getSegmentName());
+            if (super.doExists(tempSegmentName)) {
+                Files.delete(getPath(tempSegmentName));
+            }
+
+            return super.doDelete(handle);
+        }
+
+        @Override
+        protected SegmentHandle doOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
+            return withRecovery(streamSegmentName, super::doOpenWrite);
+        }
+
+        @Override
+        protected SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
+            return withRecovery(streamSegmentName, super::doOpenRead);
+        }
+
+        @Override
+        protected SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
+            return withRecovery(streamSegmentName, super::doGetStreamSegmentInfo);
+        }
+
+        @Override
+        protected Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
+            return withRecovery(sourceSegment, source -> super.doConcat(targetHandle, offset, source));
+        }
+
+        @Override
+        protected boolean doExists(String streamSegmentName) {
+            return super.doExists(streamSegmentName) || super.doExists(getTempSegmentName(streamSegmentName));
+        }
+
+        @Override
+        public boolean supportsReplace() {
+            return true;
+        }
+
+        @Override
+        public void replace(@NonNull SegmentHandle segment, @NonNull BufferView contents) throws StreamSegmentException {
+            String segmentName = segment.getSegmentName();
+            execute(segment.getSegmentName(), () -> replaceExistingFile(segmentName, contents));
+        }
+
+        @Override
+        public SyncStorage withReplaceSupport() {
+            return this;
+        }
+
+        //endregion
+
+        private <T, TEx extends Exception> T withRecovery(String segmentName, RecoverableAction<T, TEx> toExecute) throws TEx {
+            try {
+                return toExecute.apply(segmentName);
+            } catch (Exception ex) {
+                String tmpName = getTempSegmentName(segmentName);
+                if (isFileNotFoundException(ex) && super.doExists(tmpName)) {
+                    // Incomplete replace operation detected. Finish it up.
+                    log.info("Incomplete replace operation detected for '{}'. Finalizing.", segmentName);
+                    finalizeRename(tmpName, segmentName);
+
+                    // Should be done now. Retry original operation.
+                    log.debug("Replace finalized for '{}'. Retrying operation.", segmentName);
+                    return toExecute.apply(segmentName);
+                } else {
+                    throw ex;
+                }
+            }
+        }
+
+        private Void replaceExistingFile(String segmentName, BufferView contents) throws IOException, StreamSegmentException {
+            // Check temp file already exists.
+            String tmpSegmentName = getTempSegmentName(segmentName);
+            if (super.doExists(tmpSegmentName)) {
+                if (super.doExists(segmentName)) {
+                    // We have both a temp file and a segment file. This is most likely the result of an incomplete replace,
+                    // however we still have the original segment file around. It is safe to delete the temp file now.
+                    super.doDelete(super.doOpenWrite(tmpSegmentName));
+                } else {
+                    // Temp file exists, but the segment file does not. This may be the result of an incomplete replace,
+                    // in which case we need to finalize that one to prevent deleting (what could be) the only persisted
+                    // copy of our data.
+                    finalizeRename(tmpSegmentName, segmentName);
+                }
+            }
+
+            // Write given contents to temp file.
+            val tmpHandle = super.create(tmpSegmentName);
+            try {
+                super.doWrite(tmpHandle, 0, contents.getReader(), contents.getLength());
+            } catch (Exception ex) {
+                log.warn("Unable to write to temporary file when attempting to replace '{}'. Original file has not been touched. Cleaning up.",
+                        segmentName, ex);
+                super.doDelete(tmpHandle);
+                throw ex;
+            }
+
+            // Sanity check #1 (only executes in tests).
+            assert super.doGetStreamSegmentInfo(tmpSegmentName).getLength() == contents.getLength();
+
+            // Rename file. After this is done, the replace operation is complete.
+            finalizeRename(tmpSegmentName, segmentName);
+
+            // Sanity check #2 (only executes in tests).
+            assert super.doGetStreamSegmentInfo(segmentName).getLength() == contents.getLength();
+            return null;
+        }
+
+        @SneakyThrows(StreamSegmentReplaceException.class)
+        private void finalizeRename(String fromSegmentName, String toSegmentName) {
+            val fromFile = getPath(fromSegmentName).toFile().getAbsoluteFile();
+            val toFile = getPath(toSegmentName).toFile().getAbsoluteFile();
+            boolean renamed = fromFile.renameTo(toFile);
+            if (!renamed) {
+                // On Windows, renameTo does not replace.
+                if (!toFile.delete() || !fromFile.renameTo(toFile)) {
+                    throw new StreamSegmentReplaceException(fromSegmentName, toSegmentName);
+                }
+            }
+
+            // Sanity check (only executes in tests).
+            assert !super.doExists(fromSegmentName);
+        }
+
+        private String getTempSegmentName(String segmentName) {
+            assert !segmentName.endsWith(TEMP_SUFFIX);
+            return segmentName + TEMP_SUFFIX;
+        }
+
+        private interface RecoverableAction<T, TEx extends Exception> {
+            T apply(String segment) throws TEx;
+        }
+
+        /**
+         * Exception that is thrown when a {@link SyncStorage#replace} method fails to execute due to the underlying
+         * File System unable to perform the rename.
+         */
+        private static class StreamSegmentReplaceException extends StreamSegmentException {
+            StreamSegmentReplaceException(String fromSegmentName, String toSegmentName) {
+                super(toSegmentName, String.format("Could not rename temporary Segment '%s' to '%s'.", fromSegmentName, toSegmentName));
+            }
+        }
     }
 
     //endregion
