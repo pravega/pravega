@@ -83,6 +83,7 @@ import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -821,31 +822,59 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
 
+        return getCurrentSegmentsWithRange(scope, stream, traceId)
+                .thenApply(ranges -> {
+                    log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
+                    NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+                    for (SegmentRange r : ranges.getSegmentRangesList()) {
+                        Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
+                                "Min keyrange %s was not less than maximum keyRange %s for segment %s",
+                                r.getMinKey(), r.getMaxKey(), r.getSegmentId());
+                        rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+                    }
+                    return new StreamSegments(rangeMap, ranges.getDelegationToken());
+                }).whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+                });
+    }
+    
+    private CompletableFuture<SegmentRanges> getCurrentSegmentsWithRange(final String scope, final String stream, long traceId) {
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments", scope, stream);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                   .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApply(ranges -> {
-            log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-            NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
-            for (SegmentRange r : ranges.getSegmentRangesList()) {
-                Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
-                                         "Min keyrange %s was not less than maximum keyRange %s for segment %s",
-                                         r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-                rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
-            }
-            return new StreamSegments(rangeMap, ranges.getDelegationToken());
-        }).whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
-                         }
-                         if (x.getNumberOfSegments() == 0 ) {
-                             log.warn("getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
-                         }
-                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-                     });
+        return result;
+    }
+    
+    public CompletableFuture<StreamSegments> rollOver(String scope, String stream, ScheduledExecutorService executor) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
+
+        return getCurrentSegmentsWithRange(scope, stream, traceId)
+                         .thenCompose(activeSegments -> {
+                             List<Long> segmentsToSeal = new ArrayList<>();
+                             Map<Double, Double> newRanges = new HashMap<>();
+                             activeSegments.getSegmentRangesList().forEach(x -> {
+                                 segmentsToSeal.add(x.getSegmentId().getSegmentId());
+                                 newRanges.put(x.getMinKey(), x.getMaxKey());
+                             });
+
+                             // this could fail if active segments were sealed by the time we attempted to scale them. 
+                             // TODO: it should be retried for scale precondition failures. 
+                             return scaleStream(new StreamImpl(scope, stream), segmentsToSeal, newRanges, executor).getFuture()
+                                              .thenCompose(v -> {
+                                                  // get the segments post scale and create a stream cut from them.
+                                                  return getCurrentSegments(scope, stream);
+                                              });
+                         });
+
     }
 
     @Override
