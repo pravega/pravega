@@ -45,17 +45,31 @@ public final class SegmentStoreMetrics {
      */
     private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
 
+    /**
+     * The amount of time taken to complete one cycle of the CacheManager's cache policy.
+     */
+    private static final OpStatsLogger CACHE_MANAGER_ITERATION_DURATION = STATS_LOGGER.createStats(MetricsNames.CACHE_MANAGER_ITERATION_DURATION);
     //region CacheManager
 
     /**
      * CacheManager metrics.
      */
-    public final static class CacheManager {
-        public void report(CacheState snapshot, int generationSpread) {
+    public final static class CacheManager implements AutoCloseable {
+        public void report(CacheState snapshot, int generationSpread, long iterationDuration) {
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES, snapshot.getStoredBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES, snapshot.getUsedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES, snapshot.getAllocatedBytes());
             DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD, generationSpread);
+            CACHE_MANAGER_ITERATION_DURATION.reportSuccessValue(iterationDuration);
+        }
+
+        @Override
+        public void close() {
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_STORED_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_USED_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_ALLOC_SIZE_BYTES);
+            DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD);
+            CACHE_MANAGER_ITERATION_DURATION.close();
         }
     }
 
