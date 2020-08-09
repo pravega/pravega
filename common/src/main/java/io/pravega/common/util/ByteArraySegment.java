@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.SneakyThrows;
@@ -195,13 +196,12 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
         byte[] otherArray = other.array();
         int otherOffset = other.arrayOffset();
-        for (int i = 0; i < this.length; i++) {
-            if (this.array[this.startOffset + i] != otherArray[otherOffset + i]) {
-                return false;
-            }
-        }
-
-        return true;
+        return Arrays.equals(this.array,
+                      this.startOffset,
+                      this.startOffset + this.length,
+                      otherArray,
+                      otherOffset,
+                      otherOffset + this.length);
     }
 
     @Override
