@@ -127,7 +127,7 @@ public abstract class AbstractService implements Service {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
-                .put("bookkeeperUri", BOOKKEEPER_ID + "-" + BOOKKEEPER_LABEL + "-headless"+":" + BOOKKEEPER_PORT)
+                .put("bookkeeperUri", BOOKKEEPER_ID + "-" + BOOKKEEPER_LABEL + "-headless" + ":" + BOOKKEEPER_PORT)
                 .put("pravega", pravegaSpec)
                 .build();
 
