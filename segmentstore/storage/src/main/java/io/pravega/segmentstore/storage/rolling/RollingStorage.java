@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -102,6 +101,9 @@ public class RollingStorage implements SyncStorage {
     public RollingStorage(SyncStorage baseStorage, SegmentRollingPolicy defaultRollingPolicy) {
         this.baseStorage = Preconditions.checkNotNull(baseStorage, "baseStorage");
         this.headerStorage = this.baseStorage.withReplaceSupport();
+        if (!this.headerStorage.supportsReplace()) {
+            log.info("Base Storage does not support replace. Will not be able to trim header chunks after truncation.");
+        }
         this.defaultRollingPolicy = Preconditions.checkNotNull(defaultRollingPolicy, "defaultRollingPolicy");
         this.closed = new AtomicBoolean();
     }
@@ -392,9 +394,9 @@ public class RollingStorage implements SyncStorage {
             return;
         }
 
-        // We can only use a Segment as a concat source if all of its SegmentChunks exist.
+        // We can only use a Segment as a concat source if it hasn't been truncated.
         refreshChunkExistence(source);
-        Preconditions.checkState(source.chunks().stream().allMatch(SegmentChunk::exists),
+        Preconditions.checkState(source.chunks().stream().allMatch(SegmentChunk::exists) && source.chunks().get(0).getStartOffset() == 0,
                 "Cannot use Segment '%s' as concat source because it is truncated.", source.getSegmentName());
 
         if (shouldConcatNatively(source, target)) {
@@ -501,20 +503,25 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
                 "truncationOffset must be non-negative and at most the length of the Segment.");
         val last = h.lastChunk();
+        boolean chunksDeleted;
         if (last != null && canTruncate(last, truncationOffset) && !h.isSealed()) {
             // If we were asked to truncate the entire (non-sealed) Segment, then rollover at this point so we can delete
             // all existing data.
             rollover(h);
 
             // We are free to delete all chunks.
-            deleteChunks(h, s -> canTruncate(s, truncationOffset));
+            chunksDeleted = deleteChunks(h, s -> canTruncate(s, truncationOffset));
         } else {
             // Either we were asked not to truncate the whole segment, or we were, and the Segment is sealed. If the latter,
             // then the Header is also sealed, we could not have done a quick rollover; as such we have no option but to
             // preserve the last chunk so that we can recalculate the length of the Segment if we need it again.
-            deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
+            chunksDeleted = deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
         }
-        //TODO: update handle here somewhere
+
+        // Try to truncate the handle if we can.
+        if (chunksDeleted && this.headerStorage.supportsReplace()) {
+            truncateHandle(h);
+        }
 
         LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset);
     }
@@ -616,9 +623,11 @@ public class RollingStorage implements SyncStorage {
         log.debug("Created new SegmentChunk '{}' for '{}'.", newSegmentChunk, handle);
     }
 
-    private void deleteChunks(RollingSegmentHandle handle, Predicate<SegmentChunk> canDelete) throws StreamSegmentException {
+    private boolean deleteChunks(RollingSegmentHandle handle, Predicate<SegmentChunk> canDelete) throws StreamSegmentException {
+        boolean anyDeleted = false;
         for (SegmentChunk s : handle.chunks()) {
             if (s.exists() && canDelete.test(s)) {
+                anyDeleted = true;
                 try {
                     val subHandle = this.baseStorage.openWrite(s.getName());
                     this.baseStorage.delete(subHandle);
@@ -630,6 +639,7 @@ public class RollingStorage implements SyncStorage {
                 }
             }
         }
+        return anyDeleted;
     }
 
     private boolean canTruncate(SegmentChunk segmentChunk, long truncationOffset) {
@@ -754,6 +764,14 @@ public class RollingStorage implements SyncStorage {
             // If we get BadOffsetException when writing the Handle, it means it was modified externally.
             throw new StorageNotPrimaryException(handle.getSegmentName(), ex);
         }
+    }
+
+    private void truncateHandle(RollingSegmentHandle handle) throws StreamSegmentException {
+        handle.excludeInexistentChunks();
+        ByteArraySegment handleData = HandleSerializer.serialize(handle);
+        this.headerStorage.replace(handle.getHeaderHandle(), handleData);
+        handle.setHeaderLength(handleData.getLength());
+        log.debug("Header for '{}' fully serialized (replaced) to '{}'.", handle.getSegmentName(), handle.getHeaderHandle().getSegmentName());
     }
 
     private void serializeNewChunk(RollingSegmentHandle handle, SegmentChunk newSegmentChunk) throws StreamSegmentException {

@@ -10,13 +10,17 @@
 package io.pravega.storage.filesystem;
 
 import io.pravega.common.function.RunnableWithException;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -27,6 +31,7 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.After;
@@ -57,6 +62,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         this.adapterConfig = FileSystemStorageConfig
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
     }
 
@@ -475,6 +481,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             this.adapterConfig = FileSystemStorageConfig
                     .builder()
                     .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                    .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                     .build();
         }
 
@@ -487,7 +494,72 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         protected Storage createStorage() {
             return wrap(new FileSystemStorage(this.adapterConfig));
         }
-    }
 
-    //endregion
+        @Test
+        public void testTruncate() {
+            val segmentName = "TruncatedSegment";
+            val rollingPolicy = new SegmentRollingPolicy(100);
+            val writeCount = 50;
+            val rnd = new Random(0);
+
+            // Write small and large writes, alternatively.
+            @Cleanup
+            val s = createStorage();
+            s.initialize(1);
+            val writeHandle = s.create(segmentName, rollingPolicy, TIMEOUT).join();
+            val readHandle = s.openRead(segmentName).join(); // Open now, before writing, so we force a refresh.
+            val writeStream = new EnhancedByteArrayOutputStream();
+            populate(writeHandle, writeCount, writeStream, s, rollingPolicy);
+
+            // Test that truncate works in this scenario.
+            int truncateOffset = 0;
+            ArrayView writtenData = writeStream.getData();
+            while (true) {
+                s.truncate(writeHandle, truncateOffset, TIMEOUT).join();
+
+                // Verify we can still read properly.
+                checkWrittenData(writeHandle, writtenData, truncateOffset, s);
+                checkWrittenData(readHandle, writtenData, truncateOffset, s);
+
+                // Increment truncateOffset by some value, but let's make sure we also truncate at the very end of the Segment.
+                if (truncateOffset >= writtenData.getLength()) {
+                    break;
+                }
+
+                truncateOffset = (int) Math.min(writtenData.getLength(), truncateOffset + rollingPolicy.getMaxLength() / 2);
+            }
+
+            // Make sure we can still write after truncation.
+            populate(writeHandle, writeCount, writeStream, s, rollingPolicy);
+            writtenData = writeStream.getData();
+            checkWrittenData(writeHandle, writtenData, truncateOffset, s);
+            checkWrittenData(readHandle, writtenData, truncateOffset, s);
+        }
+
+        private void populate(SegmentHandle handle, int writeCount, EnhancedByteArrayOutputStream writeStream,
+                              Storage s, SegmentRollingPolicy rollingPolicy) {
+            int offset = (int) s.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join().getLength();
+            for (int i = 0; i < writeCount; i++) {
+                byte[] appendData = new byte[i % 2 == 0 ? (int) (rollingPolicy.getMaxLength() * 0.24) : (int) (rollingPolicy.getMaxLength() * 1.8)];
+                rnd.nextBytes(appendData);
+                s.write(handle, offset, new ByteArrayInputStream(appendData), appendData.length, TIMEOUT).join();
+                offset += appendData.length;
+                writeStream.write(appendData);
+            }
+        }
+
+        private void checkWrittenData(SegmentHandle handle, ArrayView writtenData, int truncateOffset, Storage s) {
+            // Verify we can still read properly.
+            byte[] readBuffer = new byte[writtenData.getLength() - truncateOffset];
+            if (readBuffer.length != 0) {
+                // Nothing to check.
+                int bytesRead = s.read(handle, truncateOffset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+                Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
+                AssertExtensions.assertArrayEquals("Unexpected data read back.",
+                        writtenData.array(), writtenData.arrayOffset() + truncateOffset, readBuffer, 0, readBuffer.length);
+            }
+        }
+
+        //endregion
+    }
 }

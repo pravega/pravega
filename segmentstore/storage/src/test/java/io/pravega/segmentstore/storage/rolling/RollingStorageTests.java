@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.rolling;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -28,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import java.util.function.Function;
 import lombok.Cleanup;
+import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -49,7 +51,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
     public void testRolling() throws Exception {
         // Write small and large writes, alternatively.
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -86,7 +88,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
     public void testRefreshHandleBadOffset() throws Exception {
         // Write small and large writes, alternatively.
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -301,7 +303,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         final int initialSourceLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() - initialTargetLength;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -374,7 +376,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         final int bigSourceLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() - initialTargetLength + 1;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -404,7 +406,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         final int initialTargetLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() / 2;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -473,7 +475,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
     public void testBackwardsCompatibility() throws Exception {
         final String segmentName = "SonHeaderSegment";
         @Cleanup
-        val baseStorage = new InMemoryStorage();
+        val baseStorage = new TestStorage();
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
@@ -563,7 +565,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new AsyncStorageWrapper(new RollingStorage(new InMemoryStorage(), DEFAULT_ROLLING_POLICY), executorService());
+        return new AsyncStorageWrapper(new RollingStorage(new TestStorage(), DEFAULT_ROLLING_POLICY), executorService());
     }
 
     //endregion
@@ -591,7 +593,12 @@ public class RollingStorageTests extends RollingStorageTestBase {
     private void testProgressiveTruncate(RollingSegmentHandle writeHandle, SegmentHandle readHandle, byte[] writtenData, RollingStorage s, SyncStorage baseStorage) throws Exception {
         int truncateOffset = 0;
         while (true) {
+            val initialChunkCount = writeHandle.chunks().size();
             s.truncate(writeHandle, truncateOffset);
+            if (writeHandle.chunks().size() != initialChunkCount) {
+                // Validate that if we did reduce the handle size, we did it by 1. We will check the actual chunk integrity below.
+                Assert.assertEquals(initialChunkCount - 1, writeHandle.chunks().size());
+            }
 
             // Verify we can still read properly.
             checkWrittenData(writtenData, truncateOffset, readHandle, s);
@@ -679,6 +686,30 @@ public class RollingStorageTests extends RollingStorageTestBase {
             if (exceptionFunction != null && (toThrow = exceptionFunction.apply(segmentName)) != null) {
                 throw toThrow;
             }
+        }
+
+        @Override
+        public boolean supportsReplace() {
+            return true;
+        }
+
+        @Override
+        public void replace(@NonNull SegmentHandle segment, @NonNull BufferView contents) throws StreamSegmentException {
+            // Delete existing segment.
+            boolean sealed = getStreamSegmentInfo(segment.getSegmentName()).isSealed();
+            super.delete(segment);
+
+            // Create a new one.
+            segment = super.create(segment.getSegmentName());
+            super.write(segment, 0, contents.getReader(), contents.getLength());
+            if (sealed) {
+                super.seal(segment);
+            }
+        }
+
+        @Override
+        public SyncStorage withReplaceSupport() {
+            return this;
         }
     }
 

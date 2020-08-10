@@ -202,7 +202,7 @@ public class FileSystemStorage implements SyncStorage {
 
     @Override
     public SyncStorage withReplaceSupport() {
-        return new FileSystemStorageWithReplace(this.config);
+        return this.config.isReplaceEnabled() ? new FileSystemStorageWithReplace(this.config) : this;
     }
 
     //endregion
