@@ -684,16 +684,9 @@ public class RollingStorageTests extends RollingStorageTestBase {
     //region TestStorage
 
     private static class TestStorage extends InMemoryStorage {
-        private Function<String, IntentionalException> createFailure;
         private Function<String, IntentionalException> writeFailure;
         private Function<String, IntentionalException> deleteFailure;
         private Function<String, IntentionalException> concatFailure;
-
-        @Override
-        public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
-            maybeThrow(streamSegmentName, this.createFailure);
-            return super.create(streamSegmentName);
-        }
 
         @Override
         public void delete(SegmentHandle handle) throws StreamSegmentNotExistsException {
