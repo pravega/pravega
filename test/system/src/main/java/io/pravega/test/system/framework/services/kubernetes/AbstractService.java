@@ -86,7 +86,7 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount,ImmutableMap<String, String> props) {
+    CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
     return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
             NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
             getPravegaOnlyDeployment(zkUri.getAuthority(),
@@ -127,7 +127,7 @@ public abstract class AbstractService implements Service {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
-                .put("bookkeeperUri", BOOKKEEPER_ID+"-"+BOOKKEEPER_LABEL+"-headless"+":"+BOOKKEEPER_PORT)
+                .put("bookkeeperUri", BOOKKEEPER_ID + "-" + BOOKKEEPER_LABEL + "-headless"+":" + BOOKKEEPER_PORT)
                 .put("pravega", pravegaSpec)
                 .build();
 
@@ -209,7 +209,7 @@ public abstract class AbstractService implements Service {
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
-                 // request operator to deploy bookkeeper nodes.
+                // request operator to deploy bookkeeper nodes.
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER,
                         NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
                         getBookkeeperDeployment(zkUri.getAuthority(),
@@ -218,7 +218,7 @@ public abstract class AbstractService implements Service {
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
-            Map<String,String>  dataMap = new HashMap<>();
+            Map<String, String>  dataMap = new HashMap<>();
             dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
             dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
 
@@ -228,6 +228,7 @@ public abstract class AbstractService implements Service {
                 .withData(dataMap)
                 .build();
     }
+
     private Map<String, Object> getBookkeeperDeployment(String zkLocation, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
