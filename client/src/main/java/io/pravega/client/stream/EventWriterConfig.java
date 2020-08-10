@@ -20,7 +20,7 @@ import lombok.Data;
 public class EventWriterConfig implements Serializable {
     
     private static final long serialVersionUID = 1L;
-    private final int initalBackoffMillis;
+    private final int initialBackoffMillis;
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
@@ -56,7 +56,7 @@ public class EventWriterConfig implements Serializable {
 
     public static final class EventWriterConfigBuilder {
         private static final long MIN_TRANSACTION_TIMEOUT_TIME_MILLIS = 10000;
-        private int initalBackoffMillis = 1;
+        private int initialBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
@@ -67,11 +67,11 @@ public class EventWriterConfig implements Serializable {
         
         public EventWriterConfig build() {
             Preconditions.checkArgument(transactionTimeoutTime >= MIN_TRANSACTION_TIMEOUT_TIME_MILLIS, "Transaction time must be at least 10 seconds.");
-            Preconditions.checkArgument(initalBackoffMillis >= 0, "Backoff times must be positive numbers");
+            Preconditions.checkArgument(initialBackoffMillis >= 0, "Backoff times must be positive numbers");
             Preconditions.checkArgument(backoffMultiple >= 0, "Backoff multiple must be positive numbers");
             Preconditions.checkArgument(maxBackoffMillis >= 0, "Backoff times must be positive numbers");
             Preconditions.checkArgument(retryAttempts >= 0, "Retry attempts must be a positive number");
-            return new EventWriterConfig(initalBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
+            return new EventWriterConfig(initialBackoffMillis, maxBackoffMillis, retryAttempts, backoffMultiple,
                                          enableConnectionPooling,
                                          transactionTimeoutTime,
                                          automaticallyNoteTime);
