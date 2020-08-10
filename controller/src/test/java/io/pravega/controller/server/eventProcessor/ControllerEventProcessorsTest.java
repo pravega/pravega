@@ -49,6 +49,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
 import org.junit.Before;
@@ -244,7 +245,6 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
 
-        CountDownLatch latch = new CountDownLatch(4);
         Map<Segment, Long> map1 = new HashMap<>();
         map1.put(new Segment("scope", "stream", 0L), 10L);
         map1.put(new Segment("scope", "stream", 1L), 10L);
@@ -266,11 +266,6 @@ public class ControllerEventProcessorsTest {
         PositionImpl position3 = mock(PositionImpl.class);
         when(position3.getOwnedSegmentsWithOffsets()).thenReturn(map3);
         when(position3.asImpl()).thenReturn(position3);
-
-        doAnswer(x -> Sets.newHashSet("p1", "p2", "p3")).when(checkpointStore).getProcesses();
-        doAnswer(x -> Collections.singletonMap("r1", position1)).when(checkpointStore).getPositions(eq("p1"), anyString());
-        doAnswer(x -> Collections.singletonMap("r2", position2)).when(checkpointStore).getPositions(eq("p2"), anyString());
-        doAnswer(x -> Collections.singletonMap("r3", position3)).when(checkpointStore).getPositions(eq("p3"), anyString());
         
         doAnswer(x -> getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
@@ -280,6 +275,71 @@ public class ControllerEventProcessorsTest {
         doAnswer(x -> null).when(streamMetadataTasks).initializeStreamWriters(any(), anyString());
         doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
                 any(ControllerEventProcessorConfig.class));
+        
+        // first throw checkpoint store exception
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+        doAnswer(x -> {
+            signal.complete(null);
+            throw new CheckpointStoreException("checkpointstoreexception");
+        }).when(checkpointStore).getProcesses();
+
+        ControllerEventProcessors processors = new ControllerEventProcessors("host1",
+                config, controller, checkpointStore, streamStore, bucketStore,
+                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
+                kvtStore, kvtTasks, system, executor);
+
+        // set truncation interval
+        processors.setTruncationInterval(100L);
+        processors.startAsync();
+        processors.awaitRunning();
+        ControllerEventProcessors processorsSpied = spy(processors);
+        processorsSpied.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
+
+        signal.join();
+        verify(processorsSpied, atLeastOnce()).truncate(any(), any(), any());
+        verify(checkpointStore, atLeastOnce()).getProcesses();
+        verify(checkpointStore, never()).getPositions(anyString(), anyString());
+        verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+        
+        // now set the checkpoint store to return correct values
+        doAnswer(x -> Sets.newHashSet("p1", "p2", "p3")).when(checkpointStore).getProcesses();
+        doAnswer(x -> Collections.singletonMap("r1", position1)).when(checkpointStore).getPositions(eq("p1"), anyString());
+        doAnswer(x -> Collections.singletonMap("r2", position2)).when(checkpointStore).getPositions(eq("p2"), anyString());
+        doAnswer(x -> Collections.singletonMap("r3", position3)).when(checkpointStore).getPositions(eq("p3"), anyString());
+
+        // but throw exception from streammetadat tasks starttruncation
+        CountDownLatch latch = new CountDownLatch(4);
+        AtomicInteger counter = new AtomicInteger();
+        doAnswer(x -> {
+            latch.countDown();
+            counter.getAndIncrement();
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            if (counter.get() == 1) {
+                // let one of the processors throw the exception. this should still be retried in the next cycle.
+                throw new RuntimeException();
+            } else if (counter.get() == 2) {
+                // let one of the processors throw the exception. this should still be retried in the next cycle.
+                return CompletableFuture.completedFuture(false);
+            }
+            return CompletableFuture.completedFuture(true);
+        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+
+        latch.await();
+
+        // verify that truncate method is being called periodically. 
+        verify(processorsSpied, atLeastOnce()).truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks);
+        verify(processorsSpied, atLeastOnce()).truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks);
+
+        verify(checkpointStore, atLeastOnce()).getPositions("p1", config.getRequestReaderGroupName());
+        verify(checkpointStore, atLeastOnce()).getPositions("p1", config.getCommitReaderGroupName());
+        verify(checkpointStore, atLeastOnce()).getPositions("p1", config.getAbortReaderGroupName());
+        verify(checkpointStore, atLeastOnce()).getPositions("p1", config.getKvtReaderGroupName());
 
         doAnswer(x -> {
             latch.countDown();
@@ -298,25 +358,7 @@ public class ControllerEventProcessorsTest {
             return CompletableFuture.completedFuture(true);
         }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
 
-        ControllerEventProcessors processors = new ControllerEventProcessors("host1",
-                config, controller, checkpointStore, streamStore, bucketStore,
-                connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                kvtStore, kvtTasks, system, executor);
-        
-        // set truncation interval
-        processors.setTruncationInterval(100L);
-        processors.startAsync();
-        processors.awaitRunning();
-        ControllerEventProcessors processorsSpied = spy(processors);
-        processorsSpied.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
 
-        latch.await();
-        
-        // verify that truncate method is being called periodically. 
-        verify(processorsSpied, atLeastOnce()).truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks);
-        verify(processorsSpied, atLeastOnce()).truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks);
-        verify(processorsSpied, atLeastOnce()).truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks);
-        verify(processorsSpied, atLeastOnce()).truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks);
     }
 
     private EventProcessorGroup<ControllerEvent> getProcessor() {
