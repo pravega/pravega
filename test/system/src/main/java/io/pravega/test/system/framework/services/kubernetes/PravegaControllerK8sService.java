@@ -37,8 +37,7 @@ public class PravegaControllerK8sService extends AbstractService {
 
     @Override
     public void start(boolean wait) {
-
-        Futures.getAndHandleExceptions(deployPravegaOnlyCluster(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT,properties),
+        Futures.getAndHandleExceptions(deployPravegaOnlyCluster(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, properties),
                 t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
@@ -100,6 +99,7 @@ public class PravegaControllerK8sService extends AbstractService {
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentControllerCount != newInstanceCount) {
                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("controllerReplicas", newInstanceCount, "pravega");
+
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {

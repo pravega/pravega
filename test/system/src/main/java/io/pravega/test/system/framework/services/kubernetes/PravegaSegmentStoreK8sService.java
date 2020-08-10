@@ -36,7 +36,7 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
 
     @Override
     public void start(boolean wait) {
-        Futures.getAndHandleExceptions(deployPravegaOnlyCluster(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT,properties),
+        Futures.getAndHandleExceptions(deployPravegaOnlyCluster(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, properties),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, DEFAULT_SEGMENTSTORE_COUNT),

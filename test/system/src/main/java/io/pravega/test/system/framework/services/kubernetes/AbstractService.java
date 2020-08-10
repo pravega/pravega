@@ -11,7 +11,9 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.openapi.models.V1ConfigMapBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
@@ -54,13 +56,6 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
-    private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
-    private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
-    private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
-    private static final String TIER2_NFS = "nfs";
-    private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    //private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
-
     static final String BOOKKEEPER_ID = "pravega-bk";
     static final String CUSTOM_RESOURCE_GROUP_BOOKKEEPER = "bookkeeper.pravega.io";
     static final String CUSTOM_RESOURCE_VERSION_BOOKKEEPER = "v1alpha1";
@@ -68,6 +63,12 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_PLURAL_BOOKKEEPER = "bookkeeperclusters";
     static final String CUSTOM_RESOURCE_KIND_BOOKKEEPER = "BookkeeperCluster";
     static final String CONFIG_MAP_BOOKKEEPER = "bk-config-map";
+
+    private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
+    private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
+    private static final String TIER2_NFS = "nfs";
+    private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
     private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
@@ -121,6 +122,7 @@ public abstract class AbstractService implements Service {
                 .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec))
                 .build();
     }
+
     protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec) {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
@@ -128,6 +130,7 @@ public abstract class AbstractService implements Service {
                 .put("bookkeeperUri", BOOKKEEPER_ID+"-"+BOOKKEEPER_LABEL+"-headless"+":"+BOOKKEEPER_PORT)
                 .put("pravega", pravegaSpec)
                 .build();
+
         return ImmutableMap.<String, Object>builder()
                 .putAll(commonEntries)
                 .put("version", PRAVEGA_VERSION)
@@ -215,9 +218,10 @@ public abstract class AbstractService implements Service {
     }
 
     private V1ConfigMap getBookkeeperOperatorConfigMap() {
-        Map<String,String>  dataMap = new HashMap<>();
-        dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
-        dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
+            Map<String,String>  dataMap = new HashMap<>();
+            dataMap.put("PRAVEGA_CLUSTER_NAME", PRAVEGA_ID);
+            dataMap.put("WAIT_FOR", ZK_SERVICE_NAME);
+
         return new V1ConfigMapBuilder().withApiVersion("v1")
                 .withKind("ConfigMap")
                 .withMetadata(new V1ObjectMeta().name(CONFIG_MAP_BOOKKEEPER))
@@ -236,6 +240,7 @@ public abstract class AbstractService implements Service {
                         .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
                         .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
                         .build())
+
                 .put("envVars", CONFIG_MAP_BOOKKEEPER)
                 .put("zookeeperUri", zkLocation)
                 .put("autoRecovery", true)
@@ -244,10 +249,6 @@ public abstract class AbstractService implements Service {
                         .build())
                 .build();
 
-        log.info("zk authority: {}", zkLocation);
-        log.info("bookkeeperSpec: ");
-        bookkeeperSpec.forEach((k, v) -> System.out.println((k + ":" + v)));
-
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION_BOOKKEEPER)
                 .put("kind", CUSTOM_RESOURCE_KIND_BOOKKEEPER)
@@ -255,6 +256,7 @@ public abstract class AbstractService implements Service {
                 .put("spec", bookkeeperSpec)
                 .build();
     }
+
     /**
      * Helper method to create the BK Cluster Spec which specifies just those values in the
      * spec which need to be patched. Other values remain same as were specified at the time of
@@ -264,6 +266,7 @@ public abstract class AbstractService implements Service {
      *
      * @return the new Pravega Cluster Spec containing the values that need to be patched.
      */
+
     protected static Map<String, Object> buildPatchedBookkeeperClusterSpec(String service, int replicaCount) {
 
         return ImmutableMap.<String, Object>builder()

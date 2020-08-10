@@ -10,31 +10,6 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1Container;
-import io.kubernetes.client.openapi.models.V1ContainerBuilder;
-import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
-import io.kubernetes.client.openapi.models.V1Deployment;
-import io.kubernetes.client.openapi.models.V1DeploymentBuilder;
-import io.kubernetes.client.openapi.models.V1DeploymentSpecBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarSourceBuilder;
-import io.kubernetes.client.openapi.models.V1LabelSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
-import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionSpecBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionStatus;
-import io.kubernetes.client.openapi.models.V1beta1PolicyRuleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
@@ -121,6 +96,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                      getZookeeperDeployment(getID(), instanceCount))
                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), instanceCount));
     }
+
     private Map<String, Object> getZookeeperDeployment(final String deploymentName, final int clusterSize) {
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", "zookeeper.pravega.io/v1beta1")

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ public class BookkeeperK8sService extends AbstractService {
         this.zkUri = zkUri;
         this.properties = properties;
     }
+
     @Override
     public void start(boolean wait) {
         Futures.getAndHandleExceptions(deployBookkeeperCluster(zkUri, DEFAULT_BOOKIE_COUNT, properties),
@@ -91,7 +92,7 @@ public class BookkeeperK8sService extends AbstractService {
                     if (currentBookkeeperCount != newInstanceCount) {
 
                         final Map<String, Object> patchedSpec = buildPatchedBookkeeperClusterSpec("replicas", newInstanceCount);
-                        log.info("*****buildSpecReplica patchedSpec",patchedSpec);
+
                         return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER, NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER, patchedSpec)
                                 .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
 
