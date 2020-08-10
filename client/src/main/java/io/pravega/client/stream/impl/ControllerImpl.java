@@ -842,13 +842,12 @@ public class ControllerImpl implements Controller {
     }
     
     private CompletableFuture<SegmentRanges> getCurrentSegmentsWithRange(final String scope, final String stream, long traceId) {
-        final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
+        return this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments", scope, stream);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                   .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
             return callback.getFuture();
         }, this.executor);
-        return result;
     }
 
     /**
@@ -858,21 +857,20 @@ public class ControllerImpl implements Controller {
      * each new segment has exactly same key range as existing segments.
      * An attempt to roll over a stream could potentially fail if another scale (either auto scale or a concurrent manual scale) 
      * request changes the set of segments in the stream.
-     * The rollover method will return a boolean which would indicate if the scale was performed successfully or not. 
      * 
      * @param scope scope name
      * @param stream stream name
      * @param executor executor where the scale request is submitted and tracked. 
-     * @return CompletableFuture which when completed will have a boolean that indicates whether the stream was been 
-     * rolled over successfully. 
+     * @return CompletableFuture which when completed will indicate that the stream was been rolled over successfully. 
      */
-    public CompletableFuture<Boolean> rollOver(String scope, String stream, ScheduledExecutorService executor) {
+    public CompletableFuture<Void> rollOver(String scope, String stream, ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         long traceId = LoggerHelpers.traceEnter(log, "rollover", scope, stream);
 
-        return getCurrentSegmentsWithRange(scope, stream, traceId)
+        AtomicBoolean tryRollover = new AtomicBoolean(true);
+        return Futures.loop(tryRollover::get, () -> getCurrentSegmentsWithRange(scope, stream, traceId)
                          .thenCompose(activeSegments -> {
                              List<Long> segmentsToSeal = new ArrayList<>();
                              Map<Double, Double> newRanges = new HashMap<>();
@@ -881,8 +879,9 @@ public class ControllerImpl implements Controller {
                                  newRanges.put(x.getMinKey(), x.getMaxKey());
                              });
 
-                             return scaleStream(new StreamImpl(scope, stream), segmentsToSeal, newRanges, executor).getFuture();
-                         });
+                             return scaleStream(new StreamImpl(scope, stream), segmentsToSeal, newRanges, executor).getFuture()
+                                     .thenAccept(scaled -> tryRollover.set(!scaled));
+                         }), executor);
     }
 
     @Override
