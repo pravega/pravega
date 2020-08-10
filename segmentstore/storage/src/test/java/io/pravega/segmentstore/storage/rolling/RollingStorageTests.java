@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.rolling;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -26,6 +27,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.Random;
 import java.util.function.Function;
 import lombok.Cleanup;
@@ -254,6 +256,22 @@ public class RollingStorageTests extends RollingStorageTestBase {
         s.create(SEGMENT_NAME);
         val si = s.getStreamSegmentInfo(SEGMENT_NAME);
         Assert.assertEquals("Expected the Segment to have been created.", 0, si.getLength());
+    }
+
+    @Test
+    public void testCreateFailure() {
+        @Cleanup
+        val baseStorage = new TestStorage();
+        baseStorage.writeFailure = IntentionalException::new;
+
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
+        s.initialize(1);
+
+        // Create an empty header file. This simulates a create() operation that failed mid-way.
+        val headerSegmentName = NameUtils.getHeaderSegmentName(SEGMENT_NAME);
+        AssertExtensions.assertThrows("", () -> s.create(SEGMENT_NAME), ex -> ex instanceof IntentionalException);
+        Assert.assertFalse(baseStorage.exists(headerSegmentName));
     }
 
     /**
@@ -666,13 +684,28 @@ public class RollingStorageTests extends RollingStorageTestBase {
     //region TestStorage
 
     private static class TestStorage extends InMemoryStorage {
+        private Function<String, IntentionalException> createFailure;
+        private Function<String, IntentionalException> writeFailure;
         private Function<String, IntentionalException> deleteFailure;
         private Function<String, IntentionalException> concatFailure;
+
+        @Override
+        public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
+            maybeThrow(streamSegmentName, this.createFailure);
+            return super.create(streamSegmentName);
+        }
 
         @Override
         public void delete(SegmentHandle handle) throws StreamSegmentNotExistsException {
             maybeThrow(handle.getSegmentName(), this.deleteFailure);
             super.delete(handle);
+        }
+
+        @Override
+        public void write(SegmentHandle handle, long offset, InputStream data, int length) throws BadOffsetException, StreamSegmentNotExistsException,
+                StreamSegmentSealedException {
+            maybeThrow(handle.getSegmentName(), this.writeFailure);
+            super.write(handle, offset, data, length);
         }
 
         @Override

@@ -163,6 +163,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         AssertExtensions.assertThrows("", () -> base.replace(segmentHandle, data1), ex -> ex instanceof UnsupportedOperationException);
 
         // Create a FileSystemStorageWithReplace, which is what we are testing.
+        @Cleanup
         val s = (FileSystemStorage.FileSystemStorageWithReplace) base.withReplaceSupport();
         Assert.assertTrue(s.supportsReplace());
         Assert.assertSame(s, s.withReplaceSupport());
@@ -233,6 +234,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         AssertExtensions.assertThrows("", () -> base.replace(segmentHandle, data1), ex -> ex instanceof UnsupportedOperationException);
 
         // Create a FileSystemStorageWithReplace, which is what we are testing.
+        @Cleanup
         val s = (FileSystemStorage.FileSystemStorageWithReplace) base.withReplaceSupport();
 
         // Exists (does not perform auto-recovery).
@@ -342,6 +344,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         AssertExtensions.assertThrows("", () -> base.replace(segmentHandle, data1), ex -> ex instanceof UnsupportedOperationException);
 
         // Create a FileSystemStorageWithReplace, which is what we are testing.
+        @Cleanup
         val s = (FileSystemStorage.FileSystemStorageWithReplace) base.withReplaceSupport();
 
         // Exists.

@@ -189,7 +189,7 @@ public class FileSystemStorage implements SyncStorage {
                 .iterator();
     }
 
-    @SneakyThrows(IOException.class)
+    @SneakyThrows
     private StreamSegmentInformation getStreamSegmentInformation(String root, Path path) {
         PosixFileAttributes attrs = Files.readAttributes(path.toAbsolutePath(), PosixFileAttributes.class);
         return StreamSegmentInformation.builder()

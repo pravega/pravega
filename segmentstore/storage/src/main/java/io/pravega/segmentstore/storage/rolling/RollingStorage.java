@@ -281,7 +281,7 @@ public class RollingStorage implements SyncStorage {
                 // If we encountered an error while writing the handle file, delete it before returning the exception,
                 // otherwise we'll leave behind an empty file.
                 try {
-                    log.warn("Could not create Header Segment for '{}', rolling back.", segmentName, ex);
+                    log.warn("Could not write Header Segment for '{}', rolling back.", segmentName, ex);
                     this.headerStorage.delete(headerHandle);
                 } catch (Exception ex2) {
                     ex.addSuppressed(ex2);
@@ -614,7 +614,7 @@ public class RollingStorage implements SyncStorage {
         try {
             this.baseStorage.create(newSegmentChunk.getName());
         } catch (StreamSegmentExistsException ex) {
-            checkIfEmptyAndNotSealed(ex, newSegmentChunk.getName(), this.baseStorage);
+            checkIfEmptyAndNotSealed(ex, newSegmentChunk.getName());
         }
 
         serializeNewChunk(handle, newSegmentChunk);
@@ -817,6 +817,10 @@ public class RollingStorage implements SyncStorage {
         if (ex != null) {
             throw ex;
         }
+    }
+
+    private void checkIfEmptyAndNotSealed(StreamSegmentExistsException ex, String chunkName) throws StreamSegmentException {
+        checkIfEmptyAndNotSealed(ex, chunkName, this.baseStorage);
     }
 
     private void checkIfEmptyAndNotSealed(StreamSegmentExistsException ex, String chunkName, SyncStorage storage) throws StreamSegmentException {
