@@ -36,37 +36,35 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.store.InMemoryScope;
-import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScalingPolicy;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
@@ -76,15 +74,6 @@ import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.Timeout;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -94,17 +83,30 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.Timeout;
 
 import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * The tests in this class are intended to perform verification of authorization logic in ControllerServiceImpl (the
@@ -152,9 +154,7 @@ public class ControllerGrpcAuthFocusedTest {
     public void setup() throws IOException {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
-        this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(EXECUTOR));
-        Map<String, InMemoryScope> scopeMap = ((InMemoryStreamMetadataStore) streamStore).getScopes();
-        ((InMemoryKVTMetadataStore) kvtStore).setScopes(scopeMap);
+        this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, EXECUTOR));
 
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
@@ -163,7 +163,6 @@ public class ControllerGrpcAuthFocusedTest {
         TransactionMetrics.initialize();
 
         GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
-
         EventHelper helper = EventHelperMock.getEventHelperMock(EXECUTOR, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker, helper);

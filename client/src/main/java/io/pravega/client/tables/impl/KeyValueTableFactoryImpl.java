@@ -11,8 +11,8 @@ package io.pravega.client.tables.impl;
 
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
@@ -31,7 +31,7 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
     @NonNull
     private final Controller controller;
     @NonNull
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
 
     @Override
     public <KeyT, ValueT> KeyValueTable<KeyT, ValueT> forKeyValueTable(
@@ -39,7 +39,7 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
             @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
         val kvt = new KeyValueTableInfo(this.scope, keyValueTableName);
         val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName());
-        val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionFactory, clientConfiguration, provider);
+        val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionPool, clientConfiguration, provider);
         return new KeyValueTableImpl<>(kvt, tsf, this.controller, keySerializer, valueSerializer);
     }
 
@@ -48,6 +48,6 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
         // These two are passed in via the constructor, however they are created inside the KeyValueTableFactory.withScope,
         // which creates this instance, so we are the only ones who use it.
         this.controller.close();
-        this.connectionFactory.close();
+        this.connectionPool.close();
     }
 }

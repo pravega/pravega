@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.task.KeyValueTable;
 
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -25,34 +27,31 @@ import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
-
 import io.pravega.test.common.AssertExtensions;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
-
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeoutException;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 public abstract class TableMetadataTasksTest {
@@ -146,7 +145,7 @@ public abstract class TableMetadataTasksTest {
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
 
         // delete KVTable
-        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1, null);
+        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
 
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
@@ -194,7 +193,7 @@ public abstract class TableMetadataTasksTest {
 
         //Delete KVTable times out
         AssertExtensions.assertFutureThrows("delete timedout",
-                kvtTasks.deleteKeyValueTable(SCOPE, tableName, null),
+                kvtTasks.deleteKeyValueTable(SCOPE, tableName),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
