@@ -10,6 +10,7 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
+import io.pravega.controller.auth.AuthFileUtils;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
@@ -19,12 +20,13 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
-import org.junit.Before;
-
 import java.io.File;
 import java.io.FileWriter;
+import java.util.Arrays;
+import org.junit.Before;
 
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
+
     @Override
     @Before
     public void setup() throws Exception {
@@ -36,15 +38,23 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
             String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
 
             // Admin has READ_WRITE permission to everything
-            writer.write("admin:" + passwd + ":*,READ_UPDATE\n");
+            writer.write("admin:" + passwd + ":prn::*,READ_UPDATE\n");
 
             // User "user1" can:
             //    - list, create and delete scopes
             //    - Create and delete streams within scopes "scope1" and "scope2". Also if "user1" lists scopes,
             //      she'll see those scopes, but not "scope3".
-            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope1/*,READ_UPDATE;scope2,READ_UPDATE;scope2/*,READ_UPDATE;\n");
+            writer.write("user1:" + passwd + ":" + AuthFileUtils.createAclString(Arrays.asList(
+                    "prn::/,READ_UPDATE",
+                    "prn::/scope:scope1,READ_UPDATE",
+                    "prn::/scope:scope1/*,READ_UPDATE",
+                    "prn::/scope:scope2,READ_UPDATE",
+                    "prn::/scope:scope2/*,READ_UPDATE\n"
+            )));
 
-            writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
+            writer.write("user2:" + passwd + ":" + AuthFileUtils.createAclString(Arrays.asList(
+                    "prn::/,READ",
+                    "prn::/scope:scope3,READ_UPDATE")));
         }
 
         this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()

@@ -11,6 +11,9 @@ package io.pravega.controller.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import lombok.NonNull;
+
+import java.util.List;
 
 public class AuthFileUtils {
 
@@ -22,5 +25,13 @@ public class AuthFileUtils {
 
         // This will return a string that looks like this:"<username>:<pasword>:acl\n"
         return String.format("%s:%s:%s%n", username, password, acl);
+    }
+
+    public static String createAclString(@NonNull List<String> aceStrings) {
+        StringBuilder builder = new StringBuilder();
+        for (String aceString: aceStrings) {
+            builder.append(aceString).append(";");
+        }
+        return builder.toString();
     }
 }
