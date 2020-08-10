@@ -850,12 +850,27 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result;
     }
-    
-    public CompletableFuture<StreamSegments> rollOver(String scope, String stream, ScheduledExecutorService executor) {
+
+    /**
+     * Rolls over stream segments - seals existing active segments and creates new segments with exact identical key range
+     * assignments. 
+     * A rollover is essentially a manual scale operation where all segments from the stream are scaled and
+     * each new segment has exactly same key range as existing segments.
+     * An attempt to roll over a stream could potentially fail if another scale (either auto scale or a concurrent manual scale) 
+     * request changes the set of segments in the stream.
+     * The rollover method will return a boolean which would indicate if the scale was performed successfully or not. 
+     * 
+     * @param scope scope name
+     * @param stream stream name
+     * @param executor executor where the scale request is submitted and tracked. 
+     * @return CompletableFuture which when completed will have a boolean that indicates whether the stream was been 
+     * rolled over successfully. 
+     */
+    public CompletableFuture<Boolean> rollOver(String scope, String stream, ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
+        long traceId = LoggerHelpers.traceEnter(log, "rollover", scope, stream);
 
         return getCurrentSegmentsWithRange(scope, stream, traceId)
                          .thenCompose(activeSegments -> {
@@ -866,15 +881,8 @@ public class ControllerImpl implements Controller {
                                  newRanges.put(x.getMinKey(), x.getMaxKey());
                              });
 
-                             // this could fail if active segments were sealed by the time we attempted to scale them. 
-                             // TODO: it should be retried for scale precondition failures. 
-                             return scaleStream(new StreamImpl(scope, stream), segmentsToSeal, newRanges, executor).getFuture()
-                                              .thenCompose(v -> {
-                                                  // get the segments post scale and create a stream cut from them.
-                                                  return getCurrentSegments(scope, stream);
-                                              });
+                             return scaleStream(new StreamImpl(scope, stream), segmentsToSeal, newRanges, executor).getFuture();
                          });
-
     }
 
     @Override

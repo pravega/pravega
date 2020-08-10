@@ -1636,4 +1636,16 @@ public class ControllerImplTest {
         // have mocked successful responses.
         controller.createScope("scope1").join();
     }
+
+    @Test
+    public void testRollover() throws Exception {
+        CompletableFuture<Boolean> scaleStream;
+        String scope1 = "scope1";
+        String stream1 = "stream1";
+        controllerClient.rollOver(scope1, stream1, executor).join();
+        CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments(scope1, stream1);
+        assertEquals(2, segments.get().getSegments().size());
+        assertEquals(new Segment(scope1, stream1, 6), segments.get().getSegmentForKey(0.25));
+        assertEquals(new Segment(scope1, stream1, 7), segments.get().getSegmentForKey(0.75));
+    }
 }
