@@ -7,9 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.config;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.cli.usercommands.UserCLIRunner;
 import lombok.Builder;
 import lombok.Data;
 
@@ -20,12 +21,12 @@ import java.util.Map;
  */
 @Data
 @Builder
-class InteractiveConfig {
-    static final String CONTROLLER_URI = "controller-uri";
-    static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
-    static final String TIMEOUT_MILLIS = "timeout-millis";
-    static final String MAX_LIST_ITEMS = "max-list-items";
-    static final String PRETTY_PRINT = "pretty-print";
+public class InteractiveConfig {
+    public static final String CONTROLLER_URI = "controller-uri";
+    public static final String DEFAULT_SEGMENT_COUNT = "default-segment-count";
+    public static final String TIMEOUT_MILLIS = "timeout-millis";
+    public static final String MAX_LIST_ITEMS = "max-list-items";
+    public static final String PRETTY_PRINT = "pretty-print";
 
     private String controllerUri;
     private int defaultSegmentCount;
@@ -33,7 +34,7 @@ class InteractiveConfig {
     private int maxListItems;
     private boolean prettyPrint;
 
-    static InteractiveConfig getDefault() {
+    public static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
                 .controllerUri("tcp://localhost:9090")
                 .defaultSegmentCount(4)

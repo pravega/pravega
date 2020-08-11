@@ -7,10 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.kvs;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Streams;
+import io.pravega.cli.usercommands.Command;
+import io.pravega.cli.usercommands.CommandArgs;
+import io.pravega.cli.usercommands.utils.Formatter;
+import io.pravega.cli.usercommands.config.InteractiveConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.KeyValueTableInfo;
@@ -34,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-abstract class KeyValueTableCommand extends Command {
+public abstract class KeyValueTableCommand extends Command {
     /**
      * Group name for all {@link KeyValueTableCommand} instances. If changing this, update all Javadoc below (syntax examples).
      */
@@ -123,8 +127,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Create
 
-    static class Create extends KeyValueTableCommand {
-        Create(@NonNull CommandArgs commandArgs) {
+    public static class Create extends KeyValueTableCommand {
+        public Create(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -159,8 +163,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Delete
 
-    static class Delete extends KeyValueTableCommand {
-        Delete(@NonNull CommandArgs commandArgs) {
+    public static class Delete extends KeyValueTableCommand {
+        public Delete(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -192,8 +196,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region List
 
-    static class ListKVTables extends KeyValueTableCommand {
-        ListKVTables(@NonNull CommandArgs commandArgs) {
+    public static class ListKVTables extends KeyValueTableCommand {
+        public ListKVTables(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -279,8 +283,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Get
 
-    static class Get extends DataCommand {
-        Get(@NonNull CommandArgs commandArgs) {
+    public static class Get extends DataCommand {
+        public Get(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -337,8 +341,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Put
 
-    static class Put extends DataCommand {
-        Put(@NonNull CommandArgs commandArgs) {
+    public static class Put extends DataCommand {
+        public Put(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -377,8 +381,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class PutIf extends DataCommand {
-        PutIf(@NonNull CommandArgs commandArgs) {
+    public static class PutIf extends DataCommand {
+        public PutIf(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -423,8 +427,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class PutIfAbsent extends DataCommand {
-        PutIfAbsent(@NonNull CommandArgs commandArgs) {
+    public static class PutIfAbsent extends DataCommand {
+        public PutIfAbsent(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -464,8 +468,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class PutAll extends DataCommand {
-        PutAll(@NonNull CommandArgs commandArgs) {
+    public static class PutAll extends DataCommand {
+        public PutAll(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -513,8 +517,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class PutRange extends DataCommand {
-        PutRange(@NonNull CommandArgs commandArgs) {
+    public static class PutRange extends DataCommand {
+        public PutRange(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -554,8 +558,8 @@ abstract class KeyValueTableCommand extends Command {
 
     //region Remove
 
-    static class Remove extends DataCommand {
-        Remove(@NonNull CommandArgs commandArgs) {
+    public static class Remove extends DataCommand {
+        public Remove(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -639,8 +643,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class ListKeys extends ListCommand<TableKey<String>> {
-        ListKeys(@NonNull CommandArgs commandArgs) {
+    public static class ListKeys extends ListCommand<TableKey<String>> {
+        public ListKeys(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -672,8 +676,8 @@ abstract class KeyValueTableCommand extends Command {
         }
     }
 
-    static class ListEntries extends ListCommand<TableEntry<String, String>> {
-        ListEntries(@NonNull CommandArgs commandArgs) {
+    public static class ListEntries extends ListCommand<TableEntry<String, String>> {
+        public ListEntries(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 

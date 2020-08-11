@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.usercommands;
 
+import io.pravega.cli.usercommands.config.InteractiveConfig;
 import lombok.Data;
 import lombok.NonNull;
 

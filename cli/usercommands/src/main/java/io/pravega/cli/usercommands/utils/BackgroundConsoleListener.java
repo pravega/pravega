@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.utils;
 
 import lombok.val;
 
@@ -18,11 +18,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Acquires console input on a background thread and updates its state ({@link #isTriggered()} when a desired token
  * has been typed in.
  */
-class BackgroundConsoleListener implements AutoCloseable {
+public class BackgroundConsoleListener implements AutoCloseable {
     private final AtomicBoolean triggered = new AtomicBoolean(false);
     private final String token;
 
-    BackgroundConsoleListener() {
+    public BackgroundConsoleListener() {
         this("q");
     }
 
@@ -30,11 +30,11 @@ class BackgroundConsoleListener implements AutoCloseable {
         this.token = token.trim().toLowerCase();
     }
 
-    boolean isTriggered() {
+    public boolean isTriggered() {
         return this.triggered.get();
     }
 
-    void start() {
+    public void start() {
         this.triggered.set(false);
         val t = new Thread(() -> {
             System.out.println(String.format("Press '%s <enter>' to cancel ongoing operation.", this.token));
@@ -49,7 +49,7 @@ class BackgroundConsoleListener implements AutoCloseable {
         t.start();
     }
 
-    void stop() {
+    public void stop() {
         this.triggered.set(true);
     }
 

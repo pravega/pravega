@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.utils;
 
 import com.google.common.base.Strings;
 import com.google.gson.Gson;
@@ -23,22 +23,23 @@ import java.util.List;
 /**
  * Output formatter.
  */
-abstract class Formatter {
-    abstract List<String> format(String... items);
+public abstract class Formatter {
 
-    abstract String separator();
+    public abstract List<String> format(String... items);
+
+    public abstract String separator();
 
     /**
      * Outputs in table-like format, with columns.
      */
     @RequiredArgsConstructor
-    static class TableFormatter extends Formatter {
+    public static class TableFormatter extends Formatter {
         static final char SEPARATOR = '-';
         @NonNull
         private final int[] columnLengths;
 
         @Override
-        List<String> format(String... items) {
+        public List<String> format(String... items) {
             String[] currentLine = Arrays.copyOf(items, Math.min(items.length, this.columnLengths.length));
             List<String> result = new ArrayList<>();
             do {
@@ -66,7 +67,7 @@ abstract class Formatter {
         }
 
         @Override
-        String separator() {
+        public String separator() {
             return format(Arrays.stream(this.columnLengths).boxed().map(l -> Strings.padEnd("", l, SEPARATOR)).toArray(String[]::new)).get(0);
         }
     }
@@ -74,11 +75,11 @@ abstract class Formatter {
     /**
      * Outputs in JSON format.
      */
-    static class JsonFormatter extends Formatter {
-        static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+    public static class JsonFormatter extends Formatter {
+        public static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
         @Override
-        List<String> format(String... items) {
+        public List<String> format(String... items) {
             if (items.length == 1) {
                 return Collections.singletonList(GSON.toJson(items[0]));
             } else {
@@ -87,7 +88,7 @@ abstract class Formatter {
         }
 
         @Override
-        String separator() {
+        public String separator() {
             return "";
         }
     }

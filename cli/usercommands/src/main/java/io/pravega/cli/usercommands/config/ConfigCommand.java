@@ -7,20 +7,22 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.config;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.cli.usercommands.Command;
+import io.pravega.cli.usercommands.CommandArgs;
 import lombok.val;
 
 import java.util.HashMap;
 
-abstract class ConfigCommand extends Command {
+public abstract class ConfigCommand extends Command {
 
     static final String COMPONENT = "config";
     private static final String PAIR_SEPARATOR = "=";
 
-    ConfigCommand(CommandArgs args) {
+    public ConfigCommand(CommandArgs args) {
         super(args);
     }
 
@@ -31,8 +33,8 @@ abstract class ConfigCommand extends Command {
                 .description(description);
     }
 
-    static class Set extends ConfigCommand {
-        Set(CommandArgs args) {
+    public static class Set extends ConfigCommand {
+        public Set(CommandArgs args) {
             super(args);
         }
 
@@ -60,8 +62,8 @@ abstract class ConfigCommand extends Command {
         }
     }
 
-    static class List extends ConfigCommand {
-        List(CommandArgs args) {
+    public static class List extends ConfigCommand {
+        public List(CommandArgs args) {
             super(args);
         }
 

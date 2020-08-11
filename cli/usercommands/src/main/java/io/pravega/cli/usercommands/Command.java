@@ -14,6 +14,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.cli.usercommands.config.ConfigCommand;
+import io.pravega.cli.usercommands.kvs.KeyValueTableCommand;
+import io.pravega.cli.usercommands.scope.ScopeCommand;
+import io.pravega.cli.usercommands.stream.StreamCommand;
+import io.pravega.cli.usercommands.utils.Formatter;
+import io.pravega.cli.usercommands.config.InteractiveConfig;
 import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -41,7 +47,7 @@ import java.util.stream.Collectors;
  * Base class for any command to execute from the Admin tool.
  */
 @RequiredArgsConstructor
-abstract class Command {
+public abstract class Command {
     //region Private
 
     @Getter
@@ -186,7 +192,7 @@ abstract class Command {
      */
     @Data
     @Builder
-    static class CommandDescriptor {
+    public static class CommandDescriptor {
         @NonNull
         private final String component;
         @NonNull

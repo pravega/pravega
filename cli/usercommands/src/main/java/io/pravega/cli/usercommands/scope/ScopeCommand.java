@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.scope;
 
 import io.pravega.cli.usercommands.Command;
 import io.pravega.cli.usercommands.CommandArgs;
-import io.pravega.cli.usercommands.StreamCommand;
+import io.pravega.cli.usercommands.stream.StreamCommand;
 import io.pravega.client.admin.StreamManager;
 import lombok.Cleanup;
 import lombok.NonNull;
@@ -19,10 +19,10 @@ import lombok.val;
 
 import java.net.URI;
 
-abstract class ScopeCommand extends Command {
+public abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
 
-    ScopeCommand(@NonNull CommandArgs commandArgs) {
+    public ScopeCommand(@NonNull CommandArgs commandArgs) {
         super(commandArgs);
     }
 
@@ -33,8 +33,8 @@ abstract class ScopeCommand extends Command {
                 .description(description);
     }
 
-    static class Create extends StreamCommand {
-        Create(@NonNull CommandArgs commandArgs) {
+    public static class Create extends StreamCommand {
+        public Create(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -60,8 +60,8 @@ abstract class ScopeCommand extends Command {
         }
     }
 
-    static class Delete extends StreamCommand {
-        Delete(@NonNull CommandArgs commandArgs) {
+    public static class Delete extends StreamCommand {
+        public Delete(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 

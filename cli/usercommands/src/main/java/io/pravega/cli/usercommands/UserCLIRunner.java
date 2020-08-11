@@ -12,6 +12,8 @@ package io.pravega.cli.usercommands;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.google.common.base.Strings;
+import io.pravega.cli.usercommands.config.ConfigCommand;
+import io.pravega.cli.usercommands.config.InteractiveConfig;
 import lombok.Cleanup;
 import lombok.val;
 import org.slf4j.LoggerFactory;
@@ -30,9 +32,9 @@ public class UserCLIRunner {
     private static final String CMD_HELP = "help";
     private static final String CMD_EXIT = "exit";
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        //context.getLoggerList().get(0).setLevel(Level.ERROR);
+        context.getLoggerList().get(0).setLevel(Level.ERROR);
 
         System.out.println("Pravega Interactive Demo Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool\n");

@@ -7,9 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.usercommands;
+package io.pravega.cli.usercommands.stream;
 
 import com.google.common.collect.Streams;
+import io.pravega.cli.usercommands.utils.BackgroundConsoleListener;
+import io.pravega.cli.usercommands.Command;
+import io.pravega.cli.usercommands.CommandArgs;
+import io.pravega.cli.usercommands.config.InteractiveConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -29,10 +33,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * Commands relating to Streams.
  */
-abstract class StreamCommand extends Command {
+public abstract class StreamCommand extends Command {
     static final String COMPONENT = "stream";
 
-    StreamCommand(@NonNull CommandArgs commandArgs) {
+    protected StreamCommand(@NonNull CommandArgs commandArgs) {
         super(commandArgs);
     }
 
@@ -45,8 +49,8 @@ abstract class StreamCommand extends Command {
 
     //region Create
 
-    static class Create extends StreamCommand {
-        Create(@NonNull CommandArgs commandArgs) {
+    public static class Create extends StreamCommand {
+        public Create(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -84,8 +88,8 @@ abstract class StreamCommand extends Command {
 
     //region Delete
 
-    static class Delete extends StreamCommand {
-        Delete(@NonNull CommandArgs commandArgs) {
+    public static class Delete extends StreamCommand {
+        public Delete(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -122,8 +126,8 @@ abstract class StreamCommand extends Command {
 
     //region List
 
-    static class List extends StreamCommand {
-        List(@NonNull CommandArgs commandArgs) {
+    public static class List extends StreamCommand {
+        public List(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -153,8 +157,8 @@ abstract class StreamCommand extends Command {
 
     //region Append
 
-    static class Append extends StreamCommand {
-        Append(@NonNull CommandArgs commandArgs) {
+    public static class Append extends StreamCommand {
+        public Append(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
@@ -206,8 +210,8 @@ abstract class StreamCommand extends Command {
 
     //region Read
 
-    static class Read extends StreamCommand {
-        Read(@NonNull CommandArgs commandArgs) {
+    public static class Read extends StreamCommand {
+        public Read(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
