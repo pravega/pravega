@@ -42,6 +42,7 @@ import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
@@ -95,6 +96,7 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
+    private static final String WEBHOOK_GENERATE = "webhookCert.generate";
 
     final K8sClient k8sClient;
     private final String id;
@@ -174,11 +176,16 @@ public abstract class AbstractService implements Service {
                 .put("tier2", tier2Spec())
                 .build();
 
+        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
+                .put("ControllerSecret", "selfsigned-cert-tls")
+                .put("SegmentStoreSecret", "selfsigned-cert-tls")
+                .build();   
+
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
+                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec, tlsSpec))
                 .build();
     }
 
@@ -203,7 +210,8 @@ public abstract class AbstractService implements Service {
         return true;
     }
 
-    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
+    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec,
+                                                          Map<String, Object> tlsSpec) {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
@@ -215,6 +223,13 @@ public abstract class AbstractService implements Service {
             return ImmutableMap.<String, Object>builder()
                     .putAll(commonEntries)
                     .put("version", PRAVEGA_VERSION)
+                    .build();
+        }
+
+        if (Utils.TLS_ENABLED) {
+            return ImmutableMap.<String, Object>builder()
+                    .putAll(commonEntries)
+                    .put("tls", tlsSpec)
                     .build();
         }
         return commonEntries;
@@ -413,6 +428,10 @@ public abstract class AbstractService implements Service {
                                                                  new V1EnvVarBuilder().withName("OPERATOR_NAME")
                                                                                       .withValue(PRAVEGA_OPERATOR)
                                                                                       .build(),
+                                                                // generate secret by name selfsigned-cert-tls with tls.crt & tls.key
+                                                                new V1EnvVarBuilder().withName(WEBHOOK_GENERATE)
+                                                                                     .withValue("true")
+                                                                                     .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED")
                                                                         .withValue(String.valueOf(enableTls))
                                                                         .build(),
@@ -453,7 +472,7 @@ public abstract class AbstractService implements Service {
                         .putDataItem("TLS_ENABLED", "true")
                         .putDataItem("TLS_KEY_FILE", "/opt/pravega/conf/server-key.key")
                         .putDataItem("TLS_CERT_FILE", "/opt/pravega/conf/server-cert.crt")
-                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/ca-cert.crt")
+                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/server-cert.crt")
                         .putDataItem("TLS_ENABLED_FOR_SEGMENT_STORE", "true")
                         .putDataItem("REST_KEYSTORE_FILE_PATH", "/opt/pravega/conf/server.keystore.jks")
                         .putDataItem("REST_KEYSTORE_PASSWORD_FILE_PATH", "/opt/pravega/conf/server.keystore.jks.passwd");

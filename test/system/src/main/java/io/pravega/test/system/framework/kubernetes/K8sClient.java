@@ -567,7 +567,7 @@ public class K8sClient {
     }
 
     /**
-     * Method to get V1ConfigMap
+     * Method to get V1ConfigMap.
      * @param name Name of the ConfigMap.
      * @param namespace Namespace on which the pod(s) reside.
      * @return Future representing the V1ConfigMap.
@@ -581,8 +581,7 @@ public class K8sClient {
     }
 
     /**
-     * Method to create V1ConfigMap
-     * @param name Name of the ConfigMap.
+     * Method to create V1ConfigMap.
      * @param namespace Namespace on which the pod(s) reside.
      * @param configMap V1ConfigMap to create
      * @return Future representing the V1ConfigMap.
@@ -596,7 +595,7 @@ public class K8sClient {
     }
 
     /**
-     * Method to delete V1ConfigMap
+     * Method to delete V1ConfigMap.
      * @param name Name of the ConfigMap.
      * @param namespace Namespace on which the pod(s) reside.
      * @return Future representing the V1ConfigMap.
