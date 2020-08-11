@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BitConverter;
@@ -264,7 +265,7 @@ class SegmentKeyCache {
             }
         }
 
-        candidates.forEach(mc -> mc.cacheEntry.update(mc.keyHash, mc.offset.encode(), cacheGeneration));
+        candidates.forEach(mc -> mc.commit(cacheGeneration));
         synchronized (this) {
             // Finally, remove tail hashes, but ONLY if they haven't changed - it's possible that since we released the lock
             // above a newer value was recorded; we shouldn't be removing it then. We use Map.remove(Key, Value) for this.
@@ -311,7 +312,8 @@ class SegmentKeyCache {
      * Represents a candidate for Migration from the Tail Cache to the Index Cache.
      */
     @RequiredArgsConstructor
-    private static class MigrationCandidate {
+    @VisibleForTesting
+    static class MigrationCandidate {
         /**
          * Key Hash to migrate.
          */
@@ -324,6 +326,22 @@ class SegmentKeyCache {
          * Offset in Segment.
          */
         final CacheBucketOffset offset;
+
+        /**
+         * Commits this {@link MigrationCandidate} into the base {@link CacheEntry}.
+         *
+         * @param cacheGeneration The current Cache Generation.
+         * @return True if the commit was a success; false otherwise (if the cache entry has been evicted in the meantime).
+         */
+        boolean commit(int cacheGeneration) {
+            try {
+                this.cacheEntry.update(this.keyHash, this.offset.encode(), cacheGeneration);
+                return true;
+            } catch (CacheEntryEvictedException ex) {
+                // Nothing to do here. A concurrent eviction has removed this entry so there isn't much more we can do.
+                return false;
+            }
+        }
     }
 
     //endregion
@@ -466,8 +484,9 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private void storeInCache(ByteArraySegment data) {
             int newAddress;
-            Preconditions.checkState(this.cacheAddress != EVICTED_ADDRESS, "CacheEntry evicted; cannot store.");
-            if (this.cacheAddress >= 0) {
+            if (this.cacheAddress == EVICTED_ADDRESS) {
+                throw new CacheEntryEvictedException();
+            } else if (this.cacheAddress >= 0) {
                 newAddress = SegmentKeyCache.this.cacheStorage.replace(this.cacheAddress, data);
             } else {
                 newAddress = SegmentKeyCache.this.cacheStorage.insert(data);
@@ -523,6 +542,12 @@ class SegmentKeyCache {
             BitConverter.writeLong(target, targetOffset, hash.getMostSignificantBits());
             BitConverter.writeLong(target, targetOffset + Long.BYTES, hash.getLeastSignificantBits());
             return 2 * Long.BYTES;
+        }
+    }
+
+    private static class CacheEntryEvictedException extends IllegalStateException {
+        CacheEntryEvictedException() {
+            super("CacheEntry evicted.");
         }
     }
 
