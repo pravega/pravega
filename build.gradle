@@ -674,10 +674,10 @@ project('controller') {
     }
 }
 
-project('cli:admincommands') {
+project('cli:admin') {
     apply plugin: 'application'
     applicationName = "pravega-admin"
-    mainClassName = "io.pravega.cli.admincommands.AdminCLIRunner"
+    mainClassName = "io.pravega.cli.admin.AdminCLIRunner"
 
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
@@ -714,10 +714,10 @@ project('cli:admincommands') {
     }
 }
 
-project('cli:usercommands') {
+project('cli:user') {
     apply plugin: 'application'
     applicationName = "pravega-cli"
-    mainClassName = "io.pravega.cli.usercommands.UserCLIRunner"
+    mainClassName = "io.pravega.cli.user.UserCLIRunner"
 
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
@@ -1082,8 +1082,8 @@ task publishAllJars() {
     dependsOn ':shared:controller-api:publish'
     dependsOn ':controller:publish'
     dependsOn ':standalone:publish'
-    dependsOn ':cli:admincommands'
-    dependsOn ':cli:usercommands'
+    dependsOn ':cli:admin'
+    dependsOn ':cli:user'
     dependsOn ':test:system:publish'
 }
 
@@ -1138,8 +1138,8 @@ distributions {
             from (project(":segmentstore:server:host").installDist) {
                 exclude "logback.xml"
             }
-            from (project(":cli:admincommands").installDist)
-            from (project(":cli:usercommands").installDist)
+            from (project(":cli:admin").installDist)
+            from (project(":cli:user").installDist)
             from (project(":standalone").installDist)
             from 'LICENSE'
             from 'NOTICE'
