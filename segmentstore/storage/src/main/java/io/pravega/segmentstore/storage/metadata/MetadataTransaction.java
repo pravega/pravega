@@ -114,6 +114,7 @@ public class MetadataTransaction implements AutoCloseable {
         this.store = Preconditions.checkNotNull(store, "store");
         this.version = version;
         this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
+        Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
         data = new ConcurrentHashMap<String, BaseMetadataStore.TransactionData>();
     }
 

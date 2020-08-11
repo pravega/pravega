@@ -25,12 +25,15 @@ import lombok.val;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -104,6 +107,11 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Maximum number of metadata entries to keep in recent transaction buffer.
      */
     private static final int MAX_ENTRIES_IN_TXN_BUFFER = 5000;
+
+    /**
+     * Maximum wait time for acquiring individual locks.
+     */
+    private static final Duration LOCK_WAIT_TIME = Duration.ofSeconds(1);
 
     /**
      * Indicates whether this instance is fenced or not.
@@ -277,6 +285,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 toAdd.put(key, data);
             }
             bufferedTxnData.putAll(toAdd);
+        } catch (TimeoutException e) {
+            throw new StorageMetadataException("Operation timed out.", e);
+        } catch (InterruptedException e) {
+            throw new StorageMetadataException("Operation interrupted.", e);
         } finally {
             writeLock.unlock();
         }
@@ -326,6 +338,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             try {
                 readLock.lock();
                 dataFromBuffer = bufferedTxnData.get(key);
+            } catch (TimeoutException e) {
+                throw new StorageMetadataException("Operation timed out.", e);
+            } catch (InterruptedException e) {
+                throw new StorageMetadataException("Operation interrupted.", e);
             } finally {
                 readLock.unlock();
             }
@@ -386,6 +402,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             if (oldValue != null) {
                 copyForBuffer = oldValue;
             }
+        } catch (TimeoutException e) {
+            throw new StorageMetadataException("Operation timed out.", e);
+        } catch (InterruptedException e) {
+            throw new StorageMetadataException("Operation interrupted.", e);
         } finally {
             writeLock.unlock();
         }
@@ -545,7 +565,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Helper class to encapsulates management of locks over group of keys.
      */
-    static class MultiKeyLockManager {
+    private static class MultiKeyLockManager {
         /**
          * Map to track active locks.
          */
@@ -556,7 +576,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * @param keysToLock Keys to lock.
          * @return LockWrapper instance.
          */
-        MultiKeyLock readLock(String... keysToLock) {
+        private MultiKeyLock readLock(String... keysToLock) {
             return new MultiKeyLock(this, true, keysToLock);
         }
 
@@ -565,7 +585,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * @param keysToLock Keys to lock.
          * @return LockWrapper instance.
          */
-        MultiKeyLock writeLock(String... keysToLock) {
+        private MultiKeyLock writeLock(String... keysToLock) {
             return new MultiKeyLock(this, false, keysToLock);
         }
 
@@ -600,7 +620,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Helper class that encapsulates lock over group of keys.
      */
-    static class MultiKeyLock {
+    private static class MultiKeyLock {
         /**
          * {@link MultiKeyLockManager} instance managing this lock.
          */
@@ -631,7 +651,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * @param isReadOnly Whether to acquire read only locks or writable locks.
          * @param keysToLock Keys to lock.
          */
-        MultiKeyLock(MultiKeyLockManager lockManager, Boolean isReadOnly, String... keysToLock) {
+        private MultiKeyLock(MultiKeyLockManager lockManager, Boolean isReadOnly, String... keysToLock) {
             Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
             this.keysToLock = keysToLock;
             this.locks = new Lock[keysToLock.length];
@@ -641,17 +661,20 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
 
         /**
-         * Acquires all required locks.
+         * Acquires all required locks if they are free within the given waiting time
+         * and the current thread has not been interrupted.
+         * This call blocks current thread until either all locks are aquired or there is a time out or thread is interrupted.
          */
-        void lock() {
+        private void lock() throws InterruptedException, TimeoutException {
             for (val key: keysToLock) {
                 // Get existing lock.
                 LockData lockData = lockManager.addReference(key);
 
                 // Lock.
                 Lock lock = isReadOnly ? lockData.lock.readLock() : lockData.lock.writeLock();
-                lock.lock();
-
+                if (!lock.tryLock(LOCK_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS)) {
+                    throw new TimeoutException("Could not acquire lock in allotted time.");
+                }
                 // Keep track of locks acquired.
                 locks[aquiredLockCount++] = lock;
             }
@@ -660,7 +683,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         /**
          * Releases all acquired locks.
          */
-        void unlock() {
+        private void unlock() {
             for (int i = aquiredLockCount -1; i >= 0; i--) {
                 // Unlock.
                 locks[i].unlock();
@@ -674,22 +697,22 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Data for tracking locks in {@link MultiKeyLockManager} .
      */
-    static class LockData {
+    private static class LockData {
         /**
          * Underlying ReadWriteLock lock.
          */
-        final ReadWriteLock lock;
+        private final ReadWriteLock lock;
 
         /**
          * Reference count.
          */
-        int count;
+        private int count;
 
         /**
          * Constructor.
          * @param lock ReadWriteLock lock to use.
          */
-        LockData(ReadWriteLock lock) {
+        private LockData(ReadWriteLock lock) {
             this.lock = lock;
         }
     }
