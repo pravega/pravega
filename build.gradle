@@ -439,13 +439,6 @@ project('segmentstore:server:host') {
         outputDir = startScripts.outputDir
     }
 
-    task admin(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.admin.AdminRunner"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-        systemProperties System.getProperties()
-    }
-
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
@@ -704,12 +697,13 @@ project('cli:admincommands') {
         compile project(':segmentstore:storage:impl')
         compile project(':shared:cluster')
         compile project(':test:testcommon')
-        testCompile group: 'junit', name: 'junit', version: '4.12'
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
-        testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
-        testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:integration')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
+        testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
+        testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
     }
 
     javadoc {
