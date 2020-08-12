@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -26,7 +27,9 @@ public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(storageFactoryInfo.getName().equals("EXTENDEDS3"));
         if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
-            return new ExtendedS3SimpleStorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+            return new ExtendedS3SimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(ExtendedS3StorageConfig::builder),
+                    executor);
         } else {
             return new ExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
         }

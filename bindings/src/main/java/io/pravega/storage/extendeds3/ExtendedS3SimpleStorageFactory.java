@@ -27,6 +27,9 @@ import java.util.concurrent.ExecutorService;
 @RequiredArgsConstructor
 public class ExtendedS3SimpleStorageFactory implements StorageFactory {
     @NonNull
+    private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
+
+    @NonNull
     private final ExtendedS3StorageConfig config;
 
     @NonNull
@@ -37,7 +40,7 @@ public class ExtendedS3SimpleStorageFactory implements StorageFactory {
         ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
                 new ExtendedS3ChunkStorage(createS3Client(), this.config),
                 this.executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                this.chunkedSegmentStorageConfig);
         return storageProvider;
     }
 
