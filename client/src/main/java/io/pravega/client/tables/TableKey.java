@@ -26,6 +26,9 @@ import lombok.ToString;
 public class TableKey<KeyT> {
     /**
      * The Key.
+     *
+     * @param key The Key.
+     * @return The Key.
      */
     @NonNull
     private final KeyT key;
@@ -33,6 +36,9 @@ public class TableKey<KeyT> {
     /**
      * The Version. If null, any updates for this Key will be unconditional. See {@link KeyValueTable} for details on
      * conditional updates.
+     *
+     * @param version Version associated with the key.
+     * @return Version associated with the key.
      */
     private final Version version;
 

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 @Slf4j
 public class MetricsNamesTest {
@@ -20,7 +21,7 @@ public class MetricsNamesTest {
     @Test
     public void testFailMetricName() {
 
-        assertEquals(null, MetricsNames.failMetricName(null));
+        assertNull(MetricsNames.failMetricName(null));
         assertEquals("", MetricsNames.failMetricName(""));
         assertEquals("tag_fail", MetricsNames.failMetricName("tag"));
         assertEquals("0_fail", MetricsNames.failMetricName("0"));
@@ -61,23 +62,23 @@ public class MetricsNamesTest {
 
     @Test (expected = IllegalArgumentException.class)
     public void testMetricKeyWithTagNameOnly() {
-        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", "tagName");
+        MetricsNames.metricKey("metric", "tagName");
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testMetricKeyWithOddNumberTags() {
-        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", "tag1", "value1", "tag2");
+        MetricsNames.metricKey("metric", "tag1", "value1", "tag2");
     }
 
     @Test
     public void testMetricKeyWithSingleNull() {
-        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", null);
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", (String[]) null);
         assertEquals("metric", keys.getCacheKey());
         assertEquals("metric", keys.getRegistryKey());
     }
 
     @Test  (expected = IllegalArgumentException.class)
     public void testMetricKeyWithDoubleNull() {
-        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", null, null);
+        MetricsNames.metricKey("metric", null, null);
     }
 }
