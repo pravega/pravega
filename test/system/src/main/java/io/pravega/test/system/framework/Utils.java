@@ -48,9 +48,13 @@ public class Utils {
     public static final int ALTERNATIVE_REST_PORT = 9094;
     public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
     public static final boolean AUTH_ENABLED = isAuthEnabled();
+    public static final boolean TLS_ENABLED = isTLSEnabled();
     public static final String PROPERTIES_FILE = "pravega.properties";
     public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
+    public static final String PROPERTIES_FILE_WITH_TLS = "pravega_withTLS.properties";
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
+    public static final String DEFAULT_TRUSTSTORE_PATH = "cert.pem";
+    public static final boolean VALIDATE_HOSTNAME = false;
 
     /**
      * Get Configuration from environment or system property.
@@ -89,7 +93,8 @@ public class Utils {
         }
     }
 
-    public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName, boolean enableTls) {
+        log.debug("enableTls set to {}", enableTls);
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
@@ -97,13 +102,16 @@ public class Utils {
                 return new PravegaControllerDockerService(serviceName, zkUri);
             case KUBERNETES:
             default:
-                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties());
+                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties(), enableTls);
         }
-
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
         return createPravegaControllerService(zkUri, "controller");
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
+        return createPravegaControllerService(zkUri, serviceName, false);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
@@ -137,6 +145,9 @@ public class Utils {
         if (AUTH_ENABLED) {
             resourceName = PROPERTIES_FILE_WITH_AUTH;
         }
+        if (TLS_ENABLED)  {
+            resourceName = PROPERTIES_FILE_WITH_TLS;
+        }
         Properties props = new Properties();
         try {
             props.load(Utils.class.getClassLoader().getResourceAsStream(resourceName));
@@ -155,6 +166,9 @@ public class Utils {
         } else {
             log.debug("Generating config with auth enabled.");
             return ClientConfig.builder()
+                               // TLS-related client-side configuration
+                               .trustStore(DEFAULT_TRUSTSTORE_PATH)
+                               .validateHostName(VALIDATE_HOSTNAME)
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
@@ -195,6 +209,9 @@ public class Utils {
         return Boolean.valueOf(securityEnabled);
     }
 
-
+    private static boolean isTLSEnabled() {
+        String transportEnabled = Utils.getConfig("transportEnabled", "false");
+        return Boolean.valueOf(transportEnabled);
+    }
 
 }

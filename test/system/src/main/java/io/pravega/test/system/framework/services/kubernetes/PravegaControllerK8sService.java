@@ -27,18 +27,33 @@ public class PravegaControllerK8sService extends AbstractService {
 
     private final URI zkUri;
     private final ImmutableMap<String, String> properties;
+    private final boolean enableTls;
 
     public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties) {
         super(id);
         this.zkUri = zkUri;
         this.properties = properties;
+        this.enableTls = false;
+    }
 
+    public PravegaControllerK8sService(final String id, final URI zkUri, ImmutableMap<String, String> properties, boolean enableTls) {
+        super(id);
+        this.zkUri = zkUri;
+        this.properties = properties;
+        this.enableTls = enableTls;
     }
 
     @Override
     public void start(boolean wait) {
         Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT, properties),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
+        if (wait) {
+            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
+                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
+        }
+        if (this.enableTls) {
+            enableTLS();
+        }
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
@@ -76,10 +91,11 @@ public class PravegaControllerK8sService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
+        String prefix = enableTls ? TLS : TCP;
         return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
                                                        .thenApply(statuses -> statuses.stream()
-                                                                                     .flatMap(s -> Stream.of(URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
-                                                                                                             URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
+                                                                                     .flatMap(s -> Stream.of(URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
+                                                                                                             URI.create(prefix + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
                                                                                      .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-controller", t));
     }
@@ -107,5 +123,12 @@ public class PravegaControllerK8sService extends AbstractService {
                                return CompletableFuture.completedFuture(null);
                            }
                        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void enableTLS() {
+           Futures.getThrowingException(setupTLS());
+           scaleService(0);
+           scaleService(DEFAULT_CONTROLLER_COUNT);
     }
 }

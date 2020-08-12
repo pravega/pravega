@@ -11,6 +11,7 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1ContainerBuilder;
 import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
@@ -40,6 +41,8 @@ import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
@@ -61,6 +64,7 @@ public abstract class AbstractService implements Service {
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
+    protected static final String TLS = "tls://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
@@ -79,6 +83,7 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
+    static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
@@ -91,6 +96,7 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
+    private static final String WEBHOOK_GENERATE = "webhookCert.generate";
 
     final K8sClient k8sClient;
     private final String id;
@@ -106,13 +112,17 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
+        return deployPravegaUsingOperator(zkUri, controllerCount, segmentStoreCount, bookieCount, props, false);
+    }
+
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, boolean enableTls) {
     return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createClusterRole(getPravegaOperatorClusterRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
                         .thenCompose(v -> k8sClient.createClusterRoleBinding(getPravegaOperatorClusterRoleBinding()))
                         //deploy pravega operator.
-                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment()))
+                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment(enableTls)))
                         // wait until pravega operator is running, only one instance of operator is running.
                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", PRAVEGA_OPERATOR, 1))
                         // request operator to deploy zookeeper nodes.
@@ -166,11 +176,16 @@ public abstract class AbstractService implements Service {
                 .put("tier2", tier2Spec())
                 .build();
 
+        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
+                .put("ControllerSecret", "selfsigned-cert-tls")
+                .put("SegmentStoreSecret", "selfsigned-cert-tls")
+                .build();   
+
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
+                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec, tlsSpec))
                 .build();
     }
 
@@ -195,7 +210,8 @@ public abstract class AbstractService implements Service {
         return true;
     }
 
-    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
+    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec,
+                                                          Map<String, Object> tlsSpec) {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
@@ -207,6 +223,13 @@ public abstract class AbstractService implements Service {
             return ImmutableMap.<String, Object>builder()
                     .putAll(commonEntries)
                     .put("version", PRAVEGA_VERSION)
+                    .build();
+        }
+
+        if (Utils.TLS_ENABLED) {
+            return ImmutableMap.<String, Object>builder()
+                    .putAll(commonEntries)
+                    .put("tls", tlsSpec)
                     .build();
         }
         return commonEntries;
@@ -387,7 +410,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private V1Deployment getPravegaOperatorDeployment() {
+    private V1Deployment getPravegaOperatorDeployment(boolean enableTls) {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
                                                         .withImage(PRAVEGA_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
@@ -404,7 +427,17 @@ public abstract class AbstractService implements Service {
                                                                                       .build(),
                                                                  new V1EnvVarBuilder().withName("OPERATOR_NAME")
                                                                                       .withValue(PRAVEGA_OPERATOR)
-                                                                                      .build())
+                                                                                      .build(),
+                                                                // generate secret by name selfsigned-cert-tls with tls.crt & tls.key
+                                                                new V1EnvVarBuilder().withName(WEBHOOK_GENERATE)
+                                                                                     .withValue("true")
+                                                                                     .build(),
+                                                                new V1EnvVarBuilder().withName("TLS_ENABLED")
+                                                                        .withValue(String.valueOf(enableTls))
+                                                                        .build(),
+                                                                new V1EnvVarBuilder().withName("TLS_ENABLED_FOR_SEGMENT_STORE")
+                                                                        .withValue(String.valueOf(enableTls))
+                                                                        .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)
                                                                                .withNamespace(NAMESPACE)
@@ -426,6 +459,24 @@ public abstract class AbstractService implements Service {
                                                                                                      .build())
                                                                                .build())
                                         .build();
+    }
+
+    public CompletableFuture<V1ConfigMap> setupTLS() {
+            V1ConfigMap configMap = Futures.getThrowingException(k8sClient.getConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE));
+            return k8sClient.deleteConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE)
+                        .thenCompose(v -> k8sClient.createConfigMap(NAMESPACE, addDefaultTlsConfiguration(configMap)));
+    }
+
+    private V1ConfigMap addDefaultTlsConfiguration(V1ConfigMap configMap) {
+            return configMap
+                        .putDataItem("TLS_ENABLED", "true")
+                        .putDataItem("TLS_KEY_FILE", "/opt/pravega/conf/server-key.key")
+                        .putDataItem("TLS_CERT_FILE", "/opt/pravega/conf/server-cert.crt")
+                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/server-cert.crt")
+                        .putDataItem("TLS_ENABLED_FOR_SEGMENT_STORE", "true")
+                        .putDataItem("REST_KEYSTORE_FILE_PATH", "/opt/pravega/conf/server.keystore.jks")
+                        .putDataItem("REST_KEYSTORE_PASSWORD_FILE_PATH", "/opt/pravega/conf/server.keystore.jks.passwd");
+
     }
 
     @Override

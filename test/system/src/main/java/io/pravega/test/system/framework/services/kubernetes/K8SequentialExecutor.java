@@ -109,7 +109,7 @@ public class K8SequentialExecutor implements TestExecutor {
     }
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
-        log.info("Running test pod with security enabled :{}", Utils.AUTH_ENABLED);
+        log.info("Running test pod with security enabled :{}, transport enabled: {}", Utils.AUTH_ENABLED, Utils.TLS_ENABLED);
         return new V1PodBuilder()
                 .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
@@ -122,6 +122,7 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
                 .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
+                                  + " -DtransportEnabled=" + Utils.TLS_ENABLED
                                   + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
