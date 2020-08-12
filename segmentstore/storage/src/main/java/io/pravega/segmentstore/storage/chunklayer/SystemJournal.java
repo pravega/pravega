@@ -48,24 +48,25 @@ import static com.google.common.base.Strings.nullToEmpty;
  * This creates a circular dependency while reading or writing the data about these segments from the metadata segments.
  * System journal is a mechanism to break this circular dependency by having independent log of all layout changes to system segments.
  * During bootstrap all the system journal files are read and processed to re-create the state of the storage system segments.
- * Currently only two actions are considered viz. Addition of new chunks {@code ChunkAddedRecord} and truncation of segments {@code TruncationRecord}.
- * In addition to these two records, log also contains system snapshot records {@code SystemSnapshotRecord} which contains the state
- * of each storage system segments ({@code SegmentSnapshotRecord}) after replaying all available logs at the time of snapshots.
+ * Currently only two actions are considered viz. Addition of new chunks {@link SystemJournal.ChunkAddedRecord} and truncation of segments
+ * {@link SystemJournal.TruncationRecord}.
+ * In addition to these two records, log also contains system snapshot records {@link SystemJournal.SystemSnapshotRecord} which contains the state
+ * of each storage system segments ({@link SystemJournal.SegmentSnapshotRecord}) after replaying all available logs at the time of snapshots.
  * These snapshot records help avoid replaying entire log evey time. Each container instance records snapshot immediately after bootstrap.
  * To avoid data corruption, each instance writes to its own distinct log file/object.
  * The bootstrap algorithm also correctly ignores invalid log entries written by running instance which is no longer owner of the given container.
- * To prevent applying partial changes resulting from unexpected crash, the log records are written as {@code SystemJournalRecordBatch}.
+ * To prevent applying partial changes resulting from unexpected crash, the log records are written as {@link SystemJournal.SystemJournalRecordBatch}.
  * In such cases either a full batch is read and applied completely or no records in the batch are applied.
  */
 @Slf4j
 public class SystemJournal {
     /**
-     * Serializer for {@code SystemJournalRecordBatch}.
+     * Serializer for {@link SystemJournal.SystemJournalRecordBatch}.
      */
     private static final SystemJournalRecordBatch.SystemJournalRecordBatchSerializer BATCH_SERIALIZER = new SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
 
     /**
-     * Serializer for {@code SystemSnapshotRecord}.
+     * Serializer for {@link SystemJournal.SystemSnapshotRecord}.
      */
     private static final SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemSnapshotRecord.Serializer();
 
