@@ -96,8 +96,8 @@ public class ControllerGrpcListStreamsTest {
     public void testListStreamsReturnsAuthorizedStreamsOnly() {
         // Arrange
         Map<String, String> passwordInputFileEntries = new HashMap<>();
-        passwordInputFileEntries.put("admin", "*,READ_UPDATE");
-        passwordInputFileEntries.put("user", "scope1,READ;scope1/stream1,READ");
+        passwordInputFileEntries.put("admin", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put("user", "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ");
 
         @Cleanup
         ClusterWrapper cluster = new ClusterWrapper(true, "secret",
