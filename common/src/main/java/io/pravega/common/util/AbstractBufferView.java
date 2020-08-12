@@ -79,8 +79,9 @@ public abstract class AbstractBufferView implements BufferView {
     protected static abstract class AbstractReader implements BufferView.Reader {
         /**
          * {@inheritDoc}
-         * Default implementation for {@link Reader#readInt()}. Derived classes should make every effort to override this
-         * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
+         * Default implementation for {@link BufferView.Reader#readInt()}. Derived classes should make every effort to
+         * override this implementation with one that is as efficient as possible (if the {@link BufferView}
+         * implementation allows it).
          *
          * @return The read int.
          * @throws BufferView.Reader.OutOfBoundsException If {@link #available()} is less than {@link Integer#BYTES}.
@@ -92,8 +93,9 @@ public abstract class AbstractBufferView implements BufferView {
 
         /**
          * {@inheritDoc}
-         * Default implementation for {@link Reader#readLong()}. Derived classes should make every effort to override this
-         * implementation with one that is as efficient as possible (if the {@link BufferView} implementation allows it).
+         * Default implementation for {@link BufferView.Reader#readLong()}. Derived classes should make every effort to
+         * override this implementation with one that is as efficient as possible (if the {@link BufferView}
+         * implementation allows it).
          *
          * @return The read int.
          * @throws BufferView.Reader.OutOfBoundsException If {@link #available()} is less than {@link Long#BYTES}.
