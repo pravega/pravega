@@ -25,6 +25,9 @@ public class KeyValueTableConfiguration implements Serializable {
     /**
      * The number of Partitions for a Key-Value Table. This value cannot be adjusted after the Key-Value Table has been
      * created.
+     *
+     * @param partitionCount The number of Partitions for a Key-Value Table.
+     * @return The number of Partitions for a Key-Value Table.
      */
     private final int partitionCount;
 }

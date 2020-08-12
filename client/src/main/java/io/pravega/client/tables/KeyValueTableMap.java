@@ -20,7 +20,7 @@ import lombok.NonNull;
  * {@link Map} implementation for a {@link KeyValueTable}'s Key Family.
  * <p>
  * All methods inherited from {@link Map} respect the contracts defined in that interface, except as noted below.
- * <p><p>
+ * <p>
  * Performance considerations:
  * <ul>
  * <li> The {@link Map} interface defines synchronous operations, however {@link KeyValueTable} defines async operations.
@@ -71,7 +71,7 @@ import lombok.NonNull;
  * <li>Invocations of {@link Collection#stream()}}, {@link Collection#spliterator()} or {@link Collection#toArray()} on
  * {@link #keySet()}, {@link #entrySet()} or {@link #values()} will invoke those collections' iterators (see above).
  * </ul>
- * <p><p>
+ * <p>
  * If {@link #getKeyFamily()} is null), the following operations are not supported and will throw throw
  * {@link UnsupportedOperationException}).
  * <ul>
