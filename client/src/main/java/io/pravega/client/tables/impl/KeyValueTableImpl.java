@@ -135,7 +135,7 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
      * Same as {@link #putAll(String, Iterable)}, but accepts an iterator.
      *
      * @param keyFamily The Key Family for the all provided Table Entries.
-     * @param entries   An {@link Iterable} of {@link Map.Entry} instances to insert or update.
+     * @param entries   An {@link Iterable} of {@link java.util.Map.Entry} instances to insert or update.
      * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
      * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
      * items in entries and the versions will be in the same order as the entries.

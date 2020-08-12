@@ -250,6 +250,7 @@ public class ReaderGroupImplTest {
         return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
     }
     
+    @SuppressWarnings("unchecked")
     @Test
     public void testFutureCancelation() throws Exception {
         AtomicBoolean completed = new AtomicBoolean(false);
