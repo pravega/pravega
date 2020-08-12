@@ -71,4 +71,10 @@ public class LegacyAuthorizationResourceImplTest {
         assertEquals("scopeName/readerGroupName",
                 objectUnderTest.ofReaderGroupInScope("scopeName", "readerGroupName"));
     }
+
+    @Test
+    public void testOfAKvtableInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("testScopeName/_kvtable/kvtName",
+                objectUnderTest.ofKeyValueTableInScope("testScopeName", "kvtName"));
+    }
 }

@@ -11,7 +11,7 @@ package io.pravega.controller.server.security.auth.handler.impl;
 
 import io.pravega.auth.AuthHandler;
 
-class OldFormatAclAuthorizer extends AclAuthorizer {
+class LegacyAclAuthorizerImpl extends AclAuthorizer {
 
     @Override
     public AuthHandler.Permissions authorize(AccessControlList accessControlList, String resource) {

@@ -9,29 +9,35 @@
  */
 package io.pravega.controller.server.security.auth.handler.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-@VisibleForTesting
-@Data
+/**
+ * An entry of an {@link AccessControlList}.
+ */
+@RequiredArgsConstructor
 class AccessControlEntry {
+    @Getter(AccessLevel.PACKAGE)
     private final String resourcePattern;
+
+    @Getter(AccessLevel.PACKAGE)
     private final AuthHandler.Permissions permissions;
 
-    public boolean isResource(String resource) {
+    boolean isResource(String resource) {
         return resourcePattern.equals(resource);
     }
 
-    public boolean resourceEndsWith(String resource) {
+    boolean resourceEndsWith(String resource) {
         return resourcePattern.endsWith(resource);
     }
 
-    public boolean resourceStartsWith(String resource) {
+    boolean resourceStartsWith(String resource) {
         return resourcePattern.startsWith(resource);
     }
 
-    public boolean hasHigherPermissionsThan(AuthHandler.Permissions input) {
+    boolean hasHigherPermissionsThan(AuthHandler.Permissions input) {
         return this.permissions.ordinal() > input.ordinal();
     }
 }

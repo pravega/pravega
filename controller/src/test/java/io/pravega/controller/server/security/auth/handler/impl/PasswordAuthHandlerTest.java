@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -33,8 +34,13 @@ public class PasswordAuthHandlerTest {
     private final StrongPasswordProcessor pwdProcessor = StrongPasswordProcessor.builder().build();
     private final Base64.Encoder base64Encoder = Base64.getEncoder();
 
-
     //region Tests verifying authentication
+
+    @Test(expected = CompletionException.class)
+    public void initializeFailsIfAccountFileMissing() {
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+        authHandler.initialize("nonexistent/accounts/file/path");
+    }
 
     @Test
     public void authenticatesValidUserSuccessfully() {

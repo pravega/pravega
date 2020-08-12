@@ -11,7 +11,10 @@ package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
 
-public final class LegacyAuthorizationResourceImpl extends AuthorizationResource {
+/**
+ * A legacy implementation that constructs resource strings in the old format.
+ */
+public final class LegacyAuthorizationResourceImpl implements AuthorizationResource {
 
     public String ofScopes() {
         return "/";

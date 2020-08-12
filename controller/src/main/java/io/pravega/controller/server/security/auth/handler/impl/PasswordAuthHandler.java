@@ -39,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 public class PasswordAuthHandler implements AuthHandler {
     private final ConcurrentHashMap<String, AccessControlList> userMap;
     private final StrongPasswordProcessor encryptor;
-
     private final boolean isOldAclFormatEnabled;
 
     public PasswordAuthHandler() {

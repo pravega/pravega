@@ -11,7 +11,10 @@ package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
 
-public class AuthorizationResourceImpl extends AuthorizationResource {
+/**
+ * The main implementation of the {@link AuthorizationResource} class.
+ */
+public class AuthorizationResourceImpl implements AuthorizationResource {
     public static final String DOMAIN_PART_SUFFIX = "prn::";
     private static final String TAG_SCOPE = "scope";
     private static final String TAG_STREAM = "stream";

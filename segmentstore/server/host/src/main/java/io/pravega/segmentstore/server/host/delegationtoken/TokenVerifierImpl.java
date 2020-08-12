@@ -76,10 +76,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
      */
     private boolean resourceMatchesClaimKey(String claimKey, String resource) {
         log.trace("claimKey = {}, resourceKey = {}", claimKey, resource);
-        if (claimKey.startsWith("prn::/")) {
-            claimKey = claimKey.replace("prn::/", "");
-            claimKey = claimKey.replace("scope:", "");
-            claimKey = claimKey.replace("stream:", "");
+        if (claimKey.startsWith("prn::")) {
+            claimKey = claimKey.replace("prn::/", "")
+                    .replace("prn::", "")
+                    .replace("scope:", "")
+                    .replace("stream:", "");
         }
 
         /*

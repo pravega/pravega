@@ -24,7 +24,7 @@ package io.pravega.controller.server.security.auth;
  *     <li>An object is represented by an instance of <i>this</i> class.</li>
  * </ul>
  */
-public abstract class AuthorizationResource {
+public interface AuthorizationResource {
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of scopes
@@ -32,7 +32,7 @@ public abstract class AuthorizationResource {
      *
      * @return a string representing the collections of scopes in the system
      */
-    public abstract String ofScopes();
+    String ofScopes();
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified scope.
@@ -42,7 +42,7 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public abstract String ofScope(String scopeName);
+    String ofScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of streams
@@ -53,7 +53,7 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public abstract String ofStreamsInScope(String scopeName);
+    String ofStreamsInScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified stream within
@@ -65,7 +65,7 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public abstract String ofStreamInScope(String scopeName, String streamName);
+    String ofStreamInScope(String scopeName, String streamName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the collection of reader
@@ -76,7 +76,7 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public abstract String ofReaderGroupsInScope(String scopeName);
+    String ofReaderGroupsInScope(String scopeName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified reader group
@@ -88,7 +88,7 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public abstract String ofReaderGroupInScope(String scopeName, String readerGroupName);
+    String ofReaderGroupInScope(String scopeName, String readerGroupName);
 
     /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified KeyValueTable
@@ -100,5 +100,5 @@ public abstract class AuthorizationResource {
      * @throws NullPointerException if {@code scopeName} or {@code kvtName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code kvtName} are empty
      */
-    public abstract String ofKeyValueTableInScope(String scopeName, String kvtName);
+    String ofKeyValueTableInScope(String scopeName, String kvtName);
 }

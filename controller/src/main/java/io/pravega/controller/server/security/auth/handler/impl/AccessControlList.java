@@ -9,14 +9,20 @@
  */
 package io.pravega.controller.server.security.auth.handler.impl;
 
-import com.google.common.annotations.VisibleForTesting;
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
-@VisibleForTesting
-@Data
+/**
+ * Represents an access control list (ACL). An ACL specifies the permissions that a user has, for a set of resources.
+ */
+@RequiredArgsConstructor
 class AccessControlList {
+    @Getter(AccessLevel.PACKAGE)
     private final String encryptedPassword;
+
+    @Getter(AccessLevel.PACKAGE)
     private final List<AccessControlEntry> entries;
 }
