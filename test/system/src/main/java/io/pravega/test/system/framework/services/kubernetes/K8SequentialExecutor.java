@@ -15,6 +15,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.openapi.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodBuilder;
+import io.kubernetes.client.openapi.models.V1SecretVolumeSourceBuilder;
 import io.kubernetes.client.openapi.models.V1ServiceAccount;
 import io.kubernetes.client.openapi.models.V1ServiceAccountBuilder;
 import io.kubernetes.client.openapi.models.V1VolumeBuilder;
@@ -110,7 +111,7 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
         log.info("Running test pod with security enabled :{}, transport enabled: {}", Utils.AUTH_ENABLED, Utils.TLS_ENABLED);
-        return new V1PodBuilder()
+        V1Pod pod =  new V1PodBuilder()
                 .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
                 .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
@@ -129,6 +130,17 @@ public class K8SequentialExecutor implements TestExecutor {
                 .endContainer()
                 .withRestartPolicy("Never")
                 .endSpec().build();
+        if (Utils.TLS_ENABLED) {
+            pod  = new V1PodBuilder(pod).editSpec().withVolumes(new V1VolumeBuilder().withName("tls-certs")
+                                                  .withSecret(new V1SecretVolumeSourceBuilder().withSecretName(Utils.TLS_SECRET_NAME).build())
+                                                  .build())
+                .editContainer(0)
+                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath(Utils.TLS_MOUNT_PATH).withName("tls-secret").build())
+                .endContainer()
+                .endSpec()
+                .build();
+        }
+        return pod;
     }
 
     @Override

@@ -90,7 +90,8 @@ public class SecurePravegaDataTest extends AbstractReadWriteTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
 
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerUri, true));
+
         @Cleanup
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
                 .clientConfig(Utils.buildClientConfig(controllerUri))

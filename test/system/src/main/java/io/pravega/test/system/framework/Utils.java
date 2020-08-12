@@ -52,8 +52,10 @@ public class Utils {
     public static final String PROPERTIES_FILE = "pravega.properties";
     public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
     public static final String PROPERTIES_FILE_WITH_TLS = "pravega_withTLS.properties";
+    public static final String TLS_SECRET_NAME = "selfsigned-cert-tls";
+    public static final String TLS_MOUNT_PATH = "/etc/secret-volume";
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
-    public static final String DEFAULT_TRUSTSTORE_PATH = "cert.pem";
+    public static final String DEFAULT_TRUSTSTORE_PATH = TLS_MOUNT_PATH + "/tls.crt";
     public static final boolean VALIDATE_HOSTNAME = false;
 
     /**
@@ -160,21 +162,32 @@ public class Utils {
     }
 
     public static ClientConfig buildClientConfig(URI controllerUri) {
-        if (!AUTH_ENABLED) {
-            log.debug("Generating config with auth disabled.");
-            return ClientConfig.builder().controllerURI(controllerUri).build();
-        } else {
-            log.debug("Generating config with auth enabled.");
+           return buildClientConfig(controllerUri, false);
+    }
+
+    public static ClientConfig buildClientConfig(URI controllerUri, boolean enableTls) {
+        if (TLS_ENABLED || enableTls) {
+            String certPath = enableTls ? "/opt/pravega/conf/server-cert.crt" : DEFAULT_TRUSTSTORE_PATH;
+            log.debug("Generating config with tls enabled.");
             return ClientConfig.builder()
                                // TLS-related client-side configuration
-                               .trustStore(DEFAULT_TRUSTSTORE_PATH)
+                               .trustStore(certPath)
                                .validateHostName(VALIDATE_HOSTNAME)
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
                                .build();
+        } else if (AUTH_ENABLED) {
+            log.debug("Generating config with auth enabled.");
+            return ClientConfig.builder()
+                               // auth
+                               .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                               .controllerURI(controllerUri)
+                               .build();
+        } else {
+            log.debug("Generating config with auth disabled.");
+            return ClientConfig.builder().controllerURI(controllerUri).build();
         }
-
     }
 
     /**
@@ -213,5 +226,4 @@ public class Utils {
         String transportEnabled = Utils.getConfig("transportEnabled", "false");
         return Boolean.valueOf(transportEnabled);
     }
-
 }
