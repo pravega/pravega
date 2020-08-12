@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import io.pravega.cli.admin.AdminCommandState;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.pravega.cli.admin.TestUtils;
+import io.pravega.cli.admin.utils.TestUtils;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.junit.Assert;
 import org.junit.Before;

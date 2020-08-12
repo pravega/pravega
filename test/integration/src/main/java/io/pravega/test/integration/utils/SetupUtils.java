@@ -72,7 +72,7 @@ public final class SetupUtils {
     private final int controllerRPCPort = TestUtils.getAvailableListenPort();
     private final int controllerRESTPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + String.valueOf(controllerRPCPort))).build();
+    private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
     
     /**
      * Start all pravega related services required for the test deployment.
@@ -147,10 +147,8 @@ public final class SetupUtils {
      * @param streamName     Name of the test stream.
      * @param numSegments    Number of segments to be created for this stream.
      *
-     * @throws Exception on any errors.
      */
-    public void createTestStream(final String streamName, final int numSegments)
-            throws Exception {
+    public void createTestStream(final String streamName, final int numSegments) {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(numSegments > 0);
@@ -207,6 +205,6 @@ public final class SetupUtils {
     }
     
     public URI getControllerRestUri() {
-        return URI.create("http://localhost:" + String.valueOf(controllerRESTPort));
+        return URI.create("http://localhost:" + controllerRESTPort);
     }
 }

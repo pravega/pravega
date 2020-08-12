@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Helps parse Strings into Commands.
  */
-class Parser {
+public class Parser {
 
     private static final String SCANNER_PATTERN = "[^\"\\s]+|\"(\\\\.|[^\\\\\"])*\"";
 
@@ -33,7 +33,7 @@ class Parser {
      * @param s The string to parse.
      * @return A new instance of the Command class.
      */
-    static Command parse(String s) {
+    public static Command parse(String s) {
         @Cleanup
         Scanner scanner = new Scanner(s);
         String component = scanner.findInLine(SCANNER_PATTERN);
@@ -52,7 +52,7 @@ class Parser {
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
-    static class Command {
+    public static class Command {
         private final String component;
         private final String name;
         private final List<String> args;

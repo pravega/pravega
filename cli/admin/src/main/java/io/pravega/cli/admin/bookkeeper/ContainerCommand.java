@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,8 +59,8 @@ abstract class ContainerCommand extends BookKeeperCommand {
     protected static class Context extends BookKeeperCommand.Context {
         final ContainerConfig containerConfig;
 
-        protected Context(ServiceConfig serviceConfig, ContainerConfig containerConfig, BookKeeperConfig bookKeeperConfig,
-                          CuratorFramework zkClient, BookKeeperLogFactory logFactory, BookKeeperAdmin bkAdmin) {
+        Context(ServiceConfig serviceConfig, ContainerConfig containerConfig, BookKeeperConfig bookKeeperConfig,
+                CuratorFramework zkClient, BookKeeperLogFactory logFactory, BookKeeperAdmin bkAdmin) {
             super(serviceConfig, bookKeeperConfig, zkClient, logFactory, bkAdmin);
             this.containerConfig = containerConfig;
         }

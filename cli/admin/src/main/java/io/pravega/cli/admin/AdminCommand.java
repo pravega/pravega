@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,18 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperDisableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
+import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
+import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
+import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
+import io.pravega.cli.admin.controller.ControllerListScopesCommand;
+import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
 import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
-import io.pravega.cli.admin.controller.*;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;

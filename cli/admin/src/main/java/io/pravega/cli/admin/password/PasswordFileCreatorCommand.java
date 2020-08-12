@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,7 +7,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.cli.admin.password;
 
 import io.pravega.cli.admin.AdminCommand;
@@ -27,9 +26,11 @@ public class PasswordFileCreatorCommand extends AdminCommand {
 
     private String toWrite;
 
-    public PasswordFileCreatorCommand(CommandArgs args){super(args);}
+    public PasswordFileCreatorCommand(CommandArgs args) {
+        super(args);
+    }
 
-    public String getToWrite(){
+    public String getToWrite() {
         return this.toWrite;
     }
 
@@ -41,7 +42,7 @@ public class PasswordFileCreatorCommand extends AdminCommand {
             String userDetails = getUserDetails(getCommandArgs().getArgs());
             createPassword(userDetails);
             writeToFile(targetFileName, toWrite);
-        } catch (Exception e){
+        } catch (Exception e) {
             System.err.println(e.getMessage());
         }
     }
@@ -50,11 +51,13 @@ public class PasswordFileCreatorCommand extends AdminCommand {
         return userInput.get(0);
     }
 
-    String getUserDetails(List<String> userInput){
+    String getUserDetails(List<String> userInput) {
         String userDetails = userInput.get(1);
         if ((userDetails.split(":")).length == 3) {
             return userDetails;
-        } else throw new IllegalArgumentException("The user detail entered is not of the format uname:pwd:acl");
+        } else {
+            throw new IllegalArgumentException("The user detail entered is not of the format uname:pwd:acl");
+        }
     }
 
     void createPassword(String userDetails) throws NoSuchAlgorithmException, InvalidKeySpecException {
@@ -62,7 +65,7 @@ public class PasswordFileCreatorCommand extends AdminCommand {
         toWrite = generatePassword(lists);
     }
 
-    private String[] parseUserDetails(String userDetails){
+    private String[] parseUserDetails(String userDetails) {
         return userDetails.split(":");
     }
 
@@ -72,8 +75,7 @@ public class PasswordFileCreatorCommand extends AdminCommand {
     }
 
     private void writeToFile(String targetFileName, String toWrite) throws IOException {
-        try (FileWriter writer = new FileWriter(targetFileName))
-        {
+        try (FileWriter writer = new FileWriter(targetFileName)) {
             writer.write(toWrite + "\n");
             writer.flush();
         }
