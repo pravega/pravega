@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventRead;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,8 +92,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
-        final ConcurrentSet<UUID> committingTxn = new ConcurrentSet<>();
-        final ConcurrentSet<UUID> abortedTxn = new ConcurrentSet<>();
+        final ConcurrentSkipListSet<UUID> committingTxn = new ConcurrentSkipListSet<>();
+        final ConcurrentSkipListSet<UUID> abortedTxn = new ConcurrentSkipListSet<>();
         final boolean txnWrite;
 
         final AtomicLong writtenEvents = new AtomicLong();
