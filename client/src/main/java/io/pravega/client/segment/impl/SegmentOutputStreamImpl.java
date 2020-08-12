@@ -383,18 +383,24 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                       requestId
                                                                       ))
                                              .collect(Collectors.toList());
-            ClientConnection connection = state.getConnection();
+            ClientConnection connection = null;
+            try {
+                connection = Futures.getThrowingException(getConnection());
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
+                log.warn("Segment cannot be appended because it is already sealed for writer {}", writerId);
+            }
             if (connection == null) {
                 log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
+            final ClientConnection clientConnection = connection;
             if (toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
-                state.connectionSetupComplete(connection);
+                state.connectionSetupComplete(clientConnection);
             } else {
                 connection.sendAsync(toRetransmit, e -> {
                     if (e == null) {
-                        state.connectionSetupComplete(connection);
+                        state.connectionSetupComplete(clientConnection);
                     } else {
                         failConnection(e);
                     }
