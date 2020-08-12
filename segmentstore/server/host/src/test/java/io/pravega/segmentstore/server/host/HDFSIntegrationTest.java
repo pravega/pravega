@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
@@ -74,7 +75,9 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new HDFSSimpleStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor())
+                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                                setup.getConfig(HDFSStorageConfig::builder),
+                                setup.getStorageExecutor())
                         : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
