@@ -43,7 +43,7 @@ We prefer all communications to be in English.
 
 ## Policy
 
-DellEMC follows the principle of [Coordinated Vulnerability Disclosure](https://www.cisa.gov/coordinated-vulnerability-disclosure-process).
+Pravega follows the principle of [Coordinated Vulnerability Disclosure](https://www.cisa.gov/coordinated-vulnerability-disclosure-process).
 
 <!-- END PRAVEGA SECURITY.MD BLOCK -->
 
