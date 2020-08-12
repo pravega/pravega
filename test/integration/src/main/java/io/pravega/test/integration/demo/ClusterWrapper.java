@@ -193,7 +193,7 @@ public class ClusterWrapper implements AutoCloseable {
         StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
         try {
             String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
-            return Entry.of("admin", encryptedPassword, "*,READ_UPDATE");
+            return Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE");
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }

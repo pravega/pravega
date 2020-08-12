@@ -158,9 +158,9 @@ public class BatchClientAuthTest extends BatchClientTest {
             String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
 
             List<PasswordAuthHandlerInput.Entry> entries = Arrays.asList(
-                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"),
-                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "*,READ_UPDATE;"),
-                    PasswordAuthHandlerInput.Entry.of("unauthorizeduser", encryptedPassword, "")
+                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("unauthorizeduser", encryptedPassword, "prn::")
             );
             result.postEntries(entries);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
