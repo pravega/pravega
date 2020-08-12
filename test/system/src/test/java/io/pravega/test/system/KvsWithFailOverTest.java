@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -21,6 +22,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -29,7 +31,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
@@ -42,13 +46,18 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class KvsWithFailOverTest extends AbstractFailoverTests {
-    static final String SCOPE_NAME = "testScope" + System.nanoTime();
+    static final String SCOPE_NAME = "kvsScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     static final String KVT_NAME = "testKvt";
-    int controllerPodCount;
-    int segmentStorePodCount;
+    static final String KEY_FAMILY = "testKeyFamily";
+    private static final int NUM_KVPWRITE = 5;
+    private static final int NUM_KVPREAD = 5;
+    @Rule
+    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
+    public Timeout globalTimeout = Timeout.seconds(25 * 60);
     private StreamManager streamManager;
+    private ConnectionFactory connectionFactory;
     private ConnectionPool connectionPool;
-
+    private KeyValueTableFactory keyValueTableFactory;
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
@@ -57,7 +66,7 @@ public class KvsWithFailOverTest extends AbstractFailoverTests {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws ExecutionException {
         // Get zk details to verify if controller, SSS are running
         Service zkService = Utils.createZookeeperService();
         List<URI> zkUris = zkService.getServiceDetails();
@@ -78,44 +87,54 @@ public class KvsWithFailOverTest extends AbstractFailoverTests {
         segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
-        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "KVP-CreateGetUpdateThread");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_KVPWRITE + NUM_KVPREAD + 1, "KvsFailOverTest-main");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "KvsFailOverTest-controller");
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
-        // Service count display twice of the, each pod IP mapped with 9090 and 10080, SO divided by 2 to get actual pod count
-        controllerPodCount = (controllerInstance.getServiceDetails().size()) / 2;
-        segmentStorePodCount = segmentStoreInstance.getServiceDetails().size();
-        log.info("Pod count: Controller {} and Segmentstore {}", controllerPodCount, segmentStorePodCount);
+        log.info("BEFORE 1");
+        // Making controller and segmentstore instance count to 1
+        //log.info("controller size {}", (controllerInstance.getServiceDetails().size()) / 2);
+        //if (((controllerInstance.getServiceDetails().size()) / 2) > 1)
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        log.info("BEFORE 2");
+        //log.info("Segmentstore size {}", segmentStoreInstance.getServiceDetails().size());
+        //if (segmentStoreInstance.getServiceDetails().size() > 1)
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        log.info("BEFORE 3");
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(), controllerExecutorService);
+        log.info("BEFORE 4");
         streamManager = new StreamManagerImpl(clientConfig);
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        log.info("BEFORE 5");
         keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME, controller, connectionPool);
-        // Create scope
-        createScope(SCOPE_NAME, streamManager);
-        // Creating KVT
-        createKVT(SCOPE_NAME, KVT_NAME, config, controllerURIDirect);
+        log.info("BEFORE 6");
+        // Creating scope and KVT
+        createScopeAndKVT(SCOPE_NAME, KVT_NAME, controllerURIDirect, streamManager);
         log.info("completed scope {} and kvt {} creation", SCOPE_NAME, KVT_NAME);
     }
 
     @After
     public void tearDown() throws ExecutionException {
+        log.info("Removing KVP entry");
+        deleteKVP(SCOPE_NAME, KVT_NAME, KEY_FAMILY, NUM_KVPWRITE, keyValueTableFactory);
         streamManager.close();
-        keyValueTableFactory.close();
-        connectionPool.close();
-        ExecutorServiceHelpers.shutdown(controllerExecutorService);
-        Futures.getAndHandleExceptions(controllerInstance.scaleService(controllerPodCount), ExecutionException::new);
-        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(segmentStorePodCount), ExecutionException::new);
+        connectionFactory.close();
+        ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
     @Test
     public void kvsWithFailOverTest() throws Exception {
-        // Start KVP operation like create, Update and Get KVP
         log.info("Start KVP operation to Update KVP entry");
-        startKVPCreate(SCOPE_NAME, KVT_NAME, keyValueTableFactory, controllerURIDirect);
-        //run the failover test like scale up/down of controller and Segmentstore
+        writeInKVP(SCOPE_NAME, KVT_NAME, KEY_FAMILY, NUM_KVPWRITE, keyValueTableFactory);
+        readFromKVP(SCOPE_NAME, KVT_NAME, KEY_FAMILY, NUM_KVPREAD, keyValueTableFactory);
         log.info("Started Segmentstore and Controller scale up and scale down");
         performFailoverForTestsInvolvingKVS();
+        stopKvpWriter();
+        stopKvpReaders();
         log.info("Test KVS FailOver Successfully completed");
     }
 }

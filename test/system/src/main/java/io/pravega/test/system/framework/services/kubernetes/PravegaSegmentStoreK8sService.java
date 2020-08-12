@@ -95,7 +95,7 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                            int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
                            int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
-                                    currentControllerCount, currentSegmentStoreCount);
+                                     currentControllerCount, currentSegmentStoreCount);
                            if (currentSegmentStoreCount != newInstanceCount) {
                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("segmentStoreReplicas", newInstanceCount, "pravega");
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
