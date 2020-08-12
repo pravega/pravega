@@ -75,6 +75,13 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
      * @return
      */
     private boolean resourceMatchesClaimKey(String claimKey, String resource) {
+        log.trace("claimKey = {}, resourceKey = {}", claimKey, resource);
+        if (claimKey.startsWith("prn::/")) {
+            claimKey = claimKey.replace("prn::/", "");
+            claimKey = claimKey.replace("scope:", "");
+            claimKey = claimKey.replace("stream:", "");
+        }
+
         /*
          * Examples of the conditions when the claimKey (key of the key-value pair claim) matches the resource are:
          *      1) claimKey = "myscope", resource = "myscope"
