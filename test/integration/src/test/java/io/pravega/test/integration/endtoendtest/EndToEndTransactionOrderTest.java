@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -53,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,7 +84,7 @@ public class EndToEndTransactionOrderTest {
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
     ConcurrentHashMap<UUID, String> txnToWriter = new ConcurrentHashMap<>();
     AtomicInteger counter = new AtomicInteger();
-    ConcurrentSet<UUID> uncommitted = new ConcurrentSet<>();
+    ConcurrentSkipListSet<UUID> uncommitted = new ConcurrentSkipListSet<>();
     TestingServer zkTestServer;
     ControllerWrapper controllerWrapper;
     Controller controller;
@@ -213,7 +213,7 @@ public class EndToEndTransactionOrderTest {
         }
     }
 
-    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSet<UUID> uncommitted) {
+    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSkipListSet<UUID> uncommitted) {
         AtomicBoolean committed = new AtomicBoolean(false);
         AtomicInteger counter = new AtomicInteger(0);
         // check 6 times with 5 second gap until transaction is committed. if it is not committed, declare it uncommitted

@@ -37,7 +37,7 @@ public class ClientMetricKeysTest {
 
     @Test
     public void testMetricKeyEmptyTags() {
-        String metric = CLIENT_APPEND_LATENCY.metric( null);
+        String metric = CLIENT_APPEND_LATENCY.metric((String[]) null);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey(), metric);
 
         metric = CLIENT_APPEND_LATENCY.metric();

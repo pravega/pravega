@@ -518,7 +518,7 @@ public class EventProcessorTest {
         }
         assertEquals(count * expectedSum, actualSum);
 
-        // Stop the group, and await its termmination.
+        // Stop the group, and await its termination.
         group.stopAsync();
         group.awaitTerminated();
     }
