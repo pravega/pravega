@@ -7,23 +7,21 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-<!-- BEGIN DellEMC SECURITY.MD V0.0.1 BLOCK -->
+<!-- BEGIN PRAVEGA SECURITY.MD V0.0.1 BLOCK -->
 
 ## Security
 
-DellEMC takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Pravega](https://github.com/pravega/pravega).
+Pravega takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations.
 
-If you believe you have found a security vulnerability in any DellEMC-owned repository that meets [DellEMC's definition of a security vulnerability](https://www.dell.com/support/contents/en-us/article/product-support/self-support-knowledgebase/security-antivirus/alerts-vulnerabilities/dell-vulnerability-response-policy), please report it to us as described below.
+If you believe you have found a security vulnerability in any Pravega owned repository, please report it to us as described below.
 
 ## Reporting Security Issues
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them to the DellEMC Product Security Incident Response Team (Dell PSIRT) via email(mailto:secure@dell.com).
+Instead, please report them to the Pravega Security Team via email(mailto:security@pravega.io).
 
-If possible, encrypt your message with our PGP key; please download it from the [Dell Vulnerability Response Policy page](https://i.dell.com/sites/csdocuments/eSupport_Docs/en/dell_psirt_pub_key.txt).
-
-You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [Dell EMC Product Security](https://www.delltechnologies.com/en-us/products/security/index.htm). 
+You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
 
 Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
 
@@ -38,7 +36,6 @@ Please include the requested information listed below (as much as you can provid
 
 This information will help us triage your report more quickly.
 
-If you are reporting for our [BugCrowd Hall of Fame](https://bugcrowd.com/dell), more complete reports can contribute to an acknowledgement. Please visit our [Contributors - Dell Software Security Acknowledgement program](https://www.dell.com/learn/nz/en/nzbsd1/campaigns/contributors-dell-software-security) page for more details about our active programs.
 
 ## Preferred Languages
 
@@ -48,7 +45,7 @@ We prefer all communications to be in English.
 
 DellEMC follows the principle of [Coordinated Vulnerability Disclosure](https://www.cisa.gov/coordinated-vulnerability-disclosure-process).
 
-<!-- END DellEMC SECURITY.MD BLOCK -->
+<!-- END PRAVEGA SECURITY.MD BLOCK -->
 
 ## Released Versions
 The following versions of Pravega open source are released. Please visit the [Releases](https://github.com/pravega/pravega/releases) page for tags and changelists. 
