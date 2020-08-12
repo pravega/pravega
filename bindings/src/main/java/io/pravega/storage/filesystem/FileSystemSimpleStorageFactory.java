@@ -13,15 +13,15 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import lombok.AllArgsConstructor;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for ExtendedS3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link FileSystemChunkStorage}.
+ * Factory for FileSystem {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link FileSystemChunkStorage}.
  */
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class FileSystemSimpleStorageFactory implements StorageFactory {
     @NonNull
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;

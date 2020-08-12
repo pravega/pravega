@@ -224,7 +224,7 @@ public class SystemJournal {
             Preconditions.checkState(bytesWritten == bytes.getLength());
             systemJournalOffset += bytesWritten;
             // Add a new log file if required.
-            if (!chunkStorage.supportsAppend() || config.isAppendsDisabled()) {
+            if (!chunkStorage.supportsAppend() || !config.isAppendEnabled()) {
                 currentFileIndex++;
                 systemJournalOffset = 0;
             }

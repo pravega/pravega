@@ -22,7 +22,7 @@ public class ChunkedSegmentStorageConfigTests {
     @Test
     public void testProvidedValues() {
         Properties props = new Properties();
-        props.setProperty(ChunkedSegmentStorageConfig.APPEND_DISABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "true");
+        props.setProperty(ChunkedSegmentStorageConfig.APPENDS_ENABLED.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "false");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_BUFFER_SIZE_FOR_APPENDS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "1");
         props.setProperty(ChunkedSegmentStorageConfig.MAX_SIZE_LIMIT_FOR_CONCAT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "2");
         props.setProperty(ChunkedSegmentStorageConfig.MIN_SIZE_LIMIT_FOR_CONCAT.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "3");
@@ -33,7 +33,7 @@ public class ChunkedSegmentStorageConfigTests {
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
-        Assert.assertTrue(config.isAppendsDisabled());
+        Assert.assertFalse(config.isAppendEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), 1);
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), 2);
         Assert.assertEquals(config.getMinSizeLimitForConcat(), 3);
@@ -49,7 +49,7 @@ public class ChunkedSegmentStorageConfigTests {
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
-        Assert.assertFalse(config.isAppendsDisabled());
+        Assert.assertEquals(config.isAppendEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isAppendEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxBufferSizeForChunkDataTransfer());
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxSizeLimitForConcat());
         Assert.assertEquals(config.getMinSizeLimitForConcat(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMinSizeLimitForConcat());
