@@ -612,13 +612,13 @@ public class FileSystemStorage implements SyncStorage {
                 if (baseExists) {
                     // We have both a temp file and a segment file. This is most likely the result of an incomplete replace,
                     // however we still have the original segment file around. It is safe to delete the temp file now.
-                    log.debug("Incomplete replace operation detected for '{}'. Deleting temp file before new replace attempt.", segmentName);
+                    log.info("Incomplete replace operation detected for '{}'. Deleting temp file before new replace attempt.", segmentName);
                     super.doDelete(super.doOpenWrite(tmpSegmentName));
                 } else {
                     // Temp file exists, but the segment file does not. This may be the result of an incomplete replace,
                     // in which case we need to finalize that one to prevent deleting (what could be) the only persisted
                     // copy of our data.
-                    log.debug("Incomplete replace operation detected for '{}'. Finalizing before new replace attempt.", segmentName);
+                    log.info("Incomplete replace operation detected for '{}'. Finalizing before new replace attempt.", segmentName);
                     finalizeRename(tmpSegmentName, segmentName);
                 }
             } else if (!baseExists) {
@@ -656,7 +656,9 @@ public class FileSystemStorage implements SyncStorage {
             val toFile = getPath(toSegmentName).toFile().getAbsoluteFile();
             boolean renamed = fromFile.renameTo(toFile);
             if (!renamed) {
-                // On Windows, renameTo does not replace.
+                // File.renameTo does not guarantee atomic rename on certain file systems. If so, we can do this in a
+                // two-step process by deleting the target file and then renaming the source file to the target.
+                log.debug("File.renameTo unsuccessful for '{}' to '{}'. Attempting two-step replace.", fromSegmentName, toSegmentName);
                 if (!toFile.delete() || !fromFile.renameTo(toFile)) {
                     throw new StreamSegmentReplaceException(fromSegmentName, toSegmentName);
                 }
@@ -664,6 +666,7 @@ public class FileSystemStorage implements SyncStorage {
 
             // Sanity check (only executes in tests).
             assert !super.doExists(fromSegmentName);
+            log.debug("Renamed '{}' to '{}'.", fromSegmentName, toSegmentName);
         }
 
         private String getTempSegmentName(String segmentName) {
