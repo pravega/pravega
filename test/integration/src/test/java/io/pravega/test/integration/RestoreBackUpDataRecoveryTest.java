@@ -150,7 +150,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
     private SegmentStoreStarter segmentStoreStarter;
-    private BKZK bkzk = null;
+    private BookKeeperStarter bookKeeperStarter = null;
 
     @After
     public void tearDown() throws Exception {
@@ -164,9 +164,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.segmentStoreStarter = null;
         }
 
-        if (this.bkzk != null) {
-            this.bkzk.close();
-            this.bkzk = null;
+        if (this.bookKeeperStarter != null) {
+            this.bookKeeperStarter.close();
+            this.bookKeeperStarter = null;
         }
     }
 
@@ -175,14 +175,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         return 100;
     }
 
-    BKZK setUpNewBK(int instanceId) throws Exception {
-        return new BKZK(instanceId);
+    BookKeeperStarter setUpNewBK(int instanceId) throws Exception {
+        return new BookKeeperStarter(instanceId);
     }
 
     /**
      * Sets up a new BookKeeper & ZooKeeper.
      */
-    private static class BKZK implements AutoCloseable {
+    private static class BookKeeperStarter implements AutoCloseable {
         private final int bookieCount = 1;
         private AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
         private AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
@@ -190,7 +190,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
         private int bkPort;
 
-        BKZK(int instanceId) throws Exception {
+        BookKeeperStarter(int instanceId) throws Exception {
             bkPort = TestUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
             bookiePorts.add(TestUtils.getAvailableListenPort());
@@ -323,10 +323,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
-        this.bkzk = setUpNewBK(instanceId++);
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, null);
         @Cleanup
-        ControllerStarter controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
+        ControllerStarter controllerStarter = startController(this.bookKeeperStarter.bkPort, this.segmentStoreStarter.servicePort);
 
         // Create two streams for writing data onto two different segments
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
@@ -375,13 +375,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         this.segmentStoreStarter = null;
         log.info("Segment Store Shutdown");
 
-        this.bkzk.close(); // Shutdown BookKeeper & ZooKeeper
-        this.bkzk = null;
+        this.bookKeeperStarter.close(); // Shutdown BookKeeper & ZooKeeper
+        this.bookKeeperStarter = null;
         log.info("BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
-        this.bkzk = setUpNewBK(instanceId++);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bkzk.bkConfig.get(), this.bkzk.zkClient.get(), executorService);
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
+                executorService);
         this.dataLogFactory.initialize();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
@@ -424,7 +425,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Start a new segment store and controller
         this.segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory);
-        controllerStarter = startController(this.bkzk.bkPort, this.segmentStoreStarter.servicePort);
+        controllerStarter = startController(this.bookKeeperStarter.bkPort, this.segmentStoreStarter.servicePort);
         log.info("Started segment store and controller again.");
 
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()

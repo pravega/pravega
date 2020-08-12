@@ -58,36 +58,42 @@ public class SegmentsRecovery {
     public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainers,
                                           ExecutorService executorService) throws Exception {
         log.info("Recovery started for all containers...");
-        Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
 
-        // Add all segments present in the container metadata in a set for each debug segment container instance.
-        for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainer : debugStreamSegmentContainers.entrySet()) {
-            ContainerTableExtension tableExtension = debugStreamSegmentContainer.getValue().getExtension(ContainerTableExtension.class);
+        // Add all segments in the container metadata in a set for each debug segment container instance.
+        Map<DebugStreamSegmentContainer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
+        for (Map.Entry<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerEntry : debugStreamSegmentContainers.entrySet()) {
+            ContainerTableExtension tableExtension = debugStreamSegmentContainerEntry.getValue().getExtension(ContainerTableExtension.class);
             AsyncIterator<IteratorItem<TableKey>> keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    debugStreamSegmentContainer.getKey()), IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(),
+                    debugStreamSegmentContainerEntry.getKey()), IteratorArgs.builder().fetchTimeout(TIMEOUT).build()).get(TIMEOUT.toMillis(),
                     TimeUnit.MILLISECONDS);
             Set<String> metadataSegments = new HashSet<>();
             keyIterator.forEachRemaining(k -> metadataSegments.addAll(k.getEntries().stream().map(entry -> entry.getKey().toString())
                     .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            metadataSegmentsByContainer.put(debugStreamSegmentContainer.getValue(), metadataSegments);
+            metadataSegmentsByContainer.put(debugStreamSegmentContainerEntry.getValue(), metadataSegments);
         }
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(debugStreamSegmentContainers.size());
 
-        Iterator<SegmentProperties> it = storage.listSegments();
-        if (it == null) {
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        if (segmentIterator == null) {
             log.info("No segments found in the long term storage.");
             return;
         }
 
         // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        while (it.hasNext()) {
-            SegmentProperties curr = it.next();
-            int containerId = segToConMapper.getContainerId(curr.getName());
-            log.info("Segment to be recovered = {}", curr.getName());
-            metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(curr.getName());
-            futures.add(CompletableFuture.runAsync(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), curr)));
+        while (segmentIterator.hasNext()) {
+            SegmentProperties currentSegment = segmentIterator.next();
+
+            // skip recovery if the segment is an attribute segment.
+            if (NameUtils.isAttributeSegment(currentSegment.getName())) {
+                continue;
+            }
+
+            int containerId = segToConMapper.getContainerId(currentSegment.getName());
+            log.info("Segment to be recovered = {}", currentSegment.getName());
+            metadataSegmentsByContainer.get(debugStreamSegmentContainers.get(containerId)).remove(currentSegment.getName());
+            futures.add(CompletableFuture.runAsync(new SegmentRecovery(debugStreamSegmentContainers.get(containerId), currentSegment)));
         }
         Futures.allOf(futures).join();
 

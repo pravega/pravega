@@ -191,6 +191,16 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether the given name is an attribute Segment or not.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              True if the segment is an attribute Segment, false otherwise.
+     */
+    public static boolean isAttributeSegment(String segmentName) {
+        return segmentName.endsWith(ATTRIBUTE_SUFFIX);
+    }
+
+    /**
      * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing extended attributes.
      *
      * @param segmentName The name of the Segment to get the Attribute segment name for.
