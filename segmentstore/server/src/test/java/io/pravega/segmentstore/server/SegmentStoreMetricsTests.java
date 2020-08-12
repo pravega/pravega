@@ -161,13 +161,12 @@ public class SegmentStoreMetricsTests {
 
     @Test
     public void testCacheManagerMetrics() {
-        int storedBytes = 10000;
-        int usedBytes = 1000;
-        int allocatedBytes = 100;
+        long storedBytes = 10000;
+        long usedBytes = 1000;
+        long allocatedBytes = 100;
         int generationSpread = 10;
-        int managerIterationDuration = 1;
+        long managerIterationDuration = 1;
 
-        int containerId = new Random().nextInt(Integer.MAX_VALUE);
         @Cleanup
         SegmentStoreMetrics.CacheManager cache = new SegmentStoreMetrics.CacheManager();
         cache.report(new CacheState(storedBytes, usedBytes, 0, allocatedBytes, storedBytes), generationSpread, managerIterationDuration);
@@ -184,7 +183,7 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
-        assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
+        assertNull(MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
     }
 
 
