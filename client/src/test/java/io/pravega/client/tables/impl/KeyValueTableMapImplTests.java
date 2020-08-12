@@ -413,6 +413,7 @@ public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
     /**
      * Tests {@link KeyValueTableMapImpl#entrySet()} and all operations on it.
      */
+    @SuppressWarnings("unchecked")
     @Test
     public void testEntrySet() {
         @Cleanup

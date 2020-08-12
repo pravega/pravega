@@ -42,8 +42,8 @@ import java.util.concurrent.CompletableFuture;
  * execution. The lifecycle of these buffers should be maintained externally by the calling code, using the following
  * guidelines:
  * * For methods that accept externally-provided {@link ByteBuf}s, the calling code should call {@link ByteBuf#retain()}
- * prior to invoking the method on {@link TableSegment) and should invoke {@link ByteBuf#release()} afterwards.
- * * For methods that return internally-generated {@link} ByteBuf}s (such as {@link} #get), the calling code should
+ * prior to invoking the method on {@link TableSegment} and should invoke {@link ByteBuf#release()} afterwards.
+ * * For methods that return internally-generated {@link ByteBuf}s (such as {@link #get}), the calling code should
  * invoke {@link ByteBuf#release()} as soon as it is done with processing the result. If the result needs to be held onto
  * for a longer duration, the caller should make a copy of it and release the {@link ByteBuf} that was provided from the
  * call.

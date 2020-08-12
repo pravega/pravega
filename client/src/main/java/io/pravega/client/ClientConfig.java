@@ -42,31 +42,46 @@ public class ClientConfig implements Serializable {
 
 
     /** controllerURI The controller rpc URI. This can be of 2 types
-     1. tcp://ip1:port1,ip2:port2,...
-        This is used if the controller endpoints are static and can be directly accessed.
-     2. pravega://ip1:port1,ip2:port2,...
-        This is used to autodiscovery the controller endpoints from an initial controller list.
+     * 1. tcp://ip1:port1,ip2:port2,...
+     *    This is used if the controller endpoints are static and can be directly accessed.
+     * 2. pravega://ip1:port1,ip2:port2,...
+     *   This is used to autodiscovery the controller endpoints from an initial controller list.
+     *
+     * @param controllerURI The controller RPC URI.
+     * @return The controller RPC URI.
     */
     private final URI controllerURI;
 
     /**
      * Credentials to be passed on to the Pravega controller for authentication and authorization.
+     *
+     * @param credentials Pravega controller credentials for authentication and authorization.
+     * @return Pravega controller credentials for authentication and authorization.
      */
     private final Credentials credentials;
 
     /**
      * Path to an optional truststore. If this is null or empty, the default JVM trust store is used.
      * This is currently expected to be a signing certificate for the certification authority.
+     *
+     * @param trustStore Path to an optional truststore.
+     * @return Path to an optional truststore.
      */
     private final String trustStore;
 
     /**
-     * If the flag {@link #isEnableTls()}  is set, this flag decides whether to enable host name validation or not.
+     * If the flag {@link #isEnableTls()} is set, this flag decides whether to enable host name validation or not.
+     *
+     * @param validateHostName Flag to decide whether to enable host name validation or not.
+     * @return Flag to decide whether to enable host name validation or not.
      */
     private final boolean validateHostName;
 
     /**
      * Maximum number of connections per Segment store to be used by connection pooling.
+     *
+     * @param maxConnectionsPerSegmentStore Maximum number of connections per Segment Store for connection pooling.
+     * @return Maximum number of connections per Segment Store for connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
 
@@ -105,6 +120,9 @@ public class ClientConfig implements Serializable {
     /**
      * An optional listener which can be used to get performance metrics from the client. The user
      * can implement this interface to obtain performance metrics of the client.
+     *
+     * @param metricListener Listener to collect client performance metrics.
+     * @return Listener to collect client performance metrics.
      */
     private final MetricListener metricListener;
 
