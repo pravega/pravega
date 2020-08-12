@@ -104,7 +104,7 @@ public interface AsyncIterator<T> {
      * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
      * new type.
      *
-     * @param converter A {@link Function} that will convert {@link T} to {@link U}.
+     * @param converter A {@link Function} that will convert T to U.
      * @param <U>       New type.
      * @return A new {@link AsyncIterator}.
      */
@@ -116,7 +116,7 @@ public interface AsyncIterator<T> {
      * Returns a new {@link AsyncIterator} that wraps this instance and converts all items from this one into items of a
      * new type using an async call.
      *
-     * @param converter A {@link Function} that will convert {@link T} to {@link U}.
+     * @param converter A {@link Function} that will convert T to U.
      * @param <U>       New type.
      * @return A new {@link AsyncIterator}.
      */

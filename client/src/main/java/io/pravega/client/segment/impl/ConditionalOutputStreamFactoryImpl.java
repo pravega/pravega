@@ -30,7 +30,7 @@ public class ConditionalOutputStreamFactoryImpl implements ConditionalOutputStre
     }
 
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {
-        return Retry.withExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+        return Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                                     config.getRetryAttempts(), config.getMaxBackoffMillis());
     }
     
