@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -54,6 +55,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -161,14 +163,32 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 .whenComplete((attributes, u) -> {
                     try {
                         if (u != null) {
+                            if (u instanceof StreamSegmentSealedException) {
+                                throw u;
+                            }
                             handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                         } else {
+                            SegmentProperties sp = this.store.getStreamSegmentInfo(newSegment, TIMEOUT).join();
+                            if (sp.isSealed()) {
+                                throw new StreamSegmentSealedException(newSegment);
+                            }
                             long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
                             this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
                             connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                         }
                     } catch (Throwable e) {
-                        handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
+                        if (e instanceof StreamSegmentSealedException || e.getCause() instanceof StreamSegmentSealedException) {
+                            log.info("Segment '{}' is sealed and {} cannot perform append, disabling caching of attribute value...", newSegment, writer);
+                            Map<UUID, Long> newAttributes = store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT).join();
+                            long eventNumber = Attributes.NULL_ATTRIBUTE_VALUE;
+                            if (newAttributes != null) {
+                                eventNumber = newAttributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
+                            }
+                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                        } else {
+                            handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
+                        }
                     }
                 });
     }
