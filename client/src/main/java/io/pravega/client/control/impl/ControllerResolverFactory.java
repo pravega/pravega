@@ -133,7 +133,6 @@ class ControllerResolverFactory extends NameResolver.Factory {
          * @param enableDiscovery   Whether to use the controller's discovery API.
          * @param executor          The executor to run resolve tasks on.
          */
-        @SuppressWarnings("deprecation")
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
                                final boolean enableDiscovery, ScheduledExecutorService executor) {
             this.authority = authority;
