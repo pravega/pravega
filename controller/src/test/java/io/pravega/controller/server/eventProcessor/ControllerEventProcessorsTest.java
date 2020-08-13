@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -61,17 +62,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-public class ControllerEventProcessorsTest {
-    ScheduledExecutorService executor;
-
-    @Before
-    public void setUp() {
-        executor = Executors.newScheduledThreadPool(10);
-    }
-
-    @After
-    public void tearDown() {
-        executor.shutdown();
+public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
+    @Override
+    public int getThreadPoolSize() {
+        return 10;
     }
     
     @Test(timeout = 10000)
@@ -110,7 +104,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
-                kvtStore, kvtTasks, system, executor);
+                kvtStore, kvtTasks, system, executorService());
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
@@ -177,7 +171,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                kvtStore, kvtTasks, system, executor);
+                kvtStore, kvtTasks, system, executorService());
 
         // call bootstrap on ControllerEventProcessors
         processors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtTasks);
@@ -286,7 +280,7 @@ public class ControllerEventProcessorsTest {
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
-                kvtStore, kvtTasks, system, executor);
+                kvtStore, kvtTasks, system, executorService());
 
         // set truncation interval
         processors.setTruncationInterval(100L);

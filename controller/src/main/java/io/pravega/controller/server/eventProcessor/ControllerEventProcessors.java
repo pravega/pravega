@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -315,6 +316,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
     @VisibleForTesting
     CompletableFuture<Void> truncate(String streamName, String readergroupName, StreamMetadataTasks streamMetadataTasks) {
+        Preconditions.checkState(isRunning());
         try {
             // 1. get all processes from checkpoint store 
             // 2. get the all checkpoints for all readers in the readergroup for the stream.
