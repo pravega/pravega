@@ -2358,7 +2358,7 @@ public final class WireCommands {
         }
 
         /**
-         * Releases any resources used by this command, if needed ({@link #isReleased()} is false. This method has no
+         * Releases any resources used by this command, if needed {@code #isReleased()} is false. This method has no
          * effect if invoked multiple times or if no resource release is required.
          */
         public void release() {
