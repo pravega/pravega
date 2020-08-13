@@ -23,8 +23,13 @@ import java.util.concurrent.Executor;
  */
 @RequiredArgsConstructor
 public class HDFSSimpleStorageFactory implements StorageFactory {
+
+    @NonNull
+    private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
+
     @NonNull
     private final HDFSStorageConfig config;
+
     @NonNull
     private final Executor executor;
 
@@ -33,7 +38,7 @@ public class HDFSSimpleStorageFactory implements StorageFactory {
         ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
                 new HDFSChunkStorage(this.config),
                 this.executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                this.chunkedSegmentStorageConfig);
         return storageProvider;
     }
 }

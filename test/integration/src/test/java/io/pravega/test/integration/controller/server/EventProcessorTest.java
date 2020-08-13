@@ -10,7 +10,6 @@
 package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -58,6 +57,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -476,7 +476,7 @@ public class EventProcessorTest {
 
         // write 10 events and read them back from the queue passed to first event processor's
         List<Integer> input = IntStream.range(0, 10).boxed().collect(Collectors.toList());
-        ConcurrentSet<Integer> output = new ConcurrentSet<>();
+        ConcurrentSkipListSet<Integer> output = new ConcurrentSkipListSet<>();
 
         for (int val : input) {
             writer.writeEvent(new TestEvent(val));
@@ -518,7 +518,7 @@ public class EventProcessorTest {
 
         AtomicInteger queue1EntriesFound = new AtomicInteger(0);
         AtomicInteger queue2EntriesFound = new AtomicInteger(0);
-        ConcurrentSet<Integer> output2 = new ConcurrentSet<>();
+        ConcurrentSkipListSet<Integer> output2 = new ConcurrentSkipListSet<>();
 
         // wait until rebalance may have happened. 
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
