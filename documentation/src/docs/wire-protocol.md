@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Pravega Streaming Service Wire Protocol
 
-This page describes the proposed Wire Protocol for the Streaming Service. See [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts) for more information.
+This page describes the proposed Wire Protocol for the Streaming Service. See [Pravega Concepts](https://pravega.io/docs/latest/pravega-concepts) for more information.
 
 # Protocol
 
