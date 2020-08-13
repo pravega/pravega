@@ -24,7 +24,7 @@ public class FileSystemStorageConfig {
     //region Config Names
 
     public static final Property<String> ROOT = Property.named("root", "/fs/");
-    public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enabled", false);
+    public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enable", false);
     public static final String COMPONENT_CODE = "filesystem";
 
     //endregion
