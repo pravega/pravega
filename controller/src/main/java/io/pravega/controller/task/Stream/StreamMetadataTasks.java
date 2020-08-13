@@ -433,7 +433,7 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
+    public CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut,
                                                        OperationContext contextOpt, long requestId) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
