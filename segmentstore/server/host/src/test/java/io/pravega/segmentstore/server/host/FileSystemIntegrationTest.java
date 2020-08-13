@@ -11,8 +11,10 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import org.junit.After;
@@ -40,12 +42,17 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
 
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor()))
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
+                        new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                                setup.getConfig(FileSystemStorageConfig::builder),
+                                setup.getStorageExecutor())
+                        : new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor())
+                )
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }

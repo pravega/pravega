@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -39,6 +38,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.test.integration.utils.IntegerSerializer;
@@ -52,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,12 +76,15 @@ public class EndToEndTransactionOrderTest {
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
 
+    final int controllerPort = TestUtils.getAvailableListenPort();
+    final String serviceHost = "localhost";
+    final int servicePort = TestUtils.getAvailableListenPort();
     ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
     ConcurrentHashMap<UUID, String> txnToWriter = new ConcurrentHashMap<>();
     AtomicInteger counter = new AtomicInteger();
-    ConcurrentSet<UUID> uncommitted = new ConcurrentSet<>();
+    ConcurrentSkipListSet<UUID> uncommitted = new ConcurrentSkipListSet<>();
     TestingServer zkTestServer;
     ControllerWrapper controllerWrapper;
     Controller controller;
@@ -98,7 +102,12 @@ public class EndToEndTransactionOrderTest {
         zkTestServer = new TestingServerStarter().start();
         int port = Config.SERVICE_PORT;
 
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
+                false,
+                controllerPort,
+                serviceHost,
+                servicePort,
+                Config.HOST_STORE_CONTAINER_COUNT);
         controller = controllerWrapper.getController();
 
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -117,7 +126,7 @@ public class EndToEndTransactionOrderTest {
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
-        server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
+        server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
                 true, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
@@ -204,7 +213,7 @@ public class EndToEndTransactionOrderTest {
         }
     }
 
-    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSet<UUID> uncommitted) {
+    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSkipListSet<UUID> uncommitted) {
         AtomicBoolean committed = new AtomicBoolean(false);
         AtomicInteger counter = new AtomicInteger(0);
         // check 6 times with 5 second gap until transaction is committed. if it is not committed, declare it uncommitted
@@ -241,7 +250,7 @@ public class EndToEndTransactionOrderTest {
                         eventToTxnMap.put(i1, transaction.getTxnId());
                         txnToWriter.put(transaction.getTxnId(), writerId);
                     } catch (Throwable e) {
-                        log.error("test exception writing events {}", e);
+                        log.error("test exception writing events", e);
                         throw new CompletionException(e);
                     }
                 }), executor)

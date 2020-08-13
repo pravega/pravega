@@ -11,21 +11,21 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
+import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
 import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-@Ignore ("Short term mitigation for #3503 until HDFSIntegrationTest gets completely rewritten/replaced as part of PDP-34.")
 public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
@@ -70,11 +70,15 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     @Override
-    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId, boolean useChunkedSegmentStorage) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
+                .withStorageFactory(setup -> useChunkedSegmentStorage ?
+                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                                setup.getConfig(HDFSStorageConfig::builder),
+                                setup.getStorageExecutor())
+                        : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 

@@ -272,7 +272,7 @@ public class ExtendedS3Storage implements SyncStorage {
                     config.getPrefix() + streamSegmentName);
             return true;
         } catch (S3Exception e) {
-            if ( e.getErrorCode().equals("NoSuchKey")) {
+            if (e.getErrorCode().equals("NoSuchKey")) {
                 return false;
             } else {
                 throw e;
@@ -528,7 +528,7 @@ public class ExtendedS3Storage implements SyncStorage {
      * @param segmentName   Full name of the StreamSegment.
      * @param operation     The function to execute.
      * @param <R>           Return type of the operation.
-     * @return              Instance of the return type of the operation.
+     * @return Instance of the return type of the operation.
      */
     private <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
         Exceptions.checkNotClosed(this.closed.get(), this);

@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 
 Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and unlimited append-only byte stream with strict ordering and consistency*.
 
-To learn more about Pravega, visit http://pravega.io
+To learn more about Pravega, visit https://pravega.io
 
 ## Prerequisites
 
@@ -71,14 +71,12 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.
-Open an issue if you found a bug on [Github
-Issues](https://github.com/pravega/pravega/issues).
+Don’t hesitate to ask! Contact the developers and community on [slack](https://pravega-io.slack.com/) ([signup](https://pravega-slack-invite.herokuapp.com/)) if you need any help. Open an issue if you found a bug on [Github Issues](https://github.com/pravega/pravega/issues).
 
 ## Documentation
 
-The Pravega documentation of is hosted on the website:
-<http://pravega.io/docs/latest> or in the [documentation](documentation/src/docs) directory of the source code.
+The Pravega documentation is hosted on the website:
+<https://pravega.io/docs/latest> or in the [documentation](documentation/src/docs) directory of the source code.
 
 ## Contributing
 

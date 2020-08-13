@@ -240,12 +240,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
+                    serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
-            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+            Duration executionDurationRetention = serviceConfig.getRetentionFrequency();
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
@@ -282,7 +283,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElse(KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            kvtMetadataStore = kvtMetaStoreRef.orElse(KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
             kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
