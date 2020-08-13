@@ -132,7 +132,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * {@link MultiKeyLockManager} instance that manages locks.
      */
-    private final MultiKeyLockManager lockManager = new MultiKeyLockManager();
+    private final MultiKeyLockManager lockManager = new MultiKeyLockManager(LOCK_WAIT_TIME);
 
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
@@ -285,10 +285,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 toAdd.put(key, data);
             }
             bufferedTxnData.putAll(toAdd);
-        } catch (TimeoutException e) {
-            throw new StorageMetadataException("Operation timed out.", e);
-        } catch (InterruptedException e) {
-            throw new StorageMetadataException("Operation interrupted.", e);
         } finally {
             writeLock.unlock();
         }
@@ -338,10 +334,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             try {
                 readLock.lock();
                 dataFromBuffer = bufferedTxnData.get(key);
-            } catch (TimeoutException e) {
-                throw new StorageMetadataException("Operation timed out.", e);
-            } catch (InterruptedException e) {
-                throw new StorageMetadataException("Operation interrupted.", e);
             } finally {
                 readLock.unlock();
             }
@@ -402,10 +394,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             if (oldValue != null) {
                 copyForBuffer = oldValue;
             }
-        } catch (TimeoutException e) {
-            throw new StorageMetadataException("Operation timed out.", e);
-        } catch (InterruptedException e) {
-            throw new StorageMetadataException("Operation interrupted.", e);
         } finally {
             writeLock.unlock();
         }
@@ -572,6 +560,19 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         private final HashMap<String, LockData> keyToLockMap = new HashMap<>();
 
         /**
+         * Timeout value used while acquiring individual locks.
+         */
+        private final Duration lockTimeout;
+
+        /**
+         * Creates a new instance of {@link MultiKeyLockManager}.
+         * @param lockTimeout Timeout value used while acquiring individual locks.
+         */
+        MultiKeyLockManager(Duration lockTimeout) {
+           this.lockTimeout = Preconditions.checkNotNull(lockTimeout);
+        }
+
+        /**
          * Creates a LockWrapper for reading.
          * @param keysToLock Keys to lock.
          * @return LockWrapper instance.
@@ -595,13 +596,17 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 lockData = keyToLockMap.get(key);
                 // Add if this is a new key.
                 if (null == lockData) {
-                    lockData = new LockData(new ReentrantReadWriteLock());
+                    lockData = new LockData(getNewLockObject());
                     keyToLockMap.put(key, lockData);
                 }
                 // Increment ref count.
                 lockData.count++;
             }
             return lockData;
+        }
+
+        private ReadWriteLock getNewLockObject() {
+            return new ReentrantReadWriteLock();
         }
 
         private void releaseReference(String key) {
@@ -665,15 +670,19 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * and the current thread has not been interrupted.
          * This call blocks current thread until either all locks are aquired or there is a time out or thread is interrupted.
          */
-        private void lock() throws InterruptedException, TimeoutException {
+        private void lock() throws StorageMetadataException {
             for (val key: keysToLock) {
                 // Get existing lock.
                 LockData lockData = lockManager.addReference(key);
 
                 // Lock.
                 Lock lock = isReadOnly ? lockData.lock.readLock() : lockData.lock.writeLock();
-                if (!lock.tryLock(LOCK_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS)) {
-                    throw new TimeoutException("Could not acquire lock in allotted time.");
+                try {
+                    if (!lock.tryLock(lockManager.lockTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                        throw new StorageMetadataException("Could not acquire lock in allotted time.", new TimeoutException());
+                    }
+                } catch (InterruptedException e) {
+                    throw new StorageMetadataException("Operation interrupted.", e);
                 }
                 // Keep track of locks acquired.
                 locks[aquiredLockCount++] = lock;
