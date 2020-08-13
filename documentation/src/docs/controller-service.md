@@ -806,5 +806,5 @@ The details about implementation, especially with respect to how the metadata is
 
 # Resources
 
-- [Pravega](http://pravega.io/)
+- [Pravega](https://pravega.io/)
 - [Code](https://github.com/pravega/pravega/tree/master/controller)

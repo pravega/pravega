@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -41,7 +42,9 @@ public class FileSystemStorageFactoryCreator implements StorageFactoryCreator {
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(storageFactoryInfo.getName().equals("FILESYSTEM"));
         if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
-            return new FileSystemSimpleStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);
+            return new FileSystemSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(FileSystemStorageConfig::builder),
+                    executor);
         } else {
             return new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);
         }
