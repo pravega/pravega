@@ -46,24 +46,30 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
     }
 
-    @Test
+    /*@Test
     public void testDescribeStreamCommand() throws Exception {
-        /*String testStream = "testDescribeStreamCommand";
+        String testStream = "testDescribeStreamCommand";
         SETUP_UTILS.createTestStream(testStream, 1);
-        Exceptions.handleInterrupted(() -> Thread.sleep(5000));*/
         String commandResult = TestUtils.executeCommand("controller describe-stream " +
-                SETUP_UTILS.getScope() + " testListStreamsCommand", STATE.get());
+                SETUP_UTILS.getScope() + " " + testStream, STATE.get());
         System.err.println(commandResult);
         Assert.assertNotNull(ControllerDescribeStreamCommand.descriptor());
-    }
+    }*/
 
     @Test
     public void testListReaderGroupsCommand() throws Exception {
-        // Check that the new reader group is created.
+        // Check that the system reader group can be listed.
         String commandResult = TestUtils.executeCommand("controller list-readergroups _system", STATE.get());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
         Assert.assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
     }
 
+    @Test
+    public void testDescribeReaderGroupCommand() throws Exception {
+        // Check that the system reader group can be listed.
+        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", STATE.get());
+        Assert.assertTrue(commandResult.contains("commitStreamReaders"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+    }
 
 }

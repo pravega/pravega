@@ -61,6 +61,7 @@ public final class SetupUtils {
     private EventStreamClientFactory clientFactory = null;
     private ControllerWrapper controllerWrapper = null;
     private PravegaConnectionListener server = null;
+    @Getter
     private TestingServer zkTestServer = null;
 
     // Manage the state of the class.
