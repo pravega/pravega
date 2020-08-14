@@ -159,38 +159,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
         // the value in the Store's cache so it's faster to access later.
-        store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT)
-                .whenComplete((attributes, u) -> {
-                    try {
-                        if (u != null) {
-                            if (u instanceof StreamSegmentSealedException) {
-                                throw u;
+        Futures.exceptionallyComposeExpecting(
+                store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT),
+                e -> e instanceof StreamSegmentSealedException, () -> store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT))
+                        .whenComplete((attributes, u) -> {
+                            try {
+                                if (u != null) {
+                                    handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
+                                } else {
+                                    long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                }
+                            } catch (Throwable e) {
+                                handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
                             }
-                            handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
-                        } else {
-                            SegmentProperties sp = this.store.getStreamSegmentInfo(newSegment, TIMEOUT).join();
-                            if (sp.isSealed()) {
-                                throw new StreamSegmentSealedException(newSegment);
-                            }
-                            long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
-                        }
-                    } catch (Throwable e) {
-                        if (e instanceof StreamSegmentSealedException || e.getCause() instanceof StreamSegmentSealedException) {
-                            log.info("Segment '{}' is sealed and {} cannot perform append, disabling caching of attribute value...", newSegment, writer);
-                            Map<UUID, Long> newAttributes = store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT).join();
-                            long eventNumber = Attributes.NULL_ATTRIBUTE_VALUE;
-                            if (newAttributes != null) {
-                                eventNumber = newAttributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                            }
-                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
-                        } else {
-                            handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
-                        }
-                    }
-                });
+                        });
     }
 
     @VisibleForTesting
