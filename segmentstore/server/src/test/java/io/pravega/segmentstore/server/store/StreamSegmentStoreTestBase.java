@@ -179,7 +179,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * SegmentStore is used to create some segments, write data to them and let them flush to the storage.
      * This test only uses this storage to restore the container metadata segments in a new durable data log. Segment
      * properties are matched for verification after the restoration.
-     * segments restoration from the storage used to create a segme
      * @throws Exception If an exception occurred.
      */
     public void testSegmentRestoration() throws Exception {
