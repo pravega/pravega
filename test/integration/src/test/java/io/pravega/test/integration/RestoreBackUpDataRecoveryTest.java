@@ -36,9 +36,9 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.containers.SegmentsRecovery;
+import io.pravega.segmentstore.server.SegmentStoreWithSegmentTracker;
+import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.SegmentsTracker;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTests;
@@ -74,6 +74,7 @@ import org.junit.Test;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -192,14 +193,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         BookKeeperStarter(int instanceId) throws Exception {
             bkPort = TestUtils.getAvailableListenPort();
-            val bookiePorts = new ArrayList<Integer>();
-            bookiePorts.add(TestUtils.getAvailableListenPort());
+            val bookiePort = new ArrayList<>(Arrays.asList(TestUtils.getAvailableListenPort()));
 
             this.bookKeeperServiceRunner = BookKeeperServiceRunner.builder()
                     .startZk(true)
                     .zkPort(bkPort)
                     .ledgersPath("/pravega/bookkeeper/ledgers")
-                    .bookiePorts(bookiePorts)
+                    .bookiePorts(bookiePort)
                     .build();
             this.bookKeeperServiceRunner.startAll();
             bkService.set(this.bookKeeperServiceRunner);
@@ -258,7 +258,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static class SegmentStoreStarter {
         private final int servicePort = TestUtils.getAvailableListenPort();
         private ServiceBuilder serviceBuilder;
-        private SegmentsTracker segmentsTracker;
+        private SegmentStoreWithSegmentTracker segmentsTracker;
         private PravegaConnectionListener server;
 
         SegmentStoreStarter(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory) throws DurableDataLogException {
@@ -275,7 +275,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             }
             this.serviceBuilder.initialize();
-            this.segmentsTracker = new SegmentsTracker(serviceBuilder.createStreamSegmentService(), serviceBuilder.createTableStoreService());
+            this.segmentsTracker = new SegmentStoreWithSegmentTracker(serviceBuilder.createStreamSegmentService(),
+                    serviceBuilder.createTableStoreService());
             this.server = new PravegaConnectionListener(false, servicePort, this.segmentsTracker, this.segmentsTracker,
                     this.serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
@@ -406,10 +407,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        SegmentsRecovery.deleteContainerMetadataSegments(storage, CONTAINER_ID);
+        ContainerRecoveryUtils.deleteContainerMetadataAndAttributeSegments(storage, CONTAINER_ID);
 
         // List segments from storage and recover them using debug segment container instance.
-        SegmentsRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
 
         // Wait for metadata segment to be flushed to LTS
         String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);

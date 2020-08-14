@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.store;
 
 import com.google.common.collect.Streams;
-import io.netty.buffer.ByteBuf;
+ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -31,10 +31,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.server.containers.SegmentsRecovery;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
+import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTests;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
@@ -61,7 +61,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -177,11 +176,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * End to end test to verify DebugSegmentContainer process.
+     * SegmentStore is used to create some segments, write data to them and let them flush to the storage.
+     * This test only uses this storage to restore the container metadata segments in a new durable data log. Segment
+     * properties are matched to verify after restoration.
+     * segments restoration from the storage used to create a segme
      * @throws Exception If an exception occurred.
      */
-    public void endToEndDebugSegmentContainer() throws Exception {
-        ScheduledExecutorService executorService = executorService();
+    public void testSegmentRestoration() throws Exception {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
@@ -213,29 +214,29 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
             @Cleanup
-            DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
+            DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
             OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, context.dataLogFactory,
-                    executorService);
+                    executorService());
 
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                SegmentsRecovery.deleteContainerMetadataSegments(storage, containerId);
+                ContainerRecoveryUtils.deleteContainerMetadataAndAttributeSegments(storage, containerId);
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                        context.getDefaultExtensions(), executorService);
+                        context.getDefaultExtensions(), executorService());
 
-                Services.startAsync(localContainer, executorService).join();
+                Services.startAsync(localContainer, executorService()).join();
                 debugStreamSegmentContainerMap.put(containerId, localContainer);
             }
 
-            // Recover all segments from the long term storage using debug segment container.
-            SegmentsRecovery.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+            // Restore all segments from the long term storage using debug segment container.
+            ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
-            // Verify that segment details match post recovery.
+            // Verify that segment details match post restoration.
             SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
             for (String segment : segmentNames) {
                 int containerId = segToConMapper.getContainerId(segment);

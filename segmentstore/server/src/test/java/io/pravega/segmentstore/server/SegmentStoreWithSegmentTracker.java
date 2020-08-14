@@ -36,14 +36,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * A wrapper class to StreamSegmentStore and TableStore to track the segments being created or deleted. The list of segments
  * obtained during this process is used in RestoreBackUpDataRecoveryTest to wait for segments to be flushed to the long term storage.
  */
-public class SegmentsTracker implements StreamSegmentStore, TableStore {
+public class SegmentStoreWithSegmentTracker implements StreamSegmentStore, TableStore {
     private final StreamSegmentStore streamSegmentStore;
     private final TableStore tableStore;
 
     @Getter(AccessLevel.PUBLIC)
     private final ConcurrentHashMap<String, Boolean> segments;
 
-    public SegmentsTracker(StreamSegmentStore streamSegmentStore, TableStore tableStore) {
+    public SegmentStoreWithSegmentTracker(StreamSegmentStore streamSegmentStore, TableStore tableStore) {
         this.streamSegmentStore = streamSegmentStore;
         this.tableStore = tableStore;
         this.segments = new ConcurrentHashMap<>();

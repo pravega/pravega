@@ -191,7 +191,7 @@ public final class NameUtils {
     }
 
     /**
-     * Checks whether the given name is an attribute Segment or not.
+     * Checks whether the given name is an Attribute Segment or not.
      *
      * @param segmentName   The name of the segment.
      * @return              True if the segment is an attribute Segment, false otherwise.
@@ -207,7 +207,7 @@ public final class NameUtils {
      * @return The result.
      */
     public static String getAttributeSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.endsWith(ATTRIBUTE_SUFFIX), "segmentName is already an attribute segment name");
+        Preconditions.checkArgument(!isAttributeSegment(segmentName), "segmentName is already an attribute segment name");
         return segmentName + ATTRIBUTE_SUFFIX;
     }
 

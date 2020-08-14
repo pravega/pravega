@@ -246,7 +246,7 @@ public class ServiceBuilder implements AutoCloseable {
      * @return StorageFactory instance used to initialize ServiceBuilder.
      */
     public StorageFactory getStorageFactory() {
-        return this.storageFactory.get();
+        return createStorageFactory();
     }
 
     /**

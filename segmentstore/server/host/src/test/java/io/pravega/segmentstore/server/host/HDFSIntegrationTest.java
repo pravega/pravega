@@ -88,7 +88,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
      */
     @Test
     public void testDataRecovery() throws Exception {
-        endToEndDebugSegmentContainer();
+        testSegmentRestoration();
     }
     //endregion
 }

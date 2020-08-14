@@ -45,9 +45,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -63,6 +61,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
+import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -112,20 +112,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
             .build();
-    private ScheduledExecutorService executorService;
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
-
-    @Before
-    public void setUp() {
-        this.executorService = executorService();
-    }
-
-    @After
-    public void tearDown() {
-        this.executorService.shutdown();
-    }
 
     protected int getThreadPoolSize() {
         return THREAD_POOL_COUNT;
@@ -144,7 +133,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Sets up dataLogFactory, readIndexFactory, attributeIndexFactory etc for the DebugSegmentContainer.
         @Cleanup
-        TestContext context = createContext(executorService);
+        TestContext context = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         // Starts a DebugSegmentContainer.
         @Cleanup
@@ -221,7 +210,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             val wh1 = s.create(segmentName);
             // Write data.
             s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
-            if (RANDOM.nextInt(2) == 1) {
+            if (RANDOM.nextBoolean()) {
                 s.seal(wh1);
                 sealedSegments.add(segmentName);
             }
@@ -229,9 +218,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         log.info("Created some segments using the storage.");
 
         @Cleanup
-        TestContext context = createContext(executorService);
+        TestContext context = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
-                executorService);
+                executorService());
 
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
 
@@ -239,14 +228,14 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int containerId = 0; containerId < containerCount; containerId++) {
             MetadataCleanupContainer localContainer = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                    context.getDefaultExtensions(), executorService);
+                    context.getDefaultExtensions(), executorService());
 
-            Services.startAsync(localContainer, executorService).join();
+            Services.startAsync(localContainer, executorService()).join();
             debugStreamSegmentContainerMap.put(containerId, localContainer);
         }
 
         log.info("Recover all segments using the storage and debug segment containers.");
-        SegmentsRecovery.recoverAllSegments(new AsyncStorageWrapper(s, executorService), debugStreamSegmentContainerMap, executorService);
+        recoverAllSegments(new AsyncStorageWrapper(s, executorService()), debugStreamSegmentContainerMap, executorService());
 
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < containerCount; containerId++) {
