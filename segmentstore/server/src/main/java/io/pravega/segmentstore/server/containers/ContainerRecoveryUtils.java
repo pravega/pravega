@@ -49,7 +49,7 @@ public class ContainerRecoveryUtils {
     /**
      * This method lists the segments from the given storage instance. It then registers all segments except Attribute
      * segments to the container metadata segment(s).
-     * {@link DebugStreamSegmentContainer} instance(s) are provided to this method can have some segments already present
+     * {@link DebugStreamSegmentContainer} instance(s) are provided to this method which can have some segments already present
      * in their respective container metadata segment(s). After the method successfully completes, only the segments which
      * existed in the {@link Storage} will remain in the container metadata. All segments which only existed in the container
      * metadata or which existed in both container metadata and the storage but with different lengths and/or sealed status,
@@ -58,7 +58,7 @@ public class ContainerRecoveryUtils {
      * instances for registering them to container metadata segment.
      * @param storage                           A {@link Storage} instance that will be used to list segments from.
      * @param debugStreamSegmentContainers      A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
-     *                                          representing the Containers that will be recovered.
+     *                                          representing the containers that will be recovered.
      * @param executorService                   A thread pool for execution.
      * @throws InterruptedException             Required for Futures.get()
      * @throws ExecutionException               Required for Futures.get()
@@ -124,7 +124,8 @@ public class ContainerRecoveryUtils {
      * This method takes a {@link DebugStreamSegmentContainer} instance and a {@link SegmentProperties} object as arguments
      * and takes one of the following actions:
      * 1. If the segment is present in the container metadata and its length or sealed status or both doesn't match with the
-     * given {@link SegmentProperties}, then it is deleted from there and registered using the properties from the {@link SegmentProperties}.
+     * given {@link SegmentProperties}, then it is deleted from there and registered using the properties from the given
+     * {@link SegmentProperties} instance.
      * 2. If the segment is absent in the container metadata, then it is registered using the properties from the given
      * {@link SegmentProperties}.
      * @param container         A {@link DebugStreamSegmentContainer} instance for registering the given segment and checking
@@ -154,7 +155,7 @@ public class ContainerRecoveryUtils {
 
     /**
      * Deletes container metadata segment and its Attribute segment from the {@link Storage} for the given container Id.
-     * @param storage       {@link Storage} instance to delete the segments from.
+     * @param storage       A {@link Storage} instance to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
     public static void deleteContainerMetadataAndAttributeSegments(Storage storage, int containerId) {
@@ -166,8 +167,8 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * Deletes the segment with given segment name from the given {@link Storage} instance.
-     * @param storage       {@link Storage} instance to delete the segments from.
+     * Deletes the segment with given name from the given {@link Storage} instance.
+     * @param storage       A {@link Storage} instance to delete the segments from.
      * @param segmentName   Name of the segment to be deleted.
      */
     private static void deleteSegment(Storage storage, String segmentName) {
