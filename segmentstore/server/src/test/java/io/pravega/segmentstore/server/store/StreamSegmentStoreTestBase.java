@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.store;
 
 import com.google.common.collect.Streams;
- import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -188,7 +188,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         ArrayList<ByteBuf> appendBuffers = new ArrayList<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
-        try (val builder = createBuilder(0)) {
+        try (val builder = createBuilder(0, false)) {
             val segmentStore = builder.createStreamSegmentService();
 
             segmentNames = createSegments(segmentStore);
@@ -208,7 +208,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Get the persistent storage from readOnlySegmentStore.
             @Cleanup
-            Storage storage = getStorageFactory().createStorageAdapter();
+            Storage storage = builder.createStorageFactory().createStorageAdapter();
             storage.initialize(DEFAULT_EPOCH);
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
@@ -499,10 +499,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private StorageFactory getStorageFactory() {
-        return this.storageFactory;
-    }
-
     private ServiceBuilder createBuilder(int instanceId, boolean useChunkedSegmentStorage) throws Exception {
         val builder = createBuilder(this.configBuilder, instanceId, useChunkedSegmentStorage);
         try {
@@ -523,23 +519,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * @return The ServiceBuilder.
      */
     protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig.Builder builderConfig, int instanceId, boolean useChunkedSegmentStorage);
-
-    /**
-     * Creates a ServiceBuilder instance, but also gets the storage Factory used in creating.
-     * @return              A newly created ServiceBuilder instance.
-     * @throws Exception    In case of any exception occurred during execution.
-     */
-    private ServiceBuilder createBuilder(int instanceId) throws Exception {
-        val builder = createBuilder(this.configBuilder, instanceId, false);
-        try {
-            builder.initialize();
-            this.storageFactory = builder.createStorageFactory();
-        } catch (Throwable ex) {
-            builder.close();
-            throw ex;
-        }
-        return builder;
-    }
 
     private ArrayList<StoreRequest> createAppendDataRequests(
             Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, List<ByteBuf> appendBuffers) {

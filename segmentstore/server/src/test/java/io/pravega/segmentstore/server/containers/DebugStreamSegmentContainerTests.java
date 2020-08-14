@@ -120,7 +120,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * It tests the ability to register an existing segment(segment existing only in Long-Term Storage) using debug
+     * It tests the ability to register an existing segment(segment existing only in the Long-Term Storage) using debug
      * segment container. Method registerSegment in {@link DebugStreamSegmentContainer} is tested here.
      * The test starts a debug segment container and creates some segments using it and then verifies if the segments
      * were created successfully.
