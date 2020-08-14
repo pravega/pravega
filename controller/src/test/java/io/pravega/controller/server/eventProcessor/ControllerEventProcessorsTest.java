@@ -286,7 +286,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         doAnswer(x -> Collections.singletonMap("r2", position2)).when(checkpointStore).getPositions(eq("p2"), anyString());
         doAnswer(x -> Collections.singletonMap("r3", position3)).when(checkpointStore).getPositions(eq("p3"), anyString());
 
-        CountDownLatch latch = new CountDownLatch(4);
+        CountDownLatch latch = new CountDownLatch(3);
         AtomicInteger counter = new AtomicInteger();
         doAnswer(x -> {
             latch.countDown();
