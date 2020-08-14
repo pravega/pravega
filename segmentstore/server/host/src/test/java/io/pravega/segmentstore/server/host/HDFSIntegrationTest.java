@@ -81,10 +81,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     }
 
     /**
-     * Tests an end-to-end scenario for the DebugSegmentContainer. SegmentStore creates some segments, and segments are let
-     * to be flushed to the long term storage. And then just using the long persisted storage, debug segment container
-     * registers all the segments on to segment container metadata.
-     * @throws Exception    If an exception occurred.
+     * SegmentStore is used to create some segments, write data to them and let them flush to the storage.
+     * This test only uses this storage to restore the container metadata segments in a new durable data log. Segment
+     * properties are matched to verify after restoration.
+     * segments restoration from the storage used to create a segme
+     * @throws Exception If an exception occurred.
      */
     @Test
     public void testDataRecovery() throws Exception {

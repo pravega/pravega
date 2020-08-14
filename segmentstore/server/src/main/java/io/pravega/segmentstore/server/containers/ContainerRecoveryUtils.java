@@ -158,25 +158,27 @@ public class ContainerRecoveryUtils {
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
     public static void deleteContainerMetadataAndAttributeSegments(Storage storage, int containerId) {
+        Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        deleteSegment(storage, metadataSegmentName).join();
-        deleteSegment(storage, attributeSegmentName).join();
+        deleteSegment(storage, metadataSegmentName);
+        deleteSegment(storage, attributeSegmentName);
     }
 
     /**
      * Deletes the segment with given segment name from the given {@link Storage} instance.
      * @param storage       {@link Storage} instance to delete the segments from.
      * @param segmentName   Name of the segment to be deleted.
-     * @return
      */
-    private static CompletableFuture<Void> deleteSegment(Storage storage, String segmentName) {
-        return Futures.exceptionallyComposeExpecting(
-                storage.openWrite(segmentName).thenAccept(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
-                ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException,
-                () -> {
-                    log.info("Segment '{}' doesn't exist.", segmentName);
-                    return null;
-                });
+    private static void deleteSegment(Storage storage, String segmentName) {
+        try {
+            storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)).join();
+        } catch (Exception e) {
+            if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                log.info("Segment '{}' doesn't exist.", segmentName);
+            } else {
+                throw e;
+            }
+        }
     }
 }
