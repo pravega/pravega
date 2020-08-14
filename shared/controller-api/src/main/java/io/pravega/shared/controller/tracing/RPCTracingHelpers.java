@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.controller.tracing;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -47,6 +48,13 @@ public final class RPCTracingHelpers {
 
     public static ServerInterceptor getServerInterceptor(RequestTracker requestTracker) {
         return new TaggingServerInterceptor(requestTracker);
+    }
+
+    @VisibleForTesting
+    static String toSanitizedString(Metadata headers) {
+        return headers == null || headers.toString() == null ? "null" :
+                headers.toString().replaceAll("authorization=.*(?=,)|authorization=.*(?=\\))",
+                        "authorization=xxxxx");
     }
 
     /**
@@ -106,10 +114,8 @@ public final class RPCTracingHelpers {
                 log.debug(requestTag.getRequestId(), "Received tag from RPC request {}.",
                         requestTag.getRequestDescriptor());
             } else {
-                String printableHeaders = headers == null || headers.toString() == null ? "null" :
-                        headers.toString().replaceAll("authorization=.*(?=,)|authorization=.*(?=\\))", "authorization=xxxxx");
                 log.debug("No tags provided for call {} in headers: {}.", call.getMethodDescriptor().getFullMethodName(),
-                        printableHeaders);
+                        toSanitizedString(headers));
             }
 
             return next.startCall(new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
