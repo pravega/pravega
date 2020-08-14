@@ -52,9 +52,8 @@ public final class RPCTracingHelpers {
 
     @VisibleForTesting
     static String toSanitizedString(Metadata headers) {
-        return headers == null || headers.toString() == null ? "null" :
-                headers.toString().replaceAll("authorization=.*(?=,)|authorization=.*(?=\\))",
-                        "authorization=xxxxx");
+        return headers == null ? "null" :
+                headers.toString().replaceAll("authorization=.*(?=,)|authorization=.*(?=\\))", "authorization=xxxxx");
     }
 
     /**
