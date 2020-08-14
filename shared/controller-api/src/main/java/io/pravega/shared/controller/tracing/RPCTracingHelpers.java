@@ -106,8 +106,10 @@ public final class RPCTracingHelpers {
                 log.debug(requestTag.getRequestId(), "Received tag from RPC request {}.",
                         requestTag.getRequestDescriptor());
             } else {
+                String printableHeaders = headers == null || headers.toString() == null ? "null" :
+                        headers.toString().replaceAll("authorization=.*(?=,)|authorization=.*(?=\\))", "authorization=xxxxx");
                 log.debug("No tags provided for call {} in headers: {}.", call.getMethodDescriptor().getFullMethodName(),
-                        headers);
+                        printableHeaders);
             }
 
             return next.startCall(new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
