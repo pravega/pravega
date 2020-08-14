@@ -221,7 +221,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                ContainerRecoveryUtils.deleteContainerMetadataAndAttributeSegments(storage, containerId);
+                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).join();
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
@@ -533,7 +533,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         val builder = createBuilder(this.configBuilder, instanceId, false);
         try {
             builder.initialize();
-            this.storageFactory = builder.getStorageFactory();
+            this.storageFactory = builder.createStorageFactory();
         } catch (Throwable ex) {
             builder.close();
             throw ex;

@@ -242,14 +242,6 @@ public class ServiceBuilder implements AutoCloseable {
     }
 
     /**
-     * To get the storageFactory after a ServiceBuilder has been initialized.
-     * @return StorageFactory instance used to initialize ServiceBuilder.
-     */
-    public StorageFactory getStorageFactory() {
-        return createStorageFactory();
-    }
-
-    /**
      * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
      */
     private SegmentContainerRegistry getSegmentContainerRegistry() {

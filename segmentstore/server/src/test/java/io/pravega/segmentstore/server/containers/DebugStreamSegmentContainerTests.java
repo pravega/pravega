@@ -72,7 +72,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 0; // Used in randomly generating the length for a segment
     private static final int MAX_SEGMENT_LENGTH = 10100; // Used in randomly generating the length for a segment
     private static final int CONTAINER_ID = 1234567;
-    private static final int EXPECTED_PINNED_SEGMENT_COUNT = 1;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final int TEST_TIMEOUT_MILLIS = 60 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
@@ -110,7 +109,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200 + EXPECTED_PINNED_SEGMENT_COUNT)
+            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200)
             .build();
 
     @Rule

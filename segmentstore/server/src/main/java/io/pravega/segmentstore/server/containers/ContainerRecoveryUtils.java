@@ -75,21 +75,8 @@ public class ContainerRecoveryUtils {
                 "debug segment container instance.");
 
         log.info("Recovery started for all containers...");
-        // Add all segments in the container metadata in a set for each debug segment container instance.
-        Map<Integer, Set<String>> metadataSegmentsByContainer = new HashMap<>();
-        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
-        for (val debugStreamSegmentContainerEntry : debugStreamSegmentContainers.entrySet()) {
-            Preconditions.checkNotNull(debugStreamSegmentContainerEntry.getValue());
-            val tableExtension = debugStreamSegmentContainerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    debugStreamSegmentContainerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            Set<String> metadataSegments = new HashSet<>();
-            keyIterator.forEachRemaining(k ->
-                    metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
-                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            metadataSegmentsByContainer.put(debugStreamSegmentContainerEntry.getKey(), metadataSegments);
-        }
+        // Get all segments in the container metadata for each debug segment container instance.
+        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainers, executorService);
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(debugStreamSegmentContainers.size());
 
@@ -99,7 +86,7 @@ public class ContainerRecoveryUtils {
         // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         while (segmentIterator.hasNext()) {
-            SegmentProperties currentSegment = segmentIterator.next();
+            val currentSegment = segmentIterator.next();
 
             // skip recovery if the segment is an attribute segment.
             if (NameUtils.isAttributeSegment(currentSegment.getName())) {
@@ -107,17 +94,53 @@ public class ContainerRecoveryUtils {
             }
 
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
-            metadataSegmentsByContainer.get(containerId).remove(currentSegment.getName());
+            existingSegmentsMap.get(containerId).remove(currentSegment.getName());
             futures.add(recoverSegment(debugStreamSegmentContainers.get(containerId), currentSegment));
         }
         Futures.allOf(futures).join();
 
-        for (val metadataSegmentsSetEntry : metadataSegmentsByContainer.entrySet()) {
+        for (val metadataSegmentsSetEntry : existingSegmentsMap.entrySet()) {
             for (String segmentName : metadataSegmentsSetEntry.getValue()) {
                 log.info("Deleting segment '{}' as it is not in the storage.", segmentName);
                 debugStreamSegmentContainers.get(metadataSegmentsSetEntry.getKey()).deleteStreamSegment(segmentName, TIMEOUT).join();
             }
         }
+    }
+
+    /**
+     * The method lists all segments present in the container metadata segments of the given {@link DebugStreamSegmentContainer}
+     * instances, stores their names by container Id in a map and returns it.
+     * @param containerMap              A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
+     *                                  representing the containers to list the segments from.
+     * @param executorService           A thread pool for execution.
+     * @return                          A Map of Container Ids to segment names representing all segments present in the
+     *                                  container metadata segment of a Container.
+     * @throws InterruptedException     Required for Futures.get()
+     * @throws ExecutionException       Required for Futures.get()
+     * @throws TimeoutException         Required for Futures.get()
+     */
+    private static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
+                                                                 ExecutorService executorService)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
+        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
+
+        // Get all segments for each container entry
+        for (val containerEntry : containerMap.entrySet()) {
+            Preconditions.checkNotNull(containerEntry.getValue());
+            val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
+            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+                    containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Store the segments in a set
+            Set<String> metadataSegments = new HashSet<>();
+            keyIterator.forEachRemaining(k ->
+                    metadataSegments.addAll(k.getEntries().stream()
+                            .map(entry -> entry.getKey().toString())
+                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
+        }
+        return metadataSegmentsMap;
     }
 
     /**
@@ -158,28 +181,27 @@ public class ContainerRecoveryUtils {
      * @param storage       A {@link Storage} instance to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
      */
-    public static void deleteContainerMetadataAndAttributeSegments(Storage storage, int containerId) {
+    public static CompletableFuture<Void> deleteMetadataAndAttributeSegments(Storage storage, int containerId) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        deleteSegment(storage, metadataSegmentName);
-        deleteSegment(storage, attributeSegmentName);
+        return deleteSegmentFromStorage(storage, metadataSegmentName)
+                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName));
     }
 
     /**
-     * Deletes the segment with given name from the given {@link Storage} instance.
+     * Deletes the segment with given name from the given {@link Storage} instance. If the segment doesn't exist, it does
+     * nothing and returns.
      * @param storage       A {@link Storage} instance to delete the segments from.
      * @param segmentName   Name of the segment to be deleted.
+     * @return              CompletableFuture which when completed will have the segment deleted. In case segment didn't
+     *                      exist, a completed future will be returned.
      */
-    private static void deleteSegment(Storage storage, String segmentName) {
-        try {
-            storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)).join();
-        } catch (Exception e) {
-            if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                log.info("Segment '{}' doesn't exist.", segmentName);
-            } else {
-                throw e;
-            }
-        }
+    private static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName) {
+        log.info("Deleting Segment '{}'", segmentName);
+        return Futures.exceptionallyComposeExpecting(
+                storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
+                ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException,
+                () -> CompletableFuture.completedFuture(null));
     }
 }
