@@ -14,7 +14,6 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -30,7 +29,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.stream.BucketStore;
@@ -47,6 +45,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
+import org.junit.After;
 
 /**
  * Zookeeper stream store configuration.
@@ -67,8 +66,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private SegmentHelper segmentHelper;
 
     @Override
-    public void setup() throws Exception {
-        final RequestTracker requestTracker = new RequestTracker(true);
+    public ControllerService getControllerService() throws Exception {
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -82,7 +80,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
-        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), 
+        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
                 zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
@@ -109,12 +107,11 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        ControllerService controller = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+        return new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
-    @Override
+    @After
     public void tearDown() throws Exception {
         if (executorService != null) {
             ExecutorServiceHelpers.shutdown(executorService);
