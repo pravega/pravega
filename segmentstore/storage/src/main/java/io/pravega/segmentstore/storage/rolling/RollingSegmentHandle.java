@@ -218,6 +218,21 @@ class RollingSegmentHandle implements SegmentHandle {
     }
 
     /**
+     * Removes references to any {@link SegmentChunk} instances that have {@link SegmentChunk#exists()} set to false.
+     */
+    synchronized void excludeInexistentChunks() {
+        List<SegmentChunk> newChunks = new ArrayList<>();
+        boolean exists = false;
+        for (SegmentChunk sc : this.segmentChunks) {
+            exists |= sc.exists();
+            if (exists) {
+                newChunks.add(sc);
+            }
+        }
+        this.segmentChunks = this.sealed ? Collections.unmodifiableList(newChunks) : newChunks;
+    }
+
+    /**
      * Gets a value indicating the current length of the Segment, in bytes.
      *
      * @return The length.

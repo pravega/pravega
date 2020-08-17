@@ -16,6 +16,8 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Data;
 import lombok.val;
 import org.junit.Assert;
@@ -168,6 +170,45 @@ public class RollingSegmentHandleTests {
                 "addChunks allowed an incontiguous list of SegmentChunks to be added.",
                 () -> h.addChunks(secondBadList),
                 ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testExcludeInexistentChunks() {
+        val initialChunkCount = 10;
+        val headerHandle = new TestHandle(HEADER_NAME, true);
+        val h = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
+
+        val chunkList = IntStream.range(0, initialChunkCount)
+                .mapToObj(i -> new SegmentChunk(String.format("s%s", i), i * 10L))
+                .collect(Collectors.toList());
+        chunkList.forEach(c -> c.setLength(10L));
+        h.addChunks(chunkList);
+
+        // We mark the first 4 chunks as inexistent ...
+        val truncateCount = 4;
+        for (int i = 0; i < truncateCount; i++) {
+            chunkList.get(i).markInexistent();
+        }
+
+        // And the 6th one.
+        chunkList.get(truncateCount + 1).markInexistent();
+
+        // We trim away the chunks.
+        h.excludeInexistentChunks();
+
+        // ... and expect that only the Chunks up to truncateIndex are gone.
+        Assert.assertEquals(initialChunkCount - truncateCount, h.chunks().size());
+        for (int i = truncateCount; i < initialChunkCount; i++) {
+            Assert.assertEquals(chunkList.get(i), h.chunks().get(i - truncateCount));
+        }
+        val serialization = HandleSerializer.serialize(h);
+        h.setHeaderLength(serialization.getLength());
+
+        // Test serialization/deserialization.
+        val h2 = HandleSerializer.deserialize(serialization.getCopy(), h.getHeaderHandle());
+        Assert.assertEquals(h.getHeaderLength(), h2.getHeaderLength());
+        AssertExtensions.assertListEquals("", h.chunks(), h2.chunks(),
+                (c1, c2) -> c1.getName().equals(c2.getName()) && c1.getStartOffset() == c2.getStartOffset());
     }
 
     /**
