@@ -165,7 +165,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         } else {
                             long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
                             this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber, false));
                         }
                     } catch (Throwable e) {
                         handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);

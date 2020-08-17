@@ -95,7 +95,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -264,7 +264,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -285,13 +285,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0, false));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test2"), new CompletableFuture<>()));
         answerSuccess(connection);
         cf.getProcessor(uri).connectionDropped();
         AssertExtensions.assertBlocks(() -> output.write(PendingEvent.withoutHeader(null, getBuffer("test3"), new CompletableFuture<>())),
-                                      () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
+                                      () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0, false)));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
         
         Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null, output.getRequestId());
@@ -343,7 +343,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked = new CompletableFuture<>();
@@ -376,7 +376,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
@@ -417,7 +417,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
@@ -530,7 +530,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
@@ -570,7 +570,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked = new CompletableFuture<>();
@@ -597,7 +597,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             output.write(PendingEvent.withoutHeader(null, data, acked));
             output.write(PendingEvent.withoutHeader(null, data, acked2));
         }, () -> {            
-            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         });
         inOrder.verify(connection).send(append);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -627,7 +627,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
         
         //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
@@ -656,7 +656,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             output.close();
         }, () -> {
             // close is unblocked once the connection is setup and data is appended on Segment store.
-            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1));
         });
         // Verify the order of WireCommands sent.
@@ -686,7 +686,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
 
         ByteBuffer data = ByteBuffer.allocate(PendingEvent.MAX_WRITE_SIZE + 1);
         CompletableFuture<Void> acked = new CompletableFuture<>();
@@ -714,7 +714,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -740,7 +740,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -779,7 +779,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -816,7 +816,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 segmentSealedCallback, RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -832,7 +832,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                 // The segment writer will try to reconnect once the connection is failed post sending a KeepAlive.
                 // enable a response for AppendSetup only after the connection dropped is dropped.
                 connectionDroppedLatch.await();
-                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1));
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1, false));
                 return null;
             }
         }).when(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -864,7 +864,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
 
         output.reconnect();
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test2"), new CompletableFuture<>()));
         doAnswer(new Answer<Void>() {
@@ -885,7 +885,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
                 return null;
             }
         }).doNothing() // disable the sending a new appendSetup the next time SetupAppend is invoked by the segment writer is invoked.
@@ -895,7 +895,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertBlocks(() -> output.write(PendingEvent.withoutHeader(null, getBuffer("test3"), new CompletableFuture<>())),
                                       () -> {
                                           // the write should be blocked until the appendSetup is returned by the Segment stores.
-                                          cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+                                          cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
                                       });
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
         
@@ -940,7 +940,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -949,7 +949,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
                 return null;
             }
         }).when(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
@@ -979,7 +979,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         //Write an Event.
@@ -1013,7 +1013,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         // Write an Event.
@@ -1049,7 +1049,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0, false));
         ByteBuffer data = getBuffer("test");
 
         // Write an Event.
@@ -1103,7 +1103,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         // Verify if SetupAppend is sent over the connection.
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
 
         // Write an event and ensure inflight has an event.
         ByteBuffer data = getBuffer("test");
@@ -1155,7 +1155,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
                                                                      RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0, false));
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);

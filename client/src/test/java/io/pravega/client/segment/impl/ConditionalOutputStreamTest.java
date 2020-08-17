@@ -126,7 +126,7 @@ public class ConditionalOutputStreamTest {
                 SetupAppend argument = (SetupAppend) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                                  .process(new AppendSetup(argument.getRequestId(), segment.getScopedName(),
-                                                              argument.getWriterId(), 0));
+                                                              argument.getWriterId(), 0, false));
                 return null;
             }
         }).when(mock).send(any(SetupAppend.class));

@@ -681,6 +681,7 @@ public final class WireCommands {
         final String segment;
         final UUID writerId;
         final long lastEventNumber;
+        final boolean segmentSealed;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -694,14 +695,19 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(lastEventNumber);
+            out.writeBoolean(segmentSealed);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long lastEventNumber = in.readLong();
-            return new AppendSetup(requestId, segment, writerId, lastEventNumber);
+            boolean segmentSealed = false;
+            if (in.available() >= 1) {
+                in.readBoolean();
+            }
+            return new AppendSetup(requestId, segment, writerId, lastEventNumber, segmentSealed);
         }
     }
 
