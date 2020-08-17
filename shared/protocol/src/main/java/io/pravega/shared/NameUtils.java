@@ -624,6 +624,7 @@ public final class NameUtils {
      */
     public static String validateUserStreamName(String name) {
         Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.length()<256, "Name must have less than 256 characters");
         Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
     }
@@ -648,6 +649,7 @@ public final class NameUtils {
 
         // In addition to user stream names, pravega internally created stream have a special prefix.
         final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[\\p{Alnum}\\.\\-]+";
+        Preconditions.checkArgument(name.length()<256, "Name must have less than 256 characters");
         Preconditions.checkArgument(name.matches(matcher), "Name must be " + matcher);
         return name;
     }
