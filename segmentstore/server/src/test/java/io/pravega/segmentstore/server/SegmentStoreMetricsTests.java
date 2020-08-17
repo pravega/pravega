@@ -27,6 +27,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -160,7 +161,7 @@ public class SegmentStoreMetricsTests {
     }
 
     @Test
-    public void testCacheManagerMetrics() {
+    public void testCacheManagerMetrics() throws Exception {
         long storedBytes = 10000;
         long usedBytes = 1000;
         long allocatedBytes = 100;
@@ -183,7 +184,7 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_USED_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_ALLOC_SIZE_BYTES));
         assertNull(MetricRegistryUtils.getGauge(MetricsNames.CACHE_GENERATION_SPREAD));
-        assertNull(MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
+        assertEventuallyEquals(null, () -> MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION), 5000);
     }
 
 
