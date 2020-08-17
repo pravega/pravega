@@ -67,7 +67,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testAppendSetup() throws IOException {
-        testCommand(new WireCommands.AppendSetup(l, testString1, uuid, l));
+        testCommand(new WireCommands.AppendSetup(l, testString1, uuid, l, false));
     }
 
     @Test

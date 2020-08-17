@@ -129,7 +129,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -253,7 +253,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
-        verify(connection).send(new AppendSetup(requestId, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(requestId, streamSegmentName, clientId, 0, false));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -324,7 +324,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
         verifyStoreAppend(ac2, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new DataAppended(requestId, clientId, 2, 1, 2 * data.length));
@@ -363,7 +363,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
         verifyStoreAppend(ac2, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new ConditionalCheckFailed(clientId, 2, requestId));
@@ -392,7 +392,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
             //expected
         }
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100, false));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -445,9 +445,9 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(eq(segment2), eq(Collections.singleton(clientId2)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac2, data);
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new AppendSetup(1, segment1, clientId1, 0));
+        verify(connection).send(new AppendSetup(1, segment1, clientId1, 0, false));
         verify(connection).send(new DataAppended(2, clientId1, data.length, 0, data.length));
-        verify(connection).send(new AppendSetup(3, segment2, clientId2, 0));
+        verify(connection).send(new AppendSetup(3, segment2, clientId2, 0, false));
         verify(connection).send(new DataAppended(4, clientId2, data.length, 0, data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
@@ -481,7 +481,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         } catch (IllegalStateException e) {
             // Expected
         }
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -509,7 +509,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Send a setup append WireCommand.
         Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0, false), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
@@ -538,7 +538,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Send a setup append WireCommand.
         Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0, false), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
@@ -598,7 +598,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
 
         // Initiate two appends in short sequence, and simulate the Store blocking on both of them.
         val store1 = new CompletableFuture<Long>();
@@ -645,7 +645,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        connectionVerifier.verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        connectionVerifier.verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
 
         // Initiate one append.
         val store1 = new CompletableFuture<Long>();
@@ -739,7 +739,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
 
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -765,7 +765,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
 
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0, false));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);

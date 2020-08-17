@@ -58,7 +58,7 @@ public class FailingReplyProcessorTest {
             }
             
         };
-        assertThrows(IllegalStateException.class, () -> rp.appendSetup(new AppendSetup(0, "", null, 1)));
+        assertThrows(IllegalStateException.class, () -> rp.appendSetup(new AppendSetup(0, "", null, 1, false)));
         assertThrows(IllegalStateException.class, () -> rp.authTokenCheckFailed(new AuthTokenCheckFailed(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.conditionalCheckFailed(new ConditionalCheckFailed(null, 1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.dataAppended(new DataAppended(1, null, 0, -1, 2)));
