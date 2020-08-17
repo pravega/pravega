@@ -1398,6 +1398,7 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 10000)
     public void testThrowSynchronousExceptionOnWriteEvent() {
+        @SuppressWarnings("unchecked")
         EventStreamWriter<ControllerEvent> requestEventWriter = mock(EventStreamWriter.class);
         doAnswer(x -> {
             throw new RuntimeException();
@@ -1479,6 +1480,7 @@ public abstract class StreamMetadataTasksTest {
         // being thrown.
         // For all subsequent times we will wait on waitOnLockFailed future.  
         doAnswer(x -> {
+            @SuppressWarnings("unchecked")
             CompletableFuture<Void> future = (CompletableFuture<Void>) x.callRealMethod();
             return future.exceptionally(e -> {
                 if (Exceptions.unwrap(e) instanceof LockFailedException) {

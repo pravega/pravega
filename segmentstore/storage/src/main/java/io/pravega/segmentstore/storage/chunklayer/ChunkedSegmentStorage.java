@@ -725,7 +725,7 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     private boolean shouldAppend() {
-        return chunkStorage.supportsAppend() && !config.isAppendsDisabled();
+        return chunkStorage.supportsAppend() && config.isAppendEnabled();
     }
 
     private boolean shouldDefrag() {
