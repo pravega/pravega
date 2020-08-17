@@ -58,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -868,6 +869,44 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // Verify that there is no drift in the ConnectionTracker#getTotalOutstanding value. Due to the async nature
         // of the calls, this value may not immediately be updated.
         AssertExtensions.assertEventuallyEquals(0L, tracker::getTotalOutstanding, 10000);
+    }
+
+    @Test(timeout = 15 * 1000)
+    public void testAppendAfterSealReturns() throws Exception {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(connection).connectionTracker(tracker).build();
+        InOrder connectionVerifier = Mockito.inOrder(connection);
+        setupGetAttributes(streamSegmentName, clientId, store);
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test(timeout = 15 * 1000)
+    public void testAppendAfterSealThrows() throws Exception {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(connection).connectionTracker(tracker).build();
+        InOrder connectionVerifier = Mockito.inOrder(connection);
+        Map<UUID, Long> attributes = mock(Map.class);
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(attributes));
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(connection).close();
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
     }
 
     private <T> CompletableFuture<T> delayedResponse(T value) {
