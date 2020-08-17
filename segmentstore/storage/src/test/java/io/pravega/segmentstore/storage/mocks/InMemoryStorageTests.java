@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -94,6 +95,17 @@ public class InMemoryStorageTests extends StorageTestBase {
         // Cleanup.
         storage.delete(handle1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         storage.delete(handle2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Test
+    public void testReplace() throws Exception {
+        @Cleanup
+        val s = new InMemoryStorage();
+        s.initialize(1);
+        Assert.assertFalse(s.supportsReplace());
+        val h = s.create("segment");
+        AssertExtensions.assertThrows("", () -> s.replace(h, new ByteArraySegment(new byte[1])), ex -> ex instanceof UnsupportedOperationException);
+        Assert.assertSame(s, s.withReplaceSupport());
     }
 
     @Override

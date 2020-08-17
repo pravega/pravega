@@ -51,6 +51,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     protected static final int APPENDS_PER_SEGMENT = 10;
     protected static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final int SEGMENT_COUNT = 4;
+    protected final Random rnd = new Random(0);
 
     @Getter(AccessLevel.PROTECTED)
     @Setter(AccessLevel.PROTECTED)
