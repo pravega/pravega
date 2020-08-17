@@ -175,7 +175,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                     writers.put(setupAppend.getWriterId(), setupAppend.getSegment());
                     segments.putIfAbsent(setupAppend.getSegment(), new byte[0]);
                     rp.process(new WireCommands.AppendSetup(setupAppend.getRequestId(), setupAppend.getSegment(), setupAppend.getWriterId(),
-                            lastEventNumber));
+                            lastEventNumber, false));
                     break;
                 case CONDITIONAL_APPEND:
                     WireCommands.ConditionalAppend conditionalAppend = (WireCommands.ConditionalAppend) cmd;
