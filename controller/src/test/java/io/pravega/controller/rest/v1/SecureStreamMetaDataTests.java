@@ -22,6 +22,8 @@ import javax.ws.rs.core.MultivaluedMap;
 import java.io.File;
 import java.io.FileWriter;
 import java.util.Arrays;
+import java.util.Collections;
+
 import org.junit.Before;
 
 import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
@@ -38,7 +40,7 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
             String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
 
             // Admin has READ_WRITE permission to everything
-            addAuthFileEntry(writer, "admin", passwd, Arrays.asList("prn::*,READ_UPDATE"));
+            addAuthFileEntry(writer, "admin", passwd, Collections.singletonList("prn::*,READ_UPDATE"));
 
             // User "user1" can:
             //    - list, create and delete scopes

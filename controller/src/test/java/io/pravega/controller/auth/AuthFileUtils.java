@@ -16,6 +16,7 @@ import lombok.SneakyThrows;
 
 import java.io.FileWriter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class AuthFileUtils {
 
@@ -30,24 +31,18 @@ public class AuthFileUtils {
     }
 
     public static String createAclString(@NonNull List<String> aceStrings) {
-        StringBuilder builder = new StringBuilder();
-        for (String aceString: aceStrings) {
-            builder.append(aceString).append(";");
-        }
-        return builder.toString();
+        return aceStrings.stream().collect(Collectors.joining(";"));
     }
 
     @SneakyThrows
     public static void addAuthFileEntry(@NonNull FileWriter writer, @NonNull String entryAsString) {
-        StringBuilder builder = new StringBuilder(entryAsString);
-        writer.write(builder.append("\n").toString());
+        writer.write(entryAsString + "\n");
     }
 
     @SneakyThrows
     public static void addAuthFileEntry(@NonNull FileWriter writer, @NonNull String username,
                                            @NonNull String hashedPwd, @NonNull List<String> aceStrings) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(username).append(":").append(hashedPwd).append(":").append(createAclString(aceStrings));
-        addAuthFileEntry(writer, builder.toString());
+        String fileEntry = String.format("%s:%s:%s", username, hashedPwd, createAclString(aceStrings));
+        addAuthFileEntry(writer, fileEntry);
     }
 }

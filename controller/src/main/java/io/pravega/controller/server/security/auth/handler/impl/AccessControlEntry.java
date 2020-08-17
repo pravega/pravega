@@ -12,18 +12,26 @@ package io.pravega.controller.server.security.auth.handler.impl;
 import io.pravega.auth.AuthHandler;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * An entry of an {@link AccessControlList}.
  */
-@RequiredArgsConstructor
 class AccessControlEntry {
     @Getter(AccessLevel.PACKAGE)
     private final String resourcePattern;
 
     @Getter(AccessLevel.PACKAGE)
     private final AuthHandler.Permissions permissions;
+
+    AccessControlEntry(String aceResource, AuthHandler.Permissions permissions) {
+        if (aceResource != null) {
+            this.resourcePattern = aceResource;
+            this.permissions = permissions;
+        } else {
+            this.resourcePattern = null;
+            this.permissions = null;
+        }
+    }
 
     boolean isResource(String resource) {
         return resourcePattern.equals(resource);

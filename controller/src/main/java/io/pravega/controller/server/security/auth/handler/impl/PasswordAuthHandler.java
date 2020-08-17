@@ -164,8 +164,7 @@ public class PasswordAuthHandler implements AuthHandler {
                 aclVal = splits[1];
 
             }
-            return new AccessControlEntry(resource,
-                    Permissions.valueOf(aclVal));
+            return new AccessControlEntry(resource, Permissions.valueOf(aclVal));
         }).collect(Collectors.toList());
     }
 }
