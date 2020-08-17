@@ -34,4 +34,14 @@ public class StreamSegmentTruncatedException extends StreamSegmentException {
     public StreamSegmentTruncatedException(long startOffset) {
         super("", String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
     }
+
+    /**
+     * Creates a new instance of the StreamSegmentTruncatedException class.
+     *
+     * @param segmentName Segment name.
+     * @param startOffset First valid offset of the StreamSegment.
+     */
+    public StreamSegmentTruncatedException(String segmentName, long startOffset) {
+        super(segmentName, String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
+    }
 }

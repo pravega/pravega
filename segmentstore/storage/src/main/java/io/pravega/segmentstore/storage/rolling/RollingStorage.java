@@ -163,7 +163,9 @@ public class RollingStorage implements SyncStorage {
         // If at any point we encounter a StreamSegmentNotExistsException, fail immediately with StreamSegmentTruncatedException (+inner).
         val chunks = h.chunks();
         int currentIndex = CollectionHelpers.binarySearch(chunks, s -> offset < s.getStartOffset() ? -1 : (offset >= s.getLastOffset() ? 1 : 0));
-        assert currentIndex >= 0 : "unable to locate first SegmentChunk index.";
+        if (currentIndex < 0) {
+            throw new StreamSegmentTruncatedException(handle.getSegmentName(), chunks.get(0).getStartOffset());
+        }
 
         try {
             int bytesRead = 0;
