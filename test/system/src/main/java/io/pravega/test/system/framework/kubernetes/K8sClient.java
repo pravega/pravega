@@ -34,6 +34,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
 import io.kubernetes.client.openapi.models.V1PodStatus;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1ServiceAccount;
 import io.kubernetes.client.openapi.models.V1Status;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
@@ -605,6 +606,20 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Status> callback = new K8AsyncCallback<>("deleteNamespacedConfigMap");
         api.deleteNamespacedConfigMapAsync(name, namespace, PRETTY_PRINT, null, 0, false, null, null, callback);
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to create V1Secret.
+     * @param namespace Namespace in which the secret should be created. Secrets cannot be shared outside namespace.
+     * @param secret V1Secret to create
+     * @return Future representing the V1Secret.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1Secret> createSecret(String namespace, V1Secret secret) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Secret> callback = new K8AsyncCallback<>("createNamespacedSecret");
+        api.createNamespacedSecretAsync(namespace, secret, PRETTY_PRINT, null, null, callback);
         return callback.getFuture();
     }
 
