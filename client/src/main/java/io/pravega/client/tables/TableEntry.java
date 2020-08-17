@@ -27,12 +27,16 @@ import lombok.ToString;
 public class TableEntry<KeyT, ValueT> {
     /**
      * The {@link TableKey}.
+     *
+     * @return The content of {@link TableKey}.
      */
     @NonNull
     private final TableKey<KeyT> key;
 
     /**
      * The Value.
+     *
+     * @return The value associated to the {@link TableKey}.
      */
     private final ValueT value;
 

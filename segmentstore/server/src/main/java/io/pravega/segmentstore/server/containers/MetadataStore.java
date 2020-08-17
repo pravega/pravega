@@ -434,7 +434,7 @@ public abstract class MetadataStore implements AutoCloseable {
     }
 
     /**
-     * Invokes the {@link Connector#getMapSegmentId()} callback in order to assign an Id to a Segment. Upon completion,
+     * Invokes the {@link MetadataStore.Connector#getMapSegmentId()} callback in order to assign an Id to a Segment. Upon completion,
      * this operation will have mapped the given Segment to a new internal Segment Id if none was provided in the given
      * SegmentInfo. If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment
      * with the requested Segment Id.

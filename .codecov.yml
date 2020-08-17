@@ -11,11 +11,10 @@ coverage:
   status:
     project:
       default:
-        against: parent
-        target: auto
         threshold: 0.5%
-        branches:
-          - master
+    patch:
+      default:
+        target: 80%
   ignore:
     - "**/generated/**"
     - "standalone"
