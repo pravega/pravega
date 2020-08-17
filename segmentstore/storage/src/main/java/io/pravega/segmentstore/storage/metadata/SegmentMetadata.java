@@ -147,7 +147,7 @@ public class SegmentMetadata extends StorageMetadata {
     /**
      * Creates a copy of this instance.
      *
-     * @return
+     * @return Copy of this instance.
      */
     @Override
     public StorageMetadata deepCopy() {
