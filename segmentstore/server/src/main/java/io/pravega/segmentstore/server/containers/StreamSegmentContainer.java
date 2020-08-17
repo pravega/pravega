@@ -417,7 +417,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("getAttributes", streamSegmentName, attributeIds);
+        logRequest("getAttributes", streamSegmentName, attributeIds, cache);
         this.metrics.getAttributes();
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> getAttributesForSegment(streamSegmentId, attributeIds, cache, timer));
@@ -930,7 +930,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout) {
             ensureRunning();
-            logRequest("getAttributes", this.segmentId, attributeIds);
+            logRequest("getAttributes", this.segmentId, attributeIds, cache);
             return StreamSegmentContainer.this.getAttributesForSegment(this.segmentId, attributeIds, cache, new TimeoutTimer(timeout));
         }
 
