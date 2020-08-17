@@ -99,12 +99,15 @@ public class ContainerRecoveryUtils {
         }
         Futures.allOf(futures).join();
 
-        for (val metadataSegmentsSetEntry : existingSegmentsMap.entrySet()) {
-            for (String segmentName : metadataSegmentsSetEntry.getValue()) {
+        futures.clear();
+        // Delete segments which only exist in the container metadata, not in storage.
+        for (val existingSegmentsSetEntry : existingSegmentsMap.entrySet()) {
+            for (String segmentName : existingSegmentsSetEntry.getValue()) {
                 log.info("Deleting segment '{}' as it is not in the storage.", segmentName);
-                debugStreamSegmentContainers.get(metadataSegmentsSetEntry.getKey()).deleteStreamSegment(segmentName, TIMEOUT).join();
+                futures.add(debugStreamSegmentContainers.get(existingSegmentsSetEntry.getKey()).deleteStreamSegment(segmentName, TIMEOUT));
             }
         }
+        Futures.allOf(futures).join();
     }
 
     /**

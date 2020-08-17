@@ -317,10 +317,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 180000)
     public void testDurableDataLogFail() throws Exception {
-        ScheduledExecutorService executorService = executorService();
         int instanceId = 0;
         // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService);
+        this.storageFactory = new InMemoryStorageFactory(executorService());
         log.info("Created a long term storage.");
 
         // Start a new BK & ZK, segment store and controller
@@ -366,7 +365,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService);
+                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
         // wait for all segments to be flushed to the long term storage.
         waitForSegmentsInStorage(allSegments.keySet(), this.segmentStoreStarter.segmentsTracker, storage)
@@ -383,16 +382,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // start a new BookKeeper and ZooKeeper.
         this.bookKeeperStarter = setUpNewBK(instanceId++);
         this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
-                executorService);
+                executorService());
         this.dataLogFactory.initialize();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Create the environment for DebugSegmentContainer.
         @Cleanup
-        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService);
+        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
         // Use dataLogFactory from new BK instance.
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
-                executorService);
+                executorService());
 
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
@@ -401,16 +400,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer(CONTAINER_ID, CONTAINER_CONFIG, localDurableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
-                context.getDefaultExtensions(), executorService);
+                context.getDefaultExtensions(), executorService());
 
-        Services.startAsync(debugStreamSegmentContainer, executorService).join();
+        Services.startAsync(debugStreamSegmentContainer, executorService()).join();
         debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
         ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, CONTAINER_ID).join();
 
         // List segments from storage and recover them using debug segment container instance.
-        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService);
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
         // Wait for metadata segment to be flushed to LTS
         String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);
@@ -420,7 +419,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Stop the debug segment container
         this.dataLogFactory.close();
-        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService).join();
+        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService()).join();
         debugStreamSegmentContainerMap.get(CONTAINER_ID).close();
         log.info("Segments have been recovered.");
 
