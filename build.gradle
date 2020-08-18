@@ -1,4 +1,4 @@
-//import com.github.spotbugs.SpotBugsTask
+import com.github.spotbugs.SpotBugsTask
 import org.gradle.internal.jvm.Jvm
 
 /**
@@ -150,6 +150,10 @@ project('common') {
         //Do NOT add any additional dependencies here.
     }
 
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', '8'])
+    }
+
     javadoc {
         title = "Pravega Common Libraries"
         dependsOn delombok
@@ -163,6 +167,10 @@ def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
 
 project('shared:authplugin') {
     dependencies {
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', '8'])
     }
 
     javadoc {
@@ -242,6 +250,9 @@ project('shared:protocol') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(path: ':common', configuration: 'testRuntime')
     }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', '8'])
+    }
 }
 
 project('client') {
@@ -282,6 +293,11 @@ project('test:testcommon') {
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', '8'])
+    }
+
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
@@ -590,6 +606,10 @@ project('shared:controller-api') {
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
          // Since Java 10 javax.annotation is no more bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', '8'])
     }
 
     javadoc {
