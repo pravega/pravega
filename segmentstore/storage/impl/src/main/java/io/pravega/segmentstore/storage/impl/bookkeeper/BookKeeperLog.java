@@ -1040,8 +1040,11 @@ class BookKeeperLog implements DurableDataLog {
     //region Helpers
 
     private void reportMetrics() {
-        this.metrics.ledgerCount(getLogMetadata().getLedgers().size());
-        this.metrics.queueStats(this.writes.getStatistics());
+        LogMetadata metadata = getLogMetadata();
+        if (metadata != null) {
+            this.metrics.ledgerCount(metadata.getLedgers().size());
+            this.metrics.queueStats(this.writes.getStatistics());
+        }
     }
 
     private LogMetadata getLogMetadata() {
