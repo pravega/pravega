@@ -12,11 +12,7 @@ package io.pravega.controller.server.security.auth.handler.impl;
 import io.pravega.auth.AuthHandler;
 import lombok.NonNull;
 
-import java.util.regex.Pattern;
-
 class AclAuthorizerImpl extends AclAuthorizer {
-
-    private static final Pattern PATTERN_STAR_NOT_PRECEDED_BY_DOT = Pattern.compile("(?!=.)\\*");
 
     @Override
     public AuthHandler.Permissions authorize(@NonNull AccessControlList accessControlList, @NonNull String resource) {
@@ -31,13 +27,10 @@ class AclAuthorizerImpl extends AclAuthorizer {
         }
 
         for (AccessControlEntry accessControlEntry : accessControlList.getEntries()) {
-            // Replaces any `*` with `.*`, if it's not already preceded by `.`, for regex processing.
-            // So, `pravega:://*` becomes `pravega:://.*` and `pravega:://scope:*` becomes `pravega:://scope:.*`
-            String aclResourcePattern = PATTERN_STAR_NOT_PRECEDED_BY_DOT
-                    .matcher(accessControlEntry.getResourcePattern())
-                    .replaceAll(".*");
-            if (accessControlEntry.resourceStartsWith(resourceDomain)) {
-                if (resource.matches(aclResourcePattern)) {
+            // You could have a null ACE in the ACL if you had a malformed entry such as `prn::/scope:readresource`
+            // having no permissions set.
+            if (accessControlEntry != null && accessControlEntry.resourceStartsWith(resourceDomain)) {
+                if (resource.matches(accessControlEntry.getResourcePattern())) {
                     result = accessControlEntry.getPermissions();
                     break;
                 }

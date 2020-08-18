@@ -104,12 +104,7 @@ public class PravegaAuthManagerTest {
     }
 
     @Test
-    public void test() {
-
-    }
-
-    @Test
-    public void testMalFormedAuthorizationHeaderIsRejected() {
+    public void testMalformedAuthorizationHeaderIsRejected() {
         //Empty authorization header.
         assertThrows(AuthenticationException.class, () ->
                 AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:hi", "", AuthHandler.Permissions.READ));

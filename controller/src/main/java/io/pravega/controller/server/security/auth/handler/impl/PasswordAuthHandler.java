@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -37,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
-    private final ConcurrentHashMap<String, AccessControlList> userMap;
+    private final ConcurrentHashMap<String, AccessControlList> aclsByUser;
     private final StrongPasswordProcessor encryptor;
     private final boolean isOldAclFormatEnabled;
 
@@ -47,13 +48,13 @@ public class PasswordAuthHandler implements AuthHandler {
 
     @VisibleForTesting
     PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean useAclsInOldFormat) {
-        userMap = aclByUser;
+        aclsByUser = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
         isOldAclFormatEnabled = useAclsInOldFormat;
     }
 
     private void loadPasswordFile(String userPasswordFile) {
-        log.debug("Loading {}", userPasswordFile);
+        log.info("Loading {}", userPasswordFile);
 
         try (FileReader reader = new FileReader(userPasswordFile);
              BufferedReader lineReader = new BufferedReader(reader)) {
@@ -62,7 +63,7 @@ public class PasswordAuthHandler implements AuthHandler {
                 if (line.startsWith("#")) { // A commented line
                     continue;
                 }
-                processUserEntry(line, this.userMap);
+                processUserEntry(line, this.aclsByUser);
             }
         } catch (IOException e) {
             throw new CompletionException(e);
@@ -70,7 +71,7 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     @VisibleForTesting
-    void processUserEntry(String line, ConcurrentHashMap<String, AccessControlList> aclsByUser) {
+    void processUserEntry(String line, ConcurrentHashMap<String, AccessControlList> userMap) {
         // An entry'd look like this:
         //      testUserName:testEncryptedPassword:prn::/scope:testScope,READ_UPDATE;prn::/scope:testScope/stream:testStream;";
 
@@ -84,7 +85,7 @@ public class PasswordAuthHandler implements AuthHandler {
             } else {
                 acls = userFields[2];
             }
-            aclsByUser.put(userFields[0], new AccessControlList(userFields[1], parseAcl(acls)));
+            userMap.put(userFields[0], new AccessControlList(userFields[1], parseAcl(acls)));
         }
     }
 
@@ -100,8 +101,8 @@ public class PasswordAuthHandler implements AuthHandler {
         char[] password = parts[1].toCharArray();
 
         try {
-            if (userMap.containsKey(userName) &&
-                    encryptor.checkPassword(password, userMap.get(userName).getEncryptedPassword())) {
+            if (aclsByUser.containsKey(userName) &&
+                    encryptor.checkPassword(password, aclsByUser.get(userName).getEncryptedPassword())) {
                 return new UserPrincipal(userName);
             }
             throw new AuthenticationException("User authentication exception");
@@ -116,11 +117,10 @@ public class PasswordAuthHandler implements AuthHandler {
     @Override
     public Permissions authorize(String resource, Principal principal) {
         String userName = principal.getName();
-
-        if (Strings.isNullOrEmpty(userName) || !userMap.containsKey(userName)) {
+        if (Strings.isNullOrEmpty(userName) || !aclsByUser.containsKey(userName)) {
             throw new CompletionException(new AuthenticationException(userName));
         }
-        return authorizeForUser(userMap.get(userName), resource);
+        return authorizeForUser(aclsByUser.get(userName), resource);
     }
 
     /**
@@ -152,20 +152,19 @@ public class PasswordAuthHandler implements AuthHandler {
         return aclAuthorizer.authorize(accessControlList, resource);
     }
 
-    private List<AccessControlEntry> parseAcl(String aclString) {
-        return  Arrays.stream(aclString.split(";")).map(acl -> {
-            String[] splits = acl.split(",");
-            if (splits.length == 0) {
-                return null;
-            }
-            String resource = splits[0];
-            String aclVal = "READ";
-            if (splits.length >= 2) {
-                aclVal = splits[1];
+    @VisibleForTesting
+    List<AccessControlEntry> parseAcl(String aclString) {
+        if (aclString == null || aclString.trim().equals("")) {
+            return new ArrayList<>();
+        }
 
-            }
-            return new AccessControlEntry(resource, Permissions.valueOf(aclVal));
-        }).collect(Collectors.toList());
+        // Sample ACL strings:
+        //     prn::*,READ_UPDATE (single-valued)
+        //     prn::/scope:str1;prn::/scope:sc2/stream:str2; (multi-valued ending with `;`)
+        //     prn::/scope:str1;prn::/scope:sc2/stream:str2 (multi-valued)
+        return Arrays.stream(aclString.trim().split(";"))
+                .map(ace -> AccessControlEntry.fromString(ace))
+                .collect(Collectors.toList());
     }
 }
 

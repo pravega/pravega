@@ -25,7 +25,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testSuperUserAcl() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("*", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("*", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -43,7 +43,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithCreateScopeAccess() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("/", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("/", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -53,7 +53,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithAccessToASpecificScope() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("testscope", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("testscope", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -63,7 +63,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithAccessToAllScopes() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("/*", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("/*", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -74,7 +74,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithAccessToAllDirectAndIndirectChildrenOfScope() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("abcscope/*", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("abcscope/*", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -98,7 +98,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithAccessToStreamPatternsInASpecificScope() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("abcscope/*", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("abcscope/*", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();
@@ -113,7 +113,7 @@ public class LegacyAclAuthorizerImplTest {
     @Test
     public void testUserWithAccessToStreamPatternsInAnyScopeDoesnotWork() {
         AccessControlList acl = new AccessControlList(DUMMY_ENCRYPTED_PWD, Arrays.asList(
-                new AccessControlEntry("*/mystream", AuthHandler.Permissions.READ_UPDATE)
+                new AccessControlEntry("*/mystream", AuthHandler.Permissions.READ_UPDATE, true)
         ));
 
         LegacyAclAuthorizerImpl authorizer = new LegacyAclAuthorizerImpl();

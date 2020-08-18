@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 
 /**
  * Unit tests for the password-based auth handler plugin.
@@ -146,7 +147,7 @@ public class PasswordAuthHandlerTest {
         assertEquals(1, acl.getEntries().size());
 
         AccessControlEntry accessControlEntry = acl.getEntries().get(0);
-        assertEquals(resourcePattern, accessControlEntry.getResourcePattern());
+        assertEquals("prn::.*", accessControlEntry.getResourcePattern());
         assertEquals(AuthHandler.Permissions.READ_UPDATE, accessControlEntry.getPermissions());
     }
 
@@ -169,13 +170,39 @@ public class PasswordAuthHandlerTest {
         AccessControlList acl = aclsByUser.get("test-user2");
         List<AccessControlEntry> aces = acl.getEntries();
         assertEquals(3, aces.size());
-        assertEquals(resourcePattern1, aces.get(0).getResourcePattern());
+        assertEquals("prn::/scope:abc/.*", aces.get(0).getResourcePattern());
         assertEquals(resourcePattern2, aces.get(1).getResourcePattern());
-        assertEquals(resourcePattern3, aces.get(2).getResourcePattern());
+        assertEquals("prn::/scope:def/reader-group:rg.*", aces.get(2).getResourcePattern());
 
         assertEquals(AuthHandler.Permissions.READ_UPDATE, aces.get(0).getPermissions());
         assertEquals(AuthHandler.Permissions.READ_UPDATE, aces.get(1).getPermissions());
         assertEquals(AuthHandler.Permissions.READ, aces.get(2).getPermissions());
+    }
+
+    @Test
+    public void parseAclReturnsValidInputForSingleValuedEntries() {
+        PasswordAuthHandler handler = new PasswordAuthHandler();
+        assertSame(1, handler.parseAcl("prn::*,READ_UPDATE").size());
+        assertSame(1, handler.parseAcl("prn::/scope:testScope,READ_UPDATE").size());
+        assertSame(1, handler.parseAcl("prn::/scope:testScope/stream:testStream,READ_UPDATE").size());
+    }
+
+    @Test
+    public void parseAclReturnsValidInputForMultiValuedEntries() {
+        PasswordAuthHandler handler = new PasswordAuthHandler();
+
+        assertSame(2, handler.parseAcl("prn::/scope:str1;prn::/scope:sc2/stream:str2").size());
+
+        // Ending with `;`
+        assertSame(2, handler.parseAcl("prn::/scope:str1;prn::/scope:sc2/stream:str2;").size());
+    }
+
+    @Test
+    public void parseAclReturnsEmptyListForEmptyEntries() {
+        PasswordAuthHandler handler = new PasswordAuthHandler();
+
+        assertSame(0, handler.parseAcl("").size());
+        assertSame(0, handler.parseAcl(" ").size());
     }
 
     //endregion

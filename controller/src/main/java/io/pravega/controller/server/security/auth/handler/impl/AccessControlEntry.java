@@ -9,28 +9,58 @@
  */
 package io.pravega.controller.server.security.auth.handler.impl;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
+
+import java.util.regex.Pattern;
 
 /**
  * An entry of an {@link AccessControlList}.
  */
 class AccessControlEntry {
+    private static final Pattern PATTERN_STAR_NOT_PRECEDED_BY_DOT = Pattern.compile("(?!=.)\\*");
+
     @Getter(AccessLevel.PACKAGE)
     private final String resourcePattern;
 
     @Getter(AccessLevel.PACKAGE)
     private final AuthHandler.Permissions permissions;
 
-    AccessControlEntry(String aceResource, AuthHandler.Permissions permissions) {
-        if (aceResource != null) {
-            this.resourcePattern = aceResource;
-            this.permissions = permissions;
-        } else {
-            this.resourcePattern = null;
-            this.permissions = null;
+    @VisibleForTesting
+    AccessControlEntry(@NonNull String aceResource, @NonNull AuthHandler.Permissions permissions) {
+        this(aceResource, permissions, false);
+    }
+
+    @VisibleForTesting
+    AccessControlEntry(@NonNull String aceResource, @NonNull AuthHandler.Permissions permissions, boolean isLegacyFormat) {
+        // Replaces any `*` with `.*`, if it's not already preceded by `.`, for regex processing.
+        // So, `pravega:://*` becomes `pravega:://.*` and `pravega:://scope:*` becomes `pravega:://scope:.*`
+        this.resourcePattern = isLegacyFormat ?  aceResource :
+                PATTERN_STAR_NOT_PRECEDED_BY_DOT.matcher(aceResource).replaceAll(".*");
+        this.permissions = permissions;
+    }
+
+    static AccessControlEntry fromString(String ace) {
+        String[] splits = null;
+        if (Strings.isNullOrEmpty(ace) || (splits = ace.split(",")).length != 2) {
+            return null;
         }
+        String resource = null;
+        if (Strings.isNullOrEmpty(splits[0]) || Strings.isNullOrEmpty(splits[1])) {
+            return null;
+        }
+        resource = splits[0].trim();
+        AuthHandler.Permissions permissions;
+        try {
+            permissions = AuthHandler.Permissions.valueOf(splits[1].trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        return new AccessControlEntry(resource, permissions, false);
     }
 
     boolean isResource(String resource) {
