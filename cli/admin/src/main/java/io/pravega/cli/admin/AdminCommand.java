@@ -134,12 +134,12 @@ public abstract class AdminCommand {
     }
 
     protected void prettyJSONOutput(String jsonString) {
-        JsonElement je = JsonParser.parseString(jsonString).getAsJsonObject();
+        JsonElement je = new JsonParser().parse(jsonString);
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
     protected void prettyJSONOutput(String key, Object value) {
-        JsonElement je = JsonParser.parseString(objectToJSON(new Tuple(key, value))).getAsJsonObject();
+        JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
