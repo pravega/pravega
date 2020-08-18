@@ -134,12 +134,12 @@ public abstract class AdminCommand {
     }
 
     protected void prettyJSONOutput(String jsonString) {
-        JsonElement je = new JsonParser().parse(jsonString);
+        JsonElement je = JsonParser.parseString(jsonString).getAsJsonObject();
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
     protected void prettyJSONOutput(String key, Object value) {
-        JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
+        JsonElement je = JsonParser.parseString(objectToJSON(new Tuple(key, value))).getAsJsonObject();
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
@@ -160,14 +160,6 @@ public abstract class AdminCommand {
 
     protected int getIntArg(int index) {
         return getArg(index, Integer::parseInt);
-    }
-
-    protected long getLongArg(int index) {
-        return getArg(index, Long::parseLong);
-    }
-
-    protected boolean getBooleanArg(int index) {
-        return getArg(index, Boolean::parseBoolean);
     }
 
     private <T> T getArg(int index, Function<String, T> converter) {
