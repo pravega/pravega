@@ -71,7 +71,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(2);
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout(2 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
