@@ -158,7 +158,6 @@ public class ControllerImpl implements Controller {
      * @param config        The configuration for this client implementation.
      * @param executor      The executor service to be used for handling retries.
      */
-    @SuppressWarnings("deprecation")
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
