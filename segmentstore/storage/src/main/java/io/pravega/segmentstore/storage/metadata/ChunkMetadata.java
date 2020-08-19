@@ -65,7 +65,7 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Creates a deep copy of this instance.
      *
-     * @return
+     * @return Deep copy of this instance.
      */
     @Override
     public StorageMetadata deepCopy() {
