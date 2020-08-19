@@ -181,7 +181,7 @@ public class ContainerRecoveryUtils {
      * 1. If the segment is present in the {@link MetadataStore} of the container and its length or sealed status or both
      * doesn't match with the corresponding details from the given {@link SegmentProperties}, then it is deleted from there
      * and registered using the details from the given {@link SegmentProperties} instance.
-     * 2. If the segment is absent in the {@link MetadataStore}, then it is registered using the properties from the given
+     * 2. If the segment is absent in the {@link MetadataStore}, then it is registered using the details from the given
      * {@link SegmentProperties}.
      * @param container         A {@link DebugStreamSegmentContainer} instance for registering the given segment and checking
      *                          its existence in the container metadata.
@@ -202,7 +202,7 @@ public class ContainerRecoveryUtils {
                         .thenCompose(e -> {
                             if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
                                 log.debug("Segment '{}' exists in the container's metadata store, but with a different length" +
-                                        "or sealed status, so deleting it from there and registering it.", segmentName);
+                                        "or sealed status or both, so deleting it from there and then registering it.", segmentName);
                                 return container.metadataStore.deleteSegment(segmentName, TIMEOUT)
                                         .thenAccept(x -> container.registerSegment(segmentName, segmentLength, isSealed));
                             } else {
