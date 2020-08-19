@@ -107,8 +107,11 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
             futures.add(this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
                                      .thenAccept(this::registerHandle));
         }
-
-        Futures.allOf(futures).join();
+        CompletableFuture<Void> all = Futures.allOf(futures);
+        if (!Futures.await(all, INIT_TIMEOUT_PER_CONTAINER.toMillis())) {
+            throw new RuntimeException("Failed to start containers in: " + INIT_TIMEOUT_PER_CONTAINER);
+        }
+        all.join();
         LoggerHelpers.traceLeave(log, "initialize", traceId);
     }
 

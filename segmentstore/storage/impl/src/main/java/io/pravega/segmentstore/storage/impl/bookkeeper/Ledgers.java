@@ -13,18 +13,21 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
 import org.apache.bookkeeper.client.BKException.BKUnexpectedConditionException;
+import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.bookkeeper.client.api.ReadHandle;
@@ -78,16 +81,15 @@ final class Ledgers {
      */
     static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
-
-            return Exceptions.handleInterruptedCall(() ->
-                    FutureUtils.result(bookKeeper.newCreateLedgerOp()
-                            .withEnsembleSize(config.getBkEnsembleSize())
-                            .withWriteQuorumSize(config.getBkWriteQuorumSize())
-                            .withAckQuorumSize(config.getBkAckQuorumSize())
-                            .withDigestType(config.getDigestType())
-                            .withPassword(config.getBKPassword())
-                            .withCustomMetadata(createLedgerCustomMetadata(logId))
-                            .execute(), BK_EXCEPTION_HANDLER) );
+            CompletableFuture<WriteHandle> future = bookKeeper.newCreateLedgerOp()
+                .withEnsembleSize(config.getBkEnsembleSize())
+                .withWriteQuorumSize(config.getBkWriteQuorumSize())
+                .withAckQuorumSize(config.getBkAckQuorumSize())
+                .withDigestType(config.getDigestType())
+                .withPassword(config.getBKPassword())
+                .withCustomMetadata(createLedgerCustomMetadata(logId))
+                .execute();
+            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER);
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
