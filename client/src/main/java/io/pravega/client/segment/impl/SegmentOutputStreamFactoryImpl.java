@@ -10,11 +10,15 @@
 package io.pravega.client.segment.impl;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.control.impl.Controller;
@@ -23,6 +27,8 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,7 +48,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                                            config.isEnableConnectionPooling(), controller, cp, UUID.randomUUID(), nopSegmentSealedCallback,
                                            getRetryFromConfig(config), tokenProvider);
     }
-
+    
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
                                                             EventWriterConfig config, DelegationTokenProvider tokenProvider) {
@@ -56,7 +62,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
         }
         return result;
     }
-
+    
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
                                                             DelegationTokenProvider tokenProvider) {

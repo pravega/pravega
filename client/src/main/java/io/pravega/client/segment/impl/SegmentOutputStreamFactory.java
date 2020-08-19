@@ -46,7 +46,7 @@ public interface SegmentOutputStreamFactory {
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
                                                      EventWriterConfig config, DelegationTokenProvider tokenProvider);
-    
+
     /**
      * Creates a SegmentOutputStream for an existing segment. This operation will fail if the
      * segment does not exist or is sealed. This operation may be called multiple times on the same
