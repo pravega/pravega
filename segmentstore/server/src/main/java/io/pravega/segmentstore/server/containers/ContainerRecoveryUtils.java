@@ -31,10 +31,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
@@ -47,38 +45,45 @@ public class ContainerRecoveryUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
-     * This method lists the segments from the given storage instance. It then registers all segments except Attribute
-     * segments to the container metadata segment(s).
-     * {@link DebugStreamSegmentContainer} instance(s) are provided to this method which can have some segments already present
-     * in their respective container metadata segment(s). After the method successfully completes, only the segments which
-     * existed in the {@link Storage} will remain in the container metadata. All segments which only existed in the container
-     * metadata or which existed in both container metadata and the storage but with different lengths and/or sealed status,
-     * will be deleted from the container metadata. If the method fails while execution, appropriate exception is thrown.
-     * All segments from the storage are listed one by one, then mapped to their corresponding {@link DebugStreamSegmentContainer}
-     * instances for registering them to container metadata segment.
+     * Recovers Segments from the given Storage instance. This is done by:
+     * 1. Listing all Segments from the given Storage instance and partitioning them by their assigned Container Id using
+     * the standard {@link SegmentToContainerMapper}.
+     * 2. Filtering out all shadow Segments (such as Attribute Segments).
+     * 3. Registering all remaining (external) Segments to the owning Container's {@link MetadataStore}.
+     *
+     * The {@link DebugStreamSegmentContainer} instance(s) that are provided to this method may have some segments already
+     * present in their respective {@link MetadataStore}.
+     * After the method successfully completes, the following are true:
+     * - Only the segments which exist in the {@link Storage} will remain in the Container's {@link MetadataStore}.
+     * - If a Segment exists both in the Container's {@link MetadataStore} and in {@link Storage}, then the information
+     * that exists in {@link Storage} (length, sealed) will prevail.
+     *
+     * If the method fails during execution, the appropriate exception is thrown and the Containers' {@link MetadataStore}
+     * may be left in an inconsistent state.
      * @param storage                           A {@link Storage} instance that will be used to list segments from.
-     * @param debugStreamSegmentContainers      A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
+     * @param debugStreamSegmentContainersMap   A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                          representing the containers that will be recovered.
      * @param executorService                   A thread pool for execution.
-     * @throws InterruptedException             Required for Futures.get()
-     * @throws ExecutionException               Required for Futures.get()
-     * @throws TimeoutException                 Required for Futures.get()
-     * @throws IOException                      Requited for Storage.listSegments()
+     * @throws Exception                        If an exception occurred. This could be one of the following:
+     *                                              * TimeoutException:     If the calls for computation(used in the method)
+     *                                                                      didn't complete in time.
+     *                                              * IOException     :     If a general IO exception occurred.
      */
-    public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainers,
-                                          ExecutorService executorService) throws InterruptedException, ExecutionException,
-            TimeoutException, IOException {
+    public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap,
+                                          ExecutorService executorService) throws Exception {
         Preconditions.checkNotNull(storage);
         Preconditions.checkNotNull(executorService);
-        Preconditions.checkNotNull(debugStreamSegmentContainers);
-        Preconditions.checkArgument(debugStreamSegmentContainers.size() > 0, "There should be at least one " +
+        Preconditions.checkNotNull(debugStreamSegmentContainersMap);
+        Preconditions.checkArgument(debugStreamSegmentContainersMap.size() > 0, "There should be at least one " +
                 "debug segment container instance.");
+        int containerCount = debugStreamSegmentContainersMap.size();
+        validateContainerIds(debugStreamSegmentContainersMap, containerCount);
 
         log.info("Recovery started for all containers...");
         // Get all segments in the container metadata for each debug segment container instance.
-        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainers, executorService);
+        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService);
 
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(debugStreamSegmentContainers.size());
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
         Iterator<SegmentProperties> segmentIterator = storage.listSegments();
         Preconditions.checkNotNull(segmentIterator);
@@ -95,19 +100,43 @@ public class ContainerRecoveryUtils {
 
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
             existingSegmentsMap.get(containerId).remove(currentSegment.getName());
-            futures.add(recoverSegment(debugStreamSegmentContainers.get(containerId), currentSegment));
+            futures.add(recoverSegment(debugStreamSegmentContainersMap.get(containerId), currentSegment));
         }
-        Futures.allOf(futures).join();
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         futures.clear();
         // Delete segments which only exist in the container metadata, not in storage.
         for (val existingSegmentsSetEntry : existingSegmentsMap.entrySet()) {
             for (String segmentName : existingSegmentsSetEntry.getValue()) {
                 log.info("Deleting segment '{}' as it is not in the storage.", segmentName);
-                futures.add(debugStreamSegmentContainers.get(existingSegmentsSetEntry.getKey()).deleteStreamSegment(segmentName, TIMEOUT));
+                futures.add(debugStreamSegmentContainersMap.get(existingSegmentsSetEntry.getKey())
+                        .deleteStreamSegment(segmentName, TIMEOUT));
             }
         }
-        Futures.allOf(futures).join();
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Verifies if the given map of {@link DebugStreamSegmentContainer} instances contains:
+     *      1. Only Valid container Ids. A valid container Id is defined here as:
+     *              * Id value should be non-negative and less than container count.
+     *      2. A key in the map corresponding to each container Id.
+     * @param debugStreamSegmentContainersMap   A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
+     *                                          to be validated.
+     * @param containerCount                    Expected number of {@link DebugStreamSegmentContainer} instances.
+     */
+    private static void validateContainerIds(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap,
+                                          int containerCount) {
+        Set<Integer> containerIdsSet = new HashSet<>();
+        for (val containerId : debugStreamSegmentContainersMap.keySet()) {
+            if (containerId < 0 || containerId >= containerCount) {
+                throw new IllegalArgumentException("Container Id is not valid. It should be non-negative and less than container count.");
+            }
+            containerIdsSet.add(containerId);
+        }
+        if (containerIdsSet.size() != containerCount) {
+            throw new IllegalArgumentException("All container Ids should be present.");
+        }
     }
 
     /**
@@ -118,13 +147,13 @@ public class ContainerRecoveryUtils {
      * @param executorService           A thread pool for execution.
      * @return                          A Map of Container Ids to segment names representing all segments present in the
      *                                  container metadata segment of a Container.
-     * @throws InterruptedException     Required for Futures.get()
-     * @throws ExecutionException       Required for Futures.get()
-     * @throws TimeoutException         Required for Futures.get()
+     * @throws Exception                If an exception occurred. This could be one of the following:
+     *                                      * TimeoutException:     If If the call for computation(used in the method)
+     *                                                              didn't complete in time.
+     *                                      * IOException     :     If a general IO exception occurred.
      */
     private static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
-                                                                 ExecutorService executorService)
-            throws InterruptedException, ExecutionException, TimeoutException {
+                                                                 ExecutorService executorService) throws Exception {
         Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
 
@@ -170,12 +199,14 @@ public class ContainerRecoveryUtils {
         log.info("Registering: {}, {}, {}.", segmentName, segmentLength, isSealed);
         return Futures.exceptionallyComposeExpecting(
                 container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
-                        .thenAccept(e -> {
+                        .thenCompose(e -> {
                             if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
-                                container.metadataStore.deleteSegment(segmentName, TIMEOUT)
+                                return container.metadataStore.deleteSegment(segmentName, TIMEOUT)
                                         .thenAccept(x -> container.registerSegment(segmentName, segmentLength, isSealed));
+                            } else {
+                                return null;
                             }
-                        }), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException,
+                        }), ex -> ex instanceof StreamSegmentNotExistsException,
                 () -> container.registerSegment(segmentName, segmentLength, isSealed));
     }
 
@@ -202,9 +233,8 @@ public class ContainerRecoveryUtils {
      */
     private static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName) {
         log.info("Deleting Segment '{}'", segmentName);
-        return Futures.exceptionallyComposeExpecting(
+        return Futures.exceptionallyExpecting(
                 storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
-                ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException,
-                () -> CompletableFuture.completedFuture(null));
+                ex -> ex instanceof StreamSegmentNotExistsException, null);
     }
 }
