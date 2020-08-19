@@ -80,7 +80,7 @@ public class ContainerRecoveryUtils {
         validateContainerIds(debugStreamSegmentContainersMap, containerCount);
 
         log.info("Recovery started for all containers...");
-        // Get all segments in the container metadata for each debug segment container instance.
+        // Get all segments in the metadata store for each debug segment container instance.
         Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService);
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
@@ -140,7 +140,7 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * The method lists all segments present in the container metadata segments of the given {@link DebugStreamSegmentContainer}
+     * The method lists all segments present in the {@link MetadataStore} of the given {@link DebugStreamSegmentContainer}
      * instances, stores their names by container Id in a map and returns it.
      * @param containerMap              A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                  representing the containers to list the segments from.
@@ -178,10 +178,10 @@ public class ContainerRecoveryUtils {
     /**
      * This method takes a {@link DebugStreamSegmentContainer} instance and a {@link SegmentProperties} object as arguments
      * and takes one of the following actions:
-     * 1. If the segment is present in the container metadata and its length or sealed status or both doesn't match with the
-     * given {@link SegmentProperties}, then it is deleted from there and registered using the properties from the given
-     * {@link SegmentProperties} instance.
-     * 2. If the segment is absent in the container metadata, then it is registered using the properties from the given
+     * 1. If the segment is present in the {@link MetadataStore} of the container and its length or sealed status or both
+     * doesn't match with the corresponding details from the given {@link SegmentProperties}, then it is deleted from there
+     * and registered using the details from the given {@link SegmentProperties} instance.
+     * 2. If the segment is absent in the {@link MetadataStore}, then it is registered using the properties from the given
      * {@link SegmentProperties}.
      * @param container         A {@link DebugStreamSegmentContainer} instance for registering the given segment and checking
      *                          its existence in the container metadata.
@@ -201,13 +201,18 @@ public class ContainerRecoveryUtils {
                 container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
                         .thenCompose(e -> {
                             if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
+                                log.debug("Segment '{}' exists in the container's metadata store, but with a different length" +
+                                        "or sealed status, so deleting it from there and registering it.", segmentName);
                                 return container.metadataStore.deleteSegment(segmentName, TIMEOUT)
                                         .thenAccept(x -> container.registerSegment(segmentName, segmentLength, isSealed));
                             } else {
                                 return null;
                             }
                         }), ex -> ex instanceof StreamSegmentNotExistsException,
-                () -> container.registerSegment(segmentName, segmentLength, isSealed));
+                () -> {
+                    log.debug("Segment '{}' doesn't exist in the container metadata. Registering it.", segmentName);
+                    return container.registerSegment(segmentName, segmentLength, isSealed);
+                });
     }
 
     /**
