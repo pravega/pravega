@@ -1,4 +1,3 @@
-import com.github.spotbugs.SpotBugsTask
 import org.gradle.internal.jvm.Jvm
 
 /**
@@ -27,7 +26,7 @@ buildscript {
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
-        classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
+        classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
@@ -53,9 +52,9 @@ allprojects {
         dependencies {
             //These are compile time only dependencies needed accross all targets. Lombok uses them and may generate strange errors if they are missing.
             compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-            testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+            testCompileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-            testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+            testCompileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             compileOnly 'org.projectlombok:lombok:' + lombokVersion
             testCompileOnly 'org.projectlombok:lombok:' + lombokVersion
             annotationProcessor 'org.projectlombok:lombok:' + lombokVersion
@@ -94,13 +93,6 @@ allprojects {
             sourceCompatibility = JavaVersion.VERSION_11
             targetCompatibility = JavaVersion.VERSION_11
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-        }
-    }
-    tasks.withType(SpotBugsTask) {
-        classpath += sourceSets."${(it.name - ~/^spotbugs/).uncapitalize()}".compileClasspath
-        reports {
-            xml.enabled = false
-            html.enabled = true
         }
     }
     version = getProjectVersion()
@@ -665,7 +657,7 @@ project('controller') {
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
@@ -892,9 +884,9 @@ project('test:system') {
         systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
         systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
-        systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        systemProperty "imageVersion", System.getProperty("imageVersion", "latest") // pravega version.
         // bookkeeper version defaults to pravega version.
-        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
+        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", bookKeeperVersion)
 
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
