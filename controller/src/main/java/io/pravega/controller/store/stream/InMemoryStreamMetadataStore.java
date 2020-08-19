@@ -73,8 +73,9 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         this.counter = new AtomicInt96();
     }
 
-    public Map<String, InMemoryScope> getScopes() {
-        return scopes;
+    @Synchronized
+    public boolean scopeExists(String scopeName) {
+        return scopes.containsKey(scopeName);
     }
 
     @Override
@@ -94,7 +95,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 

@@ -671,7 +671,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            AtomicReference<StreamSegmentInformation> info = new AtomicReference((StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join());
+            AtomicReference<StreamSegmentInformation> info = new AtomicReference<>((StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join());
             Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedData.length, info.get().getLength());
 
             AtomicLong expectedCurrentOffset = new AtomicLong(0);

@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
@@ -97,7 +98,7 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().build());
 
         val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof FileSystemSimpleStorageFactory);
@@ -122,7 +123,7 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, HDFSStorageConfig.builder().build());
         val factory = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof HDFSSimpleStorageFactory);
     }
@@ -158,7 +159,7 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
 
         val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
