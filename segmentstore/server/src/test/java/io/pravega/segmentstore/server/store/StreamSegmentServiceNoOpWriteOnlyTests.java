@@ -68,7 +68,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
      * It is not possible to verify segment content when write is no-oped.
      */
     @Override
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEnd() throws Exception {
         endToEndProcess(false, false);
     }
@@ -84,7 +84,7 @@ public class StreamSegmentServiceNoOpWriteOnlyTests extends StreamSegmentStoreTe
      * It is not possible to verify segment content when write is no-oped.
      */
     @Override
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEndWithFencing() throws Exception {
         endToEndProcessWithFencing(false, false);
     }
