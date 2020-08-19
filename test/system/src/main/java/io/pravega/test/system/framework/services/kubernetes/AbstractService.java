@@ -11,7 +11,6 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Resources;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1ContainerBuilder;
@@ -50,11 +49,11 @@ import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
-import java.io.File;
+import org.apache.commons.io.IOUtils;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -350,36 +349,13 @@ public abstract class AbstractService implements Service {
 
     }
 
-    private V1beta1CustomResourceDefinition getCertificateCRD() {
-
-        return new V1beta1CustomResourceDefinitionBuilder()
-                .withApiVersion("apiextensions.k8s.io/v1beta1")
-                .withKind("CustomResourceDefinition")
-                .withMetadata(new V1ObjectMetaBuilder().withName("certificates.cert-manager.io").build())
-                .withSpec(new V1beta1CustomResourceDefinitionSpecBuilder()
-                        .withGroup("cert-manager.io")
-                        .withNames(new V1beta1CustomResourceDefinitionNamesBuilder()
-                                .withKind("Certificate")
-                                .withListKind("CertificateList")
-                                .withPlural("Certificates")
-                                .withSingular("certificate")
-                                .build())
-                        .withScope("Namespaced")
-                        .withVersion("v1alpha2")
-                        .withNewSubresources()
-                        .withStatus(new V1beta1CustomResourceDefinitionStatus())
-                        .endSubresources()
-                        .build())
-                .build();
-    }
-
     private static V1Secret getTLSSecret() {
         String data = "";
         String yamlInputPath = "secret.yaml";
-        try {
-            data = new String(Resources.toByteArray(new URL(yamlInputPath)));
+        try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
+            data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            log.error("Could not read from: {}", yamlInputPath);
+            log.error("Could not read from: {}, data:{}", yamlInputPath, data);
         }
         Yaml.addModelMap("v1", "Secret", V1Secret.class);
         V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
@@ -388,39 +364,11 @@ public abstract class AbstractService implements Service {
     }
 
     private CompletableFuture<V1Secret> registerTLSSecret() {
+        if (!Utils.TLS_ENABLED) {
+            return CompletableFuture.completedFuture(null);
+        }
         V1Secret secret = getTLSSecret();
         return k8sClient.createSecret(NAMESPACE, secret);
-    }
-
-    CompletableFuture<Object> deployTLSCertificates() {
-        return k8sClient.createCRD(getCertificateCRD())
-                .thenCompose(v -> k8sClient.createAndUpdateCustomObject("certificates.cert-manager.io", "v1alpha2",
-                        NAMESPACE, "Certificates",
-                        getCertificateDeployment()));
-    }
-
-    private Map<String, Object> getCertificateDeployment() {
-        return ImmutableMap.<String, Object>builder()
-                .put("apiVersion", "certificates.cert-manager.io/v1alpha2")
-                .put("kind", "Certificate")
-                .put("metadata", ImmutableMap.of("name", "selfsigned-cert", "namespace", NAMESPACE))
-                .put("spec", buildCertificateSpec())
-                .build();
-    }
-
-    protected Map<String, Object> buildCertificateSpec() {
-        ImmutableMap<String, Object> issuerRefSpec = ImmutableMap.<String, Object>builder()
-                .put("name", "test-selfsigned")
-                .build();
-        ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
-                .put("dnsNames", singletonList("example.com"))
-                .put("secretName", SELFSIGNED_CERT_TLS)
-                .put("issuerRef", issuerRefSpec)
-                .build();
-
-        return ImmutableMap.<String, Object>builder()
-                .putAll(commonEntries)
-                .build();
     }
 
     private V1beta1Role getPravegaOperatorRole() {
