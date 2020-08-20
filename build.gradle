@@ -111,7 +111,6 @@ allprojects {
             //failOnVersionConflict()
             force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "com.google.code.gson:gson:" + gsonVersion
             force "io.grpc:grpc-context:" + grpcVersion
             force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
             force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
@@ -736,7 +735,6 @@ project('cli:user') {
         compile project(':shared:protocol')
         compile project(':test:testcommon')
         testCompile group: 'junit', name: 'junit', version: '4.12'
-        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 
