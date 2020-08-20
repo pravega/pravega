@@ -76,7 +76,7 @@ public class PendingEvent {
             ByteBuf eventBuf = getByteBuf(batch.get(i));
             batchBuff = Unpooled.wrappedUnmodifiableBuffer(batchBuff, eventBuf);
         }
-        Preconditions.checkArgument(batchBuff.readableBytes() <= MAX_WRITE_SIZE, "Batch size too large: %s", batchBuff.readableBytes());
+        Preconditions.checkArgument(batchBuff.readableBytes() <= 2 * MAX_WRITE_SIZE, "Batch size too large: %s", batchBuff.readableBytes());
 
         return new PendingEvent(routingKey, batchBuff, batch.size(), ackFuture);
     }
