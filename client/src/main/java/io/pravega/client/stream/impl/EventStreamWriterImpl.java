@@ -110,12 +110,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(routingKey);
         return writeEventInternal(routingKey, event);
     }
-
-    @Override
-    public CompletableFuture<Void> writeEvents(String routingKey, List<Type> events) {
-        Preconditions.checkNotNull(routingKey);
-        return writeEventsInternal(routingKey, events);
-    }
     
     private CompletableFuture<Void> writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
@@ -130,8 +124,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
         return ackFuture;
     }
-    
-    private CompletableFuture<Void> writeEventsInternal(String routingKey, List<Type> events) {
+
+    @Override
+    public CompletableFuture<Void> writeEvents(String routingKey, List<Type> events) {
+        Preconditions.checkNotNull(routingKey);
         Preconditions.checkNotNull(events);
         Exceptions.checkNotClosed(closed.get(), this);
         List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
