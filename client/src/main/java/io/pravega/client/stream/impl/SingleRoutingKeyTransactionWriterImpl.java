@@ -48,7 +48,6 @@ import java.util.function.Supplier;
 @Slf4j
 @ToString(of = {"stream", "closed"})
 public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutingKeyTransactionWriter<Type> {
-    private static final long TIMEOUT = Duration.ofSeconds(10).toMillis();
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final String routingKey;
@@ -129,7 +128,6 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
                 }
             }
 
-            // send append block end
             CompletableFuture<Void> commitFuture = new CompletableFuture<>();
 
             // write the composite pending event and call flush so that the events are all written into 

@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.Serializer;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -51,7 +52,6 @@ public class PendingEvent {
        
     private PendingEvent(String routingKey, ByteBuf data, int eventCount, CompletableFuture<Void> ackFuture) {
         Preconditions.checkNotNull(data);
-        Preconditions.checkArgument(data.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", data.readableBytes());
         this.routingKey = routingKey;
         this.data = data;
         this.ackFuture = ackFuture;
@@ -59,23 +59,32 @@ public class PendingEvent {
     }
     
     public static PendingEvent withHeader(String routingKey, ByteBuffer data, CompletableFuture<Void> ackFuture) {
-        ByteBuf eventBuf = new Event(Unpooled.wrappedBuffer(data)).getAsByteBuf();
+        ByteBuf eventBuf = getByteBuf(data);
         return new PendingEvent(routingKey, eventBuf, 1, ackFuture);
-        
+    }
+
+    private static ByteBuf getByteBuf(ByteBuffer data) {
+        ByteBuf eventBuf = new Event(Unpooled.wrappedBuffer(data)).getAsByteBuf();
+        Preconditions.checkArgument(eventBuf.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", eventBuf.readableBytes());
+        return eventBuf;
     }
 
     public static PendingEvent withHeader(@NonNull String routingKey, @NonNull List<ByteBuffer> batch, @NonNull CompletableFuture<Void> ackFuture) {
         Preconditions.checkArgument(!batch.isEmpty(), "Batch cannot be empty");
         ByteBuf batchBuff = Unpooled.EMPTY_BUFFER;
         for (int i = 0; i < batch.size(); i++) {
-            ByteBuf eventBuf = new Event(Unpooled.wrappedBuffer(batch.get(i))).getAsByteBuf();
+            ByteBuf eventBuf = getByteBuf(batch.get(i));
             batchBuff = Unpooled.wrappedUnmodifiableBuffer(batchBuff, eventBuf);
         }
-        return new PendingEvent(routingKey, batchBuff, batch.size(), ackFuture);
+        Preconditions.checkArgument(batchBuff.readableBytes() <= MAX_WRITE_SIZE, "Batch size too large: %s", batchBuff.readableBytes());
 
+        return new PendingEvent(routingKey, batchBuff, batch.size(), ackFuture);
     }
 
     public static PendingEvent withoutHeader(String routingKey, ByteBuffer data, CompletableFuture<Void> ackFuture) {
-        return new PendingEvent(routingKey, Unpooled.wrappedBuffer(data), 1, ackFuture);
+        ByteBuf dataBuf = Unpooled.wrappedBuffer(data);
+        Preconditions.checkArgument(dataBuf.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", dataBuf.readableBytes());
+
+        return new PendingEvent(routingKey, dataBuf, 1, ackFuture);
     }
 }

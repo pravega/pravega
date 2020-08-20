@@ -110,6 +110,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(routingKey);
         return writeEventInternal(routingKey, event);
     }
+
+    @Override
+    public CompletableFuture<Void> writeEvents(String routingKey, List<Type> events) {
+        Preconditions.checkNotNull(routingKey);
+        return writeEventsInternal(routingKey, events);
+    }
     
     private CompletableFuture<Void> writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
@@ -117,19 +123,38 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            synchronized (writeSealLock) {                
-                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-                while (segmentWriter == null) {
-                    log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
-                    handleMissingLog();
-                    segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-                }
+            synchronized (writeSealLock) {
+                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
                 segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }
         }
         return ackFuture;
     }
     
+    private CompletableFuture<Void> writeEventsInternal(String routingKey, List<Type> events) {
+        Preconditions.checkNotNull(events);
+        Exceptions.checkNotClosed(closed.get(), this);
+        List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
+        CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
+        synchronized (writeFlushLock) {
+            synchronized (writeSealLock) {
+                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
+                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+            }
+        }
+        return ackFuture;
+    }
+
+    private SegmentOutputStream getSegmentWriter(String routingKey) {
+        SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+        while (segmentWriter == null) {
+            log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
+            handleMissingLog();
+            segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+        }
+        return segmentWriter;
+    }
+
     @GuardedBy("writeSealLock")
     private void handleMissingLog() {
         List<PendingEvent> toResend = selector.refreshSegmentEventWriters(segmentSealedCallBack);
