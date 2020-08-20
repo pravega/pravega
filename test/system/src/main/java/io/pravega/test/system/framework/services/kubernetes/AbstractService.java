@@ -140,10 +140,10 @@ public abstract class AbstractService implements Service {
                                                                                 getPravegaDeployment(zkUri.getAuthority(),
                                                                                                    controllerCount,
                                                                                                    segmentStoreCount,
-                                                                                                   bookieCount, props)));
+                                                                                                   bookieCount, props, enableTls)));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
+    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props, boolean enableTls) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
 
@@ -185,16 +185,20 @@ public abstract class AbstractService implements Service {
                 .put("tier2", tier2Spec())
                 .build();
 
+        final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
+                .put("controllerSecret", SELFSIGNED_CERT_TLS)
+                .put("segmentStoreSecret", SELFSIGNED_CERT_TLS)
+                .build();
+
         final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
-                .put("ControllerSecret", SELFSIGNED_CERT_TLS)
-                .put("SegmentStoreSecret", SELFSIGNED_CERT_TLS)
-                .build();   
+                .put("static", staticTlsSpec)
+                .build();
 
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec, tlsSpec))
+                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec, tlsSpec, enableTls))
                 .build();
     }
 
@@ -220,7 +224,7 @@ public abstract class AbstractService implements Service {
     }
 
     protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec,
-                                                          Map<String, Object> tlsSpec) {
+                                                          Map<String, Object> tlsSpec, boolean enableTls) {
 
         ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
                 .put("zookeeperUri", zkLocation)
@@ -235,7 +239,7 @@ public abstract class AbstractService implements Service {
                     .build();
         }
 
-        if (Utils.TLS_ENABLED) {
+        if (Utils.TLS_ENABLED || enableTls) {
             return ImmutableMap.<String, Object>builder()
                     .putAll(commonEntries)
                     .put("tls", tlsSpec)
@@ -475,7 +479,7 @@ public abstract class AbstractService implements Service {
                                                                         .withValue(String.valueOf(enableTls || Utils.TLS_ENABLED))
                                                                         .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_ENABLED_FOR_SEGMENT_STORE")
-                                                                        .withValue("false")
+                                                                        .withValue(String.valueOf(enableTls || Utils.TLS_ENABLED))
                                                                         .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)
