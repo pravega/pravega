@@ -157,20 +157,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
         // the value in the Store's cache so it's faster to access later.
-        store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT)
-                .whenComplete((attributes, u) -> {
-                    try {
-                        if (u != null) {
-                            handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
-                        } else {
-                            long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
-                        }
-                    } catch (Throwable e) {
-                        handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
-                    }
-                });
+        Futures.exceptionallyComposeExpecting(
+                store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT),
+                e -> e instanceof StreamSegmentSealedException, () -> store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT))
+                        .whenComplete((attributes, u) -> {
+                            try {
+                                if (u != null) {
+                                    handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
+                                } else {
+                                    long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                }
+                            } catch (Throwable e) {
+                                handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
+                            }
+                        });
     }
 
     @VisibleForTesting
