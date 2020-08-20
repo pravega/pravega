@@ -33,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -74,7 +73,6 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
     }
 
     private static class SingleRoutingKeyTransactionImpl<Type> implements SingleRoutingKeyTransaction<Type> {
-        private static final long MAX_TRANSACTION_SIZE = 16 * 1024 * 1024;
         @NonNull
         private final Controller controller;
         @NonNull
@@ -86,8 +84,6 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
         private Transaction.Status state;
         @GuardedBy("$lock")
         private final List<ByteBuffer> events;
-        @GuardedBy("$lock")
-        private long size;
         private final String routingKey;
 
         SingleRoutingKeyTransactionImpl(Controller controller, Stream stream, Serializer<Type> serializer,
@@ -99,7 +95,6 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
             this.routingKey = routingKey;
             this.state = Transaction.Status.OPEN;
             this.events = new ArrayList<>();
-            this.size = 0L;
         }
 
         @Override
@@ -109,10 +104,6 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
             ByteBuffer buffer = serializer.serialize(event);
             synchronized (this) {
                 throwIfClosed();
-                size += buffer.remaining();
-                if (size > MAX_TRANSACTION_SIZE) {
-                    throw new TxnFailedException("Size limit exceeded. Combined size for all events should be less than 16 mb.");
-                }
                 events.add(buffer);
             }
         }
