@@ -15,7 +15,6 @@ import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,8 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.util.IOUtils;
@@ -52,7 +51,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String TLS_KEY_STORE = "tlsKeyStore";
     public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
-    private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
+    private static final String LOOPBACK_ADDRESS = "localhost";
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
@@ -144,7 +143,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         // Start or resume ZK.
-        this.zkServer.get().start();
+        zk.start();
+        ZooKeeperServiceRunner.waitForServerUp(this.zkPort);
         log.info("ZooKeeper resumed.");
     }
 
@@ -177,7 +177,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         @Cleanup
         val zkc = ZooKeeperClient.newBuilder()
-                                 .connectString(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort)
+                                 .connectString(LOOPBACK_ADDRESS + ":" + this.zkPort)
                                  .sessionTimeoutMs(10000)
                                  .build();
 
@@ -224,8 +224,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         val conf = new ServerConfiguration();
+        conf.setAdvertisedAddress(LOOPBACK_ADDRESS);
         conf.setBookiePort(bkPort);
-        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort + ledgersPath);
+        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS + ":" + this.zkPort + ledgersPath);
         conf.setJournalDirName(journalDir.getPath());
         conf.setLedgerDirNames(new String[]{ledgerDir.getPath()});
         conf.setAllowLoopback(true);

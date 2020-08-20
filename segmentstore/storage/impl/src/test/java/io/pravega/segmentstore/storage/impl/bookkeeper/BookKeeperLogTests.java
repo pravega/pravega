@@ -123,9 +123,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 .builder()
                 .connectString("localhost:" + zkPort)
                 .namespace(namespace)
-                .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                .retryPolicy(new ExponentialBackoffRetry(1000, 10))
                 .build());
         this.zkClient.get().start();
+        this.zkClient.get().blockUntilConnected();
 
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
