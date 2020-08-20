@@ -115,16 +115,18 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * Verifies if the given map of {@link DebugStreamSegmentContainer} instances contains:
+     * Verifies if the given map of {@link DebugStreamSegmentContainer} instance(s) contains:
      *      1. Only Valid container Ids. A valid container Id is defined here as:
      *              * Id value should be non-negative and less than container count.
-     *      2. A key in the map corresponding to each container Id.
+     *      2. A key in the map corresponding to each container Id(all non-negative integers less than the given containerCount)
      * @param debugStreamSegmentContainersMap   A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                          to be validated.
      * @param containerCount                    Expected number of {@link DebugStreamSegmentContainer} instances.
+     * @throws IllegalArgumentException         If the given map of {@link DebugStreamSegmentContainer} instance(s) doesn't
+     *                                          satisfy the above two criteria.
      */
     private static void validateContainerIds(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap,
-                                          int containerCount) {
+                                          int containerCount) throws IllegalArgumentException {
         Set<Integer> containerIdsSet = new HashSet<>();
         for (val containerId : debugStreamSegmentContainersMap.keySet()) {
             if (containerId < 0 || containerId >= containerCount) {
