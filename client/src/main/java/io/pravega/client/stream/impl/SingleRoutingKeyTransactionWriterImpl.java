@@ -109,7 +109,7 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
         }
 
         @Override
-        public void commit() throws TxnFailedException {
+        public CompletableFuture<Void> commit() throws TxnFailedException {
             synchronized (this) {
                 throwIfClosed();
                 if (state.equals(Transaction.Status.OPEN)) {
@@ -125,20 +125,25 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
             // the segment.
             // if this throws segment sealed exception, we will retry a few times before throwing the exception 
             // back to the user.
-            Retry.withExpBackoff(0L, 1, 10, 0L)
+            return Retry.withExpBackoff(0L, 1, 10, 0L)
                  .retryWhen(e -> Exceptions.unwrap(e) instanceof SegmentSealedException)
                  .run(() -> {
                      SegmentOutputStream segmentOutputStream = segmentWriterSupplier.get();
 
                      segmentOutputStream.write(PendingEvent.withHeader(routingKey, events, commitFuture));
-                     segmentOutputStream.flush();
-                     Futures.getAndHandleExceptions(commitFuture, TxnFailedException::new);
-                     return null;
+                     try {
+                         segmentOutputStream.flush();
+                     } catch (SegmentSealedException e) {
+                         // TODO: indicate to caller that a successor is required and then throw the exception.
+                         throw e;
+                     }
+                     return commitFuture
+                             .thenAccept(v -> {
+                                 synchronized (this) {
+                                     state = Transaction.Status.COMMITTED;
+                                 }
+                             });
                  });
-
-            synchronized (this) {
-                state = Transaction.Status.COMMITTED;
-            }
         }
 
         @Override

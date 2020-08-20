@@ -51,6 +51,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.SingleRoutingKeyTransactionWriter;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.watermark.WatermarkSerializer;
@@ -152,6 +153,12 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
         return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
+    }
+    
+    @Override
+    public <T> SingleRoutingKeyTransactionWriter<T> createSingleRoutingKeyWriter(String streamName, String routingKey, Serializer<T> s) {
+        Stream stream = new StreamImpl(scope, streamName);
+        return new SingleRoutingKeyTransactionWriterImpl<>(stream, routingKey, controller, outFactory, s);
     }
 
     @Override

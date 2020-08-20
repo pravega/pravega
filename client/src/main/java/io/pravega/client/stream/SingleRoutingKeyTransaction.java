@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Provides a mechanism for writing multiple events with the same routing key atomically. 
  * Users can create new singleRoutingKey transactions for a routing key. After writing events into the transaction
@@ -40,7 +42,7 @@ public interface SingleRoutingKeyTransaction<Type> {
      *
      * @throws TxnFailedException thrown if the transaction is timed out. 
      */
-    void commit() throws TxnFailedException;
+    CompletableFuture<Void> commit() throws TxnFailedException;
     
     /**
      * Drops the transaction, causing all events written to it to be discarded.
