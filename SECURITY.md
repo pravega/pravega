@@ -19,7 +19,7 @@ If you believe you have found a security vulnerability in any Pravega owned repo
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them to the Pravega Security Team via `email(mailto:security@pravega.io)`.
+Instead, please report them to the Pravega Security Team via [security@pravega.io](mailto:security@pravega.io).
 
 You should receive a response within 14 days. If for some reason you do not, please follow up via email to ensure we received your original message.
 
@@ -29,7 +29,7 @@ Please include the requested information listed below (as much as you can provid
   * Type of security exploit (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
   * The location of the vulnerability in the source code (tag/branch/commit or direct URL)
   * Any special configuration required to reproduce the issue
-  * Step-by-step instruction to reproduce the issue
+  * Step-by-step instructions to reproduce the issue
   * Proof-of-concept or exploit code (if possible)
   * Priority and Severity of the issue. Severity can be determined by Common Vulnerability Scoring System (CVSS)
 
