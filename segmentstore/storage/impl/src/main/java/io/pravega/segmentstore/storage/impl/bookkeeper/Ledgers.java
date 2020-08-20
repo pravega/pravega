@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -89,11 +91,13 @@ final class Ledgers {
                 .withPassword(config.getBKPassword())
                 .withCustomMetadata(createLedgerCustomMetadata(logId))
                 .execute();
-            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER);
+            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER, 20, TimeUnit.SECONDS);
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
+        } catch (TimeoutException e) {
+            throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger before timeout.", e);
         }
     }
 
