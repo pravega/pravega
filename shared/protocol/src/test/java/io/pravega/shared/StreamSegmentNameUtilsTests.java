@@ -150,7 +150,8 @@ public class StreamSegmentNameUtilsTests {
 
     @Test
     public void testGetAttributeSegmentName() {
-       String name = NameUtils.getAttributeSegmentName("foo");
+        String name = NameUtils.getAttributeSegmentName("foo");
+        assertTrue(NameUtils.isAttributeSegment(name));
         AssertExtensions.assertThrows(
                 "getAttributeSegmentName did not fail to add the attribute suffix.",
                 () -> NameUtils.getAttributeSegmentName(name),

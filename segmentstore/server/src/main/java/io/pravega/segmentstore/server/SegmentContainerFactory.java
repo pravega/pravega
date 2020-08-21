@@ -24,6 +24,14 @@ public interface SegmentContainerFactory {
      */
     SegmentContainer createStreamSegmentContainer(int containerId);
 
+    /**
+     * Creates a new instance of a DebugSegmentContainer.
+     *
+     * @param containerId   The Id of the container to create.
+     * @return              The DebugSegmentContainer instance.
+     */
+    DebugSegmentContainer createDebugStreamSegmentContainer(int containerId);
+
     @FunctionalInterface
     interface CreateExtensions {
         /**

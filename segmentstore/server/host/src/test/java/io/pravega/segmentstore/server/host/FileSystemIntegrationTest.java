@@ -18,6 +18,7 @@ import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -52,5 +53,16 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
                 )
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));
+    }
+
+    /**
+     * SegmentStore is used to create some segments, write data to them and let them flush to the storage.
+     * This test only uses this storage to restore the container metadata segments in a new durable data log. Segment
+     * properties are matched for verification after the restoration.
+     * @throws Exception If an exception occurred.
+     */
+    @Test
+    public void testDataRecovery() throws Exception {
+        testSegmentRestoration();
     }
 }
