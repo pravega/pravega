@@ -131,6 +131,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }
+        this.metrics.close();
     }
 
     //endregion
