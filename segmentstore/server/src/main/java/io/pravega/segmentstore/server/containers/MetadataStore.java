@@ -704,6 +704,26 @@ public abstract class MetadataStore implements AutoCloseable {
                     .build();
         }
 
+        /**
+         * The method takes in details of a segment i.e., name, length and sealed status and creates a
+         * {@link StreamSegmentInformation} instance, which is returned after serialization.
+         * @param streamSegmentName     The name of the segment.
+         * @param length                The length of the segment.
+         * @param isSealed              The sealed status of the segment.
+         * @return                      An instance of ArrayView with segment information.
+         */
+        static ArrayView recoveredSegment(String streamSegmentName, long length, boolean isSealed) {
+            StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
+                    .name(streamSegmentName)
+                    .length(length)
+                    .sealed(isSealed)
+                    .build();
+            return serialize(builder()
+                    .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                    .properties(segmentProp)
+                    .build());
+        }
+
         @SneakyThrows(IOException.class)
         static ArrayView serialize(SegmentInfo state) {
             return SERIALIZER.serialize(state);
