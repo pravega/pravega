@@ -11,9 +11,9 @@ package io.pravega.shared.metrics;
 
 import java.util.function.Consumer;
 
-class CounterProxy extends MetricProxy<Counter, CounterProxy> implements Counter {
+class CounterProxy extends MetricProxy<Counter> implements Counter {
 
-    CounterProxy(Counter counter, String proxyName, Consumer<CounterProxy> closeCallback) {
+    CounterProxy(Counter counter, String proxyName, Consumer<String> closeCallback) {
         super(counter, proxyName, closeCallback);
     }
 
@@ -35,10 +35,5 @@ class CounterProxy extends MetricProxy<Counter, CounterProxy> implements Counter
     @Override
     public long get() {
         return getInstance().get();
-    }
-
-    @Override
-    protected CounterProxy getSelf() {
-        return this;
     }
 }

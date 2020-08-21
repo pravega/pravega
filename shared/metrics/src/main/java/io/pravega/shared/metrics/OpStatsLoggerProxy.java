@@ -12,9 +12,9 @@ package io.pravega.shared.metrics;
 import java.time.Duration;
 import java.util.function.Consumer;
 
-public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger, OpStatsLoggerProxy> implements OpStatsLogger {
+public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger> implements OpStatsLogger {
 
-    OpStatsLoggerProxy(OpStatsLogger logger, String proxyName, Consumer<OpStatsLoggerProxy> closeCallback) {
+    OpStatsLoggerProxy(OpStatsLogger logger, String proxyName, Consumer<String> closeCallback) {
         super(logger, proxyName, closeCallback);
     }
 
@@ -46,10 +46,5 @@ public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger, OpStatsLogger
     @Override
     public void clear() {
         getInstance().clear();
-    }
-
-    @Override
-    protected OpStatsLoggerProxy getSelf() {
-        return this;
     }
 }

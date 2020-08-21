@@ -83,21 +83,28 @@ public class StatsLoggerProxy implements StatsLogger {
      * @param <V>          Type of MetricProxy.
      * @return Either the existing MetricProxy (if it is already registered) or the newly created one.
      */
-    private static <T extends Metric, V extends MetricProxy<T, V>> V getOrSet(ConcurrentHashMap<String, V> cache, String name,
-                                                                              Function<String, T> createMetric,
-                                                                              ProxyCreator<T, V> createProxy, String... tags) {
-        // We have to create the metric inside computeIfAbsent even though it is under lock, because micrometer is optimized
-        // such that the call to create will return the original metric if it has already been created. So when close is called
-        // on one of the metrics it will close both of them. 
+    private <T extends Metric, V extends MetricProxy<T>> V getOrSet(ConcurrentHashMap<String, V> cache, String name,
+                                                                    Function<String, T> createMetric,
+                                                                    ProxyCreator<T, V> createProxy, String... tags) {
+        // We could simply use Map.computeIfAbsent to do everything atomically, however in ConcurrentHashMap, the function
+        // is evaluated while holding the lock. As per the method's guidelines, the computation should be quick and not
+        // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
+        // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
+        // the newly created one.
         MetricsNames.MetricKey keys = metricKey(name, tags);
-        Consumer<V> closeCallback = m -> cache.remove(m.getProxyName(), m);
-        return cache.computeIfAbsent(keys.getCacheKey(), k -> {            
-            T newMetric = createMetric.apply(keys.getRegistryKey());
-            return createProxy.apply(newMetric, keys.getCacheKey(), closeCallback);
-        });
+        T newMetric = createMetric.apply(keys.getRegistryKey());
+        V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
+        V existingProxy = cache.putIfAbsent(newProxy.getProxyName(), newProxy);
+        if (existingProxy != null) {
+            newProxy.close();
+            newMetric.close();
+            return existingProxy;
+        } else {
+            return newProxy;
+        }
     }
-    
+
     private interface ProxyCreator<T1, R> {
-        R apply(T1 metricInstance, String proxyName, Consumer<R> closeCallback);
+        R apply(T1 metricInstance, String proxyName, Consumer<String> closeCallback);
     }
 }

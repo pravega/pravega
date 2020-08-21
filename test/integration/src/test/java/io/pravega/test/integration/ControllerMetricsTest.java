@@ -132,14 +132,6 @@ public class ControllerMetricsTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 3000)
-    public void testSetup() throws Exception {
-        //This is to verify the setUp / tearDown methods
-        //That needs to be independently validated because previous versions of this test
-        //had errors in the setup which were dependent on the state of the metrics
-        //So streamMetricsTest would pass or fail depending on what ran before it. 
-    }
-    
     /**
      * This test verifies that the appropriate metrics for Stream operations are updated correctly (counters, latency
      * histograms). Note that this test performs "at least" assertions on metrics as in an environment with concurrent

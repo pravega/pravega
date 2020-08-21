@@ -21,11 +21,11 @@ import lombok.Getter;
  *
  * @param <T> Type of Metric.
  */
-abstract class MetricProxy<T extends Metric, Self extends MetricProxy<T, Self>> implements AutoCloseable {
+abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     private final AtomicReference<T> instance = new AtomicReference<>();
     @Getter
     private final String proxyName;
-    private final Consumer<Self> closeCallback;
+    private final Consumer<String> closeCallback;
 
     /**
      * Creates a new instance of the MetricProxy class.
@@ -34,7 +34,7 @@ abstract class MetricProxy<T extends Metric, Self extends MetricProxy<T, Self>> 
      * @param proxyName     The name of the MetricProxy. This may be different from the name of the Metric's instance.
      * @param closeCallback A Consumer that will be invoked when this Proxy is closed.
      */
-    MetricProxy(T instance, String proxyName, Consumer<Self> closeCallback) {
+    MetricProxy(T instance, String proxyName, Consumer<String> closeCallback) {
         this.closeCallback = Preconditions.checkNotNull(closeCallback, "closeCallback");
         this.proxyName = Exceptions.checkNotNullOrEmpty(proxyName, "name");
         updateInstance(instance);
@@ -42,18 +42,13 @@ abstract class MetricProxy<T extends Metric, Self extends MetricProxy<T, Self>> 
 
     @Override
     public void close() {
-        T i = this.instance.getAndSet(null);
+        T i = getInstance();
         if (i != null) {
             i.close();
-            this.closeCallback.accept(getSelf());
+            this.closeCallback.accept(this.proxyName);
         }
     }
 
-    /**
-     * All implementations should return 'this'. (Workaround to Java's lack of variance)
-     */
-    protected abstract Self getSelf();
-    
     /**
      * Gets the id of the underlying metric.
      *
@@ -66,11 +61,11 @@ abstract class MetricProxy<T extends Metric, Self extends MetricProxy<T, Self>> 
     /**
      * Updates the underlying Metric instance with the given one, and closes out the previous one.
      *
-     * @param newInstance The instance to update to.
+     * @param instance The instance to update to.
      */
-    void updateInstance(T newInstance) {
-        T oldInstance = this.instance.getAndSet(Preconditions.checkNotNull(newInstance, "instance"));
-        if (oldInstance != null && !newInstance.equals(oldInstance)) {
+    void updateInstance(T instance) {
+        T oldInstance = this.instance.getAndSet(Preconditions.checkNotNull(instance, "instance"));
+        if (oldInstance != null && oldInstance != instance) {
             oldInstance.close();
         }
     }
