@@ -204,7 +204,7 @@ public class ContainerRecoveryUtils {
                                 log.debug("Segment '{}' exists in the container's metadata store, but with a different length" +
                                         "or sealed status or both, so deleting it from there and then registering it.", segmentName);
                                 return container.metadataStore.deleteSegment(segmentName, TIMEOUT)
-                                        .thenAccept(x -> container.registerSegment(segmentName, segmentLength, isSealed));
+                                        .thenCompose(x -> container.registerSegment(segmentName, segmentLength, isSealed));
                             } else {
                                 return null;
                             }
