@@ -52,6 +52,9 @@ public final class SegmentStoreMetrics {
      */
     public final static class CacheManager implements AutoCloseable {
 
+        /**
+         * The amount of time taken to complete one cycle of the CacheManager's cache policy.
+         */
         private final OpStatsLogger cacheManagerIterationDuration;
 
         CacheManager() {
