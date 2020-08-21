@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
@@ -80,6 +81,9 @@ class StatsProviderImpl implements StatsProvider {
 
         for (MeterRegistry registry : new ArrayList<MeterRegistry>(metrics.getRegistries())) {
             metrics.remove(registry);
+        }
+        for (Meter meter : metrics.getMeters()) {
+            metrics.remove(meter);
         }
 
         Metrics.addRegistry(new SimpleMeterRegistry());
