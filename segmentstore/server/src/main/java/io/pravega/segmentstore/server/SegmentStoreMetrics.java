@@ -58,7 +58,7 @@ public final class SegmentStoreMetrics {
         private final OpStatsLogger cacheManagerIterationDuration;
 
         public CacheManager() {
-            cacheManagerIterationDuration= STATS_LOGGER.createStats(MetricsNames.CACHE_MANAGER_ITERATION_DURATION);
+            cacheManagerIterationDuration = STATS_LOGGER.createStats(MetricsNames.CACHE_MANAGER_ITERATION_DURATION);
         }
 
         public void report(CacheState snapshot, int generationSpread, long iterationDuration) {
