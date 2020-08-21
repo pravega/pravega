@@ -401,11 +401,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
                 context.getDefaultExtensions(), executorService());
 
-        Services.startAsync(debugStreamSegmentContainer, executorService()).join();
+        Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, CONTAINER_ID).join();
+        ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, CONTAINER_ID).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // List segments from storage and recover them using debug segment container instance.
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
@@ -418,7 +418,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Stop the debug segment container
         this.dataLogFactory.close();
-        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService()).join();
+        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         debugStreamSegmentContainerMap.get(CONTAINER_ID).close();
         log.info("Segments have been recovered.");
 

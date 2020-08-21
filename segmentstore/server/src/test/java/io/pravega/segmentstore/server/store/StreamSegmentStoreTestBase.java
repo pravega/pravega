@@ -221,14 +221,14 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
                 // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).join();
+                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                         context.getDefaultExtensions(), executorService());
 
-                Services.startAsync(localContainer, executorService()).join();
+                Services.startAsync(localContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 debugStreamSegmentContainerMap.put(containerId, localContainer);
             }
 
@@ -239,7 +239,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
             for (String segment : segmentNames) {
                 int containerId = segToConMapper.getContainerId(segment);
-                SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT).join();
+                SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT)
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertEquals("Segment length mismatch.", (long) lengths.get(segment), props.getLength());
             }
 
