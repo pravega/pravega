@@ -1644,6 +1644,79 @@ public final class WireCommands {
         }
     }
 
+    /**
+     * A generic error response that encapsulates an error code (to be used for client-side processing) and an error message
+     * describing the origin of the error. This should be used to describe general exceptions where limited information is required.
+     */
+    @Data
+    public static final class ErrorMessage implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.ERROR_MESSAGE;
+        final long requestId;
+        final String message;
+        final ErrorCode errorCode;
+
+        @Override
+        public void process(ReplyProcessor cp) throws UnsupportedOperationException {
+            cp.errorMessage(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(message == null ? "" : message);
+            out.writeInt(errorCode.getCode());
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            return new ErrorMessage(in.readLong(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        public enum ErrorCode {
+            UNSPECIFIED(-1, null),                                         // indicates un-specified (for backward compatibility
+            ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class); // indicates an IllegalArgumentException
+
+            private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
+            private static final Map<Class, ErrorCode> OBJECTS_BY_CLASS = new HashMap<>();
+
+            static {
+                for (ErrorCode errorCode : ErrorCode.values()) {
+                    OBJECTS_BY_CODE.put(errorCode.code, errorCode);
+                    OBJECTS_BY_CLASS.put(errorCode.exception, errorCode);
+                }
+            }
+
+            private final int code;
+            private final Class exception;
+
+            private ErrorCode(int code, Class exception) {
+                this.code = code;
+                this.exception = exception;
+            }
+
+            public static ErrorCode valueOf(int code) {
+                return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.UNSPECIFIED);
+            }
+
+            public static ErrorCode valueOf(Class exception) {
+                return OBJECTS_BY_CLASS.getOrDefault(exception, ErrorCode.UNSPECIFIED);
+            }
+
+            public int getCode() {
+                return this.code;
+            }
+
+            public Class getExceptionType() {
+                return this.exception;
+            }
+
+        }
+    }
+
     @Data
     @EqualsAndHashCode(callSuper = false)
     public static final class UpdateTableEntries extends ReleasableCommand implements Request, WireCommand {
@@ -2336,75 +2409,6 @@ public final class WireCommands {
         @Override
         void releaseInternal() {
             this.entries.release();
-        }
-    }
-
-    /**
-     * A generic error response that encapsulates an error code (to be used for client-side processing) and an error message
-     * describing the origin of the error. This should be used to describe general exceptions where limited information is required.
-     */
-    @Data
-    public static final class ErrorMessage implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.ERROR_MESSAGE;
-        final long requestId;
-        final String message;
-        final ErrorCode errorCode;
-
-        @Override
-        public void process(ReplyProcessor cp) throws UnsupportedOperationException {
-            cp.errorMessage(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(message == null ? "" : message);
-            out.writeInt(errorCode.getCode());
-        }
-
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            return new ErrorMessage(in.readLong(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
-        }
-
-        public enum ErrorCode {
-            UNSPECIFIED(-1, null),                                         // indicates un-specified (for backward compatibility
-            ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class), // indicates an IllegalArgumentException
-            ILLEGAL_STATE_EXCEPTION(1, IllegalStateException.class);       // indicates an IllegalStateException
-
-            private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
-            private static final Map<Class, ErrorCode> OBJECTS_BY_CLASS = new HashMap<>();
-
-            static {
-                for (ErrorCode errorCode : ErrorCode.values()) {
-                    OBJECTS_BY_CODE.put(errorCode.code, errorCode);
-                    OBJECTS_BY_CLASS.put(errorCode.exception, errorCode);
-                }
-            }
-
-            private final int code;
-            private final Class exception;
-
-            private ErrorCode(int code, Class exception) {
-                this.code = code;
-                this.exception = exception;
-            }
-
-            public static ErrorCode valueOf(int code) {
-                return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.UNSPECIFIED);
-            }
-
-            public static ErrorCode valueOf(Class exception) {
-                return OBJECTS_BY_CLASS.getOrDefault(exception, ErrorCode.UNSPECIFIED);
-            }
-
-            public int getCode() {
-                return this.code;
-            }
-
-            public Class getExceptionType() {
-                return this.exception;
-            }
-
         }
     }
 

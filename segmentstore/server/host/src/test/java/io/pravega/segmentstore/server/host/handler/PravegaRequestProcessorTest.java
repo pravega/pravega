@@ -1018,7 +1018,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
-    public  void testReadTableEntriesDeltaEmpty() throws  Exception {
+    public void testReadTableEntriesDeltaEmpty() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
         String tableSegmentName = "testReadTableEntriesDelta";

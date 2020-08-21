@@ -77,6 +77,7 @@ public enum WireCommandType {
     SEGMENTS_MERGED(59, WireCommands.SegmentsMerged::readFrom),
 
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
+    ERROR_MESSAGE(61, WireCommands.ErrorMessage::readFrom),
 
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
@@ -104,8 +105,6 @@ public enum WireCommandType {
 
     TABLE_ENTRIES_DELTA_READ(87, WireCommands.TableEntriesDeltaRead::readFrom),
     READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
-
-    ERROR_MESSAGE(89, WireCommands.ErrorMessage::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

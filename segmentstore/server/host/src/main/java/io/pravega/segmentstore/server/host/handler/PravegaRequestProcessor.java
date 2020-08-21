@@ -974,7 +974,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (errorCodeExists(u)) {
-            log.warn(requestId, "Operation on Table segment '{}' failed due to a {}.", segment, u.getClass());
+            log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
             invokeSafely(connection::send,
                     new WireCommands.ErrorMessage(requestId, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
                     failureHandler);
