@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -215,6 +215,40 @@ public interface SyncStorage extends AutoCloseable {
      * @return True or false.
      */
     boolean supportsTruncation();
+
+    /**
+     * Gets a value indicating whether this {@link SyncStorage} implementation can replace whole Segments with new contents.
+     *
+     * @return True or false.
+     */
+    default boolean supportsReplace() {
+        return false;
+    }
+
+    /**
+     * Replaces a Segment with the given contents.  Please refer to the actual implementing class for more details with
+     * respect to behavior, atomicity and recovery mechanisms.
+     *
+     * @param segment A {@link SegmentHandle} representing the Segment to replace.
+     * @param contents A {@link BufferView} representing the new contents of the Segment.
+     * @throws StreamSegmentNotExistsException When the given Segment does not exist in Storage.
+     * @throws StorageNotPrimaryException      When this Storage instance is no longer primary for this Segment (it was
+     *                                         fenced out).
+     * @throws UnsupportedOperationException   If {@link #supportsReplace()} returns false.
+     */
+    default void replace(SegmentHandle segment, BufferView contents) throws StreamSegmentException {
+        throw new UnsupportedOperationException("replace() is not implemented");
+    }
+
+    /**
+     * Returns a new {@link SyncStorage} instance for the same Storage type as this one, but with {@link #replace} support
+     * enabled. If there is no such implementation, this instance is returned.
+     *
+     * @return Either this instance or a new {@link SyncStorage} instance based on this one that can perform replaces.
+     */
+    default SyncStorage withReplaceSupport() {
+        return this;
+    }
 
     /**
      * Lists all the segments stored on the storage device.
