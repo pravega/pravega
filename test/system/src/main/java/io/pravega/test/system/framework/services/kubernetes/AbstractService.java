@@ -225,28 +225,20 @@ public abstract class AbstractService implements Service {
 
     protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec,
                                                           Map<String, Object> tlsSpec, boolean enableTls) {
-
-        ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
-                .put("zookeeperUri", zkLocation)
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder();
+        builder.put("zookeeperUri", zkLocation)
                 .put("bookkeeper", bookkeeperSpec)
-                .put("pravega", pravegaSpec)
-                .build();
+                .put("pravega", pravegaSpec);
 
         if (IS_OPERATOR_VERSION_ABOVE_040) {
-            return ImmutableMap.<String, Object>builder()
-                    .putAll(commonEntries)
-                    .put("version", PRAVEGA_VERSION)
-                    .build();
+            builder.put("version", PRAVEGA_VERSION);
         }
 
         if (Utils.TLS_ENABLED || enableTls) {
-            return ImmutableMap.<String, Object>builder()
-                    .putAll(commonEntries)
-                    .put("tls", tlsSpec)
-                    .build();
+            builder.put("tls", tlsSpec);
         }
-        return commonEntries;
 
+        return builder.build();
     }
 
     /**
