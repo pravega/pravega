@@ -636,12 +636,12 @@ public class ReaderGroupState implements Revisioned {
 
             private void read00(RevisionDataInput in, AddReaderBuilder builder) throws IOException {
                 builder.readerId(in.readUTF());
-                builder.unassignedSegments(in.readMap(i -> new SegmentWithRange(Segment.fromScopedName(i.readUTF()),null), RevisionDataInput::readLong));
+                builder.unassignedSegments(in.readMap(i -> new SegmentWithRange(Segment.fromScopedName(i.readUTF()), null), RevisionDataInput::readLong));
             }
 
             private void write00(AddReader object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.readerId);
-                out.writeMap(object.unassignedSegments,(o, segment) -> o.writeUTF(segment.getSegment().getScopedName()), RevisionDataOutput::writeLong);
+                out.writeMap(object.unassignedSegments, (o, segment) -> o.writeUTF(segment.getSegment().getScopedName()), RevisionDataOutput::writeLong);
             }
 
             private void read01(RevisionDataInput revisionDataInput, AddReaderBuilder builder) throws IOException {
