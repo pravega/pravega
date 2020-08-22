@@ -32,7 +32,8 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
     public void setUp() throws Exception {
         super.setUp();
         this.configBuilder.include(FileSystemStorageConfig.builder()
-                .with(FileSystemStorageConfig.ROOT, getBaseDir().getAbsolutePath()));
+                .with(FileSystemStorageConfig.ROOT, getBaseDir().getAbsolutePath())
+                .with(FileSystemStorageConfig.REPLACE_ENABLED, true));
     }
 
     @Override
