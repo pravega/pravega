@@ -493,24 +493,6 @@ public abstract class AbstractService implements Service {
                                         .build();
     }
 
-    public CompletableFuture<V1ConfigMap> setupTLS() {
-            V1ConfigMap configMap = Futures.getThrowingException(k8sClient.getConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE));
-            return k8sClient.deleteConfigMap(PRAVEGA_CONTROLLER_CONFIG_MAP, NAMESPACE)
-                        .thenCompose(v -> k8sClient.createConfigMap(NAMESPACE, addDefaultTlsConfiguration(configMap)));
-    }
-
-    private V1ConfigMap addDefaultTlsConfiguration(V1ConfigMap configMap) {
-            return configMap
-                        .putDataItem("TLS_AND_AUTH_ENABLED", "true")
-                        .putDataItem("TLS_KEY_FILE", "/opt/pravega/conf/server-key.key")
-                        .putDataItem("TLS_CERT_FILE", "/opt/pravega/conf/server-cert.crt")
-                        .putDataItem("TLS_TRUST_STORE", "/opt/pravega/conf/server-cert.crt")
-                        .putDataItem("TLS_AND_AUTH_ENABLED_FOR_SEGMENT_STORE", "true")
-                        .putDataItem("REST_KEYSTORE_FILE_PATH", "/opt/pravega/conf/server.keystore.jks")
-                        .putDataItem("REST_KEYSTORE_PASSWORD_FILE_PATH", "/opt/pravega/conf/server.keystore.jks.passwd");
-
-    }
-
     @Override
     public void clean() {
         // this is a NOP for KUBERNETES based implementation.
