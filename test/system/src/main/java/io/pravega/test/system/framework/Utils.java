@@ -175,7 +175,7 @@ public class Utils {
                                .controllerURI(controllerUri)
                                .build();
         } else {
-            log.debug("Generating config with auth disabled.");
+            log.debug("Generating config with tls and auth disabled.");
             return ClientConfig.builder().controllerURI(controllerUri).build();
         }
     }

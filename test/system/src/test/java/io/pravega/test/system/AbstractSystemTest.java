@@ -27,8 +27,8 @@ import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
  */
 @Slf4j
 abstract class AbstractSystemTest {
-    final static String TCP = "tcp";
-    final static String TLS = "tls";
+    final static String TCP = "tcp://";
+    final static String TLS = "tls://";
     static final Predicate<URI> ISGRPC = uri -> {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
@@ -98,7 +98,20 @@ abstract class AbstractSystemTest {
     }
 
     static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount) throws ExecutionException {
-        return startPravegaControllerInstances(zkUri, instanceCount);
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
+        }
+        Futures.getAndHandleExceptions(controllerService.scaleService(instanceCount), ExecutionException::new);
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.info("Pravega Controller service  details: {}", conUris);
+
+        // Fetch all the RPC endpoints and construct the client URIs.
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+
+        URI controllerURI = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
+        return controllerURI;
     }
 
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final int instanceCount) throws ExecutionException {

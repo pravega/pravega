@@ -11,7 +11,6 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1Container;
 import io.kubernetes.client.openapi.models.V1ContainerBuilder;
 import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
@@ -346,9 +345,6 @@ public abstract class AbstractService implements Service {
         String yamlInputPath = "secret.yaml";
         try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
             data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-        // } catch (IOException e) {
-        //    log.debug("Could not read from: {}, data:{}, due to: {}", yamlInputPath, data, e.getMessage());
-        //     return null;
         }
         Yaml.addModelMap("v1", "Secret", V1Secret.class);
         V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
