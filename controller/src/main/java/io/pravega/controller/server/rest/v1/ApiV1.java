@@ -57,6 +57,12 @@ public final class ApiV1 {
         Response ping();
     }
 
+    @Path("/health")
+    public interface Health {
+        @GET
+        Response health();
+    }
+
     /**
      * Stream metadata version 1.0 APIs.
      */

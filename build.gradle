@@ -231,6 +231,20 @@ project ('shared:metrics') {
     }
 }
 
+project ('shared:healthcheck') {
+    dependencies {
+        compile project(':common')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('shared:protocol') {
     dependencies {
         compile project(':common')
@@ -641,6 +655,7 @@ project('controller') {
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
+        compile project(":shared:healthcheck")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {

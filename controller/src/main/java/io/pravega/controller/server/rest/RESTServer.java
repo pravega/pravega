@@ -15,6 +15,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rest.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
@@ -54,6 +55,7 @@ public class RESTServer extends AbstractIdleService {
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
+        resourceObjs.add(new HealthImpl());
         resourceObjs.add(new StreamMetadataResourceImpl(localController, controllerService, pravegaAuthManager, connectionFactory));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);

@@ -72,6 +72,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import io.pravega.shared.healthcheck.HealthAspect;
+import io.pravega.shared.healthcheck.HealthInfo;
+import io.pravega.shared.healthcheck.HealthRegistryImpl;
+import io.pravega.shared.healthcheck.HealthUnit;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +91,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final ControllerServiceConfig serviceConfig;
     private final StoreClient storeClient;
     private final String objectId;
+
+    private final HealthUnit systemHealthUnit;
+    private final HealthUnit controllerHealthUnit;
 
     private ScheduledExecutorService controllerExecutor;
     private ScheduledExecutorService eventExecutor;
@@ -149,6 +157,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
+        systemHealthUnit = new HealthUnit(this.objectId, HealthAspect.SYSTEM, () -> new HealthInfo(HealthInfo.Status.HEALTH, "System of Controller HealthInfo supplier placeholder"));
+        controllerHealthUnit = new HealthUnit(this.objectId, HealthAspect.CONTROLLER, () -> new HealthInfo(HealthInfo.Status.HEALTH, "Controller HealthInfo supplier placeholder"));
     }
 
     @Override
@@ -196,6 +206,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Initialize Stream and Transaction metrics.
             StreamMetrics.initialize();
             TransactionMetrics.initialize();
+
+            // Initialize HealthRegistry and register HealthUnits created
+            HealthRegistryImpl.init();
+            HealthRegistryImpl.getInstance().registerHealthUnit(this.systemHealthUnit);
+            HealthRegistryImpl.getInstance().registerHealthUnit(this.controllerHealthUnit);
 
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
@@ -480,6 +495,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Close metrics.
             StreamMetrics.reset();
             TransactionMetrics.reset();
+
+            HealthRegistryImpl.getInstance().unregisterHealthUnit(this.systemHealthUnit);
+            HealthRegistryImpl.getInstance().unregisterHealthUnit(this.controllerHealthUnit);
 
             log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
