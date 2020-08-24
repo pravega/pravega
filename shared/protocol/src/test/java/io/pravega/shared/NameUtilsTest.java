@@ -93,6 +93,10 @@ public class NameUtilsTest {
         NameUtils.validateUserScopeName("stream123");
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserScopeName("_stream"));
         AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserScopeName(null));
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String externalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateUserScopeName(externalName));
     }
 
     @Test
@@ -103,6 +107,10 @@ public class NameUtilsTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system_scope"));
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system/scope"));
         AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateScopeName(null));
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String internalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateScopeName(internalName));
 
     }
 

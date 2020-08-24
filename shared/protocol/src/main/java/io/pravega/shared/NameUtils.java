@@ -638,7 +638,7 @@ public final class NameUtils {
      */
     public static String validateUserStreamName(String name) {
         Preconditions.checkNotNull(name);
-        Preconditions.checkArgument(name.length() < MAX_GIVEN_NAME_SIZE + 1, String.format("Name cannot exceed %d characters", MAX_GIVEN_NAME_SIZE));
+        Preconditions.checkArgument(name.length() <= MAX_GIVEN_NAME_SIZE, "Name cannot exceed %s characters", MAX_GIVEN_NAME_SIZE);
         Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
     }
@@ -663,7 +663,7 @@ public final class NameUtils {
 
         // In addition to user stream names, pravega internally created stream have a special prefix.
         final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[\\p{Alnum}\\.\\-]+";
-        Preconditions.checkArgument(name.length() < MAX_NAME_SIZE + 1, String.format("Name cannot exceed %d characters", MAX_NAME_SIZE));
+        Preconditions.checkArgument(name.length() <= MAX_NAME_SIZE, "Name cannot exceed %s characters", MAX_NAME_SIZE);
         Preconditions.checkArgument(name.matches(matcher), "Name must be " + matcher);
         return name;
     }
@@ -675,7 +675,10 @@ public final class NameUtils {
      * @return The name in the case is valid.
      */
     public static String validateUserScopeName(String name) {
-        return validateUserStreamName(name);
+        Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.length() <= MAX_NAME_SIZE, "Name cannot exceed %s characters", MAX_NAME_SIZE);
+        Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
+        return name;
     }
 
     /**
