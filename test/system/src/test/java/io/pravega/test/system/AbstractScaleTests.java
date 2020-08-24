@@ -42,15 +42,7 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
     private final ControllerImpl controller;
 
     public AbstractScaleTests() {
-        controllerURI = createControllerURI(false);
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-        connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
-        controller = createController(clientConfig);
-        clientFactory = new ClientFactoryImpl(SCOPE, getController(), connectionFactory);
-    }
-
-    public AbstractScaleTests(Boolean enableTls) {
-        controllerURI = createControllerURI(enableTls);
+        controllerURI = createControllerURI();
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         controller = createController(clientConfig);
@@ -64,8 +56,8 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
                                   getConnectionFactory().getInternalExecutor());
     }
 
-    private URI createControllerURI(Boolean enableTls) {
-        Service conService = Utils.createPravegaControllerService(null, "controller", enableTls);
+    private URI createControllerURI() {
+        Service conService = Utils.createPravegaControllerService(null, "controller");
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

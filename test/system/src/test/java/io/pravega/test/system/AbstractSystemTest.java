@@ -68,7 +68,7 @@ abstract class AbstractSystemTest {
     }
 
     static URI ensureSecureControllerRunning(final URI zkUri) {
-        Service conService = Utils.createPravegaControllerService(zkUri, "controller", true);
+        Service conService = Utils.createPravegaControllerService(zkUri, "controller");
         return startControllerService(conService);
     }
 
@@ -98,28 +98,9 @@ abstract class AbstractSystemTest {
     }
 
     static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount) throws ExecutionException {
-        return startPravegaControllerInstances(zkUri, instanceCount, false);
+        return startPravegaControllerInstances(zkUri, instanceCount);
     }
 
-    static URI startPravegaControllerInstances(final URI zkUri, final int instanceCount, final boolean enableTls) throws ExecutionException {
-        Service controllerService = (enableTls || Utils.TLS_ENABLED) ? Utils.createPravegaControllerService(zkUri, "controller", true) :
-           Utils.createPravegaControllerService(zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        Futures.getAndHandleExceptions(controllerService.scaleService(instanceCount), ExecutionException::new);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service  details: {}", conUris);
-
-        // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
-        String prefix = (enableTls || Utils.TLS_ENABLED) ? TLS : TCP;
-        URI controllerURI = URI.create(prefix + "://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-        return controllerURI;
-    }
-
-    
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final int instanceCount) throws ExecutionException {
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {
