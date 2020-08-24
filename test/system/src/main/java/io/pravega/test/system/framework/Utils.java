@@ -158,7 +158,7 @@ public class Utils {
 
     public static ClientConfig buildClientConfig(URI controllerUri) {
         if (TLS_AND_AUTH_ENABLED) {
-            log.debug("Generating config with tls enabled.");
+            log.debug("Generating config with tls and auth enabled.");
             return ClientConfig.builder()
                                // TLS-related client-side configuration
                                .trustStore(DEFAULT_TRUSTSTORE_PATH)
@@ -213,7 +213,7 @@ public class Utils {
     }
 
     private static boolean isTLSEnabled() {
-        String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
+        String tlsEnabled = Utils.getConfig("tlsEnabled", "true");
         return Boolean.valueOf(tlsEnabled);
     }
 }
