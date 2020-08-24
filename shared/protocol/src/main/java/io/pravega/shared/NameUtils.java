@@ -35,6 +35,21 @@ public final class NameUtils {
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
     /**
+     * Size of the prefix or suffix included with the user stream name.
+     */
+    public static final int MAX_PREFIX_OR_SUFFIX_SIZE = 5;
+
+    /**
+     * Size of the overall name as permitted by the host.
+     */
+    public static final int MAX_NAME_SIZE = 255;
+
+    /**
+     * Size of the name that can be specified by user.
+     */
+    public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
+
+    /**
      * This is used for composing metric tags.
      */
     static final String TAG_SCOPE = "scope";
@@ -119,23 +134,6 @@ public final class NameUtils {
      */
     @Getter(AccessLevel.PACKAGE)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
-
-    /**
-     * Size of the prefix or suffix included with the user stream name
-     */
-    public static final int MAX_PREFIX_OR_SUFFIX_SIZE = 5;
-
-    /**
-     * Size of the overall name as permitted by the host
-     */
-    public static final int MAX_NAME_SIZE = 255;
-
-
-    /**
-     * Size of the name that can be specified by user
-     */
-    public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
-
 
     //endregion
 
