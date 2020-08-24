@@ -10,7 +10,6 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -20,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static org.apache.commons.lang3.RandomStringUtils.randomAlphanumeric;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -78,18 +78,14 @@ public class NameUtilsTest {
     public void testStreamNameLimit() {
         int leftLimit = 48; // numeral '0'
         int rightLimit = 122; // letter 'z'
-        int targetStringLength = 256;
-        Random random = new Random();
-        random.setSeed(0);
-        String generatedString = random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(targetStringLength)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String internalName = randomAlphanumeric(targetStringLength);
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> NameUtils.validateStreamName(generatedString));
+                () -> NameUtils.validateStreamName(internalName));
+        targetStringLength = NameUtils.MAX_GIVEN_NAME_SIZE + 1;
+        final String externalName = randomAlphanumeric(targetStringLength);
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> NameUtils.validateUserStreamName(generatedString));
+                () -> NameUtils.validateUserStreamName(externalName));
     }
 
     @Test
