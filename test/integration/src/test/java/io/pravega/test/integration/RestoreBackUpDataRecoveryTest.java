@@ -31,7 +31,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -738,7 +737,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    private void writeTransactionalEvents(String streamName, ClientFactoryImpl clientFactory) {
+    private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -750,10 +749,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         writer.close();
     }
 
-    private void writeEvents(String streamName, ClientFactoryImpl clientFactory) throws TxnFailedException {
+    private void writeTransactionalEvents(String streamName, ClientFactoryImpl clientFactory) throws TxnFailedException {
         EventWriterConfig writerConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
         @Cleanup
-        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(streamName, new JavaSerializer<>(),
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(streamName, new UTF8StringSerializer(),
                 writerConfig);
 
         Transaction<String> transaction = txnWriter.beginTxn();
