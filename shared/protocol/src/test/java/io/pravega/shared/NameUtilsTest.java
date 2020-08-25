@@ -10,6 +10,7 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -71,6 +72,24 @@ public class NameUtilsTest {
         AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateStreamName(null));
         NameUtils.validateStreamName("a-b-c");
         NameUtils.validateStreamName("1.2.3");
+    }
+
+    @Test
+    public void testStreamNameLimit() {
+        int leftLimit = 48; // numeral '0'
+        int rightLimit = 122; // letter 'z'
+        int targetStringLength = 256;
+        Random random = new Random();
+        random.setSeed(0);
+        String generatedString = random.ints(leftLimit, rightLimit + 1)
+                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
+                .limit(targetStringLength)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateStreamName(generatedString));
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateUserStreamName(generatedString));
     }
 
     @Test
