@@ -591,6 +591,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     public void testDurableDataLogFailRecoveryTransactionalWriter() throws Exception {
         int instanceId = 0;
         int containerCount = 4;
+
         // Creating a long term storage only once here.
         this.storageFactory = new InMemoryStorageFactory(executorService());
         log.info("Created a long term storage.");
