@@ -898,7 +898,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         if (ra == ReadAvailability.BeyondLastOffset) {
             result = new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         } else if (ra == ReadAvailability.BeforeStartOffset) {
-            result = new TruncatedReadResultEntry(resultStartOffset, maxLength, this.metadata.getStartOffset());
+            result = new TruncatedReadResultEntry(resultStartOffset, maxLength, this.metadata.getStartOffset(), this.metadata.getName());
         } else {
             // Look up an entry in the index that contains our requested start offset.
             synchronized (this.lock) {

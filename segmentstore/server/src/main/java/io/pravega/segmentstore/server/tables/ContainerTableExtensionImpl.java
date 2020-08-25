@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -72,7 +73,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
-    private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+    @VisibleForTesting
+    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
             Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -151,14 +153,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
 
         // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
         // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
         // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
-        val attributeUpdates = TableAttributes.DEFAULT_VALUES
+        val attributeUpdates = attributes
                 .entrySet().stream()
-                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
         logRequest("createSegment", segmentName);
         return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
