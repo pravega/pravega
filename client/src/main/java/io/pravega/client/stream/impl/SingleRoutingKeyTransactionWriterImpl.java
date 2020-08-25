@@ -25,9 +25,9 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import lombok.NonNull;
+import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +37,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * This class creates transactions, and manages their lifecycle.
@@ -74,27 +76,18 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
 
     private static class SingleRoutingKeyTransactionImpl<Type> implements SingleRoutingKeyTransaction<Type> {
         @NonNull
-        private final Controller controller;
-        @NonNull
-        private final Stream stream;
-        @NonNull
         private final Serializer<Type> serializer;
-        private final Supplier<SegmentOutputStream> segmentWriterSupplier;
         @GuardedBy("$lock")
         private Transaction.Status state;
         @GuardedBy("$lock")
         private final List<ByteBuffer> events;
-        private final String routingKey;
+        private final Function<List<ByteBuffer>, CompletableFuture<Void>> write;
 
-        SingleRoutingKeyTransactionImpl(Controller controller, Stream stream, Serializer<Type> serializer,
-                                        String routingKey, Supplier<SegmentOutputStream> segmentWriterSupplier) {
-            this.controller = controller;
-            this.stream = stream;
+        SingleRoutingKeyTransactionImpl(Serializer<Type> serializer, Function<List<ByteBuffer>, CompletableFuture<Void>> write) {
             this.serializer = serializer;
-            this.segmentWriterSupplier = segmentWriterSupplier;
-            this.routingKey = routingKey;
             this.state = Transaction.Status.OPEN;
             this.events = new ArrayList<>();
+            this.write = write;
         }
 
         @Override
@@ -115,35 +108,10 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
                 if (state.equals(Transaction.Status.OPEN)) {
                     state = Transaction.Status.COMMITTING;
                 } else {
-                    throw new IllegalStateException("commit has already been issued on the transaction");
+                    throw new IllegalStateException("Transaction is already closed.");
                 }
             }
-
-            CompletableFuture<Void> commitFuture = new CompletableFuture<>();
-
-            // write the composite pending event and call flush so that the events are all written into 
-            // the segment.
-            // if this throws segment sealed exception, we will retry a few times before throwing the exception 
-            // back to the user.
-            return Retry.withExpBackoff(0L, 1, 10, 0L)
-                 .retryWhen(e -> Exceptions.unwrap(e) instanceof SegmentSealedException)
-                 .run(() -> {
-                     SegmentOutputStream segmentOutputStream = segmentWriterSupplier.get();
-
-                     segmentOutputStream.write(PendingEvent.withHeader(routingKey, events, commitFuture));
-                     try {
-                         segmentOutputStream.flush();
-                     } catch (SegmentSealedException e) {
-                         // TODO: indicate to caller that a successor is required and then throw the exception.
-                         throw e;
-                     }
-                     return commitFuture
-                             .thenAccept(v -> {
-                                 synchronized (this) {
-                                     state = Transaction.Status.COMMITTED;
-                                 }
-                             });
-                 });
+            return write.apply(events);
         }
 
         @Override
@@ -168,8 +136,7 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
     public SingleRoutingKeyTransaction<Type> beginTxn() {
         synchronized (this) {
             if (transaction == null) {
-                transaction = new SingleRoutingKeyTransactionImpl<>(controller, stream, serializer, routingKey,
-                        this::createSegmentOutputStream);
+                transaction = new SingleRoutingKeyTransactionImpl<>(serializer, this::writeEvents);
                 return transaction;
             } else {
                 throw new IllegalStateException();
@@ -177,7 +144,7 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
         }
     }
 
-    private SegmentOutputStream createSegmentOutputStream() {
+    private SegmentOutputStream getSegmentOutputStream() {
         synchronized (this) {
             if (segmentOutputStream != null) {
                 return segmentOutputStream;
@@ -202,14 +169,27 @@ public class SingleRoutingKeyTransactionWriterImpl<Type> implements SingleRoutin
         }
     }
 
+    @Synchronized
     private void segmentSealedCallback(Segment segment) {
-        controller.getSuccessors(segment)
-                  .thenApply(successors -> successors.getSegmentToPredecessor().keySet().stream().filter(x -> {
-                      // TODO: get routing key hash -- this is not exposed directly
-                      double d = 0.0;
-                      return d >= x.getRange().getLow() && d < x.getRange().getHigh();
-                  }).findFirst().orElse(null))
-                  .thenApply(successor -> createSegmentOutputStream(successor.getSegment()));
+        // instead of traversing thru successors we will call current segments and fetch the appropriate segment.
+        // by setting segmentOutputStream to null we will force the caller to get the replacement segmentoutputstream.
+        // we will call resend while holding the lock so that successor segment outputstream is setup and events are
+        // replayed to it before new writeevents into successor are triggered. 
+        List<PendingEvent> toResend = segmentOutputStream.getUnackedEventsOnSeal();
+        segmentOutputStream = null;
+        for (PendingEvent event : toResend) {
+            SegmentOutputStream segmentWriter = getSegmentOutputStream();
+            segmentWriter.write(event);
+        }
+    }
+
+    @Synchronized
+    private CompletableFuture<Void> writeEvents(List<ByteBuffer> events) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
+        SegmentOutputStream segmentWriter = getSegmentOutputStream();
+        segmentWriter.write(PendingEvent.withHeader(routingKey, events, ackFuture));
+        return ackFuture;
     }
 
     @Override
