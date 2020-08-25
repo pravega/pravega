@@ -32,6 +32,7 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
@@ -840,9 +841,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         for (String segmentName : segmentNames) {
             try {
                 sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-            } catch (Exception e) {
-                log.info("Segment '{}' doesn't exist.", segmentName);
-                continue;
+            } catch (Throwable e) {
+                if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                    log.info("Segment '{}' doesn't exist.", segmentName);
+                    continue;
+                } else {
+                    throw e;
+                }
             }
             log.info("Segment properties = {}", sp);
             segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
