@@ -27,7 +27,11 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -583,6 +587,143 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Read all events again to verify that segments were recovered.");
     }
 
+    @Test(timeout = 180000)
+    public void testDurableDataLogFailRecoveryTransactionalWriter() throws Exception {
+        int instanceId = 0;
+        int containerCount = 4;
+        // Creating a long term storage only once here.
+        this.storageFactory = new InMemoryStorageFactory(executorService());
+        log.info("Created a long term storage.");
+
+        // Start a new BK & ZK, segment store and controller
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
+        @Cleanup
+        SegmentStoreStarter segmentStoreStarter = startSegmentStore(this.storageFactory, null, containerCount);
+        @Cleanup
+        ControllerStarter controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort,
+                containerCount);
+
+        // Create two streams for writing data onto two different segments
+        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
+        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
+        log.info("Created two streams.");
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerStarter.controllerURI).build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
+
+        log.info("Writing events on to stream: {}", STREAM1);
+        writeTransactionalEvents(STREAM1, clientFactory); // write 300 events on one segment
+        log.info("Writing events on to stream: {}", STREAM2);
+        writeTransactionalEvents(STREAM2, clientFactory); // write 300 events on other segment
+
+        // Verify events write by reading them.
+        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
+                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
+                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        log.info("Verified that events were written, by reading them.");
+
+        readerGroupManager.close();
+        clientFactory.close();
+
+        controllerStarter.close(); // Shut down the controller
+
+        // Get names of all the segments created.
+        ConcurrentHashMap<String, Boolean> allSegments = segmentStoreStarter.segmentsTracker.getSegments();
+        log.info("No. of segments created = {}", allSegments.size());
+
+        // Get the long term storage from the running pravega instance
+        @Cleanup
+        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
+                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
+
+        // wait for all segments to be flushed to the long term storage.
+        waitForSegmentsInStorage(allSegments.keySet(), segmentStoreStarter.segmentsTracker, storage)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        segmentStoreStarter.close(); // Shutdown SegmentStore
+        log.info("Segment Store Shutdown");
+
+        this.bookKeeperStarter.close(); // Shutdown BookKeeper & ZooKeeper
+        this.bookKeeperStarter = null;
+        log.info("BookKeeper & ZooKeeper shutdown");
+
+        // start a new BookKeeper and ZooKeeper.
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
+                executorService());
+        this.dataLogFactory.initialize();
+        log.info("Started a new BookKeeper and ZooKeeper.");
+
+        // Create the environment for DebugSegmentContainer.
+        @Cleanup
+        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
+        // Use dataLogFactory from new BK instance.
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
+                executorService());
+
+        // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
+
+        // Create a debug segment container instances using a new dataLog and old storage.
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
+                    DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
+                    context.getDefaultExtensions(), executorService());
+
+            Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
+
+            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        // List segments from storage and recover them using debug segment container instance.
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            // Wait for metadata segment to be flushed to LTS
+            String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
+            waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainerMap.get(containerId),
+                    storage)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Long term storage has been update with a new container metadata segment.");
+
+            // Stop the debug segment container
+            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            debugStreamSegmentContainerMap.get(containerId).close();
+        }
+        log.info("Segments have been recovered.");
+
+        this.dataLogFactory.close();
+        // Start a new segment store and controller
+        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory, containerCount);
+        controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort, containerCount);
+        log.info("Started segment store and controller again.");
+
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerStarter.controllerURI).build());
+        clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
+        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
+
+        // Try creating the same segments again with the new controller
+        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
+        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
+
+        // Try reading all events again
+        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
+                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
+                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
+        log.info("Read all events again to verify that segments were recovered.");
+    }
+
     public void createScopeStream(Controller controller, String scopeName, String streamName) {
         ClientConfig clientConfig = ClientConfig.builder().build();
         try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
@@ -596,7 +737,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
+    private void writeTransactionalEvents(String streamName, ClientFactoryImpl clientFactory) {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -606,6 +747,21 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
         writer.flush();
         writer.close();
+    }
+
+    private void writeEvents(String streamName, ClientFactoryImpl clientFactory) throws TxnFailedException {
+        EventWriterConfig writerConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
+        @Cleanup
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(streamName, new JavaSerializer<>(),
+                writerConfig);
+
+        Transaction<String> transaction = txnWriter.beginTxn();
+        for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
+            transaction.writeEvent("0", EVENT);
+        }
+        transaction.flush();
+        transaction.commit();
+        txnWriter.close();
     }
 
     private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
