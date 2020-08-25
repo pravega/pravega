@@ -111,6 +111,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         Assert.assertNotNull("Segment not created", context.segment());
+
+        val attributes = context.segment().getAttributes(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES.keySet(), false, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected compaction attributes.", ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES, attributes);
+
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
         Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
 
