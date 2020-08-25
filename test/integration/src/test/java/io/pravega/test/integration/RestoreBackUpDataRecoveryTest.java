@@ -96,16 +96,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 /**
  * Integration test to verify data recovery.
  * Recovery scenario: when data written to Pravega is already flushed to the long term storage.
- * What test does, step by step:
- * 1. Starts Pravega locally with just one segment container.
- * 2. Writes 300 events to two different segments.
- * 3. Waits for all segments created to be flushed to the long term storage.
- * 4. Shuts down the controller, segment store and bookeeper/zookeeper.
- * 5. Deletes container metadata segment and its attribute segment from the old LTS.
- * 5. Starts debug segment container using a new bookeeper/zookeeper and the old LTS.
- * 6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
- * 7. Starts segment store and controller.
- * 8. Reads all 600 events again.
+ * Tests replicate different environments for data recovery.
  */
 @Slf4j
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
@@ -317,6 +308,21 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the data recovery scenario with just one segment container. Segments recovery is also attained using just one
+     * debug segment container.
+     *  What test does, step by step:
+     *  1. Starts Pravega locally with just one segment container.
+     *  2. Writes 300 events to two different segments.
+     *  3. Waits for all segments created to be flushed to the long term storage.
+     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
+     *  5. Starts just one debug segment container using a new bookeeper/zookeeper and the old LTS.
+     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  7. Starts segment store and controller.
+     *  8. Reads all 600 events again.
+     * @throws Exception    In case of an exception occurred while execution.
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoverySingleContainer() throws Exception {
         int instanceId = 0;
@@ -449,8 +455,23 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Read all events again to verify that segments were recovered.");
     }
 
+    /**
+     * Tests the data recovery scenario with multiple segment containers. Segments recovery is attained using multiple
+     * debug segment containers as well.
+     *  What test does, step by step:
+     *  1. Starts Pravega locally with just 4 segment containers.
+     *  2. Writes 300 events to two different segments.
+     *  3. Waits for all segments created to be flushed to the long term storage.
+     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
+     *  5. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
+     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  7. Starts segment store and controller.
+     *  8. Reads all 600 events again.
+     * @throws Exception    In case of an exception occurred while execution.
+     */
     @Test(timeout = 180000)
-    public void testDurableDataLogFailRecoveryMultipleContainer() throws Exception {
+    public void testDurableDataLogFailRecoveryMultipleContainers() throws Exception {
         int instanceId = 0;
         int containerCount = 4;
         // Creating a long term storage only once here.
@@ -586,6 +607,20 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Read all events again to verify that segments were recovered.");
     }
 
+    /**
+     * Tests the data recovery scenario with transactional writer. Events are written using a transactional writer.
+     *  What test does, step by step:
+     *  1. Starts Pravega locally with just 4 segment containers.
+     *  2. Writes 300 events to two different segments.
+     *  3. Waits for all segments created to be flushed to the long term storage.
+     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
+     *  5. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
+     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  7. Starts segment store and controller.
+     *  8. Reads all 600 events again.
+     * @throws Exception    In case of an exception occurred while execution.
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryTransactionalWriter() throws Exception {
         int instanceId = 0;
@@ -801,7 +836,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
                                                              Storage storage) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
-        SegmentProperties sp = null;
+        SegmentProperties sp;
         for (String segmentName : segmentNames) {
             try {
                 sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
