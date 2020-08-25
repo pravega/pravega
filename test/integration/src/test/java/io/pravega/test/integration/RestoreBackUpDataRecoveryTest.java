@@ -801,8 +801,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
                                                              Storage storage) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        SegmentProperties sp = null;
         for (String segmentName : segmentNames) {
-            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            try {
+                sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            } catch (Exception e) {
+                log.info("Segment '{}' doesn't exist.", segmentName);
+                continue;
+            }
             log.info("Segment properties = {}", sp);
             segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
         }
