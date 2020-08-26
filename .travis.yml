@@ -30,7 +30,7 @@ jobs:
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
     - name: integration test
-      script: ./gradlew test:integration:test 
+      script: ./gradlew --no-parallel test:integration:test  
     - name: javadoc
       script: ./gradlew javadocs
 
