@@ -10,6 +10,8 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -19,6 +21,10 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -30,11 +36,16 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -66,6 +77,8 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -86,17 +99,25 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Integration test to verify data recovery.
@@ -150,6 +171,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
     private BookKeeperStarter bookKeeperStarter = null;
+    private AtomicLong timer = new AtomicLong();
 
     @After
     public void tearDown() throws Exception {
@@ -162,6 +184,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.bookKeeperStarter.close();
             this.bookKeeperStarter = null;
         }
+        timer.set(0);
     }
 
     @Override
@@ -633,6 +656,291 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         assertNull(reader2.readNextEvent(5000).getEvent());
         reader1.close();
         reader2.close();
+    }
+
+    /**
+     * Tests the data recovery scenario with watermarking events.
+     *  What test does, step by step:
+     *  1. Starts Pravega locally with just 4 segment containers.
+     *  2. Writes 300 events to two different segments with watermarks.
+     *  3. Waits for all segments created to be flushed to the long term storage.
+     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
+     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
+     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  8. Starts segment store and controller.
+     *  9. Read all events and verify that all events are below the bounds.
+     * @throws Exception    In case of an exception occurred while execution.
+     */
+    @Test(timeout = 180000)
+    public void testDurableDataLogFailRecoveryWatermarking() throws Exception {
+        int instanceId = 0;
+        int containerCount = 4;
+
+        // Creating a long term storage only once here.
+        this.storageFactory = new InMemoryStorageFactory(executorService());
+        log.info("Created a long term storage.");
+
+        // Start a new BK & ZK, segment store and controller
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
+        @Cleanup
+        SegmentStoreStarter segmentStoreStarter = startSegmentStore(this.storageFactory, null, containerCount);
+        @Cleanup
+        ControllerStarter controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort,
+                containerCount);
+
+        Controller controller = controllerStarter.controller;
+        String scope = "scopeTx";
+        String stream = "streamTx";
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+
+        URI controllerUri = URI.create("tcp://localhost:" + controllerStarter.controllerPort);
+        StreamManager streamManager = StreamManager.create(controllerUri);
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, stream, config);
+
+        Stream streamObj = Stream.of(scope, stream);
+
+        // create 2 writers
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+        @Cleanup
+        TransactionalEventStreamWriter<Long> writer1 = clientFactory
+                .createTransactionalEventWriter("writer1", stream, new JavaSerializer<>(),
+                        EventWriterConfig.builder().transactionTimeoutTime(10000).build());
+        @Cleanup
+        TransactionalEventStreamWriter<Long> writer2 = clientFactory
+                .createTransactionalEventWriter("writer2", stream, new JavaSerializer<>(),
+                        EventWriterConfig.builder().transactionTimeoutTime(10000).build());
+
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+        // write events
+        CompletableFuture<Void> writer1Future = writeTxEvents(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeTxEvents(writer2, stopFlag);
+
+        // scale the stream several times so that we get complex positions
+        scale(controller, streamObj, config);
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerUri)
+                .build());
+        @Cleanup
+        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
+
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(),
+                SynchronizerConfig.builder().build());
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
+        stopFlag.set(true);
+
+        writer1Future.join();
+        writer2Future.join();
+
+        controllerStarter.close(); // Shut down the controller
+
+        // Get names of all the segments created.
+        ConcurrentHashMap<String, Boolean> allSegments = segmentStoreStarter.segmentsTracker.getSegments();
+        log.info("No. of segments created = {}", allSegments.size());
+
+        // Get the long term storage from the running pravega instance
+        @Cleanup
+        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
+                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
+
+        // wait for all segments to be flushed to the long term storage.
+        waitForSegmentsInStorage(allSegments.keySet(), segmentStoreStarter.segmentsTracker, storage)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        segmentStoreStarter.close(); // Shutdown SegmentStore
+        log.info("Segment Store Shutdown");
+
+        this.bookKeeperStarter.close(); // Shutdown BookKeeper & ZooKeeper
+        this.bookKeeperStarter = null;
+        log.info("BookKeeper & ZooKeeper shutdown");
+
+        // start a new BookKeeper and ZooKeeper.
+        this.bookKeeperStarter = setUpNewBK(instanceId++);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
+                executorService());
+        this.dataLogFactory.initialize();
+        log.info("Started a new BookKeeper and ZooKeeper.");
+
+        // Create the environment for DebugSegmentContainer.
+        @Cleanup
+        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
+        // Use dataLogFactory from new BK instance.
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
+                executorService());
+
+        // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
+
+        // Create a debug segment container instances using a new dataLog and old storage.
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
+                    DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
+                    context.getDefaultExtensions(), executorService());
+
+            Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
+
+            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        // List segments from storage and recover them using debug segment container instance.
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            // Wait for metadata segment to be flushed to LTS
+            String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
+            waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainerMap.get(containerId),
+                    storage)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Long term storage has been update with a new container metadata segment.");
+
+            // Stop the debug segment container
+            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            debugStreamSegmentContainerMap.get(containerId).close();
+        }
+        log.info("Segments have been recovered.");
+
+        this.dataLogFactory.close();
+        // Start a new segment store and controller
+        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory, containerCount);
+        controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort, containerCount);
+        log.info("Started segment store and controller again.");
+
+        controllerUri = URI.create("tcp://localhost:" + controllerStarter.controllerPort);
+        clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(controllerUri)
+                .build());
+
+        // read events from the stream
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
+
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(streamObj, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
+
+        // read from stream cut of first watermark
+        String readerGroup = "rgTx";
+        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .build());
+
+        @Cleanup
+        final EventStreamReader<Long> reader = clientFactory.createReader("myreaderTx",
+                readerGroup,
+                javaSerializer,
+                ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
+        while (event.getEvent() != null) {
+            Long time = event.getEvent();
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(streamObj);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+
+            event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
+        }
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+    }
+
+    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
+                                 AtomicBoolean stop) {
+        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
+
+        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
+            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
+            if (marks.hasNext()) {
+                Map.Entry<Revision, Watermark> next = marks.next();
+                log.info("watermark = {}", next.getValue());
+
+                watermarks.add(next.getValue());
+                revision.set(next.getKey());
+            }
+            return null;
+        }, Duration.ofSeconds(10), executorService()), executorService());
+    }
+
+    private CompletableFuture<Void> writeTxEvents(TransactionalEventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
+        AtomicInteger count = new AtomicInteger(0);
+        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
+            AtomicLong currentTime = new AtomicLong();
+            Transaction<Long> txn = writer.beginTxn();
+            return CompletableFuture.runAsync(() -> {
+                try {
+                    for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
+                        currentTime.set(timer.incrementAndGet());
+                        txn.writeEvent(count.toString(), currentTime.get());
+                    }
+                    txn.commit(currentTime.get());
+                } catch (TxnFailedException e) {
+                    throw new CompletionException(e);
+                }
+            });
+        }, 1000L, executorService()), executorService());
+    }
+
+    private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {
+        // perform several scales
+        int numOfSegments = configuration.getScalingPolicy().getMinNumSegments();
+        double delta = 1.0 / numOfSegments;
+        for (long segmentNumber = 0; segmentNumber < numOfSegments - 1; segmentNumber++) {
+            double rangeLow = segmentNumber * delta;
+            double rangeHigh = (segmentNumber + 1) * delta;
+            double rangeMid = (rangeHigh + rangeLow) / 2;
+
+            Map<Double, Double> map = new HashMap<>();
+            map.put(rangeLow, rangeMid);
+            map.put(rangeMid, rangeHigh);
+            controller.scaleStream(streamObj, Collections.singletonList(segmentNumber), map, executorService()).getFuture().join();
+        }
     }
 
     private EventStreamReader<String> createReader(ClientFactoryImpl clientFactory,
