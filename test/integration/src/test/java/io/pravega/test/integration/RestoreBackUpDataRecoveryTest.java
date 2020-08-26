@@ -505,6 +505,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     public void testDurableDataLogFailRecoveryReadersStall() throws Exception {
         int instanceId = 0;
         int containerCount = 4;
+        String testReader1 = "readerDRIntegrationTest1";
+        String testReader2 = "readerDRIntegrationTest2";
+        String testReaderGroup1 = "readerGroupDRIntegrationTest1";
+        String testReaderGroup2 = "readerGroupDRIntegrationTest2";
 
         // Creating a long term storage only once here.
         this.storageFactory = new InMemoryStorageFactory(executorService());
@@ -536,19 +540,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Writing events on to stream: {}", STREAM2);
         writeTransactionalEvents(STREAM2, clientFactory); // write 300 events on other segment
 
-        // Verify events write by reading them.
-        EventStreamReader<String> reader1 = createReader(clientFactory, readerGroupManager, SCOPE, STREAM1, "RG1", "R1");
-        EventStreamReader<String> reader2 = createReader(clientFactory, readerGroupManager, SCOPE, STREAM1, "RG2", "R2");
+        // Create two readers for reading both the streams.
+        EventStreamReader<String> reader1 = createReader(clientFactory, readerGroupManager, SCOPE, STREAM1, testReaderGroup1, testReader1);
+        EventStreamReader<String> reader2 = createReader(clientFactory, readerGroupManager, SCOPE, STREAM2, testReaderGroup2, testReader2);
 
         // Let readers read N number of events and mark their positions.
         Position p1 = readNEvents(reader1, NUM_EVENTS);
         Position p2 = readNEvents(reader2, NUM_EVENTS);
 
-        ReaderGroup readerGroup1 = readerGroupManager.getReaderGroup("RG1");
-        ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup("RG2");
+        ReaderGroup readerGroup1 = readerGroupManager.getReaderGroup(testReaderGroup1);
+        ReaderGroup readerGroup2 = readerGroupManager.getReaderGroup(testReaderGroup2);
 
-        readerGroup1.readerOffline("R1", p1);
-        readerGroup2.readerOffline("R2", p2);
+        readerGroup1.readerOffline(testReader1, p1);
+        readerGroup2.readerOffline(testReader2, p2);
 
         readerGroupManager.close();
         clientFactory.close();
@@ -638,14 +642,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
         createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
 
-        log.info("Get readerGroup Info");
-        readerGroup1 = readerGroupManager.getReaderGroup("RG1");
-        readerGroup2 = readerGroupManager.getReaderGroup("RG2");
+        // Get reader group.
+        readerGroup1 = readerGroupManager.getReaderGroup(testReaderGroup1);
+        readerGroup2 = readerGroupManager.getReaderGroup(testReaderGroup2);
         Assert.assertNotNull(readerGroup1);
         Assert.assertNotNull(readerGroup2);
 
-        reader1 = clientFactory.createReader("R1", "RG1", new UTF8StringSerializer(), ReaderConfig.builder().build());
-        reader2 = clientFactory.createReader("R2", "RG2", new UTF8StringSerializer(), ReaderConfig.builder().build());
+        reader1 = clientFactory.createReader(testReader1, testReaderGroup1, new UTF8StringSerializer(), ReaderConfig.builder().build());
+        reader2 = clientFactory.createReader(testReader2, testReaderGroup2, new UTF8StringSerializer(), ReaderConfig.builder().build());
 
         // Read rest of the events.
         readNEvents(reader1, TOTAL_NUM_EVENTS - NUM_EVENTS);
@@ -676,6 +680,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     public void testDurableDataLogFailRecoveryWatermarking() throws Exception {
         int instanceId = 0;
         int containerCount = 4;
+        String scope = "scopeTx";
+        String stream = "streamTx";
 
         // Creating a long term storage only once here.
         this.storageFactory = new InMemoryStorageFactory(executorService());
@@ -690,8 +696,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 containerCount);
 
         Controller controller = controllerStarter.controller;
-        String scope = "scopeTx";
-        String stream = "streamTx";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
         URI controllerUri = URI.create("tcp://localhost:" + controllerStarter.controllerPort);
@@ -723,10 +727,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // scale the stream several times so that we get complex positions
         scale(controller, streamObj, config);
 
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerUri)
-                .build());
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
@@ -824,7 +824,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         controllerUri = URI.create("tcp://localhost:" + controllerStarter.controllerPort);
         clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
         clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(controllerUri)
                 .build());
 
@@ -856,9 +857,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 .build());
 
         @Cleanup
-        final EventStreamReader<Long> reader = clientFactory.createReader("myreaderTx",
-                readerGroup,
-                javaSerializer,
+        final EventStreamReader<Long> reader = clientFactory.createReader("myreaderTx", readerGroup, javaSerializer,
                 ReaderConfig.builder().build());
 
         EventRead<Long> event = reader.readNextEvent(10000L);
