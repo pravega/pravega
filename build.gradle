@@ -758,15 +758,11 @@ project('test:system') {
         options.compilerArgs.remove("-Werror")
     }
 
-    configurations {
-         runtime.exclude group: 'io.netty', module: 'netty-tcnative-boringssl-static'
-    }
-
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(':controller') 
+        compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
@@ -776,8 +772,6 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
-        compile 'io.netty:netty-tcnative:' + nettyBoringSSLVersion
-
     }
     //disable the default test task.
     test {
