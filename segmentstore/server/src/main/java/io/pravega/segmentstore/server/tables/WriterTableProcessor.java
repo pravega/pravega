@@ -15,6 +15,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -262,10 +263,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
      */
     private void flushComplete(long lastIndexedOffset) {
+        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
         this.aggregator.reset();
         this.aggregator.setLastIndexedOffset(lastIndexedOffset);
         this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
-        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 
     /**
@@ -282,7 +283,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private CompletableFuture<TableWriterFlushResult> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
-        log.debug("{}: Flush.ReadFromSegment {} UpdateKeys(s).", this.traceObjectId, keyUpdates.getUpdates().size());
+        log.debug("{}: Flush.ReadFromSegment KeyCount={}, UpdateCount={}, HighestCopiedOffset={}, LastIndexedOffset={}.", this.traceObjectId,
+                keyUpdates.getUpdates().size(), keyUpdates.getTotalUpdateCount(), keyUpdates.getHighestCopiedOffset(), keyUpdates.getLastIndexedOffset());
+        logDetailedUpdates(keyUpdates);
 
         // Group keys by their assigned TableBucket (whether existing or not), then fetch all existing keys
         // for each such bucket and finally (reindex) update the bucket.
@@ -294,13 +297,23 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                     logBucketUpdates(bucketUpdates);
                                     return this.connector.getSortedKeyIndex().persistUpdate(bucketUpdates, timer.getRemaining())
                                             .thenComposeAsync(v2 ->
-                                                    this.indexWriter.updateBuckets(segment, bucketUpdates,
-                                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
+                                                            this.indexWriter.updateBuckets(segment, bucketUpdates,
+                                                                    this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                                                    keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
                                                     this.executor);
                                 }, this.executor),
                         this.executor)
                 .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
+    }
+
+    private void logDetailedUpdates(KeyUpdateCollection keyUpdates) {
+        // Only log this level of detail in case of extreme debugging. This will output a lot of data.
+        if (log.isTraceEnabled()) {
+            val details = keyUpdates.getUpdates().stream().map(ku -> String.format("\nKeyHash=%s, Offset=%s, KeyLen=%s, KeyHashCode=%s, Deleted=%s, Copied=%s",
+                    this.connector.getKeyHasher().hash(ku.getKey()), ku.getOffset(), ku.getKey().getLength(), ku.getKey().hashCode(), ku.isDeleted(), ku.isCopied()))
+                    .collect(Collectors.joining(System.lineSeparator()));
+            log.trace("{}: Flush.ReadFromSegment Details: {}", this.traceObjectId, details);
+        }
     }
 
     @SneakyThrows(DataCorruptionException.class)

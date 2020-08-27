@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import java.util.concurrent.CancellationException;
-import java.util.function.BiFunction;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
@@ -40,6 +39,8 @@ class StreamSegmentReadResult implements ReadResult {
     private boolean canRead;
     @GuardedBy("this")
     private boolean closed;
+    @GuardedBy("this")
+    private boolean copyOnRead;
 
     //endregion
 
@@ -83,6 +84,16 @@ class StreamSegmentReadResult implements ReadResult {
     @Override
     public synchronized int getConsumedLength() {
         return this.consumedLength;
+    }
+
+    @Override
+    public synchronized boolean isCopyOnRead() {
+        return this.copyOnRead;
+    }
+
+    @Override
+    public synchronized void setCopyOnRead(boolean value) {
+        this.copyOnRead = value;
     }
 
     @Override
@@ -167,7 +178,7 @@ class StreamSegmentReadResult implements ReadResult {
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
         int remainingLength = this.maxResultLength - this.consumedLength;
-        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
+        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength, this.copyOnRead);
 
         if (entry == null) {
             assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
@@ -206,10 +217,12 @@ class StreamSegmentReadResult implements ReadResult {
     //region NextEntrySupplier
 
     /**
-     * Defines a Function that given a startOffset (long) and remainingLength (int), returns the next entry to be consumed (ReadResultEntry).
+     * Defines a Function that given a startOffset (long), remainingLength (int) and whether to make a copy of any returned
+     * cached data, returns the next entry to be consumed (CompletableReadResultEntry).
      */
     @FunctionalInterface
-    interface NextEntrySupplier extends BiFunction<Long, Integer, CompletableReadResultEntry> {
+    interface NextEntrySupplier {
+        CompletableReadResultEntry apply(long startOffset, int remainingLength, boolean makeCopy);
     }
 
     //endregion
