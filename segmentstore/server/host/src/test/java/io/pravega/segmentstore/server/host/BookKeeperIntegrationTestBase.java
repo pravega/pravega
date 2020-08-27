@@ -13,6 +13,7 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import java.io.File;
 import java.nio.file.Files;
 import lombok.AccessLevel;
@@ -65,6 +66,8 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
         String id = Integer.toString(instanceId);
         return configBuilder
                 .makeCopy()
+                .include(BookKeeperConfig.builder().with(BookKeeperConfig.BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE, false)
+                                                   .with(BookKeeperConfig.BK_MIN_NUM_RACKS_PER_WRITE_QUORUM, 1))                    
                 .include(ServiceConfig.builder().with(ServiceConfig.INSTANCE_ID, id))
                 .build();
     }
