@@ -38,7 +38,7 @@ class AccessControlEntry {
     @VisibleForTesting
     AccessControlEntry(@NonNull String aceResource, @NonNull AuthHandler.Permissions permissions, boolean isLegacyFormat) {
         // Replaces any `*` with `.*`, if it's not already preceded by `.`, for regex processing.
-        // So, `pravega:://*` becomes `pravega:://.*` and `pravega:://scope:*` becomes `pravega:://scope:.*`
+        // So, `prn::/*` becomes `prn::/.*` and `prn::/scope:*` becomes `prn::/scope:.*`
         this.resourcePattern = isLegacyFormat ?  aceResource :
                 PATTERN_STAR_NOT_PRECEDED_BY_DOT.matcher(aceResource).replaceAll(".*");
         this.permissions = permissions;

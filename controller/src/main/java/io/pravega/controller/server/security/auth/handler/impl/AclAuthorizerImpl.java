@@ -17,15 +17,7 @@ class AclAuthorizerImpl extends AclAuthorizer {
     @Override
     public AuthHandler.Permissions authorize(@NonNull AccessControlList accessControlList, @NonNull String resource) {
         AuthHandler.Permissions result = AuthHandler.Permissions.NONE;
-
-        String resourceDomain;
-        int indexOfPartsSeparator = resource.indexOf("::");
-        if (indexOfPartsSeparator > 0) {
-            resourceDomain = resource.substring(0, indexOfPartsSeparator);
-        } else {
-            resourceDomain = "prn"; // default
-        }
-
+        String resourceDomain = resource.split("::")[0];
         for (AccessControlEntry accessControlEntry : accessControlList.getEntries()) {
             // You could have a null ACE in the ACL if you had a malformed entry such as `prn::/scope:readresource`
             // having no permissions set.
