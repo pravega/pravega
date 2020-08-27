@@ -30,12 +30,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import lombok.NonNull;
@@ -321,27 +319,15 @@ class TableCompactor {
                 appendResult.thenAccept(batchOffset -> {
                     val sb = new StringBuilder();
                     val relOffset = new AtomicLong(batchOffset);
-                    toWrite.forEach(e -> sb.append(String.format("\nKeyHash=%s, KeyLen=%s, KeyHashCode=%s, OldOffset=%s, NewOffset=%s",
+                    toWrite.forEach(e -> sb.append(String.format("%nKeyHash=%s, KeyLen=%s, KeyHashCode=%s, OldOffset=%s, NewOffset=%s",
                             this.connector.getKeyHasher().hash(e.getKey().getKey()), e.getKey().getKey().getLength(), e.getKey().getKey().hashCode(),
                             e.getKey().getVersion(), relOffset.getAndAdd(this.connector.getSerializer().getUpdateLength(e)))));
                     log.trace("TableCompactor[{}]: Details: {}", segment.getSegmentId(), sb);
                 });
             }
-            logDetails(segment.getSegmentId(), toWrite);
         }
 
         return Futures.toVoid(result);
-    }
-
-    private void logDetails(long segmentId, List<TableEntry> entries) {
-        if (log.isTraceEnabled()) {
-            val sb = new StringBuilder();
-            val relOffset = new AtomicInteger();
-            entries.forEach(e -> sb.append(String.format("\nKeyHash=%s, KeyLen=%s, KeyHashCode=%s, OldOffset=%s, NewRelOffset=%s",
-                    this.connector.getKeyHasher().hash(e.getKey().getKey()), e.getKey().getKey().getLength(), e.getKey().getKey().hashCode(),
-                    e.getKey().getVersion(), relOffset.getAndAdd(this.connector.getSerializer().getUpdateLength(e)))));
-            log.debug("TableCompactor[{}]: Details: {}", segmentId, sb);
-        }
     }
 
     /**

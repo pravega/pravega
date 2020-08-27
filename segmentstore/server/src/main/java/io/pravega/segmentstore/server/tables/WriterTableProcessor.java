@@ -308,7 +308,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private void logDetailedUpdates(KeyUpdateCollection keyUpdates) {
         // Only log this level of detail in case of extreme debugging. This will output a lot of data.
         if (log.isTraceEnabled()) {
-            val details = keyUpdates.getUpdates().stream().map(ku -> String.format("\nKeyHash=%s, Offset=%s, KeyLen=%s, KeyHashCode=%s, Deleted=%s, Copied=%s",
+            val details = keyUpdates.getUpdates().stream().map(ku -> String.format("%nKeyHash=%s, Offset=%s, KeyLen=%s, KeyHashCode=%s, Deleted=%s, Copied=%s",
                     this.connector.getKeyHasher().hash(ku.getKey()), ku.getOffset(), ku.getKey().getLength(), ku.getKey().hashCode(), ku.isDeleted(), ku.isCopied()))
                     .collect(Collectors.joining(System.lineSeparator()));
             log.trace("{}: Flush.ReadFromSegment Details: {}", this.traceObjectId, details);
