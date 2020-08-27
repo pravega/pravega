@@ -88,7 +88,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         }
     }
         
-    public ByteBuffer readEvent(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
+    private ByteBuffer readEvent(long firstByteTimeoutMillis) throws EndOfSegmentException, SegmentTruncatedException, TimeoutException {
         headerReadingBuffer.clear();
         int read = in.read(headerReadingBuffer, firstByteTimeoutMillis);
         if (read == 0) {
