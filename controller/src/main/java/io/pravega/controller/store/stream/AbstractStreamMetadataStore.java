@@ -853,7 +853,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
     }
 
-    protected Scope getScope(final String scopeName) {
+    public Scope getScope(final String scopeName) {
         Scope scope = scopeCache.getUnchecked(scopeName);
         scope.refresh();
         return scope;

@@ -21,11 +21,17 @@ import lombok.Data;
 public class KeyValueTableInfo {
     /**
      * Scope name of the Key-Value Table.
+     *
+     * @param scope Scope name of the Key-Value Table.
+     * @return Scope name of the Key-Value Table.
      */
     private final String scope;
 
     /**
      * Key-Value Table name.
+     *
+     * @param keyValueTableName Key-Value Table name.
+     * @return Key-Value Table name.
      */
     private final String keyValueTableName;
 

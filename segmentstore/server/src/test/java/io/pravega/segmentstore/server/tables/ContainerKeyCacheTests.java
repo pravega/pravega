@@ -431,6 +431,43 @@ public class ContainerKeyCacheTests {
         checkNoTailHashes(keyCache);
     }
 
+    /**
+     * Test the {@link SegmentKeyCache.MigrationCandidate} class.
+     */
+    @Test
+    public void testMigrationCandidate() {
+        val keyCache = new SegmentKeyCache(1L, this.cacheStorage);
+        val rnd = new Random(0);
+
+        val batch = TableKeyBatch.update();
+        val key = newTableKey(rnd);
+        val keyHash = KEY_HASHER.hash(key.getKey());
+        batch.add(key, keyHash, key.getKey().getLength());
+        keyCache.includeUpdateBatch(batch, 0, 0);
+
+        List<SegmentKeyCache.CacheEntry> evictedEntries = null;
+        try {
+            // Migrate the tail index to a Cache Entry.
+            keyCache.setLastIndexedOffset(batch.getLength() + 1, 1);
+
+            // Evict all entries.
+            evictedEntries = keyCache.evictAll();
+            Assert.assertEquals(1, evictedEntries.size());
+            val entry = evictedEntries.get(0);
+            entry.evict(); // Force-evict it from the cache.
+
+            // Check MigrationCandidate.persist().
+            val mc = new SegmentKeyCache.MigrationCandidate(keyHash, entry, new CacheBucketOffset(0, false));
+            boolean committed = mc.commit(2);
+            Assert.assertFalse("Not expected commit() to go through.", committed);
+        } finally {
+            // Clean up the cache in case of an error. We do not want to leave data hanging around in the Cache.
+            if (evictedEntries != null) {
+                evictedEntries.forEach(SegmentKeyCache.CacheEntry::evict);
+            }
+        }
+    }
+
     private long batchInsert(long insertOffset, ContainerKeyCache keyCache, HashMap<TestKey, CacheBucketOffset> expectedResult, Random rnd) {
         val insertBatches = new HashMap<Long, TableKeyBatch>();
         long highestOffset = 0L;
