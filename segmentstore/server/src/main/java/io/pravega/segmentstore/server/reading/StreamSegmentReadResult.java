@@ -222,7 +222,7 @@ class StreamSegmentReadResult implements ReadResult {
      */
     @FunctionalInterface
     interface NextEntrySupplier {
-        CompletableReadResultEntry apply(long startOffset, int remainingLength, boolean makeCopy);
+        CompletableReadResultEntry apply(Long startOffset, Integer remainingLength, Boolean makeCopy);
     }
 
     //endregion
