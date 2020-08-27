@@ -317,8 +317,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
                     if (failureCause == null) {
                         failureCause = cause;
-                    } else if (cause != null && failureCause != cause) {
-                        failureCause.addSuppressed(cause);
                     }
 
                     if (failureCause == null) {
