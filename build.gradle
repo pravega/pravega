@@ -586,15 +586,11 @@ project('shared:controller-api') {
 
     dependencies {
         compile project(':common')
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-auth:" + grpcVersion
-        compile "io.grpc:grpc-protobuf:" + grpcVersion
-        compile "io.grpc:grpc-stub:" + grpcVersion
-        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        compile group: 'io.grpc', name: 'grpc-protobuf', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-stub', version: grpcVersion
          // Since Java 10 javax.annotation is no more bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
+        testCompile "io.grpc:grpc-netty:" + grpcVersion
     }
 
     javadoc {
