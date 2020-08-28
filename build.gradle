@@ -30,7 +30,6 @@ buildscript {
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
-        classpath "com.github.jk1:gradle-license-report:1.13"
     }
 }
 
@@ -41,7 +40,6 @@ if (project.hasProperty("enableMkdocs")) {
 // apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
 // https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
 apply plugin: 'org.ajoberstar.grgit'
-apply plugin: 'com.github.jk1.dependency-license-report'
 
 allprojects {
     apply plugin: 'idea'
@@ -84,7 +82,6 @@ allprojects {
     apply from: "$rootDir/gradle/maven.gradle"
     apply from: "$rootDir/gradle/protobuf.gradle"
     apply from: "$rootDir/gradle/rat.gradle"
-    apply from: "$rootDir/gradle/oss.gradle"
 
     repositories {
         jcenter()
@@ -1203,8 +1200,9 @@ class DockerPushTask extends Exec {
 }
 
 apply plugin: 'com.github.jk1.dependency-license-report'
-import com.github.jk1.license.render.*
 licenseReport {
-    renderers = [new CsvReportRenderer()]
+    def csvRenderer = new PravegaReportRenderer()
+    csvRenderer.includeHeaderLine = true
+    renderers = [csvRenderer]
     configurations = ['runtimeClasspath']
 }
