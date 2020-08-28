@@ -53,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.io.StreamHelpers.closeQuietly;
-import static io.pravega.shared.protocol.netty.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
+import static io.pravega.shared.protocol.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
 
 @Slf4j
 public class TcpClientConnection implements ClientConnection {

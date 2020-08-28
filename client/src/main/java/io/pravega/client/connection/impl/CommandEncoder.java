@@ -45,8 +45,8 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.common.io.StreamHelpers.closeQuietly;
 import static io.pravega.shared.NameUtils.segmentTags;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
+import static io.pravega.shared.protocol.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.pravega.shared.protocol.WireCommands.TYPE_SIZE;
 
 @Slf4j
 @RequiredArgsConstructor
