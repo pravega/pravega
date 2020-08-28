@@ -11,12 +11,12 @@ package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED;
+import static io.pravega.shared.protocol.WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 

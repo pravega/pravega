@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.MathHelpers;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;

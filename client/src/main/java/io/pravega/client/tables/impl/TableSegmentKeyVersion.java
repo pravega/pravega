@@ -15,7 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ByteBufferUtils;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;

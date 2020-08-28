@@ -29,7 +29,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 import java.util.Collections;

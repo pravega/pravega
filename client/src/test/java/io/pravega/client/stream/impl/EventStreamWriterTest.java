@@ -22,7 +22,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.CollectingExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;

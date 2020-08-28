@@ -295,6 +295,7 @@ project('segmentstore:contracts:wireprotocol') {
     dependencies {
         compile project(':common')
         compile project(':shared:protocol')
+        compile group: 'io.netty', name: 'netty-buffer', version: nettyVersion
         compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion

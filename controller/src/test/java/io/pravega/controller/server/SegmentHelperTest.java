@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server;
 
-import io.netty.buffer.ByteBuf;
+import io.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
@@ -26,13 +26,13 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.Append;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.PravegaNodeUri;
+import io.pravega.shared.protocol.ReplyProcessor;
+import io.pravega.shared.protocol.Request;
+import io.pravega.shared.protocol.WireCommand;
+import io.pravega.shared.protocol.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
 import java.time.Duration;

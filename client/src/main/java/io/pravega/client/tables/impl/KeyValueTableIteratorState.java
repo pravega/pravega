@@ -15,7 +15,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.shared.protocol.ByteBufWrapper;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import lombok.Builder;

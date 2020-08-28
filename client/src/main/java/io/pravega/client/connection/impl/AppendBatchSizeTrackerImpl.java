@@ -14,7 +14,7 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExponentialMovingAverage;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.util.EnvVars;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.AppendBatchSizeTracker;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 

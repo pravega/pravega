@@ -9,9 +9,9 @@
  */
 package io.pravega.client.connection.impl;
 
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.Append;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.WireCommand;
 import java.util.List;
 
 /**

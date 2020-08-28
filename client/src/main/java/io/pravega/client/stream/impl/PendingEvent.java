@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.Serializer;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.shared.protocol.WireCommands.Event;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;

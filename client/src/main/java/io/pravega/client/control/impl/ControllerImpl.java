@@ -97,7 +97,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRespon
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.PravegaNodeUri;
 import java.io.File;
 import java.util.AbstractMap;
 import java.util.Collection;

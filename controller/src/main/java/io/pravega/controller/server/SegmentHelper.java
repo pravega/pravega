@@ -35,12 +35,12 @@ import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.Reply;
+import io.pravega.shared.protocol.Request;
+import io.pravega.shared.protocol.WireCommand;
+import io.pravega.shared.protocol.WireCommandType;
+import io.pravega.shared.protocol.WireCommands;
 
 import java.time.Duration;
 import java.util.AbstractMap;

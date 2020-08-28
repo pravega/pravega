@@ -9,8 +9,8 @@
  */
 package io.pravega.client.connection.impl;
 
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.PravegaNodeUri;
+import io.pravega.shared.protocol.ReplyProcessor;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;

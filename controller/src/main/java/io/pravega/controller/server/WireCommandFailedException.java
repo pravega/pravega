@@ -10,7 +10,7 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.WireCommandType;
 import lombok.Getter;
 
 /**

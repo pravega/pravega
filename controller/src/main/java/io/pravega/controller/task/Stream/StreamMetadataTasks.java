@@ -70,7 +70,7 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;

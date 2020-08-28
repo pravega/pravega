@@ -20,7 +20,7 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;

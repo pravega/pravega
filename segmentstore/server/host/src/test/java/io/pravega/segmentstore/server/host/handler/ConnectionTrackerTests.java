@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.shared.protocol.netty.RequestProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.RequestProcessor;
+import io.pravega.shared.protocol.WireCommand;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Getter;
 import lombok.val;

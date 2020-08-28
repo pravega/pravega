@@ -39,7 +39,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;

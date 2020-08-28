@@ -21,7 +21,7 @@ import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
-import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;

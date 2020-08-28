@@ -9,8 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.shared.protocol.netty.RequestProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.RequestProcessor;
+import io.pravega.shared.protocol.WireCommand;
 
 /**
  * A connection object. Represents the TCP connection in the server process that is coming from the client.
