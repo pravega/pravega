@@ -234,8 +234,6 @@ project ('shared:metrics') {
 project('shared:protocol') {
     dependencies {
         compile project(':common')
-        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
-        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -250,9 +248,6 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-        // Ensure epoll native transport is used for linux-x86_64 architecture systems.
-        // The client fallsback to NIO based transport if epoll is not available.
-        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -274,7 +269,6 @@ project('test:testcommon') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile group: 'io.netty', name: 'netty-common', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
@@ -297,11 +291,25 @@ project('segmentstore:contracts') {
     }
 }
 
-project('segmentstore:storage') {
+project('segmentstore:contracts:wireprotocol') {
     dependencies {
         compile project(':common')
         compile project(':shared:protocol')
+        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(':test:testcommon')
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(path: ':common', configuration: 'testRuntime')
+    }
+}
+
+project('segmentstore:storage') {
+    dependencies {
+        compile project(':common')
         compile project(':segmentstore:contracts')
+        compile project(':segmentstore:contracts:wireprotocol')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
     }
