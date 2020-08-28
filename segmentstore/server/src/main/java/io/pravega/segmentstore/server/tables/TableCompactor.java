@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -311,20 +310,8 @@ class TableCompactor {
             // segment attributes.
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
             BufferView appendData = this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite);
-            val appendResult = segment.append(appendData, attributes, timer.getRemaining());
-            result = appendResult;
+            result = segment.append(appendData, attributes, timer.getRemaining());
             log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite.size(), totalLength);
-            if (log.isTraceEnabled()) {
-                // This will result in a lot of logging, so only do it if absolutely necessary for debugging.
-                appendResult.thenAccept(batchOffset -> {
-                    val sb = new StringBuilder();
-                    val relOffset = new AtomicLong(batchOffset);
-                    toWrite.forEach(e -> sb.append(String.format("%nKeyHash=%s, KeyLen=%s, KeyHashCode=%s, OldOffset=%s, NewOffset=%s",
-                            this.connector.getKeyHasher().hash(e.getKey().getKey()), e.getKey().getKey().getLength(), e.getKey().getKey().hashCode(),
-                            e.getKey().getVersion(), relOffset.getAndAdd(this.connector.getSerializer().getUpdateLength(e)))));
-                    log.trace("TableCompactor[{}]: Details: {}", segment.getSegmentId(), sb);
-                });
-            }
         }
 
         return Futures.toVoid(result);
