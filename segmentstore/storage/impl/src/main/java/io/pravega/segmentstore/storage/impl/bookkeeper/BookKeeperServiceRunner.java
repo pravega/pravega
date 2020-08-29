@@ -263,7 +263,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
             try {
                 FileUtils.deleteDirectory(dir);
             } catch (IOException e) {
-                log.info("Failed deleting directory: {} - {}", dir, e);
+                log.info("Failed deleting directory: {}", dir, e);
             }
         }
 
