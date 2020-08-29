@@ -57,6 +57,8 @@ To import the source into IntelliJ:
 
 For eclipse, you can generate eclipse project files by running `./gradlew eclipse`.
 
+<sup> Note: Some unit tests will create (and delete) a significant amount of files. For improved performance on Windows machines, be sure to add the appropriate 'Microsoft Defender' exclusion.</sup>
+
 ## Releases
 
 The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
