@@ -258,13 +258,13 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     private void cleanupDirectories(HashMap<?, File> toDelete) throws IOException {
-        try {
-            for (File dir : toDelete.values()) {
-                log.info("Cleaning up " + dir);
+        for (File dir : toDelete.values()) {
+            log.info("Cleaning up " + dir);
+            try {
                 FileUtils.deleteDirectory(dir);
+            } catch (IOException e) {
+                log.info("Failed deleting directory: {} - {}", dir, e);
             }
-        } catch (IOException e) {
-            log.info("{}", e);
         }
 
         toDelete.clear();
