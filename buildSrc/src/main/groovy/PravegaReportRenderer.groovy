@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
 import com.github.jk1.license.render.*
 import com.github.jk1.license.*
 import com.github.jk1.Model.*
