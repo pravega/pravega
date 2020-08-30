@@ -63,6 +63,14 @@ plugins.withId('maven') {
                     }
                 }
 
+                addFilter('test') {artifact, file ->
+                    artifact.name.indexOf("test") != -1
+                }
+                pom('test', {
+                              artifactId = "pravega" + project.path.replace(':', '-') + "-tests"
+                              version getProjectVersion()
+                })
+
                 // Sign the POM when the signing plugin is present
                 plugins.withId('signing') {
                     if (project.hasProperty('doSigning')) {
