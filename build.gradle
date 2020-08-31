@@ -248,6 +248,8 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
+        compile group: 'io.grpc', name: 'grpc-okhttp', version: grpcVersion
+        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
