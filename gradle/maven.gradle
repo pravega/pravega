@@ -64,17 +64,17 @@ plugins.withId('maven') {
                 }
 
                 addFilter(':') {artifact, file ->
-                    artifact.name.indexOf("test") == -1
+                    artifact.name.indexOf("tests") == -1
                 }
                 pom(':', {
                               artifactId = "pravega" + project.path.replace(':', '-')
                               version getProjectVersion()
                 })
 
-                addFilter('test') {artifact, file ->
-                    artifact.name.indexOf("test") != -1
+                addFilter('tests') {artifact, file ->
+                    artifact.name.indexOf("tests") != -1
                 }
-                pom('test', {
+                pom('tests', {
                               artifactId = "pravega" + project.path.replace(':', '-') + "-tests"
                               version getProjectVersion()
                 })
