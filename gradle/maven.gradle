@@ -9,6 +9,15 @@
  *
  */
 plugins.withId('maven') {
+    task sourcesJar(type: Jar, dependsOn: classes) {
+         classifier = 'sources'
+         from sourceSets.main.allSource
+    }
+    artifacts{
+        archives sourcesJar
+        archives javadocJar
+        archives testJar
+    }
     uploadArchives {
         repositories {
             mavenDeployer {
