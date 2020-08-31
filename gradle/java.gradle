@@ -62,7 +62,7 @@ plugins.withId('java') {
         classifier = 'tests'
         from sourceSets.test.output
     }
-    artifacts { archives testJar }
+    artifacts { testRuntime testJar }
 
     if (project.hasProperty("doSigning")) {
         signing {
