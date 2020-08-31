@@ -26,6 +26,7 @@ import lombok.Getter;
 public abstract class AbstractBufferView implements BufferView {
     static final BufferView EMPTY = new EmptyBufferView();
     private static final HashHelper HASH = HashHelper.seededWith(AbstractBufferView.class.getName());
+    private static final BufferViewComparator BUFFER_VIEW_COMPARATOR = new BufferViewComparator();
 
     @Override
     public int hashCode() {
@@ -68,6 +69,10 @@ public abstract class AbstractBufferView implements BufferView {
         }
 
         return true;
+    }
+
+    public int compareBufferView(BufferView t1, BufferView t2) {
+         return BUFFER_VIEW_COMPARATOR.compare(t1, t2);
     }
 
     //region AbstractReader
