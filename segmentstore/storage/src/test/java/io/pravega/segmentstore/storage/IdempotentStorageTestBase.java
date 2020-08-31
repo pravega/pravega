@@ -22,7 +22,7 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 
 /**
- * Common Unit tests for FileSystemStorage and ExtendedS3Storage.
+ * Common Unit tests for Storage implementations that allow idempotent writes.
  */
 public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
