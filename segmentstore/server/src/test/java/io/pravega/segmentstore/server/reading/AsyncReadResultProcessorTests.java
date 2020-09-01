@@ -63,7 +63,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier.
         AtomicInteger currentIndex = new AtomicInteger();
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             int idx = currentIndex.getAndIncrement();
             if (idx >= entries.size()) {
                 return null;
@@ -101,7 +101,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier.
         AtomicInteger currentIndex = new AtomicInteger();
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             int idx = currentIndex.getAndIncrement();
             if (idx >= entries.size()) {
                 return null;
@@ -139,7 +139,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         final Semaphore barrier = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             Supplier<BufferView> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
@@ -180,7 +180,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
 
         // Setup an entry provider supplier.
         AtomicInteger currentIndex = new AtomicInteger();
-        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length, makeCopy) -> {
             int idx = currentIndex.getAndIncrement();
             if (idx == entries.size() - 1) {
                 // Future read result.
