@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 /**
  * Mocks a {@link ReadResult} wrapping a {@link ByteArraySegment} as its source.
@@ -29,13 +30,14 @@ import lombok.RequiredArgsConstructor;
 class ReadResultMock implements ReadResult {
     //region Members
 
-    @Getter
     private final long streamSegmentStartOffset;
     private final ArrayView data;
     private final int maxResultLength;
     private final int entryLength;
     private int consumedLength;
     private boolean closed;
+    @Setter
+    private boolean copyOnRead = false;
 
     //endregion
 
@@ -112,7 +114,11 @@ class ReadResultMock implements ReadResult {
             if (this.type == ReadResultEntryType.Truncated) {
                 this.content.completeExceptionally(new StreamSegmentTruncatedException(getStreamSegmentStartOffset()));
             } else {
-                this.content.complete(data.slice(this.relativeOffset, this.requestedReadLength));
+                BufferView result = data.slice(this.relativeOffset, this.requestedReadLength);
+                if (isCopyOnRead()) {
+                    result = new ByteArraySegment(result.getCopy());
+                }
+                this.content.complete(result);
             }
         }
 
