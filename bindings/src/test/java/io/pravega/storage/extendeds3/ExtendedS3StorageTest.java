@@ -16,13 +16,13 @@ import io.pravega.common.util.Property;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.IdempotentStorageTestBase;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import io.pravega.storage.IdempotentStorageTestBase;
 
 import java.io.ByteArrayInputStream;
 import java.util.Iterator;
