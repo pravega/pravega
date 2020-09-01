@@ -509,10 +509,8 @@ public class K8sClient {
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap binding) {
         CoreV1Api api = new CoreV1Api();
-        //V1ConfigMap api = new V1ConfigMap ();
         K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createConfigMap");
         api.createNamespacedConfigMapAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
-        //api.createNamespacedConfigMap(namespace, binding, PRETTY_PRINT, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 

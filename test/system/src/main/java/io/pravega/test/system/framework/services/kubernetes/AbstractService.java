@@ -118,7 +118,6 @@ public abstract class AbstractService implements Service {
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                //.put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
                 .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec))
                 .build();
     }

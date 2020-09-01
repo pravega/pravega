@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,12 +70,12 @@ kubectl cluster-info  # any error here will cause the script to terminate.
 
 #Step  : Adding Charts repo to helm
 echo "Adding Charts repo to helm"
-helm repo add $chartName $repository
+helm repo add $publishedChartName $helmRepository
 helm repo update
 
 #Step 6: Creating ZK-OP
 echo "Creating ZK Operator"
-helm install zkop $chartName/zookeeper-operator --version=$imageVersionZkOp
+helm install zkop $publishedChartName/zookeeper-operator --version=$zookeeperOperatorVersion
 zkOpName="$(kubectl get pod | grep "zookeeper-operator" | awk '{print $1}')"
 kubectl wait --timeout=1m --for=condition=Ready pod/$zkOpName
 readyValueZk="$(kubectl get deploy | awk '$1 == "zkop-zookeeper-operator" { print $2 }')"
@@ -88,7 +88,7 @@ if [ "$readyValueZk" != "1/1" ];then
 
 #Step 7: Creating BK-OP
 echo "Creating BK Operator"
-helm install bkop $chartName/bookkeeper-operator --version=$imageVersionBkOp --set testmode=true
+helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode=true
 
 bkOpName="$(kubectl get pod | grep "bookkeeper-operator" | awk '{print $1}')"
 kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName
@@ -102,7 +102,7 @@ if [ "$readyValueBk" != "1/1" ];then
 
 #Step 8: Creating Pravega-OP
 echo "Creating Pravega Operator"
-helm install prop $chartName/pravega-operator --version=$imageVersionPrOp --set testmode=true
+helm install prop $publishedChartName/pravega-operator --version=$pravegaOperatorVersion --set testmode=true
 prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
 kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
 readyValuePr="$(kubectl get deploy | awk '$1 == "prop-pravega-operator" { print $2 }')"

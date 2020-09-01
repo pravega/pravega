@@ -738,7 +738,7 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
-        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/standalone-logback.xml")
         systemProperties 'singlenode.configurationFile' : new File("${project.rootDir}/config/standalone-config.properties")
 
         if (systemProperties.get("extDirs") != null) {
@@ -848,11 +848,12 @@ project('test:system') {
 
     task startK8SystemTests(type: Test) {
         tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
-        tasks.withType(Exec) { environment "imageVersionPrOp",System.getProperty("imageVersionPrOp", "latest") }
-        tasks.withType(Exec) { environment "imageVersionBkOp",System.getProperty("imageVersionBkOp", "latest") }
-        tasks.withType(Exec) { environment "imageVersionZkOp",System.getProperty("imageVersionZkOp", "latest") }
-        tasks.withType(Exec) { environment "chartName",System.getProperty("chartName", "pravega") }
-        tasks.withType(Exec) { environment "repository",System.getProperty("repository", "pravega") }
+        tasks.withType(Exec) { environment "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest") }
+        tasks.withType(Exec) { environment "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest") }
+        tasks.withType(Exec) { environment "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest") }
+        // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
+        tasks.withType(Exec) { environment "publishedChartName",System.getProperty("publishedChartName", "pravega") }
+        tasks.withType(Exec) { environment "helmRepository",System.getProperty("helmRepository", "pravega") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -861,8 +862,6 @@ project('test:system') {
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
-        //systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest")
-        //systemProperty "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest")
         // The below properties are used to to specify the pravega docker image properties
         // e.g: private-docker-repo/pravega-prefix/pravega:version
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
@@ -874,22 +873,17 @@ project('test:system') {
         systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
-        // bookkeeper version defaults to pravega version.
-        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
+        // bookkeeper version can be different from pravega version.
         systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "latest") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "imageVersionPrOp",System.getProperty("imageVersionPrOp", "latest")
-        systemProperty "imageVersionBkOp",System.getProperty("imageVersionBkOp", "latest")
-        systemProperty "imageVersionZkOp",System.getProperty("imageVersionZkOp", "latest")
-        systemProperty "chartName",System.getProperty("chartName", "pravega")
-        systemProperty "repository",System.getProperty("repository", "pravega")
-
-        systemProperty "imageVersionPrOp", System.getProperty("imageVersionPrOp")
-        systemProperty "imageVersionBkOp", System.getProperty("imageVersionBkOp")
-        systemProperty "imageVersionZkOp", System.getProperty("imageVersionZkOp")
+        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
+        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
+        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
