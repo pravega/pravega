@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -45,6 +46,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
  * Integration test for {@link KeyValueTable}s using real Segment Store, Controller and connection.
@@ -129,6 +132,11 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
 
         // Verify re-creation does not work.
         Assert.assertFalse(this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join());
+
+        // Try to create a KVTable with 0 paritions, and it should fail
+        val kvtZero = newKeyValueTableName();
+        assertThrows(IllegalArgumentException.class, () -> this.controller.createKeyValueTable(kvtZero.getScope(), kvtZero.getKeyValueTableName(),
+                KeyValueTableConfiguration.builder().partitionCount(0).build()).join());
 
         // Create 2 more KVTables
         val kvt2 = newKeyValueTableName();

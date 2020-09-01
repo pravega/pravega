@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
@@ -38,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -151,6 +153,22 @@ public class ControllerServiceTest {
         createAStream(scope2, streamName1, controller, config2);
         //Different name in same scope
         createAStream(scope1, streamName2, controller, config3);
+
+        final String kvtName1 = "kvtable1";
+        final String kvtName2 = "kvtable2";
+        final String kvtZero = "kvtableZero";
+        final KeyValueTableConfiguration kvtConfig1 = KeyValueTableConfiguration.builder()
+                .partitionCount(2).build();
+        final KeyValueTableConfiguration kvtConfigZeroPC = KeyValueTableConfiguration.builder()
+                .partitionCount(0).build();
+
+        createAKeyValueTable(scope1, kvtName1, controller, kvtConfig1);
+        //Same name in different scope
+        createAKeyValueTable(scope2, kvtName1, controller, kvtConfig1);
+        //Different name in different scope
+        createAKeyValueTable(scope2, kvtName2, controller, kvtConfig1);
+        //KVTable with 0 partitions should fail
+        createAKeyValueTableZeroPC(scope2, kvtZero, controller, kvtConfigZeroPC);
         
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
@@ -325,6 +343,17 @@ public class ControllerServiceTest {
         StreamSegments currentSegs = controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
         assertTrue("FAILURE: No active segments should be present in a sealed stream", currentSegs.getSegments().isEmpty());
         
+    }
+
+    private static void createAKeyValueTable(String scope, String kvtName, Controller controller,
+                                      final KeyValueTableConfiguration config) throws InterruptedException,
+            ExecutionException {
+        assertTrue(controller.createKeyValueTable(scope, kvtName, config).get());
+    }
+
+    private static void createAKeyValueTableZeroPC(String scope, String kvtName, Controller controller,
+                                             final KeyValueTableConfiguration config) {
+        assertThrows(IllegalArgumentException.class, () -> controller.createKeyValueTable(scope, kvtName, config).join());
     }
 
 }
