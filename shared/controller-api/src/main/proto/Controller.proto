@@ -222,6 +222,7 @@ message ContinuationToken {
 message StreamInfo {
     string scope = 1;
     string stream = 2;
+    string requestedPermission = 3;
 }
 
 message ScalingPolicy {

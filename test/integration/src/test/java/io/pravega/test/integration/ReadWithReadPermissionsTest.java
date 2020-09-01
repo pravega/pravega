@@ -27,10 +27,7 @@ import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import lombok.Cleanup;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
@@ -50,58 +47,56 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ReadWithReadPermissionsTest {
 
-    String scopeName = "MarketData";
-    String streamName = "StockPriceUpdates";
-    String readerGroupName = "PriceChangeCalculator";
-    String message = "SCRIP:DELL,EXCHANGE:NYSE,PRICE=100";
+    @Test
+    public void readUsingUserAccountsWithReadPermission() throws ExecutionException, InterruptedException {
+        // Writing data so that we can check the read flow
+        final String scopeName = "MarketData";
+        final String streamName = "StockPriceUpdates";
+        final String readerGroupName = "PriceChangeCalculator";
+        final String message = "SCRIP:DELL,EXCHANGE:NYSE,PRICE=100";
 
-    ClusterWrapper cluster;
-
-    @SneakyThrows
-    @Before
-    public void setup() {
-        Map<String, String> passwordInputFileEntries = new HashMap<>();
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",
-                    "prn::/scope:MarketData,READ_UPDATE",
-                                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ_UPDATE",
-                                 "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ_UPDATE",
-                                 "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ_UPDATE"
-                ));
-        cluster = new ClusterWrapper(true, "secret",
+                "prn::/scope:MarketData,READ_UPDATE",
+                "prn::/scope:MarketData/stream:StockPriceUpdates,READ_UPDATE",
+                "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ_UPDATE",
+                "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ_UPDATE"
+        ));
+        log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
+
+        @Cleanup
+        final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
                 600, this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
         cluster.initialize();
+        log.debug("Cluster initialized successfully");
 
-        ClientConfig writerClientConfig = ClientConfig.builder()
+        final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials("1111_aaaa", "creator"))
                 .build();
         this.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        log.debug("Streams created");
 
         @Cleanup
-        EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
+        final EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName,
+                writerClientConfig);
 
         @Cleanup
-        EventStreamWriter<String> writer = writerClientFactory.createEventWriter(streamName,
+        final EventStreamWriter<String> writer = writerClientFactory.createEventWriter(streamName,
                 new JavaSerializer<String>(),
                 EventWriterConfig.builder().build());
         writer.writeEvent(message).get();
-        log.info("Done writing a message");
-    }
+        log.info("Wrote a message to the stream {}/{}", scopeName, streamName);
 
-    @After
-    public void tearDown() {
-        cluster.close();
-    }
-
-    @Test
-    public void readUsingUserAccountsWithReadPermission() throws ExecutionException, InterruptedException {
+        // Reading data now
         ClientConfig readerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials("1111_aaaa", "reader"))
                 .build();
         @Cleanup
         EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scopeName, readerClientConfig);
+        log.debug("Created the readerClientFactory");
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                 .stream(Stream.of(scopeName, streamName))
@@ -109,12 +104,14 @@ public class ReadWithReadPermissionsTest {
                 .build();
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-        readerGroupManager.createReaderGroup(this.readerGroupName, readerGroupConfig);
+        readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
+        log.debug("Created reader group with name {}", readerGroupName);
 
         @Cleanup
         EventStreamReader<String> reader = readerClientFactory.createReader(
                 "readerId", readerGroupName,
                 new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
+        log.debug("Created an event reader");
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
@@ -122,6 +119,11 @@ public class ReadWithReadPermissionsTest {
         log.info("Done reading event [{}]", readMessage);
 
         assertEquals(message, readMessage);
+    }
+
+    @Test
+    public void readerGroupReadsStreamsInAnotherScope() {
+
     }
 
     private List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(Map<String, String> entries) {

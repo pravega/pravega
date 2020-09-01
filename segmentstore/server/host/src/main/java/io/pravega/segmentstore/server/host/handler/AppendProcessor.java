@@ -144,9 +144,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (this.tokenVerifier != null) {
             try {
+                // _RG and _MARK
                 JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
-                        AuthHandler.Permissions.READ_UPDATE);
+                        newSegment.contains("/_") ? AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE);
                 setupTokenExpiryTask(setupAppend, token);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,

@@ -90,9 +90,12 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
          *      3) claimKey = "_system/_requeststream", resource = "_system/_requeststream/0.#epoch.0"
          *      4) claimKey = "*" (the wildcard character)
          */
-        return resource.equals(claimKey) // example 1
-               || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
-               || resource.startsWith(claimKey + "/") // example 3
-               || claimKey.equals("*"); // 4
+        boolean result = resource.equals(claimKey) // example 1
+                || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
+                || resource.startsWith(claimKey + "/") // example 3
+                || claimKey.equals("*");
+
+        log.debug("claimKey: [{}], resource: [{}], result: [{}]", claimKey, resource, result);
+        return result; // 4
     }
 }

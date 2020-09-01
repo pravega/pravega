@@ -44,6 +44,11 @@ public final class LegacyAuthorizationResourceImpl implements AuthorizationResou
         return String.format("%s/%s", ofReaderGroupsInScope(scopeName), readerGroupName);
     }
 
+    @Override
+    public String ofWatermarkInScope(String scopeName, String watermarkName) {
+        throw new UnsupportedOperationException("Operation not supported");
+    }
+
     public String ofKeyValueTableInScope(String scopeName, String kvtName) {
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTableName");
         return String.format("%s/_kvtable/%s", ofStreamsInScope(scopeName), kvtName);

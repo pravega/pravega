@@ -60,6 +60,8 @@ public class GrpcAuthHelper {
 
     public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel, AuthContext ctx) {
         if (isAuthorized(resource, expectedLevel, ctx)) {
+            log.trace("Successfully authorized principal {} for {} access to resource {}", ctx.getPrincipal(),
+                    expectedLevel, resource);
             return "";
         } else {
             if (ctx == null || ctx.getPrincipal() == null) {
@@ -87,6 +89,10 @@ public class GrpcAuthHelper {
             return createDelegationToken(resource, expectedLevel, tokenSigningKey);
         }
         return "";
+    }
+
+    public String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel) {
+        return createDelegationToken(resource, expectedLevel, this.tokenSigningKey);
     }
 
     private String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {

@@ -91,6 +91,18 @@ public interface AuthorizationResource {
     String ofReaderGroupInScope(String scopeName, String readerGroupName);
 
     /**
+     * Creates a resource representation for use in authorization of actions pertaining to the specified watermark
+     * within the specified scope.
+     *
+     * @param scopeName the name of the scope
+     * @param watermarkName the name of the reader group
+     * @return a string representing the specified reader group
+     * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
+     * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
+     */
+    String ofWatermarkInScope(String scopeName, String watermarkName);
+
+    /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified KeyValueTable
      * within the specified scope.
      *

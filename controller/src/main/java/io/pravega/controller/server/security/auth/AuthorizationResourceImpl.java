@@ -20,6 +20,7 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     private static final String TAG_STREAM = "stream";
     private static final String TAG_READERGROUP = "reader-group";
     private static final String TAG_KEYVALUETABLE = "key-value-table";
+    private static final String TAG_WATERMARK = "watermark";
 
     private static final String ROOT_RESOURCE = String.format("%s/", DOMAIN_PART_SUFFIX);
 
@@ -56,6 +57,13 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
         return String.format("%s/%s:%s", ofScope(scopeName), TAG_READERGROUP, readerGroupName);
+    }
+
+    @Override
+    public String ofWatermarkInScope(String scopeName, String watermarkName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(watermarkName, "watermarkName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_WATERMARK, watermarkName);
     }
 
     @Override
