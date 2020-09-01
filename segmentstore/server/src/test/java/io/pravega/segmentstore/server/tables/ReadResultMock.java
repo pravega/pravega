@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -20,6 +21,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 /**
  * Mocks a {@link ReadResult} wrapping a {@link ByteArraySegment} as its source.
@@ -29,13 +31,14 @@ import lombok.RequiredArgsConstructor;
 class ReadResultMock implements ReadResult {
     //region Members
 
-    @Getter
     private final long streamSegmentStartOffset;
     private final ArrayView data;
     private final int maxResultLength;
     private final int entryLength;
     private int consumedLength;
     private boolean closed;
+    @Setter
+    private boolean copyOnRead = false;
 
     //endregion
 
@@ -112,8 +115,12 @@ class ReadResultMock implements ReadResult {
             if (this.type == ReadResultEntryType.Truncated) {
                 this.content.completeExceptionally(new StreamSegmentTruncatedException(getStreamSegmentStartOffset()));
             } else {
+                BufferView result = data.slice(this.relativeOffset, this.requestedReadLength);
+                if (isCopyOnRead()) {
+                    result = new ByteArraySegment(result.getCopy());
+                }
                 this.content.complete(new ReadResultEntryContents(
-                        data.getReader(this.relativeOffset, this.requestedReadLength),
+                        result.getReader(),
                         this.requestedReadLength));
             }
         }
