@@ -130,11 +130,13 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public void shutdown() {
 
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public List<Runnable> shutdownNow() {
             return null;
         }

@@ -24,6 +24,7 @@ public class FileSystemStorageConfig {
     //region Config Names
 
     public static final Property<String> ROOT = Property.named("root", "/fs/");
+    public static final Property<Boolean> REPLACE_ENABLED = Property.named("replace.enable", false);
     public static final String COMPONENT_CODE = "filesystem";
 
     //endregion
@@ -37,6 +38,13 @@ public class FileSystemStorageConfig {
     @Getter
     private final String root;
 
+    /**
+     * Whether {@link FileSystemStorage#withReplaceSupport()} should return a {@link FileSystemStorage} that supports
+     * replacement or not.
+     */
+    @Getter
+    private final boolean replaceEnabled;
+
     //endregion
 
     //region Constructor
@@ -48,6 +56,7 @@ public class FileSystemStorageConfig {
      */
     private FileSystemStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.root = properties.get(ROOT);
+        this.replaceEnabled = properties.getBoolean(REPLACE_ENABLED);
     }
 
     /**

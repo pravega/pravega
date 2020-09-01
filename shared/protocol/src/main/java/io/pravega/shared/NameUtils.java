@@ -35,6 +35,21 @@ public final class NameUtils {
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
     /**
+     * Size of the prefix or suffix included with the user stream name.
+     */
+    public static final int MAX_PREFIX_OR_SUFFIX_SIZE = 5;
+
+    /**
+     * Size of the overall name as permitted by the host.
+     */
+    public static final int MAX_NAME_SIZE = 255;
+
+    /**
+     * Size of the name that can be specified by user.
+     */
+    public static final int MAX_GIVEN_NAME_SIZE = MAX_NAME_SIZE - MAX_PREFIX_OR_SUFFIX_SIZE;
+
+    /**
      * This is used for composing metric tags.
      */
     static final String TAG_SCOPE = "scope";
@@ -119,7 +134,6 @@ public final class NameUtils {
      */
     @Getter(AccessLevel.PACKAGE)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
-
 
     //endregion
 
@@ -624,6 +638,7 @@ public final class NameUtils {
      */
     public static String validateUserStreamName(String name) {
         Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.length() <= MAX_GIVEN_NAME_SIZE, "Name cannot exceed %s characters", MAX_GIVEN_NAME_SIZE);
         Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
     }
@@ -648,6 +663,7 @@ public final class NameUtils {
 
         // In addition to user stream names, pravega internally created stream have a special prefix.
         final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[\\p{Alnum}\\.\\-]+";
+        Preconditions.checkArgument(name.length() <= MAX_NAME_SIZE, "Name cannot exceed %s characters", MAX_NAME_SIZE);
         Preconditions.checkArgument(name.matches(matcher), "Name must be " + matcher);
         return name;
     }
@@ -659,7 +675,10 @@ public final class NameUtils {
      * @return The name in the case is valid.
      */
     public static String validateUserScopeName(String name) {
-        return validateUserStreamName(name);
+        Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.length() <= MAX_NAME_SIZE, "Name cannot exceed %s characters", MAX_NAME_SIZE);
+        Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
+        return name;
     }
 
     /**

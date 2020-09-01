@@ -45,13 +45,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.store.InMemoryScope;
-import io.pravega.controller.store.kvtable.InMemoryKVTMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -82,7 +79,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -154,9 +150,7 @@ public class ControllerGrpcAuthFocusedTest {
     public void setup() throws IOException {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
-        this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(EXECUTOR));
-        Map<String, InMemoryScope> scopeMap = ((InMemoryStreamMetadataStore) streamStore).getScopes();
-        ((InMemoryKVTMetadataStore) kvtStore).setScopes(scopeMap);
+        this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, EXECUTOR));
 
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();

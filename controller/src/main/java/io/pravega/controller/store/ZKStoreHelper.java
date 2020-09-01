@@ -45,14 +45,7 @@ public class ZKStoreHelper {
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
-        this.cache = new Cache(x -> {
-            // The cache key has zk path (key.getPath) of the entity to cache 
-            // and a function (key.getFromBytesFunc()) for deserializing the byte array into meaningful data objects.
-            // The cache stores CompletableFutures which upon completion will hold the deserialized data object. 
-            ZkCacheKey<?> key = (ZkCacheKey<?>) x;
-            return this.getData(key.getPath(), key.getFromBytesFunc())
-                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
-        });
+        this.cache = new Cache();
     }
 
     /**
@@ -428,8 +421,18 @@ public class ZKStoreHelper {
     }
 
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
-        return cache.getCachedData(new ZkCacheKey<>(path, id, fromBytes))
-                .thenApply(this::getVersionedMetadata);
+        ZkCacheKey<T> cacheKey = new ZkCacheKey<>(path, id, fromBytes);
+        VersionedMetadata<?> cached = cache.getCachedData(cacheKey);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(getVersionedMetadata(cached));
+        } else {
+            return getData(path, fromBytes)
+                .thenApply(v -> {
+                    VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
+                    cache.put(cacheKey, record);
+                    return record;
+                });
+        }
     }
 
     @SuppressWarnings("unchecked")

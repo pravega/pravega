@@ -66,7 +66,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -332,7 +331,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Ignore("Ignoring for short term until issues #5010 and #5009 are fixed.")
     @Test
     public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
         endToEndProcessWithFencing(true, true);
@@ -673,7 +671,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            AtomicReference<StreamSegmentInformation> info = new AtomicReference((StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join());
+            AtomicReference<StreamSegmentInformation> info = new AtomicReference<>((StreamSegmentInformation) store.getStreamSegmentInfo(segmentName, TIMEOUT).join());
             Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedData.length, info.get().getLength());
 
             AtomicLong expectedCurrentOffset = new AtomicLong(0);
