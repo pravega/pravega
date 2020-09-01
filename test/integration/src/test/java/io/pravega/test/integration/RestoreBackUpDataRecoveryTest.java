@@ -310,7 +310,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the data recovery scenario with just one segment container. Segments recovery is also attained using just one
+     * Tests the data recovery scenario with just one segment container. Segments recovery is attained using just one
      * debug segment container.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just one segment container.
@@ -326,134 +326,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoverySingleContainer() throws Exception {
-        int instanceId = 0;
-        int containerCount = 1;
-        // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService());
-        log.info("Created a long term storage.");
-
-        // Start a new BK & ZK, segment store and controller
-        this.bookKeeperStarter = setUpNewBK(instanceId++);
-        @Cleanup
-        SegmentStoreStarter segmentStoreStarter = startSegmentStore(this.storageFactory, null, containerCount);
-        @Cleanup
-        ControllerStarter controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort,
-                containerCount);
-
-        // Create two streams for writing data onto two different segments
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
-        log.info("Created two streams.");
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerStarter.controllerURI).build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
-        @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
-
-        log.info("Writing events on to stream: {}", STREAM1);
-        writeEvents(STREAM1, clientFactory); // write 300 events on one segment
-        log.info("Writing events on to stream: {}", STREAM2);
-        writeEvents(STREAM2, clientFactory); // write 300 events on other segment
-
-        // Verify events write by reading them.
-        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Verified that events were written, by reading them.");
-
-        readerGroupManager.close();
-        clientFactory.close();
-
-        controllerStarter.close(); // Shut down the controller
-
-        // Get names of all the segments created.
-        ConcurrentHashMap<String, Boolean> allSegments = segmentStoreStarter.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
-
-        // Get the long term storage from the running pravega instance
-        @Cleanup
-        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
-
-        // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), segmentStoreStarter.segmentsTracker, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        segmentStoreStarter.close(); // Shutdown SegmentStore
-        log.info("Segment Store Shutdown");
-
-        this.bookKeeperStarter.close(); // Shutdown BookKeeper & ZooKeeper
-        this.bookKeeperStarter = null;
-        log.info("BookKeeper & ZooKeeper shutdown");
-
-        // start a new BookKeeper and ZooKeeper.
-        this.bookKeeperStarter = setUpNewBK(instanceId++);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
-                executorService());
-        this.dataLogFactory.initialize();
-        log.info("Started a new BookKeeper and ZooKeeper.");
-
-        // Create the environment for DebugSegmentContainer.
-        @Cleanup
-        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
-        // Use dataLogFactory from new BK instance.
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
-                executorService());
-
-        // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-
-        // Create a debug segment container instance using a new dataLog and old storage.
-        DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
-                DebugStreamSegmentContainerTests.MetadataCleanupContainer(CONTAINER_ID, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
-                context.getDefaultExtensions(), executorService());
-
-        Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        debugStreamSegmentContainerMap.put(CONTAINER_ID, debugStreamSegmentContainer);
-
-        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, CONTAINER_ID).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        // List segments from storage and recover them using debug segment container instance.
-        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
-
-        // Wait for metadata segment to be flushed to LTS
-        String metadataSegmentName = NameUtils.getMetadataSegmentName(CONTAINER_ID);
-        waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainer, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        log.info("Long term storage has been update with a new container metadata segment.");
-
-        // Stop the debug segment container
-        this.dataLogFactory.close();
-        Services.stopAsync(debugStreamSegmentContainerMap.get(CONTAINER_ID), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        debugStreamSegmentContainerMap.get(CONTAINER_ID).close();
-        log.info("Segments have been recovered.");
-
-        // Start a new segment store and controller
-        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory, containerCount);
-        controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort, containerCount);
-        log.info("Started segment store and controller again.");
-
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerStarter.controllerURI).build());
-        clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
-        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
-
-        // Try creating the same segments again with the new controller
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
-
-        // Try reading all events again
-        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Read all events again to verify that segments were recovered.");
+        testRecovery(1, false);
     }
 
     /**
@@ -473,146 +346,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryMultipleContainers() throws Exception {
-        int instanceId = 0;
-        int containerCount = 4;
-        // Creating a long term storage only once here.
-        this.storageFactory = new InMemoryStorageFactory(executorService());
-        log.info("Created a long term storage.");
-
-        // Start a new BK & ZK, segment store and controller
-        this.bookKeeperStarter = setUpNewBK(instanceId++);
-        @Cleanup
-        SegmentStoreStarter segmentStoreStarter = startSegmentStore(this.storageFactory, null, containerCount);
-        @Cleanup
-        ControllerStarter controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort,
-                containerCount);
-
-        // Create two streams for writing data onto two different segments
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
-        log.info("Created two streams.");
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerStarter.controllerURI).build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
-        @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
-
-        log.info("Writing events on to stream: {}", STREAM1);
-        writeEvents(STREAM1, clientFactory); // write 300 events on one segment
-        log.info("Writing events on to stream: {}", STREAM2);
-        writeEvents(STREAM2, clientFactory); // write 300 events on other segment
-
-        // Verify events write by reading them.
-        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Verified that events were written, by reading them.");
-
-        readerGroupManager.close();
-        clientFactory.close();
-
-        controllerStarter.close(); // Shut down the controller
-
-        // Get names of all the segments created.
-        ConcurrentHashMap<String, Boolean> allSegments = segmentStoreStarter.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
-
-        // Get the long term storage from the running pravega instance
-        @Cleanup
-        Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
-
-        // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), segmentStoreStarter.segmentsTracker, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        segmentStoreStarter.close(); // Shutdown SegmentStore
-        log.info("Segment Store Shutdown");
-
-        this.bookKeeperStarter.close(); // Shutdown BookKeeper & ZooKeeper
-        this.bookKeeperStarter = null;
-        log.info("BookKeeper & ZooKeeper shutdown");
-
-        // start a new BookKeeper and ZooKeeper.
-        this.bookKeeperStarter = setUpNewBK(instanceId++);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperStarter.bkConfig.get(), this.bookKeeperStarter.zkClient.get(),
-                executorService());
-        this.dataLogFactory.initialize();
-        log.info("Started a new BookKeeper and ZooKeeper.");
-
-        // Create the environment for DebugSegmentContainer.
-        @Cleanup
-        DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
-        // Use dataLogFactory from new BK instance.
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
-                executorService());
-
-        // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-
-        // Create a debug segment container instances using a new dataLog and old storage.
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
-                    DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
-                    context.getDefaultExtensions(), executorService());
-
-            Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
-
-            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        }
-
-        // List segments from storage and recover them using debug segment container instance.
-        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
-
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            // Wait for metadata segment to be flushed to LTS
-            String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
-            waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainerMap.get(containerId),
-                    storage)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Long term storage has been update with a new container metadata segment.");
-
-            // Stop the debug segment container
-            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            debugStreamSegmentContainerMap.get(containerId).close();
-        }
-        log.info("Segments have been recovered.");
-
-        this.dataLogFactory.close();
-        // Start a new segment store and controller
-        segmentStoreStarter = startSegmentStore(this.storageFactory, this.dataLogFactory, containerCount);
-        controllerStarter = startController(this.bookKeeperStarter.bkPort, segmentStoreStarter.servicePort, containerCount);
-        log.info("Started segment store and controller again.");
-
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerStarter.controllerURI).build());
-        clientFactory = new ClientFactoryImpl(SCOPE, controllerStarter.controller, connectionFactory);
-        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
-
-        // Try creating the same segments again with the new controller
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM1);
-        createScopeStream(controllerStarter.controller, SCOPE, STREAM2);
-
-        // Try reading all events again
-        readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        log.info("Read all events again to verify that segments were recovered.");
+        testRecovery(4, false);
     }
 
     /**
      * Tests the data recovery scenario with transactional writer. Events are written using a transactional writer.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events to two different segments.
+     *  2. Writes 300 events in the form of transactions to two different segments.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
      *  5. Deletes container metadata segment and its attribute segment from the old LTS.
@@ -624,8 +365,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryTransactionalWriter() throws Exception {
+        testRecovery(4, true);
+    }
+
+    /**
+     * Performs a data recovery test(with all segments flushed to the long-term storage beforehand) using the given parameters.
+     * @param containerCount    The number of containers to be used in the pravega instance and the number of debug segment
+     *                          containers that will be started.
+     * @param withTransaction   A boolean to indicate weather to write events in the form of transactions or not.
+     * @throws Exception        In case of an exception occurred while execution.
+     */
+    private void testRecovery(int containerCount, boolean withTransaction) throws Exception {
         int instanceId = 0;
-        int containerCount = 4;
 
         // Creating a long term storage only once here.
         this.storageFactory = new InMemoryStorageFactory(executorService());
@@ -652,10 +403,17 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerStarter.controller, clientFactory);
 
-        log.info("Writing events on to stream: {}", STREAM1);
-        writeTransactionalEvents(STREAM1, clientFactory); // write 300 events on one segment
-        log.info("Writing events on to stream: {}", STREAM2);
-        writeTransactionalEvents(STREAM2, clientFactory); // write 300 events on other segment
+        if (withTransaction) {
+            log.info("Writing transactional events on to stream: {}", STREAM1);
+            writeTransactionalEvents(STREAM1, clientFactory); // write 300 events on one segment
+            log.info("Writing transactional events on to stream: {}", STREAM2);
+            writeTransactionalEvents(STREAM2, clientFactory); // write 300 events on other segment
+        } else {
+            log.info("Writing events on to stream: {}", STREAM1);
+            writeEvents(STREAM1, clientFactory); // write 300 events on one segment
+            log.info("Writing events on to stream: {}", STREAM2);
+            writeEvents(STREAM2, clientFactory); // write 300 events on other segment
+        }
 
         // Verify events write by reading them.
         readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
