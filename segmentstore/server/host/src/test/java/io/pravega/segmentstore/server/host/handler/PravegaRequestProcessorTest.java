@@ -109,6 +109,7 @@ public class PravegaRequestProcessorTest {
         boolean closed = false;
         final List<ReadResultEntry> results;
         long currentOffset = 0;
+        boolean copyOnRead = false;
 
         @Override
         public boolean hasNext() {
