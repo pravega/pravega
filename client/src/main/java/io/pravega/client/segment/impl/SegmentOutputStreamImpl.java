@@ -464,7 +464,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void errorMessage(WireCommands.ErrorMessage errorMessage) {
             log.warn("Request {} produced an unhandled {} : {}",
                     errorMessage.getRequestId(),
-                    errorMessage.getErrorCode().getExceptionType(),
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
                     errorMessage.getMessage());
 
             throw errorMessage.getThrowableException();

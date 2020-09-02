@@ -154,7 +154,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         public void errorMessage(WireCommands.ErrorMessage errorMessage) {
             log.warn("Request {} produced an unhandled {} on segment {} : {}",
                     errorMessage.getRequestId(),
-                    errorMessage.getErrorCode().getExceptionType(),
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
                     segmentId,
                     errorMessage.getMessage());
 

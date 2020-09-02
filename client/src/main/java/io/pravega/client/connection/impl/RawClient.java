@@ -22,6 +22,7 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +59,8 @@ public class RawClient implements AutoCloseable {
                 }
             } else if (reply instanceof WireCommands.WrongHost) {
                 closeConnection(new ConnectionFailedException(reply.toString()));
+            } else if (reply instanceof WireCommands.ErrorMessage) {
+                    errorMessage((ErrorMessage) reply);
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
@@ -85,7 +88,7 @@ public class RawClient implements AutoCloseable {
         public void errorMessage(WireCommands.ErrorMessage errorMessage) {
             log.warn("Request {} produced an unhandled {} on segment {} : {}",
                     errorMessage.getRequestId(),
-                    errorMessage.getErrorCode().getExceptionType(),
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
                     segmentId,
                     errorMessage.getMessage());
 

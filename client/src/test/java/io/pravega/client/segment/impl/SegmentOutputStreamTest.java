@@ -102,6 +102,27 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
+    public void testRecvErrorMessage() throws SegmentSealedException, ConnectionFailedException {
+        int requestId = 0;
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+
+        ReplyProcessor processor = cf.getProcessor(uri);
+
+        WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
+    }
+
+
+    @Test(timeout = 10000)
     public void testReconnectWorksWithTokenTaskInInternalExecutor() {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);

@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import io.pravega.test.common.AssertExtensions;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -76,6 +77,23 @@ public class RawClientTest {
         processor.process(reply);
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
+    }
+
+    @Test
+    public void testRecvErrorMessage() throws InterruptedException, ExecutionException, ConnectionFailedException {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
+
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        WireCommands.ErrorMessage reply = new ErrorMessage(requestId, "error.", ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
     }
 
     @Test
