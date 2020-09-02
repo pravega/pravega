@@ -102,8 +102,8 @@ if [ "$readyValueBk" != "1/1" ];then
 
 #Step 8: Creating Pravega-OP
 echo "Creating Pravega Operator"
-helm install prop $publishedChartName/pravega-operator --version=$pravegaOperatorVersion --set testmode.enabled=true
-prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
+CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | awk '{print $2}')"
+helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --wait
 kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
 readyValuePr="$(kubectl get deploy | awk '$1 == "prop-pravega-operator" { print $2 }')"
 if [ "$readyValuePr" != "1/1" ];then
