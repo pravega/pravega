@@ -99,6 +99,7 @@ public class IntermittentCnxnFailureTest {
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));

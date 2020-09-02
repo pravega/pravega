@@ -34,6 +34,7 @@ public class StatsProviderTest {
         CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
         MetricsConfig appConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, true)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
@@ -53,6 +54,7 @@ public class StatsProviderTest {
     @Test
     public void testStatsProviderStartWithoutExporting() {
         MetricsConfig appConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, true)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, true)
                 .build();
@@ -74,6 +76,7 @@ public class StatsProviderTest {
     @Test (expected = Exception.class)
     public void testStatsProviderNoRegisterBound() {
         MetricsConfig appConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
