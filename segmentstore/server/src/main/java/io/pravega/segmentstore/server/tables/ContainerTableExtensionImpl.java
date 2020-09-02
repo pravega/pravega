@@ -65,6 +65,10 @@ import lombok.val;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
+    /**
+     * Default value used for when no offset is provided for a remove or put call.
+     */
+    private static final int NO_OFFSET = -1;
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     /**
      * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
@@ -76,12 +80,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
-    private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+    @VisibleForTesting
+    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
             Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
-    /**
-     * Default value used for when no offset is provided for a remove or put call.
-     */
-    private static final int NO_OFFSET = -1;
 
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -171,6 +172,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
         if (sorted) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
@@ -181,7 +183,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
         val attributeUpdates = attributes
                 .entrySet().stream()
-                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
         logRequest("createSegment", segmentName);
         return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);

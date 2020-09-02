@@ -189,6 +189,9 @@ class TableCompactor {
      */
     private CompletableFuture<CompactionArgs> readCandidates(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
         ReadResult rr = segment.read(startOffset, maxLength, timer.getRemaining());
+        // Make a copy of all retrieved data since it may take a while until we are ready to write it back to the segment;
+        // we do not want the cache to be evicted from underneath us and thus invalidate our result.
+        rr.setCopyOnRead(true);
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
                 .thenApply(inputData -> parseEntries(inputData, startOffset, maxLength));
     }

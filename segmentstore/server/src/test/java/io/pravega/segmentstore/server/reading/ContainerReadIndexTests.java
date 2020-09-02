@@ -1046,6 +1046,59 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to return a copy of the data from the ReadIndex as opposed from a direct reference.
+     */
+    @Test
+    public void testCopyOnRead() throws Exception {
+        final long segmentId = 0;
+        final int appendLength = 100;
+        final byte[] data1 = new byte[appendLength];
+        final byte[] data2 = new byte[appendLength];
+        final Random rnd = new Random(0);
+        rnd.nextBytes(data1);
+        rnd.nextBytes(data2);
+
+        // Create all the segments in the metadata.
+        @Cleanup
+        TestContext context = new TestContext();
+
+        createSegment(0, context);
+
+        // Append some data and intercept the address it was written to.
+        val address = new AtomicInteger(-1);
+        context.cacheStorage.insertCallback = address::set;
+        context.metadata.getStreamSegmentMetadata(segmentId).setLength(appendLength);
+        context.readIndex.append(segmentId, 0, new ByteArraySegment(data1));
+        Assert.assertNotEquals(-1, address.get());
+
+        // Initiates the reads and collect the result as a composite BufferView. Do not copy the data yet.
+        val rr1 = context.readIndex.read(segmentId, 0, appendLength, TIMEOUT);
+        rr1.setCopyOnRead(true);
+        val read1Builder = BufferView.builder();
+        rr1.forEachRemaining(rre -> read1Builder.add(rre.getContent().join()));
+        val read1Buffer = read1Builder.build();
+
+        val rr2 = context.readIndex.read(segmentId, 0, appendLength, TIMEOUT);
+        rr2.setCopyOnRead(false);
+        val read2Builder = BufferView.builder();
+        rr2.forEachRemaining(rre -> read2Builder.add(rre.getContent().join()));
+        val read2Buffer = read2Builder.build();
+
+        // Pretty brutal, but this simulates cache evicted and cache block reused. Delete data at its address and
+        // insert new one.
+        context.cacheStorage.delete(address.get());
+        val address2 = context.cacheStorage.insert(new ByteArraySegment(data2));
+        Assert.assertEquals(address.get(), address2);
+
+        // Now make use of the generated BufferViews. One should return the original data since we made a copy before
+        // we changed the back-end cache, and the second one should return the current contents of the cache block.
+        val read1 = read1Buffer.getCopy();
+        val read2 = read2Buffer.getCopy();
+        Assert.assertArrayEquals("Copy-on-read data not preserved.", data1, read1);
+        Assert.assertArrayEquals("Not expected copy-on-read data.", data2, read2);
+    }
+
+    /**
      * Tests the ability to evict entries from the ReadIndex under various conditions:
      * * If an entry is aged out
      * * If an entry is pushed out because of cache space pressure.

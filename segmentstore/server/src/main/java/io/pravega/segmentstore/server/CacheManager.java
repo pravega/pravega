@@ -130,6 +130,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 assert false : "CacheManager closed with " + pendingBytes + " outstanding bytes."; // This will fail any unit tests.
             }
             log.info("{} Closed.", TRACE_OBJECT_ID);
+            this.metrics.close();
         }
     }
 

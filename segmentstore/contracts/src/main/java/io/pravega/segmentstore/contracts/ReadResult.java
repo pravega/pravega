@@ -63,9 +63,27 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
      * Note that this does not track the individual consumption within the objects returned by next().
      *
      * @return number of bytes consumed via the next method invocation
-     *
      */
     int getConsumedLength();
+
+    /**
+     * Gets a value indicating whether "Copy-on-Read" is enabled for Cache retrievals. See {@link #setCopyOnRead} for
+     * more details.
+     *
+     * @return True if copy-on-read is enabled for this {@link ReadResult}, false otherwise.
+     */
+    boolean isCopyOnRead();
+
+    /**
+     * Sets a value indicating whether "Copy-on-Read" is to be enabled for any Cache entry retrievals
+     * ({@link ReadResultEntry#getType()} equals {@link ReadResultEntryType#Cache}). If true, then any data extracted
+     * from the Cache will be copied into a new buffer (and thus decoupled from the cache). Use this option if you expect
+     * your result to be used across requests or for longer periods of time, as this will prevent the {@link ReadResult}
+     * from being invalidated in case of an eventual cache eviction.
+     *
+     * @param value True if enabling copy-on-read for this {@link ReadResult}, false otherwise.
+     */
+    void setCopyOnRead(boolean value);
 
     /**
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
