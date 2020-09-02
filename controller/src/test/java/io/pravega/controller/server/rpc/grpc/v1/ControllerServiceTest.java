@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.v1;
+package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;

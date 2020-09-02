@@ -218,12 +218,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
                                                                             scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
-                                             delegationToken -> controllerService.createStream(scope, stream,
-                                                                                               ModelHelper.encode(request),
-                                                                                               System.currentTimeMillis()),
-                                             responseObserver, requestTag);
+
+        if (stream.startsWith("_RG")) {
+            authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                    authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ),
+                    delegationToken -> controllerService.createStream(scope, stream,
+                            ModelHelper.encode(request),
+                            System.currentTimeMillis()),
+                    responseObserver, requestTag);
+        } else {
+            authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                    authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                    delegationToken -> controllerService.createStream(scope, stream,
+                            ModelHelper.encode(request),
+                            System.currentTimeMillis()),
+                    responseObserver, requestTag);
+        }
     }
 
     @Override
@@ -313,12 +323,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     Supplier<String> createDelegationTokenSupplier(StreamInfo request) {
         return () -> {
             String resource = authorizationResource.ofStreamInScope(request.getScope(), request.getStream());
-            if (request.getRequestedPermission().equals("")) {
+            if (request.getRequestedPermission().equals("") && !request.getStream().startsWith("_")) {
                 // For backward compatibility
                 return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
                         AuthHandler.Permissions.READ_UPDATE);
             } else {
-
                 AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
                 AuthHandler.Permissions requestedPermissions =
                         PermissionsHelper.parse(request.getRequestedPermission(), AuthHandler.Permissions.READ);
@@ -357,10 +366,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
         log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+        authenticateExecuteAndProcessResults(this.createDelegationTokenSupplier(request.getStreamInfo()),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getSegments", request.getStreamInfo().getScope(),
                             request.getStreamInfo().getStream());
@@ -756,9 +762,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getDelegationToken(StreamInfo request, StreamObserver<DelegationToken> responseObserver)  {
         log.info("getDelegationToken called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamInScope(request.getScope(), request.getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+        authenticateExecuteAndProcessResults(this.createDelegationTokenSupplier(request),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
                     return CompletableFuture.completedFuture(DelegationToken

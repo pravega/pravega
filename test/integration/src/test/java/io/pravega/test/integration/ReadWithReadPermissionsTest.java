@@ -60,9 +60,9 @@ public class ReadWithReadPermissionsTest {
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",
                 "prn::/scope:MarketData,READ_UPDATE",
-                "prn::/scope:MarketData/stream:StockPriceUpdates,READ_UPDATE",
-                "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ_UPDATE",
-                "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ_UPDATE"
+                "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
+                "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ",
+                "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ"
         ));
         log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
 

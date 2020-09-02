@@ -7,14 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.v1;
+package io.pravega.controller.server.rpc.grpc.v1;
 
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -25,8 +23,8 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.mocks.ControllerEventTableWriterMock;
 import io.pravega.controller.mocks.EventHelperMock;
+import io.pravega.controller.mocks.ControllerEventTableWriterMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -42,44 +40,42 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Table
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
 
 /**
- * PravegaTables stream store configuration.
+ * Zookeeper stream store configuration.
  */
-public class PravegaTablesControllerServiceImplTest extends ControllerServiceImplTest {
+public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
     private TestingServer zkServer;
     private CuratorFramework zkClient;
@@ -92,7 +88,6 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
     private StreamMetadataStore streamStore;
-    private SegmentHelper segmentHelper;
 
     private KVTableMetadataStore kvtStore;
     private TableMetadataTasks kvtMetadataTasks;
@@ -100,6 +95,8 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
 
     @Override
     public ControllerService getControllerService() throws Exception {
+        final HostControllerStore hostStore;
+        final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -111,36 +108,33 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
-        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), 
-                zkClient, executorService);
+        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
-        this.streamRequestHandler = spy(new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
+        this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
-                executorService));
+                executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        // KVTable
-        this.kvtStore = KVTableStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
-                zkClient, executorService);
+        this.kvtStore = KVTableStoreFactory.createZKStore(zkClient, executorService);
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
@@ -179,46 +173,96 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     }
 
     @Test
-    public void testTimeout() {
-        streamMetadataTasks.setCompletionTimeoutMillis(500L);
-        String stream = "timeoutStream";
-        createScopeAndStream(SCOPE1, stream, ScalingPolicy.fixed(2));
+    public void createTransactionSuccessTest() {
+        int segmentsCount = 4;
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(segmentsCount));
+        Controller.CreateTxnResponse response = createTransaction(SCOPE1, STREAM1, 10000);
+        assertEquals(segmentsCount, response.getActiveSegmentsCount());
+    }
 
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processUpdateStream(any());
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
-        ResultObserver<Controller.UpdateStreamStatus> result = new ResultObserver<>();
-        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, stream, configuration2), result);
-        Predicate<Throwable> deadlineExceededPredicate = e -> {
-            Throwable unwrap = Exceptions.unwrap(e);
-            return unwrap instanceof StatusRuntimeException &&
-                    ((StatusRuntimeException) unwrap).getStatus().getCode().equals(Status.DEADLINE_EXCEEDED.getCode());
-        };
-        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
-        reset(streamRequestHandler);
+    @Test
+    public void transactionTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
+        Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000).getTxnId();
+        Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000).getTxnId();
 
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processTruncateStream(any());
-        result = new ResultObserver<>();
-        this.controllerService.truncateStream(Controller.StreamCut.newBuilder()
-                                                                  .setStreamInfo(Controller.StreamInfo.newBuilder()
-                                                                                                      .setScope(SCOPE1)
-                                                                                                      .setStream(stream)
-                                                                                                      .build())
-                                                                  .putCut(0, 0).putCut(1, 0).build(), result);
-        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
-        reset(streamRequestHandler);
+        // Abort first txn.
+        Controller.TxnStatus status = closeTransaction(SCOPE1, STREAM1, txnId1, true);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
 
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processSealStream(any());
-        result = new ResultObserver<>();
-        this.controllerService.sealStream(ModelHelper.createStreamInfo(SCOPE1, stream), result);
-        AssertExtensions.assertThrows("Timeout did not happen", result::get, deadlineExceededPredicate);
-        reset(streamRequestHandler);
+        // Commit second txn.
+        status = closeTransaction(SCOPE1, STREAM1, txnId2, false);
+        Assert.assertEquals(Controller.TxnStatus.Status.SUCCESS, status.getStatus());
+    }
 
-        streamStore.setState(SCOPE1, stream, State.SEALED, null, executorService).join();
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(streamRequestHandler).processDeleteStream(any());
-        ResultObserver<Controller.DeleteStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.deleteStream(ModelHelper.createStreamInfo(SCOPE1, stream), result2);
-        AssertExtensions.assertThrows("Timeout did not happen", result2::get, deadlineExceededPredicate);
-        reset(streamRequestHandler);
-        streamMetadataTasks.setCompletionTimeoutMillis(Duration.ofMinutes(2).toMillis());
+    @Test
+    @Override
+    public void testListScopes() {
+        ResultObserver<Controller.ScopesResponse> list = new ResultObserver<>();
+        this.controllerService.listScopes(Controller.ScopesRequest.newBuilder().setContinuationToken(
+                Controller.ContinuationToken.newBuilder().build()).build(), list);
+        AssertExtensions.assertThrows("", list::get, 
+                e -> Exceptions.unwrap(e) instanceof StatusRuntimeException);
+    }
+    
+    private Controller.TxnStatus closeTransaction(final String scope,
+                                                  final String stream,
+                                                  final Controller.TxnId txnId,
+                                                  final boolean abort) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
+        Controller.TxnRequest request = Controller.TxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setTxnId(txnId)
+                .build();
+        ResultObserver<Controller.TxnStatus> resultObserver = new ResultObserver<>();
+        if (abort) {
+            this.controllerService.abortTransaction(request, resultObserver);
+        } else {
+            this.controllerService.commitTransaction(request, resultObserver);
+        }
+        Controller.TxnStatus status = resultObserver.get();
+        Assert.assertNotNull(status);
+        return resultObserver.get();
+    }
+
+    private Controller.CreateTxnResponse createTransaction(final String scope, final String stream, final long lease) {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
+        Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
+                .setStreamInfo(streamInfo)
+                .setLease(lease)
+                .build();
+        ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.createTransaction(request, resultObserver);
+        Controller.CreateTxnResponse response = resultObserver.get();
+        Assert.assertTrue(response != null);
+        return response;
+    }
+
+    @Test
+    @Override
+    public void createKeyValueTableTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void getCurrentSegmentsKeyValueTableTest() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void kvtablesInScopeTest() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void deleteKeyValueTableTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Key-Value Tables are not implemented in ZK Metadata.
     }
 }
