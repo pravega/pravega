@@ -1671,13 +1671,22 @@ public final class WireCommands {
             return new ErrorMessage(in.readLong(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
         }
 
+        public RuntimeException getThrowableException() {
+            switch (errorCode) {
+                case ILLEGAL_ARGUMENT_EXCEPTION:
+                    return new IllegalArgumentException(message);
+                default:
+                    return new RuntimeException(message);
+            }
+        }
+
         @Override
         public boolean isFailure() {
             return true;
         }
 
         public enum ErrorCode {
-            UNSPECIFIED(-1, null),                                         // indicates un-specified (for backward compatibility
+            UNSPECIFIED(-1, RuntimeException.class),                                         // indicates un-specified (for backward compatibility
             ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class); // indicates an IllegalArgumentException
 
             private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
