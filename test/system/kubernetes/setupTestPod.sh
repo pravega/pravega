@@ -88,7 +88,7 @@ if [ "$readyValueZk" != "1/1" ];then
 
 #Step 7: Creating BK-OP
 echo "Creating BK Operator"
-helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode=true
+helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode.enabled=true
 
 bkOpName="$(kubectl get pod | grep "bookkeeper-operator" | awk '{print $1}')"
 kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName
@@ -102,7 +102,7 @@ if [ "$readyValueBk" != "1/1" ];then
 
 #Step 8: Creating Pravega-OP
 echo "Creating Pravega Operator"
-helm install prop $publishedChartName/pravega-operator --version=$pravegaOperatorVersion --set testmode=true
+helm install prop $publishedChartName/pravega-operator --version=$pravegaOperatorVersion --set testmode.enabled=true
 prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
 kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
 readyValuePr="$(kubectl get deploy | awk '$1 == "prop-pravega-operator" { print $2 }')"
