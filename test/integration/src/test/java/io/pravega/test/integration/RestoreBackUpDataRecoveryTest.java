@@ -292,7 +292,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /**
-     * Creates a controller instance and runs it.
+     * Creates a client to read and write events.
      */
     private static class ClientRunner {
         private final ConnectionFactory connectionFactory;
