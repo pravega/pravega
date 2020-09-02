@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
@@ -295,28 +296,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
-
-        Supplier<String> authorizationSupplier = () -> {
-            String resource = authorizationResource.ofStreamInScope(request.getScope(), request.getStream());
-            if (request.getRequestedPermission().equals("")) {
-                // For backward compatibility
-                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
-                        AuthHandler.Permissions.READ_UPDATE);
-            } else {
-                AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
-                AuthHandler.Permissions requestedPermissions =
-                        PermissionsHelper.parse(request.getRequestedPermission(), AuthHandler.Permissions.READ);
-
-                this.grpcAuthHelper.checkAuthorization(resource, minimumPermissions);
-
-                if (!minimumPermissions.equals(requestedPermissions)) {
-                    this.grpcAuthHelper.checkAuthorization(resource, requestedPermissions);
-                }
-                return this.grpcAuthHelper.createDelegationToken(resource, requestedPermissions);
-            }
-        };
-
-        authenticateExecuteAndProcessResults(authorizationSupplier,
+        authenticateExecuteAndProcessResults(createDelegationTokenSupplier(request),
                 delegationToken -> {
                     log.debug("Delegation token getCurrentSegments is: {}", delegationToken);
                     logIfEmpty(delegationToken, "getCurrentSegments", request.getScope(), request.getStream());
@@ -327,6 +307,32 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                     .build());
                 },
                 responseObserver);
+    }
+
+    @VisibleForTesting
+    Supplier<String> createDelegationTokenSupplier(StreamInfo request) {
+        return () -> {
+            String resource = authorizationResource.ofStreamInScope(request.getScope(), request.getStream());
+            if (request.getRequestedPermission().equals("")) {
+                // For backward compatibility
+                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
+                        AuthHandler.Permissions.READ_UPDATE);
+            } else {
+
+                AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
+                AuthHandler.Permissions requestedPermissions =
+                        PermissionsHelper.parse(request.getRequestedPermission(), AuthHandler.Permissions.READ);
+
+                // Authorize the operation call
+                this.grpcAuthHelper.checkAuthorization(resource, minimumPermissions);
+
+                if (!minimumPermissions.equals(requestedPermissions)) {
+                    // Authorize that the user is authorized for the specified permission
+                    this.grpcAuthHelper.checkAuthorization(resource, requestedPermissions);
+                }
+                return this.grpcAuthHelper.createDelegationToken(resource, requestedPermissions);
+            }
+        };
     }
 
     @Override
