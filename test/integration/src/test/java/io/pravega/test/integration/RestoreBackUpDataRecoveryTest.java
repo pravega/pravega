@@ -100,7 +100,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
     private static final Duration READ_TIMEOUT = Duration.ofMillis(500);
-    private static final Duration TRANSACTION_TIMEOUT = Duration.ofMillis(500);
+    private static final Duration TRANSACTION_TIMEOUT = Duration.ofMillis(10000);
 
     /**
      * Write 300 events to different segments.
