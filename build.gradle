@@ -142,8 +142,10 @@ project('common') {
         //Do NOT add any additional dependencies here.
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 
     javadoc {
@@ -161,8 +163,10 @@ project('shared:authplugin') {
     dependencies {
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 
     javadoc {
@@ -242,8 +246,11 @@ project('shared:protocol') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(path: ':common', configuration: 'testRuntime')
     }
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 }
 
@@ -262,8 +269,10 @@ project('client') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 
     javadoc {
@@ -286,8 +295,10 @@ project('test:testcommon') {
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 
     javadoc {
@@ -600,8 +611,10 @@ project('shared:controller-api') {
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', '8'])
+    if (System.getProperty("buildJDK11Client") == null) {
+        tasks.withType(JavaCompile) {
+            options.compilerArgs.addAll(['--release', '8'])
+        }
     }
 
     javadoc {
