@@ -117,7 +117,6 @@ public class ReadWithReadPermissionsTest {
     @SneakyThrows
     @Test
     public void readerGroupReadsStreamsInAnotherScope() {
-
         // Writing data so that we can check the read flow
         final String scope1 = "scope1";
         final String stream1 = "stream1";
@@ -131,12 +130,6 @@ public class ReadWithReadPermissionsTest {
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", "prn::*,READ_UPDATE");
-        /*passwordInputFileEntries.put("reader", String.join(";",
-                "prn::/scope:scope1,READ_UPDATE",
-                "prn::/scope:scope1/stream:stream1,READ_UPDATE",
-                "prn::/scope:scope1/stream:_RGreaderGroup,READ_UPDATE",
-                "prn::/scope:scope1/stream:_MARKstream1,READ_UPDATE"
-        ));*/
         log.info("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
 
         @Cleanup
@@ -191,10 +184,83 @@ public class ReadWithReadPermissionsTest {
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
         String readMessage1 = reader.readNextEvent(10000).getEvent();
-        log.info("Read message1L [{}]", readMessage1);
+        log.info("Read message1: [{}]", readMessage1);
 
         String readMessage2 = reader.readNextEvent(10000).getEvent();
         log.info("Read message2: [{}]", readMessage2);
+    }
+
+    @SneakyThrows
+    @Test
+    public void clientsAccessingEachOthersReaderGroups() {
+
+        // Writing data so that we can check the read flow
+        final String scope = "testScope";
+        final String stream = "testStream";
+        final String scopeOfreaderGroups = "scopeOfRg";
+        final String message = "message";
+        final String rg1 = "readerGroupApp1";
+        final String rg2 = "readerGroupApp2";
+        final String user1 = "readerUser1";
+        final String user2 = "readerUser2";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put(user1, "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put(user2, "prn::*,READ_UPDATE");
+
+        log.info("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
+
+        @Cleanup
+        final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
+                600, this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
+        cluster.initialize();
+        log.info("Cluster initialized successfully");
+
+        final ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials("1111_aaaa", "creator"))
+                .build();
+
+        this.createStreams(writerClientConfig, scope, Arrays.asList(stream));
+        this.createScope(writerClientConfig, scopeOfreaderGroups);
+        log.info("Scopes/streams created");
+
+        writeDataToStream(scope, stream, message, writerClientConfig);
+        log.info("Wrote message {} to {}/{}", message, scope, stream);
+
+        // Create reader group for reader1
+        ClientConfig reader1ClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials("1111_aaaa", user1))
+                .build();
+
+        ReaderGroupConfig rg1Config = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, stream))
+                .disableAutomaticCheckpoints()
+                .build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager1 = ReaderGroupManager.withScope(scopeOfreaderGroups, reader1ClientConfig);
+        readerGroupManager1.createReaderGroup(rg1, rg1Config);
+        log.info("Created reader group with name {}", rg1);
+
+        // Create reader group for reader2
+
+        ClientConfig reader2ClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials("1111_aaaa", user2))
+                .build();
+
+        ReaderGroupConfig rg2Config = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, stream))
+                .disableAutomaticCheckpoints()
+                .build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager2 = ReaderGroupManager.withScope(scopeOfreaderGroups, reader2ClientConfig);
+        readerGroupManager2.createReaderGroup(rg2, rg2Config);
+        log.info("Created reader group with name {}", rg2);
+
+        readerGroupManager2.deleteReaderGroup(rg1);
     }
 
     private void writeDataToStream(String scope1, String stream1, String message1, ClientConfig writerClientConfig) throws InterruptedException, ExecutionException {
