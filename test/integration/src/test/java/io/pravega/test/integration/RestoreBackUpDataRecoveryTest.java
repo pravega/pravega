@@ -139,20 +139,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
+    private BookKeeperRunner bookKeeperRunner = null;
     private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
-    private BookKeeperRunner bookKeeperRunner = null;
 
     @After
     public void tearDown() throws Exception {
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
-            this.dataLogFactory = null;
         }
 
         if (this.bookKeeperRunner != null) {
             this.bookKeeperRunner.close();
-            this.bookKeeperRunner = null;
         }
     }
 
@@ -166,10 +164,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     private static class BookKeeperRunner implements AutoCloseable {
         private final int bkPort;
-        private BookKeeperServiceRunner bookKeeperServiceRunner;
-        private AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
-        private AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
-        private AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
+        private final BookKeeperServiceRunner bookKeeperServiceRunner;
+        private final AtomicReference<BookKeeperConfig> bkConfig = new AtomicReference<>();
+        private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
+        private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
 
         BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
             bkPort = TestUtils.getAvailableListenPort();
@@ -220,7 +218,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             val bk = this.bookKeeperServiceRunner;
             if (bk != null) {
                 bk.close();
-                this.bookKeeperServiceRunner = null;
             }
 
             val zkClient = this.zkClient.getAndSet(null);
@@ -291,6 +288,28 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         public void close() throws Exception {
             this.controller.close();
             this.controllerWrapper.close();
+        }
+    }
+
+    /**
+     * Creates a controller instance and runs it.
+     */
+    private static class ClientRunner {
+        private final ConnectionFactory connectionFactory;
+        private final ClientFactoryImpl clientFactory;
+        private final ReaderGroupManager readerGroupManager;
+
+        ClientRunner(ControllerRunner controllerRunner) {
+            this.connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                    .controllerURI(controllerRunner.controllerURI).build());
+            this.clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.controller, connectionFactory);
+            this.readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
+        }
+
+        public void close() {
+            this.readerGroupManager.close();
+            this.clientFactory.close();
+            this.connectionFactory.close();
         }
     }
 
@@ -380,23 +399,17 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         createScopeStream(controllerRunner.controller, SCOPE, STREAM2);
         log.info("Created two streams.");
 
+        // Create a client to read and write events.
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerRunner.controllerURI).build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.controller, connectionFactory);
-        @Cleanup
-        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
-
+        ClientRunner clientRunner = new ClientRunner(controllerRunner);
         // Write events to the streams.
-        writeEventsToStreams(clientFactory, withTransaction);
+        writeEventsToStreams(clientRunner.clientFactory, withTransaction);
 
         // Verify events have been written by reading from the streams.
-        readEventsFromStreams(clientFactory, readerGroupManager);
+        readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
         log.info("Verified that events were written, by reading them.");
 
-        readerGroupManager.close();
-        clientFactory.close();
+        clientRunner.close(); // Close the client.
 
         controllerRunner.close(); // Shut down the controller
 
@@ -452,17 +465,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, segmentStoreRunner.servicePort, containerCount);
         log.info("Started segment store and controller again.");
 
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerRunner.controllerURI).build());
-        clientFactory = new ClientFactoryImpl(SCOPE, controllerRunner.controller, connectionFactory);
-        readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
+        // Create the client with new controller.
+        clientRunner = new ClientRunner(controllerRunner);
 
         // Try creating the same segments again with the new controller
         createScopeStream(controllerRunner.controller, SCOPE, STREAM1);
         createScopeStream(controllerRunner.controller, SCOPE, STREAM2);
 
         // Try reading all events again to verify that the recovery was successful.
-        readEventsFromStreams(clientFactory, readerGroupManager);
+        readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
         log.info("Read all events again to verify that segments were recovered.");
     }
 
@@ -473,14 +484,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                                                                                   StorageFactory storageFactory) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, this.dataLogFactory,
-                executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService());
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < containerCount; containerId++) {
             DebugStreamSegmentContainerTests.MetadataCleanupContainer debugStreamSegmentContainer = new
                     DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, this.storageFactory,
+                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                     context.getDefaultExtensions(), executorService());
 
             Services.startAsync(debugStreamSegmentContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
