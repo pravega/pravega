@@ -86,8 +86,9 @@ public class ControllerMetricsTest {
     @Before
     public void setUp() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
-                                                   .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                                                   .build();
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
 
         MetricsProvider.initialize(metricsConfig);

@@ -1898,6 +1898,11 @@ public class ControllerImplTest {
                 KeyValueTableConfiguration.builder().partitionCount(1).build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createKVTableStatus, Throwable -> true);
+
+        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable6",
+                KeyValueTableConfiguration.builder().partitionCount(0).build());
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException.",
+                createKVTableStatus, IllegalArgumentException -> true);
     }
 
     @Test
