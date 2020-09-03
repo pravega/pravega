@@ -181,7 +181,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                     .ledgersPath("/pravega/bookkeeper/ledgers")
                     .bookiePorts(bookiePorts)
                     .build();
-            this.bookKeeperServiceRunner.startAll();
+            try {
+                this.bookKeeperServiceRunner.startAll();
+            } catch (Exception e) {
+                this.close();
+            }
             bkService.set(this.bookKeeperServiceRunner);
 
             // Create a ZKClient with a unique namespace.
