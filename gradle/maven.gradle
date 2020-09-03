@@ -86,7 +86,16 @@ plugins.withId('maven') {
                 pom('tests', {
                               artifactId = "pravega" + project.path.replace(':', '-') + "-tests"
                               version getProjectVersion()
-                })
+                }).withXml {
+                def dependencies  = asNode().appendNode("dependencies")
+                configurations.compile.allDependencies.each {  dep ->
+                    def depNode  = dependencies.appendNode("dependency")
+                    depNode.appendNode("groupId", dep.group)
+                    depNode.appendNode("artifactId", dep.name)
+                    depNode.appendNode("version", dep.version)
+                    }
+                }
+
                 // Sign the POM when the signing plugin is present
                 plugins.withId('signing') {
                     if (project.hasProperty('doSigning')) {
