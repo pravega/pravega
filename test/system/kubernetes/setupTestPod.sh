@@ -77,7 +77,7 @@ helm repo update
 echo "Creating ZK Operator"
 helm install zkop $publishedChartName/zookeeper-operator --version=$zookeeperOperatorVersion
 zkOpName="$(kubectl get pod | grep "zookeeper-operator" | awk '{print $1}')"
-kubectl wait --timeout=1m --for=condition=Ready pod/$zkOpName
+#kubectl wait --timeout=1m --for=condition=Ready pod/$zkOpName
 readyValueZk="$(kubectl get deploy | awk '$1 == "zkop-zookeeper-operator" { print $2 }')"
 if [ "$readyValueZk" != "1/1" ];then
         echo "Zookeeper operator is not running. Please check"
@@ -91,7 +91,7 @@ echo "Creating BK Operator"
 helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode.enabled=true
 
 bkOpName="$(kubectl get pod | grep "bookkeeper-operator" | awk '{print $1}')"
-kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName
+#kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName
 readyValueBk="$(kubectl get deploy | awk '$1 == "bkop-bookkeeper-operator" { print $2 }')"
 if [ "$readyValueBk" != "1/1" ];then
         echo "Bookkeeper operator is not running. Please check"
@@ -105,7 +105,7 @@ echo "Creating Pravega Operator"
 CERT="$(kubectl get secret selfsigned-cert-tls -o yaml | grep tls.crt | awk '{print $2}')"
 helm install prop $publishedChartName/pravega-operator  --version=$pravegaOperatorVersion --set webhookCert.crt=$CERT --set testmode.enabled=true --wait
 prOpName="$(kubectl get pod | grep "pravega-operator" | awk '{print $1}')"
-kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
+#kubectl wait --timeout=1m --for=condition=Ready pod/$prOpName
 readyValuePr="$(kubectl get deploy | awk '$1 == "prop-pravega-operator" { print $2 }')"
 if [ "$readyValuePr" != "1/1" ];then
         echo "Pravega operator is not running. Please check"
