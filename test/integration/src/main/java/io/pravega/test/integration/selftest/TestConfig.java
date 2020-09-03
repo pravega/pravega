@@ -29,6 +29,7 @@ import lombok.val;
  */
 public class TestConfig {
     //region Config Names
+
     public static final String DEFAULT_CONFIG_FILE_NAME = "selftest.config.properties";
     public static final String BK_ZK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     public static final String LOCALHOST = InetAddress.getLoopbackAddress().getHostName();
