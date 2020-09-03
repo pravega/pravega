@@ -854,6 +854,8 @@ project('test:system') {
         // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
         tasks.withType(Exec) { environment "publishedChartName",System.getProperty("publishedChartName", "pravega") }
         tasks.withType(Exec) { environment "helmRepository",System.getProperty("helmRepository", "pravega") }
+        // To update config map with desired pravega version
+        tasks.withType(Exec) { environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -882,6 +884,7 @@ project('test:system') {
         systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
         systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
         systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
         systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
         systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
         //testPodImage , default is openjdk:8u181-jre-alpine
