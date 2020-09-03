@@ -625,7 +625,7 @@ project('controller') {
     }
 
     applicationDistribution.into('') {
-        def pluginDirBase = new File('/tmp/dummy-dir')
+        def pluginDirBase = new File(System.getProperty("java.io.timpdir", "/tmp") + "/dummy-dir")
         pluginDirBase.mkdirs()
         def logDir = new File(pluginDirBase.absolutePath + '/pluginlib')
         logDir.mkdirs()
