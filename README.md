@@ -15,7 +15,9 @@ To learn more about Pravega, visit https://pravega.io
 
 ## Prerequisites
 
-- Java 8+
+- Java 11+
+
+The `client` project is expected to be built using *Java 8* bytecode. If you have a local *JDK 8* installation, the `client`'s unit tests can be deployed by setting the `JAVA_8` environment variable to point the *JDK  8* home directory.
 
 ## Building Pravega
 

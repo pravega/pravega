@@ -90,8 +90,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = JavaVersion.VERSION_11
-            targetCompatibility = JavaVersion.VERSION_11
+            sourceCompatibility = getDefaultJavaVersion()
+            targetCompatibility = getDefaultJavaVersion()
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
@@ -110,7 +110,7 @@ allprojects {
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
-            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "io.netty:netty-common:" + nettyVersion
@@ -142,10 +142,8 @@ project('common') {
         //Do NOT add any additional dependencies here.
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
-        }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
     }
 
     javadoc {
@@ -157,16 +155,14 @@ project('common') {
 }
 
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-                      exclude group: 'org.slf4j', module: 'slf4j-simple' }
+    exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
 project('shared:authplugin') {
     dependencies {
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
-        }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
     }
 
     javadoc {
@@ -247,10 +243,8 @@ project('shared:protocol') {
         testCompile project(path: ':common', configuration: 'testRuntime')
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
-        }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
     }
 }
 
@@ -269,9 +263,17 @@ project('client') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
+    }
+
+    // If the user has the client to build with a different version and there exists an appropriate JDK,
+    // attempt to run the unit tests using the matching JRE.
+    def jdk = System.getenv("JAVA_$clientJavaVersion");
+    def prefix = clientJavaVersion.toInteger() < 10 ? "1_" : ""
+    if (JavaVersion.valueOf("VERSION_$prefix$clientJavaVersion") != getDefaultJavaVersion() && jdk != null) {
+        test {
+            executable = file("$jdk/bin/java")
         }
     }
 
@@ -286,7 +288,7 @@ project('client') {
 
 project('test:testcommon') {
     dependencies {
-        compile group: 'junit', name :'junit', version: junitVersion
+        compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -295,10 +297,8 @@ project('test:testcommon') {
         compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
-        }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
     }
 
     javadoc {
@@ -494,9 +494,9 @@ project('test:integration') {
     }
 
     test {
-		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=selftest"]
+        jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+                   "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                   "-Dlog.name=selftest"]
     }
 
     dependencies {
@@ -607,14 +607,12 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-         // Since Java 10 javax.annotation is no more bundled with the JRE
+        // Since Java 10 javax.annotation is no more bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
-    if (System.getProperty("buildJDK11Client") == null) {
-        tasks.withType(JavaCompile) {
-            options.compilerArgs.addAll(['--release', '8'])
-        }
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.addAll(['--release', clientJavaVersion])
     }
 
     javadoc {
@@ -912,10 +910,10 @@ project('test:system') {
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
-        
+
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
-       
+
         maxParallelForks = 1
     }
 
@@ -963,7 +961,7 @@ project('test:system') {
         }
 
         doFirst {
-                systemProperty "awsMasterIP", variable
+            systemProperty "awsMasterIP", variable
         }
 
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
@@ -1023,6 +1021,10 @@ def getProjectVersion() {
         ver = versionLabel + "-" + count + "." + commitId + "-SNAPSHOT"
     }
     return ver
+}
+
+def getDefaultJavaVersion() {
+    return JavaVersion.VERSION_11
 }
 
 subprojects {
