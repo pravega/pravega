@@ -90,9 +90,7 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = getDefaultJavaVersion()
-            targetCompatibility = getDefaultJavaVersion()
-            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+                options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation" << "--release" << getDefaultJavaVersion()
         }
     }
     version = getProjectVersion()
@@ -143,7 +141,7 @@ project('common') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 
     javadoc {
@@ -162,7 +160,7 @@ project('shared:authplugin') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 
     javadoc {
@@ -244,7 +242,7 @@ project('shared:protocol') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 }
 
@@ -264,14 +262,13 @@ project('client') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 
     // If the user has the client to build with a different version and there exists an appropriate JDK,
     // attempt to run the unit tests using the matching JRE.
     def jdk = System.getenv("JAVA_$clientJavaVersion");
-    def prefix = clientJavaVersion.toInteger() < 10 ? "1_" : ""
-    if (JavaVersion.valueOf("VERSION_$prefix$clientJavaVersion") != getDefaultJavaVersion() && jdk != null) {
+    if (clientJavaVersion != getDefaultJavaVersion() && jdk != null) {
         test {
             executable = file("$jdk/bin/java")
         }
@@ -298,7 +295,7 @@ project('test:testcommon') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 
     javadoc {
@@ -612,7 +609,7 @@ project('shared:controller-api') {
     }
 
     tasks.withType(JavaCompile) {
-        options.compilerArgs.addAll(['--release', clientJavaVersion])
+        options.compilerArgs << "--release" << clientJavaVersion
     }
 
     javadoc {
@@ -1024,7 +1021,7 @@ def getProjectVersion() {
 }
 
 def getDefaultJavaVersion() {
-    return JavaVersion.VERSION_11
+    return JavaVersion.VERSION_11.getMajorVersion()
 }
 
 subprojects {
