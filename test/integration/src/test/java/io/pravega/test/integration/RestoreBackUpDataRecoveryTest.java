@@ -184,7 +184,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             try {
                 this.bookKeeperServiceRunner.startAll();
             } catch (Exception e) {
+                log.error("Exception occurred while starting bookKeeper service.", e);
                 this.close();
+                throw e;
             }
             bkService.set(this.bookKeeperServiceRunner);
 
