@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
@@ -64,8 +65,15 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     public boolean write(ByteBuffer data, long expectedOffset) throws SegmentSealedException {
         synchronized (lock) { //Used to preserver order.
             long appendSequence = requestIdGenerator.get();
-            return retrySchedule.retryingOn(ConnectionFailedException.class)
-                    .throwingOn(SegmentSealedException.class)
+            return retrySchedule.retryWhen(e -> {
+                        boolean hasTokenExpired = e instanceof TokenExpiredException;
+                        if (hasTokenExpired) {
+                            this.tokenProvider.signalTokenExpired();
+                        }
+                        return e instanceof ConnectionFailedException || hasTokenExpired;
+                    })
+                    //.retryingOn(ConnectionFailedException.class)
+                    //.throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionPool, segmentId);
