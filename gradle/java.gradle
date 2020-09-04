@@ -15,18 +15,24 @@ plugins.withId('java') {
     apply plugin: 'signing'
     apply plugin: 'maven'
 
-    compileJava {
-        
-        options.compilerArgs.addAll([
-                "-Xlint:deprecation",
-                "-Xlint:divzero",
-                "-Xlint:empty",
-                "-Xlint:fallthrough",
-                "-Xlint:finally",
-                "-Xlint:overrides",
-                "-Xlint:path",
-                "-Werror"
-        ])
+    // `afterEvaluate` is used because it allows any compilerArgs specified in the individual project definitions
+    // to take precedence over these defaults.
+    afterEvaluate {
+        compileJava {
+            options.compilerArgs.addAll([
+                    "-Xlint:deprecation",
+                    "-Xlint:divzero",
+                    "-Xlint:empty",
+                    "-Xlint:fallthrough",
+                    "-Xlint:finally",
+                    "-Xlint:overrides",
+                    "-Xlint:path",
+                    "-Werror",
+                    "-Xlint:unchecked",
+                    "--release",
+                    getDefaultJavaVersion()
+            ])
+        }
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
@@ -97,4 +103,8 @@ plugins.withId('java') {
         testCompile group: 'junit', name:'junit', version: junitVersion
         testCompile "org.mockito:mockito-core:${mockitoVersion}"
     }
+}
+
+def getDefaultJavaVersion() {
+    return "11"
 }

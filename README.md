@@ -17,7 +17,7 @@ To learn more about Pravega, visit https://pravega.io
 
 - Java 11+
 
-The `client` project is expected to be built into *Java 8* bytecode.
+ In spite of the requirements of using JDK 11+ to build this project, `client` artifacts (and its dependencies) must be compatible with a Java 8 runtime. All other components are built and ran using JDK11+.
 
 ## Building Pravega
 
