@@ -17,7 +17,7 @@ To learn more about Pravega, visit https://pravega.io
 
 - Java 11+
 
-The `client` project is expected to be built using *Java 8* bytecode. If you have a local *JDK 8* installation, the `client`'s unit tests can be deployed by setting the `JAVA_8` environment variable to point the *JDK  8* home directory.
+The `client` project is expected to be built into *Java 8* bytecode.
 
 ## Building Pravega
 

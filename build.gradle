@@ -265,15 +265,6 @@ project('client') {
         options.compilerArgs << "--release" << clientJavaVersion
     }
 
-    // If the user has the client to build with a different version and there exists an appropriate JDK,
-    // attempt to run the unit tests using the matching JRE.
-    def jdk = System.getenv("JAVA_$clientJavaVersion");
-    if (clientJavaVersion != getDefaultJavaVersion() && jdk != null) {
-        test {
-            executable = file("$jdk/bin/java")
-        }
-    }
-
     javadoc {
         title = "Pravega Client API"
         dependsOn delombok
@@ -1021,7 +1012,7 @@ def getProjectVersion() {
 }
 
 def getDefaultJavaVersion() {
-    return JavaVersion.VERSION_11.getMajorVersion()
+    return "11"
 }
 
 subprojects {
