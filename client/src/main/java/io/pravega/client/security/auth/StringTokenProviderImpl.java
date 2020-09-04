@@ -36,4 +36,9 @@ public class StringTokenProviderImpl implements DelegationTokenProvider {
         this.token.set(token);
         return true;
     }
+
+    @Override
+    public void signalTokenExpired() {
+        // Do nothing
+    }
 }

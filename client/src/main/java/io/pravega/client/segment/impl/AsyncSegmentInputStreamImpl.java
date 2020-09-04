@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
@@ -140,7 +141,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth check failed for reads on segment {} with {}",  segmentId, authTokenCheckFailed);
-            closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            if (authTokenCheckFailed.isTokenExpired()) {
+                tokenProvider.signalTokenExpired();
+                closeConnection(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
+            } else {
+                closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         }
 
         private void checkSegment(String segment) {
@@ -186,7 +192,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             } else {
                 log.warn("Exception while reading from Segment {} at offset {} :", segmentId, offset, ex);
             }
-            return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
+            return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException)
+                    && !(ex instanceof AuthenticationException);
         }).runAsync(() -> this.tokenProvider.retrieveToken().thenComposeAsync(token -> {
             final WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
                     token, requestId);

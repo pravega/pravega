@@ -10,6 +10,7 @@
 package io.pravega.client.connection.impl;
 
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -78,7 +79,11 @@ public class RawClient implements AutoCloseable {
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth token check failed on segment {} with {}", segmentId, authTokenCheckFailed);
-            closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            if (authTokenCheckFailed.isTokenExpired()) {
+                closeConnection(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
+            } else {
+                closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         }
     }
 

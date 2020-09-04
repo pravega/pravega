@@ -63,8 +63,6 @@ public class JwtTokenProviderImplTest {
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
-
-
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
         String token = String.format("header.%s.signature", toCompact(
@@ -95,8 +93,34 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
+    public void testRetrievesNewTokenIfSignalledOfTokenExpiry() {
+        final String token = String.format("newtokenheader.%s.signature", toCompact(
+                JwtBody.builder().expirationTime(Instant.now().plusSeconds(100000).getEpochSecond()).build()));
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return token + System.currentTimeMillis();
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
 
+        // Setup the object under test
+        DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
+                "somescope", "somestream");
+
+        String firstToken = objectUnderTest.retrieveToken().join();
+        String secondToken = objectUnderTest.retrieveToken().join();
+        assertEquals(firstToken, secondToken);
+
+        objectUnderTest.signalTokenExpired();
+        assertEquals(firstToken, objectUnderTest.retrieveToken().join());
+    }
+
+    @Test
+    public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
         final String token = String.format("newtokenheader.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         // Setup mock

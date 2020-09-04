@@ -25,4 +25,9 @@ public class EmptyTokenProviderImpl implements DelegationTokenProvider {
     public boolean populateToken(String token) {
         return false;
     }
+
+    @Override
+    public void signalTokenExpired() {
+        // Do nothing
+    }
 }

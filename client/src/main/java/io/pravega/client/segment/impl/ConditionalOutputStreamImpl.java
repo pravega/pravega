@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
@@ -28,6 +29,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -66,11 +68,13 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         synchronized (lock) { //Used to preserver order.
             long appendSequence = requestIdGenerator.get();
             return retrySchedule.retryWhen(e -> {
-                        boolean hasTokenExpired = e instanceof TokenExpiredException;
+                        Throwable cause = Exceptions.unwrap(e);
+                        boolean hasTokenExpired = cause instanceof TokenExpiredException;
                         if (hasTokenExpired) {
                             this.tokenProvider.signalTokenExpired();
                         }
-                        return e instanceof ConnectionFailedException || hasTokenExpired;
+                        return cause instanceof Exception &&
+                                (hasTokenExpired || cause instanceof ConnectionFailedException);
                     })
                     //.retryingOn(ConnectionFailedException.class)
                     //.throwingOn(SegmentSealedException.class)
@@ -134,6 +138,14 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
             throw Exceptions.sneakyThrow(new SegmentSealedException(reply.toString()));
         } else if (reply instanceof WrongHost) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(reply.toString()));
+        } else if (reply instanceof AuthTokenCheckFailed) {
+            AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
+            if (authTokenCheckFailed.isTokenExpired()) {
+                this.tokenProvider.signalTokenExpired();
+                throw Exceptions.sneakyThrow(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
+            } else {
+                throw Exceptions.sneakyThrow(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         } else {
             throw Exceptions.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
         }
