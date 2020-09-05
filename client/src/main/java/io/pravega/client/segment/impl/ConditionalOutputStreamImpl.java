@@ -76,8 +76,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         return cause instanceof Exception &&
                                 (hasTokenExpired || cause instanceof ConnectionFailedException);
                     })
-                    //.retryingOn(ConnectionFailedException.class)
-                    //.throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionPool, segmentId);
