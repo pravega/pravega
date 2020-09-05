@@ -350,7 +350,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         // others need to be handled by TableSegmentImpl.handleReply.
         val failureReplies = Arrays.<Function<Long, Reply>>asList(
                 requestId -> new WireCommands.WrongHost(requestId, SEGMENT.getScopedName(), "NewHost", ""),
-                requestId -> new WireCommands.AuthTokenCheckFailed(requestId, ""),
+                requestId -> new WireCommands.AuthTokenCheckFailed(requestId, "", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED),
                 requestId -> new WireCommands.OperationUnsupported(requestId, "Intentional", ""));
 
         for (val fr : failureReplies) {

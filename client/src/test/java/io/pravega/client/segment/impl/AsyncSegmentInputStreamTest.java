@@ -78,7 +78,8 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         }).doAnswer(new Answer<Void>() {
         @Override
         public Void answer(InvocationOnMock invocation) throws Throwable {
-            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(in.getRequestId(), "SomeException"));
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(
+                    in.getRequestId(), "SomeException", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
             return null;
         }
         }).doAnswer(new Answer<Void>() {
