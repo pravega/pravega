@@ -15,24 +15,24 @@ plugins.withId('java') {
     apply plugin: 'signing'
     apply plugin: 'maven'
 
-    // `afterEvaluate` is used because it allows any compilerArgs specified in the individual project definitions
-    // to take precedence over these defaults.
-    afterEvaluate {
-        compileJava {
-            options.compilerArgs.addAll([
-                    "-Xlint:deprecation",
-                    "-Xlint:divzero",
-                    "-Xlint:empty",
-                    "-Xlint:fallthrough",
-                    "-Xlint:finally",
-                    "-Xlint:overrides",
-                    "-Xlint:path",
-                    "-Werror",
-                    "-Xlint:unchecked",
-                    "--release",
-                    getDefaultJavaVersion()
-            ])
-        }
+    compileJava {
+        options.compilerArgs.addAll([
+                "-Xlint:deprecation",
+                "-Xlint:divzero",
+                "-Xlint:empty",
+                "-Xlint:fallthrough",
+                "-Xlint:finally",
+                "-Xlint:overrides",
+                "-Xlint:path",
+                "-Werror",
+                "-Xlint:unchecked",
+                "--release",
+                getDefaultJavaVersion()
+        ])
+    }
+
+    compileTestJava {
+        options.compilerArgs.addAll(["--release",  getDefaultJavaVersion()])
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
