@@ -47,7 +47,7 @@ init_kubernetes() {
         local podname=${POD_NAME}
         export PUBLISHED_ADDRESS=""
         export PUBLISHED_PORT=""
-        service=$( k8 "${ns}" "services" "${podname}" .kind )
+        local service=$( k8 "${ns}" "services" "${podname}" .kind )
 
     while [[  "$service" != "Service" ]]; 
     do
