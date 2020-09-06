@@ -244,8 +244,10 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
 
     @Override
     public void close() {
-        controller.close();
+        // wait for 5 seconds before forcibly terminating the watermarkReader threads.
+        ExecutorServiceHelpers.shutdown(watermarkReaderThreads);
         connectionPool.close();
+        controller.close();
     }
 
     private int getThreadPoolSize() {
