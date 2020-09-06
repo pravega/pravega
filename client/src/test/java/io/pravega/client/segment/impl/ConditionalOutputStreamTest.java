@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
@@ -229,6 +230,32 @@ public class ConditionalOutputStreamTest {
             }
         }).when(clientConnection).send(any(ConditionalAppend.class));
         AssertExtensions.assertThrows(AuthenticationException.class, () -> objectUnderTest.write(data, 0));
+    }
+
+    @Test
+    public void handleUnexpectedReplythrowsAppropriateTokenExceptions() {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        ConditionalOutputStreamImpl objectUnderTest = (ConditionalOutputStreamImpl) factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment),
+                EventWriterConfig.builder().build());
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED)),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.UNSPECIFIED)),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("TokenExpiredException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED)),
+                e -> e instanceof TokenExpiredException);
     }
     
     /**

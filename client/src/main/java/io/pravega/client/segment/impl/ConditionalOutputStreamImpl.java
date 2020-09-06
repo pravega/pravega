@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
@@ -114,7 +115,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         if (reply instanceof AppendSetup) {
             return (AppendSetup) reply;
         } else {
-            throw handelUnexpectedReply(reply);
+            throw handleUnexpectedReply(reply);
         }
     }
 
@@ -124,11 +125,12 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         } else if (reply instanceof ConditionalCheckFailed) {
             return false;
         } else {
-            throw handelUnexpectedReply(reply);
+            throw handleUnexpectedReply(reply);
         }
     }
-    
-    private RuntimeException handelUnexpectedReply(Reply reply) {
+
+    @VisibleForTesting
+    RuntimeException handleUnexpectedReply(Reply reply) {
         closeConnection(reply.toString());
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
