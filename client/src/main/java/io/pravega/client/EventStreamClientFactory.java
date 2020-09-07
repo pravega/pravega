@@ -18,7 +18,6 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.SingleRoutingKeyTransactionWriter;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
@@ -85,18 +84,6 @@ public interface EventStreamClientFactory extends AutoCloseable {
      * @return Newly created writer object
      */
     <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config);
-    
-    /**
-     * Creates a new single routing key transaction writer that can write a batch of events with atomic guarantees. 
-     * There are limits on the size of each event in the batch and the overall size of the batch.
-     *
-     * @param streamName The name of the stream to write to.
-     * @param routingKey Routing key to be used while writing the events.
-     * @param s The Serializer.
-     * @param <T> The type of events.
-     * @return Newly created writer object
-     */
-    <T> SingleRoutingKeyTransactionWriter<T> createSingleRoutingKeyWriter(String streamName, String routingKey, Serializer<T> s);
     
     /**
      * Creates a new transactional writer that can write to the specified stream atomically.
