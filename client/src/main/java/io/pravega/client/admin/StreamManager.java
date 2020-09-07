@@ -154,6 +154,7 @@ public interface StreamManager extends AutoCloseable {
      * delete scope is retry-able.  
      *
      * @param scopeName  The name of the scope to delete.
+     * @param deleteStreams To list and delete streams in scope before attempting to delete scope. 
      * @return True if scope is deleted, false otherwise. 
      */
     boolean deleteScope(String scopeName, boolean deleteStreams);
