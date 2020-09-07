@@ -493,14 +493,14 @@ public class StreamMetadataTasks extends TaskBase {
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
         return eventHelper.addIndexAndSubmitTask(event,
                 // 2. set state to sealing
-                () -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                () -> RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(state -> {
                     if (state.getObject().equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(state);
                     } else {
                         return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
-                }))
+                }), RetryHelper.RETRYABLE_PREDICATE.or(e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException), 10, executor))
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {
@@ -703,8 +703,9 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
-                .thenComposeAsync(response -> {
+        // Retry create stream on retryable failures 
+        return RetryHelper.withRetriesAsync(() -> this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
+                .thenCompose(response -> {
                     log.info(requestId, "{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
@@ -720,9 +721,8 @@ public class StreamMetadataTasks extends TaskBase {
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
                                 .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
                                 .thenCompose(y -> {
-                                    final OperationContext context = streamMetadataStore.createContext(scope, stream);
+                                        final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() -> {
                                         CompletableFuture<Void> future;
                                         if (config.getRetentionPolicy() != null) {
                                             future = bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
@@ -738,14 +738,13 @@ public class StreamMetadataTasks extends TaskBase {
                                                     } else {
                                                         return CompletableFuture.completedFuture(state);
                                                     }
-                                                }));
-                                    }, executor)
+                                                }))
                                             .thenApply(z -> status);
                                 });
                     } else {
                         return CompletableFuture.completedFuture(status);
                     }
-                }, executor)
+                }), RetryHelper.RETRYABLE_PREDICATE.or(e -> Exceptions.unwrap(e) instanceof RetriesExhaustedException), Integer.MAX_VALUE, executor)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         Throwable cause = Exceptions.unwrap(ex);
