@@ -49,12 +49,12 @@ init_kubernetes() {
         export PUBLISHED_PORT=""
         local service=$( k8 "${ns}" "services" "${podname}" .kind )
 
-        while [[  "$service" != "Service" ]]; 
-        do
-            echo "Trying to get service"     
-            service=$( k8 "${ns}" "services" "${podname}" .kind )
-        done
-	
+        if [[  "$service" != "Service" ]];
+        then 
+            echo "Failed to get Service"
+            exit 1     
+        fi
+
 	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".metadata.annotations[\"external-dns.alpha.kubernetes.io/hostname\"]" )
 
         if [[ -n ${PUBLISHED_ADDRESS} && "${PUBLISHED_ADDRESS:${#PUBLISHED_ADDRESS}-1}" == "." ]];
