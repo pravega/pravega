@@ -47,7 +47,14 @@ init_kubernetes() {
         local podname=${POD_NAME}
         export PUBLISHED_ADDRESS=""
         export PUBLISHED_PORT=""
-	
+        local service=$( k8 "${ns}" "services" "${podname}" .kind )
+
+        if [[  "$service" != "Service" ]];
+        then 
+            echo "Failed to get External Service. Exiting..."
+            exit 1     
+        fi
+
 	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".metadata.annotations[\"external-dns.alpha.kubernetes.io/hostname\"]" )
 
         if [[ -n ${PUBLISHED_ADDRESS} && "${PUBLISHED_ADDRESS:${#PUBLISHED_ADDRESS}-1}" == "." ]];
