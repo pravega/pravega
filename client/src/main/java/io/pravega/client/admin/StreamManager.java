@@ -140,14 +140,11 @@ public interface StreamManager extends AutoCloseable {
     boolean checkStreamExists(String scopeName, String streamName);
 
     /**
-     * This api is deprecated. Please use {@link #deleteScope(String, boolean)} which takes a flag to optionally list 
-     * and delete streams in scope. 
      * This api deletes an existing scope. The scope must contain no stream.
      *
      * @param scopeName  The name of the scope to delete.
      * @return True if scope is deleted
      */
-    @Deprecated
     boolean deleteScope(String scopeName);
 
     /**

@@ -144,7 +144,6 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    @Deprecated
     public boolean deleteScope(String scopeName) {
         return deleteScope(scopeName, false);
     }
