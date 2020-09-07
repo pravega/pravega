@@ -20,14 +20,17 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -150,12 +153,13 @@ public class StreamManagerImpl implements StreamManager {
     public boolean deleteScope(String scopeName, boolean deleteStreams) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
-        
         if (deleteStreams) {
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
                 Stream stream = iterator.next();
-                Futures.getThrowingException(controller.sealStream(stream.getScope(), stream.getStreamName()));
+                // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
+                Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
+                          e -> Exceptions.unwrap(e) instanceof InvalidStreamException, null));
                 Futures.getThrowingException(controller.deleteStream(stream.getScope(), stream.getStreamName()));
             }
         }
