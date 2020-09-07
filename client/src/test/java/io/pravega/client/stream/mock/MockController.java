@@ -260,14 +260,16 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
-        throw new UnsupportedOperationException();
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
-        return deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
-                Segment::getScopedName, this::deleteSegment);
+        return deleteFromScope(scope, new StreamImpl(scope, NameUtils.getMarkStreamForStream(streamName)), s -> s.streams, this::getSegmentsForStream,
+                Segment::getScopedName, this::deleteSegment)
+                .thenCompose(v -> deleteFromScope(scope, new StreamImpl(scope, streamName), s -> s.streams, this::getSegmentsForStream,
+                Segment::getScopedName, this::deleteSegment));
     }
 
     private boolean createSegment(String name) {

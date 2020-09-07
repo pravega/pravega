@@ -28,6 +28,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,7 +44,7 @@ public class StreamManagerImpl implements StreamManager {
     private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-    
+
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
@@ -147,6 +148,22 @@ public class StreamManagerImpl implements StreamManager {
         return  Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
+    @Override
+    public boolean deleteScope(String scopeName, boolean deleteStreams) {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope: {}", scopeName);
+        
+        if (deleteStreams) {
+            Iterator<Stream> iterator = listStreams(scopeName);
+            while (iterator.hasNext()) {
+                Stream stream = iterator.next();
+                Futures.getThrowingException(controller.sealStream(stream.getScope(), stream.getStreamName()));
+                Futures.getThrowingException(controller.deleteStream(stream.getScope(), stream.getStreamName()));
+            }
+        }
+        return Futures.getThrowingException(controller.deleteScope(scopeName));
+    }
+    
     @Override
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
         NameUtils.validateUserStreamName(streamName);
