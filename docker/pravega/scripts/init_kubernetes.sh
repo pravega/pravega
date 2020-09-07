@@ -51,7 +51,7 @@ init_kubernetes() {
 
         if [[  "$service" != "Service" ]];
         then 
-            echo "Failed to get Service"
+            echo "Failed to get External Service. Exiting..."
             exit 1     
         fi
 
