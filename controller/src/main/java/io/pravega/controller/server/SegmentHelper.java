@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.ModelHelper;
@@ -632,8 +633,11 @@ public class SegmentHelper implements AutoCloseable {
                     } else if (unwrap instanceof AuthenticationException) {
                         log.warn(requestId, "Authentication Exception");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+                    } else if (unwrap instanceof TokenExpiredException) {
+                        log.warn(requestId, "Token expired");
+                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
                     } else if (unwrap instanceof TimeoutException) {
-                        log.warn(requestId, "Request timedout.");
+                        log.warn(requestId, "Request timed out.");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     } else {
                         log.error(requestId, "Request failed", e);
@@ -677,8 +681,9 @@ public class SegmentHelper implements AutoCloseable {
                 throw new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion);
             }
         } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
-            log.warn(callerRequestId, "Auth Check Failed {} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
-                    reply.getClass().getSimpleName(), reply.getRequestId());
+            log.warn(callerRequestId, "Auth Check Failed {} {} {} {} with error code {}.",
+                    requestType.getSimpleName(), qualifiedStreamSegmentName, reply.getClass().getSimpleName(),
+                    reply.getRequestId(), ((WireCommands.AuthTokenCheckFailed) reply).getErrorCode());
             throw new WireCommandFailedException(new AuthenticationException(reply.toString()),
                     type, WireCommandFailedException.Reason.AuthFailed);
         } else if (reply instanceof WireCommands.WrongHost) {
