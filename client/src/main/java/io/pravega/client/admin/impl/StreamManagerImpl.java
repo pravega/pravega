@@ -28,7 +28,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
-
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -44,7 +43,7 @@ public class StreamManagerImpl implements StreamManager {
     private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-
+    
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
@@ -142,10 +141,9 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    @Deprecated
     public boolean deleteScope(String scopeName) {
-        NameUtils.validateUserScopeName(scopeName);
-        log.info("Deleting scope: {}", scopeName);
-        return  Futures.getThrowingException(controller.deleteScope(scopeName));
+        return deleteScope(scopeName, false);
     }
 
     @Override
