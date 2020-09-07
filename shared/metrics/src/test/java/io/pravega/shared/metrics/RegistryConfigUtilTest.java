@@ -28,6 +28,7 @@ public class RegistryConfigUtilTest {
     @Test
     public void testStatsDConfig() {
         MetricsConfig appConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.OUTPUT_FREQUENCY, 37)
                 .with(MetricsConfig.METRICS_PREFIX, "statsDPrefix")
                 .with(MetricsConfig.STATSD_HOST, "localhost")
