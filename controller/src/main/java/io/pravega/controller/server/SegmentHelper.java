@@ -624,26 +624,31 @@ public class SegmentHelper implements AutoCloseable {
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
-        return future
-                .exceptionally(e -> {
-                    Throwable unwrap = Exceptions.unwrap(e);
-                    if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-                        log.warn(requestId, "Connection dropped");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                    } else if (unwrap instanceof AuthenticationException) {
-                        log.warn(requestId, "Authentication Exception");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-                    } else if (unwrap instanceof TokenExpiredException) {
-                        log.warn(requestId, "Token expired");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-                    } else if (unwrap instanceof TimeoutException) {
-                        log.warn(requestId, "Request timed out.");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                    } else {
-                        log.error(requestId, "Request failed", e);
-                        throw new CompletionException(e);
-                    }
-                });
+        return future.exceptionally(e -> {
+            processAndRethrowException(requestId, request, e);
+            return null;
+        });
+    }
+
+    @VisibleForTesting
+    <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
+        Throwable unwrap = Exceptions.unwrap(e);
+        if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
+            log.warn(requestId, "Connection dropped");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+        } else if (unwrap instanceof AuthenticationException) {
+            log.warn(requestId, "Authentication Exception");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+        } else if (unwrap instanceof TokenExpiredException) {
+            log.warn(requestId, "Token expired");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+        } else if (unwrap instanceof TimeoutException) {
+            log.warn(requestId, "Request timed out.");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+        } else {
+            log.error(requestId, "Request failed", e);
+            throw new CompletionException(e);
+        }
     }
 
     /**
