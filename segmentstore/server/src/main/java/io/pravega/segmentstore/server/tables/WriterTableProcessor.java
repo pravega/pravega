@@ -262,10 +262,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
      */
     private void flushComplete(long lastIndexedOffset) {
+        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
         this.aggregator.reset();
         this.aggregator.setLastIndexedOffset(lastIndexedOffset);
         this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
-        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 
     /**
@@ -282,7 +282,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private CompletableFuture<TableWriterFlushResult> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
-        log.debug("{}: Flush.ReadFromSegment {} UpdateKeys(s).", this.traceObjectId, keyUpdates.getUpdates().size());
+        log.debug("{}: Flush.ReadFromSegment KeyCount={}, UpdateCount={}, HighestCopiedOffset={}, LastIndexedOffset={}.", this.traceObjectId,
+                keyUpdates.getUpdates().size(), keyUpdates.getTotalUpdateCount(), keyUpdates.getHighestCopiedOffset(), keyUpdates.getLastIndexedOffset());
 
         // Group keys by their assigned TableBucket (whether existing or not), then fetch all existing keys
         // for each such bucket and finally (reindex) update the bucket.
