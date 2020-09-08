@@ -563,6 +563,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
 
     private void failConnection(Throwable e) {
+        if (e instanceof TokenExpiredException) {
+            this.tokenProvider.signalTokenExpired();
+        }
         log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
