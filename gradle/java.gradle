@@ -105,6 +105,3 @@ plugins.withId('java') {
     }
 }
 
-def getDefaultJavaVersion() {
-    return "11"
-}
