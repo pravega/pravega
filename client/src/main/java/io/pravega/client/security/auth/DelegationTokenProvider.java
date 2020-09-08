@@ -33,4 +33,9 @@ public interface DelegationTokenProvider {
      * @return whether the population was successful
      */
     boolean populateToken(String token);
+
+    /**
+     * Signals the object that the token it may be holding has expired.
+     */
+    void signalTokenExpired();
 }
