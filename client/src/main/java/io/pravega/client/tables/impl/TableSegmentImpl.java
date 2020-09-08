@@ -12,7 +12,7 @@ package io.pravega.client.tables.impl;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.Controller;
@@ -73,7 +73,7 @@ class TableSegmentImpl implements TableSegment {
     private final ConnectionPool connectionPool;
     private final DelegationTokenProvider tokenProvider;
     /**
-     * We only retry {@link AuthenticationException} and {@link ConnectionFailedException}. Any other exceptions are not
+     * We only retry {@link TokenExpiredException} and {@link ConnectionFailedException}. Any other exceptions are not
      * retryable and should be bubbled up to the caller.
      * <p>
      * These exceptions are thrown by {@link RawClient} and therefore we do not need to handle the underlying
@@ -537,7 +537,7 @@ class TableSegmentImpl implements TableSegment {
 
     private static boolean isRetryableException(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        return ex instanceof AuthenticationException || ex instanceof ConnectionFailedException;
+        return ex instanceof TokenExpiredException || ex instanceof ConnectionFailedException;
     }
 
     private void checkBatchSize(int count, int serializationLength) {
