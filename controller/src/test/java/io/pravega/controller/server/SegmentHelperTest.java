@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -43,7 +44,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -676,6 +679,47 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("result should timeout", result, 
                 e -> Exceptions.unwrap(e) instanceof WireCommandFailedException && 
                         ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
+    }
+
+    @Test
+    public void testProcessAndRethrowExceptions() {
+        // The wire-command itself we use for this test is immaterial, so we are using the simplest one here.
+        WireCommands.Hello dummyRequest = new WireCommands.Hello(0, 0);
+        SegmentHelper objectUnderTest = new SegmentHelper(null, null, null);
+
+        AssertExtensions.assertThrows("Unexpected exception thrown",
+                () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
+                        new ExecutionException(new ConnectionFailedException())),
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.ConnectionFailed));
+
+        AssertExtensions.assertThrows("Unexpected exception thrown",
+                () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
+                        new ExecutionException(new AuthenticationException("Authentication failed"))),
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.AuthFailed));
+
+        AssertExtensions.assertThrows("Unexpected exception thrown",
+                () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
+                        new ExecutionException(new TokenExpiredException("Token expired"))),
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.AuthFailed));
+
+        AssertExtensions.assertThrows("Unexpected exception thrown",
+                () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
+                        new ExecutionException(new TimeoutException("Authentication failed"))),
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.ConnectionFailed));
+
+        AssertExtensions.assertThrows("Unexpected exception thrown",
+                () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
+                        new ExecutionException(new RuntimeException())),
+                e -> e instanceof ExecutionException && e.getCause() instanceof RuntimeException);
+    }
+
+    private boolean hasWireCommandFailedWithReason(Throwable e, WireCommandFailedException.Reason reason) {
+        if (e instanceof WireCommandFailedException) {
+            WireCommandFailedException wrappedException = (WireCommandFailedException) e;
+            return wrappedException.getReason().equals(reason);
+        } else {
+            return false;
+        }
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableSegmentEntry> entries) {
