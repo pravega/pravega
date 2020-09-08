@@ -683,46 +683,43 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
     @Test
     public void testProcessAndRethrowExceptions() {
+        // The wire-command itself we use for this test is immaterial, so we are using the simplest one here.
         WireCommands.Hello dummyRequest = new WireCommands.Hello(0, 0);
-
         SegmentHelper objectUnderTest = new SegmentHelper(null, null, null);
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
                 () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
                         new ExecutionException(new ConnectionFailedException())),
-                e -> {
-                    WireCommandFailedException wrappedException = (WireCommandFailedException) e;
-                    return wrappedException.getReason().equals(WireCommandFailedException.Reason.ConnectionFailed);
-                });
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.ConnectionFailed));
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
                 () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
                         new ExecutionException(new AuthenticationException("Authentication failed"))),
-                e -> {
-                    WireCommandFailedException wrappedException = (WireCommandFailedException) e;
-                    return wrappedException.getReason().equals(WireCommandFailedException.Reason.AuthFailed);
-                });
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.AuthFailed));
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
                 () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
-                        new ExecutionException(new TokenExpiredException("Authentication failed"))),
-                e -> {
-                    WireCommandFailedException wrappedException = (WireCommandFailedException) e;
-                    return wrappedException.getReason().equals(WireCommandFailedException.Reason.AuthFailed);
-                });
+                        new ExecutionException(new TokenExpiredException("Token expired"))),
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.AuthFailed));
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
                 () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
                         new ExecutionException(new TimeoutException("Authentication failed"))),
-                e -> {
-                    WireCommandFailedException wrappedException = (WireCommandFailedException) e;
-                    return wrappedException.getReason().equals(WireCommandFailedException.Reason.ConnectionFailed);
-                });
+                e -> hasWireCommandFailedWithReason(e, WireCommandFailedException.Reason.ConnectionFailed));
 
         AssertExtensions.assertThrows("Unexpected exception thrown",
                 () -> objectUnderTest.<WireCommands.Hello>processAndRethrowException(1, dummyRequest,
                         new ExecutionException(new RuntimeException())),
                 e -> e instanceof ExecutionException && e.getCause() instanceof RuntimeException);
+    }
+
+    private boolean hasWireCommandFailedWithReason(Throwable e, WireCommandFailedException.Reason reason) {
+        if (e instanceof WireCommandFailedException) {
+            WireCommandFailedException wrappedException = (WireCommandFailedException) e;
+            return wrappedException.getReason().equals(reason);
+        } else {
+            return false;
+        }
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableSegmentEntry> entries) {
