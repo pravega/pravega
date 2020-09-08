@@ -18,6 +18,7 @@ import io.pravega.common.util.ConfigurationOptionsExtractor;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -58,6 +59,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     private final String streamName;
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
+
+    private final AtomicBoolean tokenExpirySignal = new AtomicBoolean(false);
 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -122,7 +125,6 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this.refreshThresholdInSeconds = refreshThresholdInSeconds;
     }
 
-
     /**
      * Returns the delegation token. It returns existing delegation token if it is not close to expiry. If the token
      * is close to expiry, it obtains a new delegation token and returns that one instead.
@@ -132,17 +134,22 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     @Override
     public CompletableFuture<String> retrieveToken() {
         DelegationToken currentToken = this.delegationToken.get();
-
+        final CompletableFuture<String> result;
         if (currentToken == null) {
-            return this.refreshToken();
+            result = this.refreshToken();
         } else if (currentToken.getExpiryTime() == null) {
-            return CompletableFuture.completedFuture(currentToken.getValue());
+            result = CompletableFuture.completedFuture(currentToken.getValue());
+        } else if (this.tokenExpirySignal.get()) {
+            log.debug("Token was signaled as expired for scope/stream {}/{}", this.scopeName, this.streamName);
+            result = refreshToken();
+            this.tokenExpirySignal.compareAndSet(true, false);
         } else if (isTokenNearingExpiry(currentToken)) {
             log.debug("Token is nearing expiry for scope/stream {}/{}", this.scopeName, this.streamName);
-            return refreshToken();
+            result = refreshToken();
         } else {
-            return CompletableFuture.completedFuture(currentToken.getValue());
+            result = CompletableFuture.completedFuture(currentToken.getValue());
         }
+        return result;
     }
 
     @Override
@@ -153,6 +160,11 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         } else {
             return this.delegationToken.compareAndSet(currentToken, new DelegationToken(token, extractExpirationTime(token)));
         }
+    }
+
+    @Override
+    public void signalTokenExpired() {
+        this.tokenExpirySignal.compareAndSet(false, true);
     }
 
     private boolean isTokenNearingExpiry(DelegationToken token) {
