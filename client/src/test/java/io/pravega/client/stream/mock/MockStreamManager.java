@@ -94,6 +94,20 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public boolean deleteScope(String scopeName, boolean deleteStreams) {
+        if (deleteStreams) {
+            Iterator<Stream> iterator = controller.listStreams(scopeName).asIterator();
+            while (iterator.hasNext()) {
+                Stream stream = iterator.next();
+                Futures.getAndHandleExceptions(controller.sealStream(scope, stream.getStreamName()), RuntimeException::new);
+                Futures.getAndHandleExceptions(controller.deleteStream(scope, stream.getStreamName()), RuntimeException::new);
+            }
+        }
+        return Futures.getAndHandleExceptions(controller.deleteScope(scope),
+                RuntimeException::new);
+    }
+
+    @Override
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
         throw new NotImplementedException("getStreamInfo");
     }

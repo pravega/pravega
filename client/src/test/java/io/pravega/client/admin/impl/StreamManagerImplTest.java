@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -313,5 +314,71 @@ public class StreamManagerImplTest {
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
+    }
+    
+    @Test(timeout = 10000)
+    public void testForceDeleteScope() throws ConnectionFailedException {
+        // Setup Mocks
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        ClientConnection connection = mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.CreateSegment request = (WireCommands.CreateSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
+                                         false, false, 0, 0, 0));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.DeleteSegment request = (WireCommands.DeleteSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .process(new WireCommands.SegmentDeleted(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.DeleteSegment.class));
+        connectionFactory.provideConnection(location, connection);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
+                connectionFactory, true);
+        @Cleanup
+        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+
+        String scope = "scope";
+        String stream1 = "stream1";
+        String stream2 = "stream2";
+        String stream3 = "stream3";
+        streamManager.createScope(scope);
+        
+        streamManager.createStream(scope, stream1, StreamConfiguration.builder()
+                                                                        .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .build());
+        streamManager.createStream(scope, stream2, StreamConfiguration.builder()
+                                                                        .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .build());
+        streamManager.createStream(scope, stream3, StreamConfiguration.builder()
+                                                                        .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .build());
+        Set<Stream> streams = Sets.newHashSet(streamManager.listStreams(scope));
+        
+        assertEquals(3, streams.size());
+        assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
+        assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
+        assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
+        
+        assertTrue(streamManager.deleteScope(scope, true));
     }
 }
