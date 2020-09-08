@@ -66,7 +66,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Write an ordered list of events to the stream atomically for a given routing key. 
      * Events written with the same routing key will be read by readers in exactly the same order they were written. 
      * The maximum size of the serialized event individually should be {@link Serializer#MAX_EVENT_SIZE} and the 
-     * collective batch should be twice of {@link Serializer#MAX_EVENT_SIZE}. 
+     * collective batch should be less than twice the {@link Serializer#MAX_EVENT_SIZE}. 
      *
      * Note that the implementation provides retry logic to handle connection failures and service
      * host failures. Internal retries will not violate the exactly once semantic so it is better to

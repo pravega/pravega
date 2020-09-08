@@ -13,12 +13,10 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.Serializer;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import lombok.Data;
 import lombok.NonNull;
@@ -71,11 +69,12 @@ public class PendingEvent {
 
     public static PendingEvent withHeader(@NonNull String routingKey, @NonNull List<ByteBuffer> batch, @NonNull CompletableFuture<Void> ackFuture) {
         Preconditions.checkArgument(!batch.isEmpty(), "Batch cannot be empty");
-        ByteBuf batchBuff = Unpooled.EMPTY_BUFFER;
+        ByteBuf[] buffers = new ByteBuf[batch.size()];
         for (int i = 0; i < batch.size(); i++) {
-            ByteBuf eventBuf = getByteBuf(batch.get(i));
-            batchBuff = Unpooled.wrappedUnmodifiableBuffer(batchBuff, eventBuf);
+            buffers[i] = getByteBuf(batch.get(i));
         }
+
+        ByteBuf batchBuff = Unpooled.wrappedUnmodifiableBuffer(buffers);
         Preconditions.checkArgument(batchBuff.readableBytes() <= 2 * MAX_WRITE_SIZE, "Batch size too large: %s", batchBuff.readableBytes());
 
         return new PendingEvent(routingKey, batchBuff, batch.size(), ackFuture);
