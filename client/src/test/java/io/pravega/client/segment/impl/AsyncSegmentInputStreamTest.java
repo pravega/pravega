@@ -349,7 +349,7 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         in.getConnection().get();
 
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, segment.getScopedName(), "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
     }
 

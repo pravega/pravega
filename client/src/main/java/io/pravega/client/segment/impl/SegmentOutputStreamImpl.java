@@ -459,16 +459,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 failConnection(new InvalidTokenException(authTokenCheckFailed.toString()));
             }
         }
-
-        @Override
-        public void errorMessage(WireCommands.ErrorMessage errorMessage) {
-            log.warn("Request {} produced an unhandled {} : {}",
-                    errorMessage.getRequestId(),
-                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
-                    errorMessage.getMessage());
-
-            throw errorMessage.getThrowableException();
-        }
     }
 
     /**

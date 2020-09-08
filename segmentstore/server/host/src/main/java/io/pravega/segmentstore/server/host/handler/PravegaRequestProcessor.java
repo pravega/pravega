@@ -976,7 +976,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (errorCodeExists(u)) {
             log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
             invokeSafely(connection::send,
-                    new WireCommands.ErrorMessage(requestId, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
+                    new WireCommands.ErrorMessage(requestId, segment, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
                     failureHandler);
         } else {
             logError(requestId, segment, operation, u);

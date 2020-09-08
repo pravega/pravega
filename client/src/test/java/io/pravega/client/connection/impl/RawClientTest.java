@@ -88,11 +88,12 @@ public class RawClientTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
+        Segment segment = new Segment("scope", "testHello", 0);
         @Cleanup
-        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
+        RawClient rawClient = new RawClient(controller, connectionFactory, segment);
 
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        WireCommands.ErrorMessage reply = new ErrorMessage(requestId, "error.", ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        WireCommands.ErrorMessage reply = new ErrorMessage(requestId, segment.getScopedName(), "error.", ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
     }
 

@@ -1652,6 +1652,7 @@ public final class WireCommands {
     public static final class ErrorMessage implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.ERROR_MESSAGE;
         final long requestId;
+        final String segment;
         final String message;
         final ErrorCode errorCode;
 
@@ -1664,11 +1665,12 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(message == null ? "" : message);
+            out.writeUTF(segment == null ? "" : segment);
             out.writeInt(errorCode.getCode());
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            return new ErrorMessage(in.readLong(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
+            return new ErrorMessage(in.readLong(), in.readUTF(), in.readUTF(), ErrorCode.valueOf(in.readInt()));
         }
 
         public RuntimeException getThrowableException() {
@@ -1686,7 +1688,7 @@ public final class WireCommands {
         }
 
         public enum ErrorCode {
-            UNSPECIFIED(-1, RuntimeException.class),                                         // indicates un-specified (for backward compatibility
+            UNSPECIFIED(-1, RuntimeException.class),                       // indicates un-specified (for backward compatibility
             ILLEGAL_ARGUMENT_EXCEPTION(0, IllegalArgumentException.class); // indicates an IllegalArgumentException
 
             private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();

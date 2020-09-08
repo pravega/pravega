@@ -84,17 +84,6 @@ public class RawClient implements AutoCloseable {
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
 
-        @Override
-        public void errorMessage(WireCommands.ErrorMessage errorMessage) {
-            log.warn("Request {} produced an unhandled {} on segment {} : {}",
-                    errorMessage.getRequestId(),
-                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
-                    segmentId,
-                    errorMessage.getMessage());
-
-            throw errorMessage.getThrowableException();
-        }
-
     }
 
     public RawClient(PravegaNodeUri uri, ConnectionPool connectonPool) {
