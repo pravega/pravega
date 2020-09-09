@@ -94,11 +94,10 @@ public class FailingReplyProcessorTest {
 
     @Test
     public void testErrorMessageThrows() {
-        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", null)));
         for (ErrorMessage.ErrorCode code : ErrorMessage.ErrorCode.values()) {
             ErrorMessage msg = new ErrorMessage(0, "", "", code);
             assertThrows(code.getExceptionType(), () -> {
-                throw msg.getThrowableException();
+                rp.errorMessage(msg);
             });
         }
     }

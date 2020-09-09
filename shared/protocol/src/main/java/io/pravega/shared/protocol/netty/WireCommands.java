@@ -1664,8 +1664,8 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(message == null ? "" : message);
             out.writeUTF(segment == null ? "" : segment);
+            out.writeUTF(message == null ? "" : message);
             out.writeInt(errorCode.getCode());
         }
 
