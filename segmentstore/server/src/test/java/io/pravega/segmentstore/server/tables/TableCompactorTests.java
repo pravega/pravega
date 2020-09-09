@@ -273,9 +273,6 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
         Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
                 0, context.indexWriter.getTotalEntryCount(context.segmentMetadata));
-
-        Assert.assertEquals("Unexpected number of candidate reads from the segment with copy-on-read enabled.",
-                expectedCopyOnReadCount, context.segment.getCopyOnReadCount());
     }
 
     /**

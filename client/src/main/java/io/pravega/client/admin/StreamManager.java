@@ -141,12 +141,23 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * Deletes an existing scope. The scope must contain no
-     * stream.
+     * stream. This is same as calling {@link #deleteScope(String, boolean)} with deleteStreams flag set to false. 
      *
-     * @param scopeName  The name of the scope to create this stream in.
+     * @param scopeName  The name of the scope to delete.
      * @return True if scope is deleted
      */
     boolean deleteScope(String scopeName);
+
+    /**
+     * Deletes scope by listing and deleting all streams in scope. This method is not atomic and if new streams are added 
+     * to the scope concurrently, the attempt to delete the scope may fail. Deleting scope is idempotent and failure to 
+     * delete scope is retry-able.  
+     *
+     * @param scopeName  The name of the scope to delete.
+     * @param deleteStreams To list and delete streams in scope before attempting to delete scope. 
+     * @return True if scope is deleted, false otherwise. 
+     */
+    boolean deleteScope(String scopeName, boolean deleteStreams);
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
