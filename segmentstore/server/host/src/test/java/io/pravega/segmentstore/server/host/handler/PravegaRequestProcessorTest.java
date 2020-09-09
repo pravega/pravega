@@ -64,6 +64,7 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -119,6 +120,7 @@ public class PravegaRequestProcessorTest {
 
         @Override
         public ReadResultEntry next() {
+            Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", this.copyOnRead);
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
             return result;
@@ -448,7 +450,7 @@ public class PravegaRequestProcessorTest {
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
         return new MergeStreamSegmentResult(100, 100, attributes);
     }
-    
+
     private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
 
         Map<UUID, Long> attributes = new HashMap<>();
