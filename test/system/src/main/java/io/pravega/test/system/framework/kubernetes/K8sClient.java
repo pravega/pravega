@@ -582,17 +582,17 @@ public class K8sClient {
     }
 
     /**
-     * Method to create V1ConfigMap.
-     * @param namespace Namespace on which the pod(s) reside.
-     * @param configMap V1ConfigMap to create
-     * @return Future representing the V1ConfigMap.
+     * Create ConfigMap.
+     * @param namespace The namespace where the ConfigMap should be created.
+     * @param binding The cluster ConfigMap.
+     * @return A future indicating the status of the ConfigMap operation.
      */
     @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap configMap) {
+    public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap binding) {
         CoreV1Api api = new CoreV1Api();
-        K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createNamespacedConfigMap");
-        api.createNamespacedConfigMapAsync(namespace, configMap, PRETTY_PRINT, null, null, callback);
-        return callback.getFuture();
+        K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createConfigMap");
+        api.createNamespacedConfigMapAsync(namespace, binding, PRETTY_PRINT, DRY_RUN, FIELD_MANAGER, callback);
+        return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
     /**
