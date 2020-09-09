@@ -11,14 +11,19 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1ConfigMapBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.openapi.models.V1ConfigMap;
+import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.util.Yaml;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
+import org.apache.commons.io.IOUtils;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +41,7 @@ public abstract class AbstractService implements Service {
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
+    protected static final String TLS = "tls://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
@@ -52,6 +58,8 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
+    static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
+    static final String SECRET_NAME_USED_FOR_TLS = "selfsigned-cert-tls";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
@@ -69,6 +77,7 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
+    private static final String WEBHOOK_CERT_GENERATE = "webhookCert.generate";
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
     private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
@@ -87,12 +96,13 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
-    return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
+    return registerTLSSecret()
+            .thenCompose(v ->k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
             NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
             getPravegaOnlyDeployment(zkUri.getAuthority(),
                     controllerCount,
                     segmentStoreCount,
-                    props));
+                    props)));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -114,26 +124,36 @@ public abstract class AbstractService implements Service {
                 .put("longtermStorage", tier2Spec())
                 .build();
 
+        final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
+                .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
+                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_TLS)
+                .build();
+
+        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
+                .put("static", staticTlsSpec)
+                .build();
+
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec))
+                .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec, tlsSpec))
                 .build();
     }
 
-    protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec) {
+    protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec,
+                                                                       Map<String, Object> tlsSpec) {
 
-        ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
-                .put("zookeeperUri", zkLocation)
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder();
+        builder.put("zookeeperUri", zkLocation)
                 .put("bookkeeperUri", BOOKKEEPER_ID + "-" + BOOKKEEPER_LABEL + "-headless" + ":" + BOOKKEEPER_PORT)
-                .put("pravega", pravegaSpec)
-                .build();
+                .put("pravega", pravegaSpec);
+        builder.put("version", PRAVEGA_VERSION);
 
-        return ImmutableMap.<String, Object>builder()
-                .putAll(commonEntries)
-                .put("version", PRAVEGA_VERSION)
-                .build();
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            builder.put("tls", tlsSpec);
+        }
+        return builder.build();
     }
 
     protected static Map<String, Object> buildPatchedPravegaClusterSpec(String service, int replicaCount, String component) {
@@ -204,6 +224,34 @@ public abstract class AbstractService implements Service {
                         .put("memory", requestsMem)
                         .build())
                 .build();
+    }
+
+    private static V1Secret getTLSSecret() throws IOException {
+        String data = "";
+        String yamlInputPath = "secret.yaml";
+        try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
+            data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        }
+        Yaml.addModelMap("v1", "Secret", V1Secret.class);
+        V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
+        return yamlSecret;
+    }
+
+    private CompletableFuture<V1Secret> registerTLSSecret() {
+        if (!Utils.TLS_AND_AUTH_ENABLED) {
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+            V1Secret secret = getTLSSecret();
+            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+            if (existingSecret != null) {
+                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+            }
+            return k8sClient.createSecret(NAMESPACE, secret);
+        } catch (Exception e) {
+            log.error("Could not register secret: ", e);
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
