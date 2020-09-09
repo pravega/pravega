@@ -77,6 +77,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val invalidKey = data.unlinkedEntry.getKey();
         val invalidResult = reader.find(invalidKey.getKey(), data.getBucketOffset(), new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNull("Not expecting any result for key that does not exist.", invalidResult);
+        checkCopyOnRead(segment);
     }
 
     /**
@@ -104,6 +105,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val invalidKey = data.unlinkedEntry.getKey();
         val invalidResult = reader.find(invalidKey.getKey(), data.getBucketOffset(), new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNull("Not expecting any result for key that does not exist.", invalidResult);
+        checkCopyOnRead(segment);
     }
 
     /**
@@ -132,6 +134,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val inexistentKey = entries.get(1).getKey();
         val inexistentResult = reader.find(inexistentKey.getKey(), 0L, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNull("Not expecting any result for key that was never present.", inexistentResult);
+        checkCopyOnRead(segment);
     }
 
     /**
@@ -178,6 +181,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertContainsSameElements("Unexpected result from findAll().", expectedResult, result,
                 (i1, i2) -> areEqual.test(i1, i2) ? 0 : 1);
+        checkCopyOnRead(segment);
     }
 
     private TestData generateData() {
@@ -193,6 +197,11 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         }
 
         return new TestData(entries, serialization, backpointers, entries.get(0));
+    }
+
+    private void checkCopyOnRead(SegmentMock segment) {
+        AssertExtensions.assertGreaterThan("Expected at least one read request to be made.", 0, segment.getReadRequestCount());
+        Assert.assertEquals("Expected all reads to have copy-on-read set.", segment.getReadRequestCount(), segment.getCopyOnReadCount());
     }
 
     private List<TableEntry> generateEntries(EntrySerializer s) {
