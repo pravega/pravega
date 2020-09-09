@@ -884,7 +884,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     public void testErrorMessage() throws IOException {
         Class exception = IllegalArgumentException.class;
         WireCommands.ErrorMessage.ErrorCode code = WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION;
-        WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, testString1, code);
+        WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
         testCommand(cmd);
         assertTrue(cmd.getErrorCode().getExceptionType().equals(exception));
         assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exception).equals(code));

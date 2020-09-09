@@ -1079,6 +1079,7 @@ public class PravegaRequestProcessorTest {
         long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
         processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length + 1, 3));
         order.verify(connection).send(new WireCommands.ErrorMessage(1,
+                tableSegmentName,
                 "fromPosition can not exceed the length of the TableSegment.",
                 WireCommands.ErrorMessage.ErrorCode.valueOf(IllegalArgumentException.class)));
         verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
