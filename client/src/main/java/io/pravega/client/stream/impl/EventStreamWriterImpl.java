@@ -118,11 +118,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
             synchronized (writeSealLock) {                
-                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+                int size = data.remaining();
+                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey, size);
                 while (segmentWriter == null) {
-                    log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
+                    log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey, size));
                     handleMissingLog();
-                    segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+                    segmentWriter = selector.getSegmentOutputStreamForKey(routingKey, size);
                 }
                 segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }
@@ -195,7 +196,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 if (sendFailed) {
                     unsent.add(event);
                 } else {
-                    SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey());
+                    SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(event.getRoutingKey(), event.getData().readableBytes());
                     if (segmentWriter == null) {
                         log.info("No writer for segment during resend.");
                         unsent.addAll(selector.refreshSegmentEventWriters(segmentSealedCallBack));

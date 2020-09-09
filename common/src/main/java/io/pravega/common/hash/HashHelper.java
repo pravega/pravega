@@ -104,6 +104,16 @@ public class HashHelper {
     public double hashToRange(String str) {
         return longToDoubleFraction(hash.hashUnencodedChars(str).asLong());
     }
+    
+    /**
+     * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
+     *
+     * @param l The input value.
+     * @return Uniformly distributed double between 0 and 1.
+     */
+    public double hashToRange(long l) {
+        return longToDoubleFraction(hash.hashLong(l).asLong());
+    }
 
     /**
      * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.

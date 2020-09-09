@@ -74,7 +74,7 @@ public class SegmentSelectorTest {
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
-            Segment segment = selector.getSegmentForEvent("" + i);
+            Segment segment = selector.getSegmentForEvent("" + i, 0);
             assertNotNull(segment);
             counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
@@ -106,13 +106,45 @@ public class SegmentSelectorTest {
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 100; i++) {
-            Segment segment = selector.getSegmentForEvent(null);
+            Segment segment = selector.getSegmentForEvent(null, 1024 * 1024);
             assertNotNull(segment);
             counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
         }
+    }
+    
+    @Test
+    public void testNullRoutingKeyZeroSize() {
+        Controller controller = Mockito.mock(Controller.class);
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
+        int[] counts = new int[4];
+        Arrays.fill(counts, 0);
+        for (int i = 0; i < 100; i++) {
+            Segment segment = selector.getSegmentForEvent(null, 0);
+            assertNotNull(segment);
+            counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
+        }
+        int numNonZero = 0;
+        for (int count : counts) {
+            if (count > 0) {
+                numNonZero++;
+            }
+        }
+        assertEquals(1, numNonZero);
     }
 
     @Test
@@ -134,7 +166,7 @@ public class SegmentSelectorTest {
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
-            Segment segment = selector.getSegmentForEvent("Foo");
+            Segment segment = selector.getSegmentForEvent("Foo", 0);
             assertNotNull(segment);
             counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }

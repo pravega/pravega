@@ -21,6 +21,7 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.HashHelper;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
@@ -47,6 +48,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SegmentSelector {
 
+    /**
+     * When writing without a routing key, keep writing this many bytes to the same segment before selecting a new one.
+     */
+    private static final long BYTES_PER_SEGMENT = 256*1024;
+    @GuardedBy("$lock")
+    private long bytesWritten = 0; //Bytes written without a routing key.
+    private final HashHelper randomRoutingKeyHasher = HashHelper.seededWith("Random routing key");
+    
+    
     private final Stream stream;
     private final Controller controller;
     private final SegmentOutputStreamFactory outputStreamFactory;
@@ -64,24 +74,26 @@ public class SegmentSelector {
      *
      * @param routingKey The key that should be used to select from the segment that the event
      *            should go to.
+     * @param length The length of the data being written.
      * @return The SegmentOutputStream for the segment that has been selected or null if
      *         {@link #refreshSegmentEventWriters(Consumer)} needs to be called.
      */
     @Synchronized
-    public SegmentOutputStream getSegmentOutputStreamForKey(String routingKey) {
+    public SegmentOutputStream getSegmentOutputStreamForKey(String routingKey, int length) {
         if (currentSegments == null) {
             return null;
         }
-        return writers.get(getSegmentForEvent(routingKey));
+        return writers.get(getSegmentForEvent(routingKey, length));
     }
 
     @Synchronized
-    public Segment getSegmentForEvent(String routingKey) {
+    public Segment getSegmentForEvent(String routingKey, int length) {
         if (currentSegments == null) {
             return null;
         }
         if (routingKey == null) {
-            return currentSegments.getSegmentForKey(random.nextDouble());
+            bytesWritten += length;
+            return currentSegments.getSegmentForKey(randomRoutingKeyHasher.hashToRange(bytesWritten / BYTES_PER_SEGMENT));
         }
         return currentSegments.getSegmentForKey(routingKey);
     }
