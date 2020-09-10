@@ -160,20 +160,20 @@ public class Utils {
         if (TLS_AND_AUTH_ENABLED) {
             log.debug("Generating config with tls and auth enabled.");
             return ClientConfig.builder()
-                    // TLS-related client-side configuration
-                    .trustStore(DEFAULT_TRUSTSTORE_PATH)
-                    .validateHostName(VALIDATE_HOSTNAME)
-                    // auth
-                    .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                    .controllerURI(controllerUri)
-                    .build();
+                               // TLS-related client-side configuration
+                               .trustStore(DEFAULT_TRUSTSTORE_PATH)
+                               .validateHostName(VALIDATE_HOSTNAME)
+                               // auth
+                               .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                               .controllerURI(controllerUri)
+                               .build();
         } else if (AUTH_ENABLED) {
             log.debug("Generating config with auth enabled.");
             return ClientConfig.builder()
-                    // auth
-                    .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                    .controllerURI(controllerUri)
-                    .build();
+                               // auth
+                               .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                               .controllerURI(controllerUri)
+                               .build();
         } else {
             log.debug("Generating config with tls and auth disabled.");
             return ClientConfig.builder().controllerURI(controllerUri).build();

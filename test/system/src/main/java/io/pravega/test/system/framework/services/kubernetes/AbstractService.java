@@ -11,10 +11,39 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ConfigMapBuilder;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Container;
+import io.kubernetes.client.openapi.models.V1ContainerBuilder;
+import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
+import io.kubernetes.client.openapi.models.V1Deployment;
+import io.kubernetes.client.openapi.models.V1DeploymentBuilder;
+import io.kubernetes.client.openapi.models.V1DeploymentSpecBuilder;
+import io.kubernetes.client.openapi.models.V1EnvVarBuilder;
+import io.kubernetes.client.openapi.models.V1EnvVarSourceBuilder;
+import io.kubernetes.client.openapi.models.V1LabelSelectorBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
+import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
+import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
+import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
+import io.kubernetes.client.openapi.models.V1Secret;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionSpecBuilder;
+import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionStatus;
+import io.kubernetes.client.openapi.models.V1beta1PolicyRuleBuilder;
+import io.kubernetes.client.openapi.models.V1beta1Role;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
+import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
+import io.kubernetes.client.openapi.models.V1beta1RoleBindingBuilder;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
+import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
+import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
+import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
+import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
 import io.kubernetes.client.util.Yaml;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
@@ -85,6 +114,7 @@ public abstract class AbstractService implements Service {
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
     private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
     private static final String LEDGERDIRECTORIES = "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3";
+
     final K8sClient k8sClient;
     private final String id;
 
@@ -125,6 +155,15 @@ public abstract class AbstractService implements Service {
                 .put("options", props)
                 .put("image", pravegaImgSpec)
                 .put("longtermStorage", tier2Spec())
+                .build();
+
+        final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
+                .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
+                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_TLS)
+                .build();
+
+        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
+                .put("static", staticTlsSpec)
                 .build();
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
@@ -245,12 +284,12 @@ public abstract class AbstractService implements Service {
             return CompletableFuture.completedFuture(null);
         }
         try {
-            V1Secret secret = getTLSSecret();
-            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
-            if (existingSecret != null) {
-                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
-            }
-            return k8sClient.createSecret(NAMESPACE, secret);
+        V1Secret secret = getTLSSecret();
+        V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+        if (existingSecret != null) {
+            Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+        }
+        return k8sClient.createSecret(NAMESPACE, secret);
         } catch (Exception e) {
             log.error("Could not register secret: ", e);
         }
@@ -328,7 +367,6 @@ public abstract class AbstractService implements Service {
                         .put(service, replicaCount)
                         .build())
                 .build();
-
     }
 
     @Override

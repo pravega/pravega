@@ -123,22 +123,22 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
                 .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
-                        + " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED
-                        + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
-                        + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                                  + " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED
+                                  + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
+                                  + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .withRestartPolicy("Never")
                 .endSpec().build();
         if (Utils.TLS_AND_AUTH_ENABLED) {
             pod  = new V1PodBuilder(pod).editSpec().withVolumes(new V1VolumeBuilder().withName("tls-certs")
-                    .withSecret(new V1SecretVolumeSourceBuilder().withSecretName(Utils.TLS_SECRET_NAME).build())
-                    .build())
-                    .editContainer(0)
-                    .withVolumeMounts(new V1VolumeMountBuilder().withMountPath(Utils.TLS_MOUNT_PATH).withName("tls-secret").build())
-                    .endContainer()
-                    .endSpec()
-                    .build();
+                                                  .withSecret(new V1SecretVolumeSourceBuilder().withSecretName(Utils.TLS_SECRET_NAME).build())
+                                                  .build())
+                .editContainer(0)
+                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath(Utils.TLS_MOUNT_PATH).withName("tls-secret").build())
+                .endContainer()
+                .endSpec()
+                .build();
         }
         return pod;
     }
