@@ -556,7 +556,9 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
         assertEquals("Number of events written & read should be equal", writeCount, readCount);
         log.info("Read write test on stream succeeds");
     }
-    private Integer getKeyID() { return random.nextInt(endKeyRange - startKeyRange) + startKeyRange; }
+
+    private Integer getKeyID() {
+        return random.nextInt(endKeyRange - startKeyRange) + startKeyRange; }
 
     private String getValue() {
         String alphaNumericString = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
