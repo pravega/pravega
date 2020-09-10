@@ -117,7 +117,7 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
     private final int startKeyRange = 10000;
     private final int endKeyRange = 99999;
     private final int valueSize = 10312;
-    private Random random = new Random();
+    private Random random = new Random(100);
 
     @Before
     public void setup() throws Exception {
@@ -154,7 +154,6 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
                 GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
-
     @After
     public void tearDown() throws Exception {
         this.controller.close();
@@ -165,7 +164,6 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
         this.zkTestServer.close();
         this.keyValueTableFactory.close();
     }
-
 
     /**
      * Create Stream and KVTable with same name under same scope.
@@ -181,8 +179,6 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
         String routingKey = "routingKey";
         String streamEvent = "Stream event";
         int numEvents = 100;
-        int writeCount = 0;
-        int readCount = 0;
 
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(streamSegments);
         final StreamConfiguration config = StreamConfiguration.builder()
@@ -206,132 +202,17 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
                 Futures.getAndHandleExceptions(this.controller.getCurrentSegments(newScope, streamName),
                         RuntimeException::new).getSegments().size());
 
-        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(newScope, this.controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(newScope, this.controller, clientFactory)) {
-
-            log.info("Creating writer");
-            @Cleanup
-            final EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                    new JavaSerializer<>(), EventWriterConfig.builder().build());
-
-            // start writing events to the stream.
-            for (int i = 0; i < numEvents; i++) {
-                log.info("Writing event {}", streamEvent);
-                writer.writeEvent(routingKey, streamEvent);
-                writeCount++;
-                writer.flush();
-            }
-            log.info("Closing writer {}", writer);
-            writer.close();
-
-            // create a reader group.
-            log.info("Creating Reader group : {}", readerGroupName);
-
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder()
-                    .stream(Stream.of(newScope, streamName)).build());
-            log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-            log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-
-            log.info("Creating reader");
-            @Cleanup
-            final EventStreamReader<String> reader = clientFactory.createReader(readerName,
-                    readerGroupName,
-                    new JavaSerializer<>(),
-                    ReaderConfig.builder().build());
-
-            // start reading events from the stream.
-            while (!(readCount == writeCount)) {
-                final String eventRead = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                log.info("Reading event {}", eventRead);
-                if (eventRead != null) {
-                    // update if event read is not null.
-                    readCount++;
-                }
-            }
-            log.info("Closing reader {}", reader);
-            reader.close();
-
-            //delete readergroup
-            log.info("Deleting readergroup {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-        log.info("All writers have stopped. Event Written Count:{}, Event Read " +
-                "Count: {}", writeCount, readCount);
-        assertEquals("Number of events written & read should be equal", writeCount, readCount);
-
-        log.info("Read write test on stream succeeds");
-
-        KeyValueTableFactory newKeyValueTableFactory = new KeyValueTableFactoryImpl(newScope, this.controller, this.connectionPool);
-        KeyValueTable<Integer, String> newKeyValueTable = newKeyValueTableFactory.forKeyValueTable(newKVT.getKeyValueTableName(),
-                KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+        // To read and write few sample events on the stream having same name as the KVTable.
+        readWriteOnStream(newScope, streamName, numEvents, routingKey, streamEvent, readerGroupName, readerName);
 
         String keyFamily = "KeyFamily1";
-        LinkedHashMap<Integer, String> entryMap1 = new LinkedHashMap<>();
-        Integer[] keyArray = new Integer[10];
-        for (int i = 0; i < keyArray.length; i++) {
-            keyArray[i] = getKeyID();
-        }
-        String[] valueArray1 = new String[10];
-        for (int i = 0; i < valueArray1.length; i++) {
-            valueArray1[i] = getValue();
-        }
+        // inserts and fetches few Table entries for validate basic functioning of KVTable
+        insertAndGetFromKVTable(newScope, newKVT, keyFamily);
 
-        // Adding 10 new entries to the Table only if they are not already present.
-        for (int i = 0; i < keyArray.length; i++) {
-            entryMap1.put(keyArray[i], valueArray1[i]);
-        }
-
-        List<Version> versionList1 = newKeyValueTable.putAll(keyFamily, entryMap1.entrySet()).join();
-        log.info("Version list1: {}", versionList1);
-        assertNotNull("Version list1 should not be empty", versionList1);
-        assertEquals("Version list1 size should be same as entry list1 size",
-                versionList1.size(), entryMap1.size());
-
-        List<Integer> keyList = new ArrayList<>();
-        for (int i = 0; i < keyArray.length; i++) {
-            keyList.add(keyArray[i]);
-        }
-        log.info("Key list: {}", keyList);
-        List<TableEntry<Integer, String>> getEntryList1 = newKeyValueTable.getAll(keyFamily, keyList).join();
-        log.info("Get Entry List1: {}", getEntryList1);
-        assertNotNull("Get Entry List1 should not be empty", getEntryList1);
-        assertEquals("Get Entry List1 size should be same as get entry list1 size",
-                getEntryList1.size(), entryMap1.size());
-        List<Integer> entryKeyList = new ArrayList<>();
-        for (Integer key: entryMap1.keySet()) {
-            entryKeyList.add(key);
-        }
-        log.info("entryKeyList: {}", entryKeyList);
-        for (int i = 0; i < keyArray.length; i++) {
-            assertEquals("Corresponding key for getEntryList should be as inserted",
-                    keyList.get(i), getEntryList1.get(i).getKey().getKey());
-            assertEquals("Corresponding key for entryList should be as inserted",
-                    entryKeyList.get(i), getEntryList1.get(i).getKey().getKey());
-        }
-
-        // Comparing each & every entry values of both entrylist and getEntryList.
-        for (int i = 0; i < keyArray.length; i++) {
-            assertEquals("All string values of both entryList1 and getEntryList1 should be equal",
-                    entryMap1.get(entryKeyList.get(i)), getEntryList1.get(i).getValue());
-        }
-        log.info("KVPair operations succeeds over KVTable");
-
-        // seal the stream.
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(newScope, streamName);
-        log.info("Sealing stream {}", streamName);
-        assertTrue(sealStreamStatus.get());
-        // delete the stream.
-        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(newScope, streamName);
-        log.info("Deleting stream {}", streamName);
-        assertTrue(deleteStreamStatus.get());
-        // delete the  scope.
-        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(newScope);
-        log.info("Deleting scope {}", newScope);
-        assertTrue(deleteScopeStatus.get());
-
-        log.info("Successfully completed creating Stream & KVTable with same " +
-                "name under same scope with event read write test on both entities");
+        // Cleans up stream resources by sealing existing stream segments & then deletes the stream.
+        cleanUpStream(newScope, streamName);
+        // deleting the scope.
+        cleanUpScope(newScope);
     }
 
     /**
@@ -352,8 +233,6 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
         String routingKey = "routingKey";
         String streamEvent = "Stream event";
         int numEvents = 100;
-        int writeCount = 0;
-        int readCount = 0;
 
         assertTrue("The requested Scope must get created", this.controller.createScope(newScope1).join());
         // Creating KVT1 under Scope1.
@@ -374,14 +253,14 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
             this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
         }
 
-        // Deleting KeyValueTable where Scope does not exist.
+        // Case-1: Deleting KeyValueTable where Scope does not exist.
         ResultObserver<DeleteKVTableStatus> result1 = new ResultObserver<>();
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(newScope2,
                 newKVT1.getKeyValueTableName()), result1);
         assertEquals("The requested table to delete must not be found for invalid Scope name",
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, result1.get().getStatus());
 
-        // Delete KeyValueTable where KVTable does not exist within the Scope.
+        // Case-2: Delete KeyValueTable where KVTable does not exist within the Scope.
         ResultObserver<DeleteKVTableStatus> result2 = new ResultObserver<>();
         assertTrue("The requested Scope must get created", this.controller.createScope(newScope2).join());
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(newScope1,
@@ -405,7 +284,7 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
             this.streamSegmentStore.getStreamSegmentInfo(s.getScopedName(), TIMEOUT).join();
         }
 
-        // KVTable and its table segments should get deleted but Stream and its stream segments should exist and +
+        // Case-3: KVTable and its table segments should get deleted but Stream and its stream segments should exist and +
         // we should be able to read/write from them.
         ResultObserver<DeleteKVTableStatus> result3 = new ResultObserver<>();
         this.controllerService.deleteKeyValueTable(ModelHelper.createKeyValueTableInfo(newScope1,
@@ -427,60 +306,8 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
             this.streamSegmentStore.getStreamSegmentInfo(s.getScopedName(), TIMEOUT).join();
         }
 
-        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactoryImpl clientFactory = new ClientFactoryImpl(newScope1, this.controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(newScope1, this.controller, clientFactory)) {
-
-            log.info("Creating writer");
-            @Cleanup
-            final EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName1,
-                    new JavaSerializer<>(), EventWriterConfig.builder().build());
-
-            // start writing events to the stream.
-            for (int i = 0; i < numEvents; i++) {
-                log.info("Writing event {}", streamEvent);
-                writer.writeEvent(routingKey, streamEvent);
-                writeCount++;
-                writer.flush();
-            }
-            log.info("Closing writer {}", writer);
-            writer.close();
-
-            // create a reader group.
-            log.info("Creating Reader group : {}", readerGroupName);
-
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder()
-                    .stream(Stream.of(newScope1, streamName1)).build());
-            log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-            log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-
-            log.info("Creating reader");
-            @Cleanup
-            final EventStreamReader<String> reader = clientFactory.createReader(readerName,
-                    readerGroupName,
-                    new JavaSerializer<>(),
-                    ReaderConfig.builder().build());
-
-            // start reading events from the stream.
-            while (!(readCount == writeCount)) {
-                final String eventRead = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                log.info("Reading event {}", eventRead);
-                if (eventRead != null) {
-                    // update if event read is not null.
-                    readCount++;
-                }
-            }
-            log.info("Closing reader {}", reader);
-            reader.close();
-
-            //delete readergroup
-            log.info("Deleting readergroup {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
-        }
-        log.info("All writers have stopped. Event Written Count:{}, Event Read " +
-                "Count: {}", writeCount, readCount);
-        assertEquals("Number of events written & read should be equal", writeCount, readCount);
-        log.info("Read write test on stream succeeds");
+        // To read and write few sample events on the stream having same name as the KVTable.
+        readWriteOnStream(newScope1, streamName1, numEvents, routingKey, streamEvent, readerGroupName, readerName);
 
         // Creating Stream2 under Scope2.
         assertTrue("The requested Stream must get created", this.controller.createStream(newScope2,
@@ -511,16 +338,10 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
             this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
         }
 
-        // seal the stream.
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(newScope2, streamName2);
-        log.info("Sealing stream {}", streamName2);
-        assertTrue(sealStreamStatus.get());
-        // delete the stream.
-        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(newScope2, streamName2);
-        log.info("Deleting stream {}", streamName2);
-        assertTrue(deleteStreamStatus.get());
+        // Cleans up stream resources by sealing existing stream segments, deleting stream and scope.
+        cleanUpStream(newScope2, streamName2);
 
-        // Stream and its stream segments should get deleted but KVTable and its table segments should +
+        // Case-4: Stream and its stream segments should get deleted but KVTable and its table segments should +
         // exist and we should be able to read/write from them.
         for (val s : strmSegments2.getSegments()) {
             AssertExtensions.assertSuppliedFutureThrows(
@@ -535,60 +356,9 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
             this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
         }
 
-        KeyValueTableFactory newKeyValueTableFactory = new KeyValueTableFactoryImpl(newScope2, this.controller, this.connectionPool);
-        KeyValueTable<Integer, String> newKeyValueTable = newKeyValueTableFactory.forKeyValueTable(newKVT2.getKeyValueTableName(),
-                KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-
         String keyFamily = "KeyFamily1";
-        LinkedHashMap<Integer, String> entryMap1 = new LinkedHashMap<>();
-        Integer[] keyArray = new Integer[10];
-        for (int i = 0; i < keyArray.length; i++) {
-            keyArray[i] = getKeyID();
-        }
-        String[] valueArray1 = new String[10];
-        for (int i = 0; i < valueArray1.length; i++) {
-            valueArray1[i] = getValue();
-        }
-
-        // Adding 10 new entries to the Table only if they are not already present.
-        for (int i = 0; i < keyArray.length; i++) {
-            entryMap1.put(keyArray[i], valueArray1[i]);
-        }
-
-        List<Version> versionList1 = newKeyValueTable.putAll(keyFamily, entryMap1.entrySet()).join();
-        log.info("Version list1: {}", versionList1);
-        assertNotNull("Version list1 should not be empty", versionList1);
-        assertEquals("Version list1 size should be same as entry list1 size",
-                versionList1.size(), entryMap1.size());
-
-        List<Integer> keyList = new ArrayList<>();
-        for (int i = 0; i < keyArray.length; i++) {
-            keyList.add(keyArray[i]);
-        }
-        log.info("Key list: {}", keyList);
-        List<TableEntry<Integer, String>> getEntryList1 = newKeyValueTable.getAll(keyFamily, keyList).join();
-        log.info("Get Entry List1: {}", getEntryList1);
-        assertNotNull("Get Entry List1 should not be empty", getEntryList1);
-        assertEquals("Get Entry List1 size should be same as get entry list1 size",
-                getEntryList1.size(), entryMap1.size());
-        List<Integer> entryKeyList = new ArrayList<>();
-        for (Integer key: entryMap1.keySet()) {
-            entryKeyList.add(key);
-        }
-        log.info("entryKeyList: {}", entryKeyList);
-        for (int i = 0; i < keyArray.length; i++) {
-            assertEquals("Corresponding key for getEntryList should be as inserted",
-                    keyList.get(i), getEntryList1.get(i).getKey().getKey());
-            assertEquals("Corresponding key for entryList should be as inserted",
-                    entryKeyList.get(i), getEntryList1.get(i).getKey().getKey());
-        }
-
-        // Comparing each & every entry values of both entrylist and getEntryList.
-        for (int i = 0; i < keyArray.length; i++) {
-            assertEquals("All string values of both entryList1 and getEntryList1 should be equal",
-                    entryMap1.get(entryKeyList.get(i)), getEntryList1.get(i).getValue());
-        }
-        log.info("KVPair operations succeeds over KVTable");
+        // inserts and fetches few Table entries for validate basic functioning of KVTable
+        insertAndGetFromKVTable(newScope2, newKVT2, keyFamily);
     }
 
     /**
@@ -651,39 +421,142 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
                 tableItr2.hasNext());
         AssertExtensions.assertThrows(NoSuchElementException.class, () -> tableItr2.next());
 
-        // seal stream1.
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(newScope1, newStream1);
-        log.info("Sealing stream1 {}", newStream1);
-        assertTrue(sealStreamStatus.get());
-        // seal stream2.
-        sealStreamStatus = controller.sealStream(newScope1, newStream2);
-        log.info("Sealing stream2 {}", newStream2);
-        assertTrue(sealStreamStatus.get());
-        // delete stream1.
-        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(newScope1, newStream1);
-        log.info("Deleting stream1 {}", newStream1);
-        assertTrue(deleteStreamStatus.get());
-        // delete stream2.
-        deleteStreamStatus = controller.deleteStream(newScope1, newStream2);
-        log.info("Deleting stream2 {}", newStream2);
-        assertTrue(deleteStreamStatus.get());
-        // delete scope1.
-        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(newScope1);
-        log.info("Deleting scope1 {}", newScope1);
-        assertTrue(deleteScopeStatus.get());
-        // delete scope2.
-        deleteScopeStatus = controller.deleteScope(newScope2);
-        log.info("Deleting scope2 {}", newScope2);
-        assertTrue(deleteScopeStatus.get());
-
-        log.info("Successfully completed testing list KVTables under a scope with " +
-                "only Streams and under empty Scope ");
+        // Cleans up stream resources by sealing existing stream segments, deleting stream and scope.
+        cleanUpStream(newScope1, newStream1);
+        cleanUpStream(newScope1, newStream2);
+        cleanUpScope(newScope1);
+        cleanUpScope(newScope2);
     }
 
-    private Integer getKeyID() {
-        Integer keyId = random.nextInt(endKeyRange - startKeyRange) + startKeyRange;
-        return keyId;
+    private void insertAndGetFromKVTable(String scope, KeyValueTableInfo kvt, String keyFamily) {
+        @Cleanup
+        KeyValueTableFactory newKeyValueTableFactory = new KeyValueTableFactoryImpl(scope, this.controller, this.connectionPool);
+        @Cleanup
+        KeyValueTable<Integer, String> newKeyValueTable = newKeyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(),
+                KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+
+        LinkedHashMap<Integer, String> entryMap1 = new LinkedHashMap<>();
+        Integer[] keyArray = new Integer[10];
+        String[] valueArray1 = new String[10];
+        // Creating 10 new entries to insert in the Table.
+        for (int i = 0; i < keyArray.length; i++) {
+            keyArray[i] = getKeyID();
+            valueArray1[i] = getValue();
+            entryMap1.put(keyArray[i], valueArray1[i]);
+        }
+
+        List<Version> versionList1 = newKeyValueTable.putAll(keyFamily, entryMap1.entrySet()).join();
+        log.info("Version list1: {}", versionList1);
+        assertNotNull("Version list1 should not be empty", versionList1);
+        assertEquals("Version list1 size should be same as entry list1 size",
+                versionList1.size(), entryMap1.size());
+
+        List<Integer> keyList = new ArrayList<>();
+        for (int i = 0; i < keyArray.length; i++) {
+            keyList.add(keyArray[i]);
+        }
+        log.info("Key list: {}", keyList);
+        List<TableEntry<Integer, String>> getEntryList1 = newKeyValueTable.getAll(keyFamily, keyList).join();
+        log.info("Get Entry List1: {}", getEntryList1);
+        assertNotNull("Get Entry List1 should not be empty", getEntryList1);
+        assertEquals("Get Entry List1 size should be same as get entry list1 size",
+                getEntryList1.size(), entryMap1.size());
+        List<Integer> entryKeyList = new ArrayList<>();
+        for (Integer key: entryMap1.keySet()) {
+            entryKeyList.add(key);
+        }
+        log.info("entryKeyList: {}", entryKeyList);
+        for (int i = 0; i < keyArray.length; i++) {
+            assertEquals("Corresponding key for getEntryList should be as inserted",
+                    keyList.get(i), getEntryList1.get(i).getKey().getKey());
+            assertEquals("Corresponding key for entryList should be as inserted",
+                    entryKeyList.get(i), getEntryList1.get(i).getKey().getKey());
+        }
+
+        // Comparing each & every entry values of both entryList and getEntryList.
+        for (int i = 0; i < keyArray.length; i++) {
+            assertEquals("All string values of both entryList1 and getEntryList1 should be equal",
+                    entryMap1.get(entryKeyList.get(i)), getEntryList1.get(i).getValue());
+        }
+        log.info("KVPair operations succeeds over KVTable");
     }
+
+    private void cleanUpStream(String scope, String stream)
+            throws ExecutionException, InterruptedException {
+        // seal the stream.
+        log.info("Sealing stream {}", stream);
+        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
+        assertTrue(sealStreamStatus.get());
+        // delete the stream.
+        log.info("Deleting stream {}", stream);
+        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
+        assertTrue(deleteStreamStatus.get());
+    }
+
+    private void cleanUpScope(String scope) throws ExecutionException, InterruptedException {
+        log.info("Deleting scope {}", scope);
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        assertTrue(deleteScopeStatus.get());
+    }
+
+    private void readWriteOnStream(String newScope, String streamName, int numEvents, String routingKey,
+                                   String streamEvent, String readerGroupName, String readerName) {
+        int writeCount = 0;
+        int readCount = 0;
+        try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(newScope, this.controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(newScope, this.controller, clientFactory)) {
+
+            log.info("Creating writer");
+            @Cleanup
+            final EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
+                    new JavaSerializer<>(), EventWriterConfig.builder().build());
+
+            // start writing events to the stream.
+            for (int i = 0; i < numEvents; i++) {
+                log.info("Writing event {}", streamEvent);
+                writer.writeEvent(routingKey, streamEvent).join();
+                writeCount++;
+                writer.flush();
+            }
+            log.info("Closing writer {}", writer);
+            writer.close();
+
+            // create a reader group.
+            log.info("Creating Reader group : {}", readerGroupName);
+
+            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder()
+                    .stream(Stream.of(newScope, streamName)).build());
+            log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
+            log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+
+            log.info("Creating reader");
+            @Cleanup
+            final EventStreamReader<String> reader = clientFactory.createReader(readerName,
+                    readerGroupName,
+                    new JavaSerializer<>(),
+                    ReaderConfig.builder().build());
+
+            // start reading events from the stream.
+            while (!(readCount == writeCount)) {
+                final String eventRead = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
+                log.info("Reading event {}", eventRead);
+                if (eventRead != null) {
+                    // update if event read is not null.
+                    readCount++;
+                }
+            }
+            log.info("Closing reader {}", reader);
+            reader.close();
+
+            //delete readergroup
+            log.info("Deleting readergroup {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
+        assertEquals("Number of events written & read should be equal", writeCount, readCount);
+        log.info("Read write test on stream succeeds");
+    }
+    private Integer getKeyID() { return random.nextInt(endKeyRange - startKeyRange) + startKeyRange; }
 
     private String getValue() {
         String alphaNumericString = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -693,7 +566,7 @@ public class KVTableWithStreamTest extends KeyValueTableTestBase {
         StringBuilder sb = new StringBuilder(valueSize);
 
         for (int i = 0; i < valueSize; i++) {
-            int index = (int) (alphaNumericString.length() * Math.random());
+            int index = (int) (alphaNumericString.length() * random.nextDouble());
             sb.append(alphaNumericString.charAt(index));
         }
         return sb.toString();
