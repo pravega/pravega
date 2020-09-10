@@ -82,7 +82,6 @@ plugins.withId('maven') {
 
                 addFilter('tests') {artifact, file ->
                     artifact.name.indexOf("segmentstore") != -1 &&
-                    artifact.name.indexOf("storage") != -1 &&
                     artifact.name.indexOf("tests") != -1
                 }
 
