@@ -179,6 +179,9 @@ public abstract class AbstractService implements Service {
                 .put("image", pravegaImgSpec)
                 .put("tier2", tier2Spec())
                 .build();
+        for (Map.Entry<String, String> entry : props.entrySet()) {
+            log.info("Pravega cluster option name={}, value={}", entry.getKey(), entry.getValue());
+        }
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
                 .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
