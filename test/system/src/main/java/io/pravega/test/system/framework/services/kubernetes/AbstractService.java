@@ -166,15 +166,6 @@ public abstract class AbstractService implements Service {
                 .put("static", staticTlsSpec)
                 .build();
 
-        final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
-                .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
-                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_TLS)
-                .build();
-
-        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
-                .put("static", staticTlsSpec)
-                .build();
-
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
