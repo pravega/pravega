@@ -765,7 +765,7 @@ public class ControllerImpl implements Controller {
                 return false;
             case STREAM_NOT_SEALED:
                 log.warn(requestId, "Stream is not sealed: {}", streamName);
-                throw new IllegalArgumentException("Stream is not sealed: " + streamName);
+                throw new ControllerFailureException("Stream is not sealed: " + streamName);
             case SUCCESS:
                 log.info(requestId, "Successfully deleted stream: {}", streamName);
                 return true;

@@ -15,6 +15,8 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -22,6 +24,8 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -44,10 +48,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
-
 
 public class StreamManagerImplTest {
 
@@ -352,8 +357,9 @@ public class StreamManagerImplTest {
             }
         }).when(connection).send(Mockito.any(WireCommands.DeleteSegment.class));
         connectionFactory.provideConnection(location, connection);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
-                connectionFactory, true);
+        MockController mockController = spy(new MockController(location.getEndpoint(), location.getPort(),
+                connectionFactory, true));
+        
         @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
 
@@ -378,7 +384,20 @@ public class StreamManagerImplTest {
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
+
+        // mock controller client to throw exceptions when attempting to seal and delete for stream 1. 
+        doAnswer(x -> Futures.failedFuture(new ControllerFailureException("Unable to seal stream"))).when(mockController).sealStream(scope, stream1);
+        doAnswer(x -> Futures.failedFuture(new ControllerFailureException("Stream not sealed"))).when(mockController).deleteStream(scope, stream1);
+
+        AssertExtensions.assertThrows("Should have thrown exception", () -> streamManager.deleteScope(scope, true), 
+                e -> Exceptions.unwrap(e) instanceof ControllerFailureException);
+
+        // reset mock controller
+        reset(mockController);
         
+        // throw invalid stream for stream 2. Delete should happen despite invalid stream exception.
+        doAnswer(x -> Futures.failedFuture(new InvalidStreamException("Stream does not exist"))).when(mockController).sealStream(scope, stream2);
+
         assertTrue(streamManager.deleteScope(scope, true));
     }
 }

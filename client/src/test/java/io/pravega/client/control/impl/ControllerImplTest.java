@@ -1347,14 +1347,14 @@ public class ControllerImplTest {
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream2");
         AssertExtensions.assertFutureThrows("Should throw Exception",
-                deleteStreamStatus, throwable -> true);
+                deleteStreamStatus, throwable -> Exceptions.unwrap(throwable) instanceof ControllerFailureException);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream3");
         assertFalse(deleteStreamStatus.join());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
         AssertExtensions.assertFutureThrows("Should throw Exception",
-                deleteStreamStatus, throwable -> true);
+                deleteStreamStatus, throwable -> Exceptions.unwrap(throwable) instanceof ControllerFailureException);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
         AssertExtensions.assertFutureThrows("Should throw Exception",

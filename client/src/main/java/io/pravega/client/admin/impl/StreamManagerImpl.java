@@ -18,6 +18,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.InvalidStreamException;
@@ -158,7 +159,12 @@ public class StreamManagerImpl implements StreamManager {
                 Stream stream = iterator.next();
                 // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
                 Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
-                          e -> Exceptions.unwrap(e) instanceof InvalidStreamException, null));
+                        e -> {
+                            Throwable unwrap = Exceptions.unwrap(e);
+                            // ignore failures if the stream doesnt exist or we are unable to seal it. Unsealed streams 
+                            // will fail to delete. 
+                            return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
+                        }, null));
                 Futures.getThrowingException(controller.deleteStream(stream.getScope(), stream.getStreamName()));
             }
         }
