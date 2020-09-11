@@ -60,7 +60,7 @@ public class RawClient implements AutoCloseable {
             } else if (reply instanceof WireCommands.WrongHost) {
                 closeConnection(new ConnectionFailedException(reply.toString()));
             } else if (reply instanceof WireCommands.ErrorMessage) {
-                    errorMessage((ErrorMessage) reply);
+                errorMessage((ErrorMessage) reply);
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
