@@ -21,6 +21,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -161,11 +162,14 @@ public class StreamManagerImpl implements StreamManager {
                 Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
                         e -> {
                             Throwable unwrap = Exceptions.unwrap(e);
-                            // ignore failures if the stream doesnt exist or we are unable to seal it. Unsealed streams 
-                            // will fail to delete. 
+                            // ignore failures if the stream doesnt exist or we are unable to seal it. 
                             return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
-                        }, null));
-                Futures.getThrowingException(controller.deleteStream(stream.getScope(), stream.getStreamName()));
+                        }, false)
+                        .thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())
+                                                         .exceptionally(e -> {
+                                                             String message = String.format("Failed to seal and delete stream %s", stream.getStreamName());
+                                                             throw new DeleteScopeFailedException(message, e);
+                                                         })));
             }
         }
         return Futures.getThrowingException(controller.deleteScope(scopeName));

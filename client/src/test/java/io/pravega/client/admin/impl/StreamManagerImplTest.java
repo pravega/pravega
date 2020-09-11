@@ -16,6 +16,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -387,10 +388,10 @@ public class StreamManagerImplTest {
 
         // mock controller client to throw exceptions when attempting to seal and delete for stream 1. 
         doAnswer(x -> Futures.failedFuture(new ControllerFailureException("Unable to seal stream"))).when(mockController).sealStream(scope, stream1);
-        doAnswer(x -> Futures.failedFuture(new ControllerFailureException("Stream not sealed"))).when(mockController).deleteStream(scope, stream1);
+        doAnswer(x -> Futures.failedFuture(new IllegalArgumentException("Stream not sealed"))).when(mockController).deleteStream(scope, stream1);
 
         AssertExtensions.assertThrows("Should have thrown exception", () -> streamManager.deleteScope(scope, true), 
-                e -> Exceptions.unwrap(e) instanceof ControllerFailureException);
+                e -> Exceptions.unwrap(e) instanceof DeleteScopeFailedException);
 
         // reset mock controller
         reset(mockController);
