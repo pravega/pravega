@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.services.marathon;
 
-import io.pravega.controller.util.Config;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import java.net.URI;
