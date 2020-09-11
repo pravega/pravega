@@ -124,7 +124,7 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
-    private static final Duration READ_TIMEOUT = Duration.ofMillis(500);
+    private static final Duration READ_TIMEOUT = Duration.ofMillis(1000);
     private static final Duration TRANSACTION_TIMEOUT = Duration.ofMillis(10000);
 
     /**
@@ -587,7 +587,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         int instanceId = 0;
         int bookieCount = 1;
         int containerCount = 4;
-        int eventsReadCount = TOTAL_NUM_EVENTS - RANDOM.nextInt(TOTAL_NUM_EVENTS);
+        int eventsReadCount = RANDOM.nextInt(TOTAL_NUM_EVENTS);
         String testReader1 = "readerDRIntegrationTest1";
         String testReader2 = "readerDRIntegrationTest2";
         String testReaderGroup1 = "readerGroupDRIntegrationTest1";
@@ -730,7 +730,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with watermarking events.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events to two different segments with watermarks.
+     *  2. Writes 300 events to a segment with watermarks.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
      *  5. Deletes container metadata segment and its attribute segment from the old LTS.
@@ -860,10 +860,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         final EventStreamReader<Long> reader = this.clientRunner.clientFactory.createReader("myreaderTx", readerGroup,
                 new JavaSerializer<>(), ReaderConfig.builder().build());
 
-        EventRead<Long> event = reader.readNextEvent(10000L);
+        EventRead<Long> event = reader.readNextEvent(READ_TIMEOUT.toMillis());
         TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
         while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
-            event = reader.readNextEvent(10000L);
+            event = reader.readNextEvent(READ_TIMEOUT.toMillis());
             currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
         }
 
@@ -881,9 +881,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
             currentTimeWindow = nextTimeWindow;
 
-            event = reader.readNextEvent(10000L);
+            event = reader.readNextEvent(READ_TIMEOUT.toMillis());
             if (event.isCheckpoint()) {
-                event = reader.readNextEvent(10000L);
+                event = reader.readNextEvent(READ_TIMEOUT.toMillis());
             }
         }
 
