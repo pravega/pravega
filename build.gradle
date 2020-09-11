@@ -803,7 +803,7 @@ project('test:system') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
-
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
@@ -834,6 +834,7 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
+        systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
@@ -927,7 +928,7 @@ project('test:system') {
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
-
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'testJarForDocker', 'execShellScript'
 
         if (System.getProperty("awsExec").equals("true")) {
