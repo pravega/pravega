@@ -224,6 +224,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * an appropriate message is sent back over the connection.
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
+        result.setCopyOnRead(true); // Get a copy of any data from the cache to avoid losing it due to cache eviction.
         String segment = request.getSegment();
         ArrayList<BufferView> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
