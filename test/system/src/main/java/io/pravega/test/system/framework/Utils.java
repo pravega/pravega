@@ -193,34 +193,27 @@ public class Utils {
 
     public static boolean isSkipServiceInstallationEnabled() {
         String config = getConfig("skipServiceInstallation", "false");
-        boolean skipServiceInstallation = config.trim().equalsIgnoreCase("true") ? true : false;
-        log.debug("skipServiceInstallation={}", skipServiceInstallation);
-        return skipServiceInstallation;
+        return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 
     public static boolean isDockerExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
-        boolean execType = dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
-        log.debug("execType={}", execType);
-        return execType;
+        return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
+
     }
 
     public static boolean isAwsExecution() {
         String dockerConfig = getConfig("awsExec", "false");
-        boolean awsExec = dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
-        log.debug("awsExec={}", awsExec);
-        return awsExec;
+        return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
     }
 
     private static boolean isAuthEnabled() {
         String securityEnabled = Utils.getConfig("securityEnabled", "false");
-        log.debug("securityEnabled={}", Boolean.valueOf(securityEnabled));
         return Boolean.valueOf(securityEnabled);
     }
 
     private static boolean isTLSEnabled() {
         String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
-        log.debug("tlsEnabled={}", Boolean.valueOf(tlsEnabled));
         return Boolean.valueOf(tlsEnabled);
     }
 }
