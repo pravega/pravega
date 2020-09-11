@@ -15,14 +15,6 @@ package io.pravega.client.stream;
 public class DeleteScopeFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
-
-    public DeleteScopeFailedException(String message) {
-        super(message);
-    }
-    
-    public DeleteScopeFailedException(Throwable e) {
-        super(e);
-    }
     
     public DeleteScopeFailedException(String message, Throwable e) {
         super(message, e);
