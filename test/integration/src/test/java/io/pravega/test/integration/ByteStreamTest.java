@@ -295,16 +295,16 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         // create a stream
         assertTrue("Create stream failed", streamManager.createStream(scope, stream, config));
         // verify read and write.
-        verify_byte_client_read_write(scope, stream);
+        verifyByteClientReadWrite(scope, stream);
         // delete the stream and recreate
         assertTrue("Seal stream operation failed", streamManager.sealStream(scope, stream));
         assertTrue("Delete Stream operation failed", streamManager.deleteStream(scope, stream));
         assertTrue("Recreate stream failed", streamManager.createStream(scope, stream, config));
         // verify read and write.
-        verify_byte_client_read_write(scope, stream);
+        verifyByteClientReadWrite(scope, stream);
     }
 
-    private void verify_byte_client_read_write(String scope, String stream) {
+    private void verifyByteClientReadWrite(String scope, String stream) {
         @Cleanup
         ByteStreamClientFactory client = createClientFactory(scope);
 
