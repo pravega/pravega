@@ -122,18 +122,18 @@ public class PravegaControllerService extends MarathonBasedService {
 
         String componentCode = "controller";
 
-        //set env
+        // These properties are defined in "io.pravega.controller.util.Config".
         String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty(Config.PROPERTY_ZK_URL.getFullName(componentCode), zk) +
-                setSystemProperty(Config.PROPERTY_RPC_HOST.getFullName(componentCode), this.id + ".marathon.mesos") +
-                setSystemProperty(Config.PROPERTY_RPC_PORT.getFullName(componentCode), String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty(Config.PROPERTY_SERVICE_PORT.getFullName(componentCode), String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty(Config.PROPERTY_REST_PORT.getFullName(componentCode), String.valueOf(REST_PORT)) +
+                setSystemProperty(String.format("%s.%s", componentCode, "zk.connect.uri"), zk) +
+                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.published.host.nameOrIp"), this.id + ".marathon.mesos") +
+                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.published.port"), String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.listener.port"), String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty(String.format("%s.%s", componentCode, "service.rest.listener.port"), String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty(Config.PROPERTY_TXN_MAX_LEASE.getFullName(componentCode), String.valueOf(120 * 1000)) +
-                setSystemProperty(Config.PROPERTY_RETENTION_FREQUENCY_MINUTES.getFullName(componentCode), String.valueOf(2));
+                setSystemProperty(String.format("%s.%s", componentCode, "transaction.lease.count.max"), String.valueOf(120 * 1000)) +
+                setSystemProperty(String.format("%s.%s", componentCode, "retention.frequency.minutes"), String.valueOf(2));
 
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);

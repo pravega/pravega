@@ -153,13 +153,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         Stream streamObj = Stream.of(SCOPE, STREAM);
         scale(controller, streamObj);
 
-        // wait until mark stream is created
-        AtomicBoolean markStreamCreated = new AtomicBoolean(false);
-        Futures.loop(() -> !markStreamCreated.get(), 
-                () -> Futures.exceptionallyExpecting(controller.getCurrentSegments(SCOPE, NameUtils.getMarkStreamForStream(STREAM)), 
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenAccept(v -> markStreamCreated.set(v != null)), executorService);
-
         @Cleanup
         ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(SCOPE,
                 new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
