@@ -48,16 +48,11 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
 
     @Override
     public ByteStreamReader createByteStreamReader(String streamName) {
-        return createByteStreamReaders(new Segment(scope, streamName, 0));
-    }
-
-    private ByteStreamReader createByteStreamReaders(Segment segment) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStream()
-                                                                                                                 .getStreamName()),
-                                                                RuntimeException::new);
-
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
+        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
+        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
+        Segment segment = segments.getSegments().iterator().next();
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, segment);
         SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
         long startOffset = metaClient.getSegmentInfo().getStartingOffset();
         return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),
@@ -71,8 +66,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
         Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
-        String delegationToken = segments.getDelegationToken();
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, segment);
         return new BufferedByteStreamWriterImpl(
                 new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
                 metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider)));
