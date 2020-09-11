@@ -10,7 +10,7 @@
 package io.pravega.controller.server.security.auth;
 
 /**
- * Returns string representations of auth-protected resources.
+ * This interface provides string representations of auth-protected resources.
  * <p>
  * Background:
  * <p>

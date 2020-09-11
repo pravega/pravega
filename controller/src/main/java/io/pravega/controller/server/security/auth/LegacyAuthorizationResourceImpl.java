@@ -12,6 +12,8 @@ package io.pravega.controller.server.security.auth;
 import io.pravega.common.Exceptions;
 
 /**
+ * Deprecated: Use {@link AuthorizationResourceImpl} instead.
+ *
  * A legacy implementation that constructs resource strings in the old format.
  */
 public final class LegacyAuthorizationResourceImpl implements AuthorizationResource {

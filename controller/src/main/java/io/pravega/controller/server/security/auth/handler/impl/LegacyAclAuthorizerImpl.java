@@ -11,6 +11,9 @@ package io.pravega.controller.server.security.auth.handler.impl;
 
 import io.pravega.auth.AuthHandler;
 
+/**
+ * Deprecated: Use {@link AclAuthorizerImpl} instead.
+ */
 class LegacyAclAuthorizerImpl extends AclAuthorizer {
 
     @Override
