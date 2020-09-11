@@ -851,6 +851,7 @@ project('test:system') {
         tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
         tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
+        tasks.withType(Test) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
