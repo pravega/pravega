@@ -36,6 +36,7 @@ import io.pravega.shared.NameUtils;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -147,29 +148,31 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean deleteScope(String scopeName) {
-        return deleteScope(scopeName, false);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope: {}", scopeName);
+        return Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
     @Override
-    public boolean deleteScope(String scopeName, boolean deleteStreams) {
+    public boolean deleteScope(String scopeName, boolean deleteStreams) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
         if (deleteStreams) {
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
                 Stream stream = iterator.next();
-                // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
-                Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
-                        e -> {
-                            Throwable unwrap = Exceptions.unwrap(e);
-                            // ignore failures if the stream doesnt exist or we are unable to seal it. 
-                            return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
-                        }, false)
-                        .thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())
-                                                         .exceptionally(e -> {
-                                                             String message = String.format("Failed to seal and delete stream %s", stream.getStreamName());
-                                                             throw new DeleteScopeFailedException(message, e);
-                                                         })));
+                try {
+                    Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
+                            e -> {
+                                Throwable unwrap = Exceptions.unwrap(e);
+                                // If the stream was removed by another request while we attempted to seal it, we could get InvalidStreamException. 
+                                // ignore failures if the stream doesnt exist or we are unable to seal it. 
+                                return unwrap instanceof InvalidStreamException || unwrap instanceof ControllerFailureException;
+                            }, false).thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())));
+                } catch (Exception e) {
+                    String message = String.format("Failed to seal and delete stream %s", stream.getStreamName());
+                    throw new DeleteScopeFailedException(message, e);
+                }
             }
         }
         return Futures.getThrowingException(controller.deleteScope(scopeName));

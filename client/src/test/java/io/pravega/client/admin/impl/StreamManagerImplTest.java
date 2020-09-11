@@ -323,7 +323,7 @@ public class StreamManagerImplTest {
     }
     
     @Test(timeout = 10000)
-    public void testForceDeleteScope() throws ConnectionFailedException {
+    public void testForceDeleteScope() throws ConnectionFailedException, DeleteScopeFailedException {
         // Setup Mocks
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);

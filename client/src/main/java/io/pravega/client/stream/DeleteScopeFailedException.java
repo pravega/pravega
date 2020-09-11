@@ -12,7 +12,7 @@ package io.pravega.client.stream;
 /**
  * Delete scope failed, typically because we failed to seal and delete the streams. 
  */
-public class DeleteScopeFailedException extends RuntimeException {
+public class DeleteScopeFailedException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
