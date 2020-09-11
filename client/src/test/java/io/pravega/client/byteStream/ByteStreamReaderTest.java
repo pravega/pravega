@@ -18,6 +18,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -114,6 +115,23 @@ public class ByteStreamReaderTest {
         reader.seekToOffset(0);
         assertEquals(0, reader.getOffset());
         assertEquals(5, reader.available());
+    }
+
+    @Test
+    public void testInvalidStream() {
+        String stream1 = "invalidstream1";
+        controller.createStream(SCOPE, stream1, StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                  .build());
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream1));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream1));
+        String stream2 = "invalidstream2";
+        controller.createStream(SCOPE, stream2, StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build());
+        controller.sealStream(SCOPE, stream2);
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream2));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream2));
     }
 
 }
