@@ -95,10 +95,10 @@ public final class StreamSegmentStorageReader {
         }
 
         @Override
-        public CompletableReadResultEntry apply(Long readOffset, Integer readLength) {
+        public CompletableReadResultEntry apply(Long readOffset, Integer readLength, Boolean makeCopyIgnored) {
             if (readOffset < this.segmentInfo.getStartOffset()) {
                 // We attempted to read from a truncated portion of the Segment.
-                return new TruncatedReadResultEntry(readOffset, readLength, this.segmentInfo.getStartOffset());
+                return new TruncatedReadResultEntry(readOffset, readLength, this.segmentInfo.getStartOffset(), this.segmentInfo.getName());
             } else if (readOffset >= this.segmentInfo.getLength()) {
                 // We've reached the end of a Sealed Segment.
                 return new EndOfStreamSegmentReadResultEntry(readOffset, readLength);

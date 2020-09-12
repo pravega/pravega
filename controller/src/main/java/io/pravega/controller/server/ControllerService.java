@@ -108,6 +108,7 @@ public class ControllerService {
                                                                             final long createTimestamp) {
         Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);

@@ -24,6 +24,7 @@ import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
 import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
 import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
 import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
 import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
@@ -40,11 +41,18 @@ import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
 import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.util.Yaml;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
+import org.apache.commons.io.IOUtils;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -61,6 +69,7 @@ public abstract class AbstractService implements Service {
     protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
+    protected static final String TLS = "tls://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
@@ -79,6 +88,8 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
+    static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
+    static final String SECRET_NAME_USED_FOR_TLS = "selfsigned-cert-tls";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
@@ -91,6 +102,7 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
+    private static final String WEBHOOK_CERT_GENERATE = "webhookCert.generate";
 
     final K8sClient k8sClient;
     private final String id;
@@ -106,7 +118,9 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
-    return k8sClient.createCRD(getPravegaCRD())
+
+    return registerTLSSecret()
+                        .thenCompose(v -> k8sClient.createCRD(getPravegaCRD()))
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createClusterRole(getPravegaOperatorClusterRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
@@ -166,11 +180,20 @@ public abstract class AbstractService implements Service {
                 .put("tier2", tier2Spec())
                 .build();
 
+        final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
+                .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
+                .put("segmentStoreSecret", SECRET_NAME_USED_FOR_TLS)
+                .build();
+
+        final Map<String, Object> tlsSpec = ImmutableMap.<String, Object>builder()
+                .put("static", staticTlsSpec)
+                .build();
+
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
+                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec, tlsSpec))
                 .build();
     }
 
@@ -195,22 +218,22 @@ public abstract class AbstractService implements Service {
         return true;
     }
 
-    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
-
-        ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
-                .put("zookeeperUri", zkLocation)
+    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec,
+                                                          Map<String, Object> tlsSpec) {
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder();
+        builder.put("zookeeperUri", zkLocation)
                 .put("bookkeeper", bookkeeperSpec)
-                .put("pravega", pravegaSpec)
-                .build();
+                .put("pravega", pravegaSpec);
 
         if (IS_OPERATOR_VERSION_ABOVE_040) {
-            return ImmutableMap.<String, Object>builder()
-                    .putAll(commonEntries)
-                    .put("version", PRAVEGA_VERSION)
-                    .build();
+            builder.put("version", PRAVEGA_VERSION);
         }
-        return commonEntries;
 
+        if (Utils.TLS_AND_AUTH_ENABLED) {
+            builder.put("tls", tlsSpec);
+        }
+
+        return builder.build();
     }
 
     /**
@@ -317,6 +340,34 @@ public abstract class AbstractService implements Service {
 
     }
 
+    private static V1Secret getTLSSecret() throws IOException {
+        String data = "";
+        String yamlInputPath = "secret.yaml";
+        try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
+            data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        }
+        Yaml.addModelMap("v1", "Secret", V1Secret.class);
+        V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
+        return yamlSecret;
+    }
+
+    private CompletableFuture<V1Secret> registerTLSSecret() {
+        if (!Utils.TLS_AND_AUTH_ENABLED) {
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+        V1Secret secret = getTLSSecret();
+        V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+        if (existingSecret != null) {
+            Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+        }
+        return k8sClient.createSecret(NAMESPACE, secret);
+        } catch (Exception e) {
+            log.error("Could not register secret: ", e);
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
     private V1beta1Role getPravegaOperatorRole() {
         return new V1beta1RoleBuilder()
                 .withKind("Role")
@@ -404,7 +455,17 @@ public abstract class AbstractService implements Service {
                                                                                       .build(),
                                                                  new V1EnvVarBuilder().withName("OPERATOR_NAME")
                                                                                       .withValue(PRAVEGA_OPERATOR)
-                                                                                      .build())
+                                                                                      .build(),
+                                                                // generate secret by name selfsigned-cert-tls with tls.crt & tls.key
+                                                                new V1EnvVarBuilder().withName(WEBHOOK_CERT_GENERATE)
+                                                                                     .withValue("true")
+                                                                                     .build(),
+                                                                new V1EnvVarBuilder().withName("TLS_AND_AUTH_ENABLED")
+                                                                        .withValue(String.valueOf(Utils.TLS_AND_AUTH_ENABLED))
+                                                                        .build(),
+                                                                new V1EnvVarBuilder().withName("TLS_AND_AUTH_ENABLED_FOR_SEGMENT_STORE")
+                                                                        .withValue(String.valueOf(Utils.TLS_AND_AUTH_ENABLED))
+                                                                        .build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName(PRAVEGA_OPERATOR)
                                                                                .withNamespace(NAMESPACE)

@@ -9,6 +9,15 @@
  *
  */
 plugins.withId('maven') {
+    task sourcesJar(type: Jar, dependsOn: classes) {
+         classifier = 'sources'
+         from sourceSets.main.allSource
+    }
+    artifacts{
+        archives sourcesJar
+        archives javadocJar
+        archives testJar
+    }
     uploadArchives {
         repositories {
             mavenDeployer {
@@ -42,7 +51,7 @@ plugins.withId('maven') {
                 pom.artifactId = "pravega" + project.path.replace(':', '-')
                 pom.project {
                     name "Pravega"
-                    url "http://pravega.io"
+                    url "https://pravega.io"
                     description "Streaming Storage Platform"
                     scm {
                         url 'https://github.com/pravega/pravega/tree/master'
@@ -60,6 +69,32 @@ plugins.withId('maven') {
                             id 'fpj'
                             name 'Flavio Junqueira'
                         }
+                    }
+                }
+
+                addFilter(':') {artifact, file ->
+                    artifact.name.indexOf("tests") == -1
+                }
+                pom(':', {
+                    artifactId = "pravega" + project.path.replace(':', '-')
+                    version getProjectVersion()
+                })
+
+                addFilter('tests') {artifact, file ->
+                    artifact.name.indexOf("segmentstore") != -1 &&
+                    artifact.name.indexOf("tests") != -1
+                }
+
+                pom('tests', {
+                    artifactId = "pravega" + project.path.replace(':', '-') + "-tests"
+                    version getProjectVersion()
+                }).withXml {
+                    def dependencies  = asNode().appendNode("dependencies")
+                    configurations.compile.allDependencies.each {  dep ->
+                        def depNode  = dependencies.appendNode("dependency")
+                        depNode.appendNode("groupId", dep.group)
+                        depNode.appendNode("artifactId", dep.name)
+                        depNode.appendNode("version", dep.version)
                     }
                 }
 

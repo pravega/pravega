@@ -383,6 +383,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                       requestId
                                                                       ))
                                              .collect(Collectors.toList());
+            if (state.needSuccessors.get()) {
+                log.warn("Segment cannot be appended because it is already sealed for writer {}", writerId);
+                return;
+            }
             ClientConnection connection = state.getConnection();
             if (connection == null) {
                 log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
@@ -559,6 +563,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
 
     private void failConnection(Throwable e) {
+        if (e instanceof TokenExpiredException) {
+            this.tokenProvider.signalTokenExpired();
+        }
         log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();

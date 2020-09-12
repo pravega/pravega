@@ -24,6 +24,9 @@ import java.util.concurrent.ExecutorService;
 @RequiredArgsConstructor
 public class FileSystemSimpleStorageFactory implements StorageFactory {
     @NonNull
+    private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
+
+    @NonNull
     private final FileSystemStorageConfig config;
 
     @NonNull
@@ -34,7 +37,7 @@ public class FileSystemSimpleStorageFactory implements StorageFactory {
         ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
                 new FileSystemChunkStorage(this.config),
                 this.executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                this.chunkedSegmentStorageConfig);
         return storageProvider;
     }
 }
