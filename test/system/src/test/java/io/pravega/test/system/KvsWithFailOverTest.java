@@ -53,7 +53,7 @@ public class KvsWithFailOverTest extends AbstractFailoverTests {
     private static final int NUM_KVPREAD = 5;
     @Rule
     //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
-    public Timeout globalTimeout = Timeout.seconds(25 * 60);
+    public Timeout globalTimeout = Timeout.seconds(15 * 60);
     private StreamManager streamManager;
     private ConnectionFactory connectionFactory;
     private ConnectionPool connectionPool;
@@ -90,26 +90,18 @@ public class KvsWithFailOverTest extends AbstractFailoverTests {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_KVPWRITE + NUM_KVPREAD + 1, "KvsFailOverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "KvsFailOverTest-controller");
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
-        log.info("BEFORE 1");
         // Making controller and segmentstore instance count to 1
-        //log.info("controller size {}", (controllerInstance.getServiceDetails().size()) / 2);
-        //if (((controllerInstance.getServiceDetails().size()) / 2) > 1)
+        log.info("Controller size {}", controllerInstance.getServiceDetails().size());
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
-        log.info("BEFORE 2");
-        //log.info("Segmentstore size {}", segmentStoreInstance.getServiceDetails().size());
-        //if (segmentStoreInstance.getServiceDetails().size() > 1)
+        log.info("Segmentstore size {}", segmentStoreInstance.getServiceDetails().size());
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
-        log.info("BEFORE 3");
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig)
                 .maxBackoffMillis(5000).build(), controllerExecutorService);
-        log.info("BEFORE 4");
         streamManager = new StreamManagerImpl(clientConfig);
         connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-        log.info("BEFORE 5");
         keyValueTableFactory = new KeyValueTableFactoryImpl(SCOPE_NAME, controller, connectionPool);
-        log.info("BEFORE 6");
         // Creating scope and KVT
         createScopeAndKVT(SCOPE_NAME, KVT_NAME, controllerURIDirect, streamManager);
         log.info("completed scope {} and kvt {} creation", SCOPE_NAME, KVT_NAME);
@@ -133,8 +125,7 @@ public class KvsWithFailOverTest extends AbstractFailoverTests {
         readFromKVP(SCOPE_NAME, KVT_NAME, KEY_FAMILY, NUM_KVPREAD, keyValueTableFactory);
         log.info("Started Segmentstore and Controller scale up and scale down");
         performFailoverForTestsInvolvingKVS();
-        stopKvpWriter();
-        stopKvpReaders();
+        stopKVPReadWriter();
         log.info("Test KVS FailOver Successfully completed");
     }
 }

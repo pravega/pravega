@@ -84,6 +84,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
     long kvpUpdateCount = 0;
     private KeyValueTable<Integer, String> keyValueTable;
+    private boolean kvpProcess = false;
 
 
     /**
@@ -97,8 +98,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         //read and write count variables
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
-        final AtomicBoolean stopKvpWrite = new AtomicBoolean(false);
-        final AtomicBoolean stopKvpRead = new AtomicBoolean(false);
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
@@ -395,16 +394,10 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
     }
 
-    void stopKvpWriter() {
+    void stopKVPReadWriter() {
         //Stop Writers
-        log.info("Stop write flag status {}", testState.stopKvpWrite);
-        testState.stopKvpWrite.set(true);
-    }
-
-    void stopKvpReaders() {
-        //Stop Writers
-        log.info("Stop Reader flag status {}", testState.stopKvpRead);
-        testState.stopKvpRead.set(true);
+        log.info("Stop write flag status {}", kvpProcess);
+        kvpProcess = true;
     }
 
     void stopReaders() {
@@ -583,102 +576,90 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return validEvents;
     }
 
-    void writeInKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) {
+    void writeInKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) throws Exception {
         log.info("Start KVP write operation of KVT {} and scope {}", kvtName, scope);
-        // Creating 5 threads to update KVP table entry
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
+        // Creating 5 writer threads to update KVP table entry
         for (Integer i = 1; i <= kvpCount; i++) {
             String value = convertStringToBinary("Hello World");
             Integer keyId = i;
             writerList.add(writeKVP(scope, kvtName, kf, value, keyId, keyValueTableFactory));
         }
         Futures.allOf(writerList);
-        /*if (!Futures.await(Futures.allOf(writerList))) {
-            log.error("Writers stopped with exceptions");
-        }*/
     }
 
     private CompletableFuture<Void> writeKVP(String scope, String kvtName, String kf,
-                                     String value, Integer keyId, KeyValueTableFactory keyValueTableFactory) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
-                keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-                log.info("Start creating KVP id:{} in KVT {}", keyId, kvtName);
-                // Create KVP
-                Version insertKvp = keyValueTable.put(kf, keyId, value).join();
-                // get KVP and verify the insert value length
-                Assert.assertEquals("Value length is not matching", value.length(),
-                        keyValueTable.get(kf, keyId).join().getValue().length());
-                // Call API to update kvp table entry
-                updateKVPEntry(scope, kvtName, kf, value, keyId, keyValueTableFactory, testState.stopKvpWrite);
-                //updateKVPEntry(scope, kvtName, kf, value, keyId, keyValueTableFactory);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }, executorService);
+                                             String value, Integer keyId, KeyValueTableFactory keyValueTableFactory) {
+        return CompletableFuture.supplyAsync(() -> {
+            KeyValueTableInfo kvt1 = new KeyValueTableInfo(scope, kvtName);
+            keyValueTable = keyValueTableFactory.forKeyValueTable(kvt1.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+            log.info("Start creating KVP id:{} in KVT {}", keyId, kvtName);
+            return keyValueTable;
+        }).thenCompose(kvt -> kvt.put(kf, keyId, value)
+                .thenAcceptAsync(version -> updateKVPEntry(scope, kvtName, kf, value, keyId, version, keyValueTableFactory), executorService));
     }
 
-    void readFromKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) {
-        Exceptions.handleInterrupted(() -> Thread.sleep(1000));
+    void readFromKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) throws Exception {
         log.info("Start KVP read operation of KVT {} and scope {}", kvtName, scope);
-        // Creating 5 threads to update KVP table entry
+        // Creating 5 reader threads to update KVP table entry
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
         for (Integer i = 1; i <= kvpCount; i++) {
             Integer keyId = i;
             log.info("Start reading from KVP id:{} of KVT {} of scope {}", keyId, kvtName, scope);
-            readerList.add(readKVP(scope, kvtName, kf, keyId, keyValueTableFactory, testState.stopKvpRead));
+            readerList.add(readKVP(scope, kvtName, kf, keyId, keyValueTableFactory));
         }
         Futures.allOf(readerList);
     }
 
     private CompletableFuture<Void> readKVP(String scope, String kvtName, String kf, Integer keyId,
-                                    KeyValueTableFactory keyValueTableFactory, AtomicBoolean stopKvpReadFlag) {
+                                            KeyValueTableFactory keyValueTableFactory) throws NullPointerException {
+        // Waiting for 1 sec for initial data population in the table.
+        Exceptions.handleInterrupted(() -> Thread.sleep(1000));
         return CompletableFuture.runAsync(() -> {
-            try {
-                while (!stopKvpReadFlag.get()) {
-                    KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
-                    keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-                    TableEntry<Integer, String> tableEntry = keyValueTable.get(kf, keyId).join();
-                    Assert.assertNotNull(tableEntry);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+            while (!kvpProcess) {
+                KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
+                log.info("Start reading from kvp ID {}", keyId );
+                keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
+                TableEntry<Integer, String> tableEntry = keyValueTable.get(kf, keyId).join();
+                log.info("Table entry length {} for keyId {}", tableEntry.getValue().length(), keyId);
+                Assert.assertNotNull(tableEntry);
             }
         }, executorService);
     }
 
-    void updateKVPEntry(String scope, String kvtName, String kf, String updateValue, int keyId,
-                        KeyValueTableFactory keyValueTableFactory, AtomicBoolean stopKvpWriteFlag) {
-        log.info("Scope name {} KVT name {} KVP Id {}", scope, kvtName, keyId);
-        log.info("Update value is {}", updateValue);
+    private void updateKVPEntry(String scope, String kvtName, String kf, String updateValue, int keyId,
+                                Version keyVersion, KeyValueTableFactory keyValueTableFactory) {
         KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
         keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
         String replaceValue = "";
-        while (!stopKvpWriteFlag.get()) {
+        int loopcount = 0;
+        while (!kvpProcess) {
             replaceValue = replaceValue + updateValue;
-            Version keyVersion = keyValueTable.get(kf, keyId).join().getKey().getVersion();
-            Version replaceKvp = keyValueTable.replace(kf, keyId, replaceValue, keyVersion).join();
+            log.info("Key version user for replace {}", keyVersion);
+            CompletableFuture<Version> replaceKvp = keyValueTable.replace(kf, keyId, replaceValue, keyVersion);
+            keyVersion = replaceKvp.join();
+            log.info("Key version after update replaceKvp {}", keyVersion);
+            log.info("Key version after update {}", keyValueTable.get(kf, keyId).join().getKey().getVersion());
+            log.info("Key ID after update {}", keyValueTable.get(kf, keyId).join().getKey().getKey());
             long keyValueLength = keyValueTable.get(kf, keyId).join().getValue().length();
+            log.info("value length of key is {}", keyValueLength);
             Assert.assertEquals("Value length is not matching", replaceValue.length(), keyValueLength);
             log.info("Successfully update for KVP {} and KVP value lenght size {}", keyId, keyValueLength);
             kvpUpdateCount = kvpUpdateCount + 1;
-            log.info("KVP update count {}", kvpUpdateCount);
+            log.info("KVP update count {} for keyID {}", kvpUpdateCount, keyId);
+            loopcount++;
+            log.info("loop count for KVP ID {} and LoopSize {}", keyId, loopcount);
         }
     }
 
-    void deleteKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) {
+    void deleteKVP(String scope, String kvtName, String kf, int kvpCount, KeyValueTableFactory keyValueTableFactory) throws IllegalArgumentException {
         for (Integer i = 1; i <= kvpCount; i++) {
             Integer keyId = i;
             log.info("Remove KVP id:{} from KVT {}", keyId, kvtName);
             KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
             log.info("KVP getKeyValueTableName value is {}", kvt.getKeyValueTableName());
             keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
-            try {
-                keyValueTable.remove(kf, keyId).join();
-            } catch (IllegalArgumentException e) {
-                e.getStackTrace();
-            }
+            keyValueTable.remove(kf, keyId).join();
         }
     }
 
