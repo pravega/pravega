@@ -632,23 +632,15 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
         keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
         String replaceValue = "";
-        int loopcount = 0;
         while (!kvpProcess) {
             replaceValue = replaceValue + updateValue;
-            log.info("Key version user for replace {}", keyVersion);
             CompletableFuture<Version> replaceKvp = keyValueTable.replace(kf, keyId, replaceValue, keyVersion);
-            keyVersion = replaceKvp.join();
-            log.info("Key version after update replaceKvp {}", keyVersion);
             log.info("Key version after update {}", keyValueTable.get(kf, keyId).join().getKey().getVersion());
-            log.info("Key ID after update {}", keyValueTable.get(kf, keyId).join().getKey().getKey());
             long keyValueLength = keyValueTable.get(kf, keyId).join().getValue().length();
             log.info("value length of key is {}", keyValueLength);
             Assert.assertEquals("Value length is not matching", replaceValue.length(), keyValueLength);
-            log.info("Successfully update for KVP {} and KVP value lenght size {}", keyId, keyValueLength);
             kvpUpdateCount = kvpUpdateCount + 1;
             log.info("KVP update count {} for keyID {}", kvpUpdateCount, keyId);
-            loopcount++;
-            log.info("loop count for KVP ID {} and LoopSize {}", keyId, loopcount);
         }
     }
 
@@ -657,7 +649,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
             Integer keyId = i;
             log.info("Remove KVP id:{} from KVT {}", keyId, kvtName);
             KeyValueTableInfo kvt = new KeyValueTableInfo(scope, kvtName);
-            log.info("KVP getKeyValueTableName value is {}", kvt.getKeyValueTableName());
             keyValueTable = keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KEY_SERIALIZER, VALUE_SERIALIZER, KeyValueTableClientConfiguration.builder().build());
             keyValueTable.remove(kf, keyId).join();
         }
