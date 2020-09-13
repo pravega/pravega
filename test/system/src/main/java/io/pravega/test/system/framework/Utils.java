@@ -48,9 +48,15 @@ public class Utils {
     public static final int ALTERNATIVE_REST_PORT = 9094;
     public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
     public static final boolean AUTH_ENABLED = isAuthEnabled();
+    public static final boolean TLS_AND_AUTH_ENABLED = isTLSEnabled();
     public static final String PROPERTIES_FILE = "pravega.properties";
     public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
+    public static final String PROPERTIES_FILE_WITH_TLS = "pravega_withTLS.properties";
+    public static final String TLS_SECRET_NAME = "selfsigned-cert-tls";
+    public static final String TLS_MOUNT_PATH = "/etc/secret-volume";
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
+    public static final String DEFAULT_TRUSTSTORE_PATH = TLS_MOUNT_PATH + "/tls.crt";
+    public static final boolean VALIDATE_HOSTNAME = false;
 
     /**
      * Get Configuration from environment or system property.
@@ -99,7 +105,6 @@ public class Utils {
             default:
                 return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties());
         }
-
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
@@ -137,6 +142,9 @@ public class Utils {
         if (AUTH_ENABLED) {
             resourceName = PROPERTIES_FILE_WITH_AUTH;
         }
+        if (TLS_AND_AUTH_ENABLED)  {
+            resourceName = PROPERTIES_FILE_WITH_TLS;
+        }
         Properties props = new Properties();
         try {
             props.load(Utils.class.getClassLoader().getResourceAsStream(resourceName));
@@ -149,18 +157,27 @@ public class Utils {
     }
 
     public static ClientConfig buildClientConfig(URI controllerUri) {
-        if (!AUTH_ENABLED) {
-            log.debug("Generating config with auth disabled.");
-            return ClientConfig.builder().controllerURI(controllerUri).build();
-        } else {
+        if (TLS_AND_AUTH_ENABLED) {
+            log.debug("Generating config with tls and auth enabled.");
+            return ClientConfig.builder()
+                               // TLS-related client-side configuration
+                               .trustStore(DEFAULT_TRUSTSTORE_PATH)
+                               .validateHostName(VALIDATE_HOSTNAME)
+                               // auth
+                               .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                               .controllerURI(controllerUri)
+                               .build();
+        } else if (AUTH_ENABLED) {
             log.debug("Generating config with auth enabled.");
             return ClientConfig.builder()
                                // auth
                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                                .controllerURI(controllerUri)
                                .build();
+        } else {
+            log.debug("Generating config with tls and auth disabled.");
+            return ClientConfig.builder().controllerURI(controllerUri).build();
         }
-
     }
 
     /**
@@ -195,6 +212,8 @@ public class Utils {
         return Boolean.valueOf(securityEnabled);
     }
 
-
-
+    private static boolean isTLSEnabled() {
+        String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
+        return Boolean.valueOf(tlsEnabled);
+    }
 }
