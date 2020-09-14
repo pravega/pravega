@@ -688,8 +688,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         readNEvents(reader2, TOTAL_NUM_EVENTS - eventsReadCount);
 
         // Reading next event should return null.
-        assertNull(reader1.readNextEvent(5000).getEvent());
-        assertNull(reader2.readNextEvent(5000).getEvent());
+        assertNull(reader1.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
+        assertNull(reader2.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
         reader1.close();
         reader2.close();
     }
