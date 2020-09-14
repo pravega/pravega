@@ -121,7 +121,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         URI controllerRESTUri = ctlURIs.get(1);
         Invocation.Builder builder;
         Response response;
-        String protocol = Utils.TLS_AND_AUTH_ENABLED ? "http://" : "https://";
+        String protocol = Utils.TLS_AND_AUTH_ENABLED ? "https://" : "http://";
         restServerURI = protocol + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
         log.info("REST Server URI: {}", restServerURI);
 
