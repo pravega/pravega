@@ -188,7 +188,7 @@ public class SegmentSelector {
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
-        tokenProvider.populateToken(currentSegments.getDelegationToken());
+        // tokenProvider.populateToken(currentSegments.getDelegationToken());
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 log.debug("Creating writer for segment {}", segment);

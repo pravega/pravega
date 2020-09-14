@@ -22,6 +22,7 @@ import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
@@ -875,7 +876,7 @@ public class ControllerImpl implements Controller {
 
         final Stream stream = fromStreamCut.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
-        CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
+        // CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
         final CompletableFuture<StreamCutRangeResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<StreamCutRangeResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessorsFromCut");
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
@@ -1240,12 +1241,18 @@ public class ControllerImpl implements Controller {
         this.channel.shutdownNow(); // Initiates a shutdown of channel. Although forceful, the shutdown is not instantaneous.
         Exceptions.handleInterrupted(() -> {
             boolean shutdownStatus = channel.awaitTermination(10, TimeUnit.SECONDS);
-            log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
+            log.info("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
         });
     }
 
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        return this.getOrRefreshDelegationTokenFor(scope, streamName, null);
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
+                                                                    AuthHandler.Permissions permission) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
@@ -1254,7 +1261,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor", scope, streamName);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
+                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, permission), callback);
             return callback.getFuture();
         }, this.executor);
 

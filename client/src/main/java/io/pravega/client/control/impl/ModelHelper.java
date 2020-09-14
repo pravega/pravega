@@ -12,6 +12,7 @@ package io.pravega.client.control.impl;
 import com.google.common.base.Preconditions;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.RetentionPolicy;
@@ -375,6 +376,17 @@ public final class ModelHelper {
     public static final Controller.ScopeInfo createScopeInfo(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
+    }
+
+    public static final StreamInfo createStreamInfo(final String scope, final String stream,
+                                                    AuthHandler.Permissions permissions) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
+        if (permissions != null) {
+            builder.setRequestedPermission(permissions.name());
+        }
+        return builder.build();
     }
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {

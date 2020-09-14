@@ -11,6 +11,7 @@ package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -648,6 +649,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         return CompletableFuture.completedFuture("");
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AuthHandler.Permissions permission) {
+        return getOrRefreshDelegationTokenFor(scope, streamName);
     }
 
     @Override

@@ -322,8 +322,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     totalLength += endPositions.get(s);
                 } else {
                     if (tokenProvider == null) {
-                        tokenProvider = DelegationTokenProviderFactory.create(
-                                unreadVal.getDelegationToken(), controller, s);
+                        tokenProvider = DelegationTokenProviderFactory.create(controller, s);
                     }
                     @Cleanup
                     SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);

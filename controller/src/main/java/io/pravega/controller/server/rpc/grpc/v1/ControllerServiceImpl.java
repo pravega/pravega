@@ -326,7 +326,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             if (request.getRequestedPermission().equals("") && !request.getStream().startsWith("_")) {
                 // For backward compatibility
                 return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
-                        AuthHandler.Permissions.READ_UPDATE);
+                        AuthHandler.Permissions.READ);
             } else {
                 AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
                 AuthHandler.Permissions requestedPermissions =

@@ -9,6 +9,7 @@
  */
 package io.pravega.client.control.impl;
 
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
@@ -376,6 +377,8 @@ public interface Controller extends AutoCloseable {
      * @return The delegation token for the given stream.
      */
     CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
+
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AuthHandler.Permissions permission);
 
     //region KeyValueTables
 

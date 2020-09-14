@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
@@ -446,6 +447,11 @@ public class LocalController implements Controller {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AuthHandler.Permissions permission) {
+        return getOrRefreshDelegationTokenFor(scope, streamName);
     }
 
     private Map<Long, Long> getStreamCutMap(StreamCut streamCut) {

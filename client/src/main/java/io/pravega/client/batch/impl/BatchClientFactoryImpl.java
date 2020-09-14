@@ -106,7 +106,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 RuntimeException::new);
         final SortedSet<Segment> segmentSet = new TreeSet<>(segments.getSegments());
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
-                .create(segments.getDelegationToken(), controller, stream.getScope(), stream.getStreamName());
+                .create(controller, stream.getScope(), stream.getStreamName());
         log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
 
         Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),

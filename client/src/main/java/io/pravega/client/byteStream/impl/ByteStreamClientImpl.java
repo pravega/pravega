@@ -9,6 +9,7 @@
 package io.pravega.client.byteStream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
@@ -54,7 +55,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
     private ByteStreamReader createByteStreamReaders(Segment segment) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
-                                                                                                                 .getStreamName()),
+                                                                                                                 .getStreamName(),
+                                                                AuthHandler.Permissions.READ),
                                                                 RuntimeException::new);
 
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);

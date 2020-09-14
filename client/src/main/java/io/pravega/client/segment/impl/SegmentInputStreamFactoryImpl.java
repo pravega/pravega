@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.auth.AuthHandler;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -44,7 +45,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
-                                                                                                                 .getStreamName()),
+                                                                                                                 .getStreamName(), AuthHandler.Permissions.READ),
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment), hasData);
