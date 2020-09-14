@@ -973,6 +973,27 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
+    public void sealStreamFailing() throws Exception {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        // attempt to seal a stream which is in creating state. This should fail and be retried. 
+        // now set the stream state to active. 
+        // it should be sealed.
+        String creating = "creating";
+        streamStorePartialMock.createStream(SCOPE, creating, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), null, executor).join();
+        UpdateStreamStatus.Status status = streamMetadataTasks.sealStream(SCOPE, creating, null, 1).join();
+        assertEquals(status, UpdateStreamStatus.Status.FAILURE);
+
+        streamStorePartialMock.setState(SCOPE, creating, State.ACTIVE, null, executor).join();
+        CompletableFuture<UpdateStreamStatus.Status> statusFuture = streamMetadataTasks.sealStream(SCOPE, creating, null, 1);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, statusFuture.join());
+    }
+    
+    @Test(timeout = 30000)
     public void sealStreamWithTxnTest() throws Exception {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);

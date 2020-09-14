@@ -1240,19 +1240,13 @@ public class ControllerImpl implements Controller {
     private void closeChannel() {
         this.channel.shutdownNow(); // Initiates a shutdown of channel. Although forceful, the shutdown is not instantaneous.
         Exceptions.handleInterrupted(() -> {
-            boolean shutdownStatus = channel.awaitTermination(10, TimeUnit.SECONDS);
-            log.info("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
+            boolean shutdownStatus = channel.awaitTermination(20, TimeUnit.SECONDS);
+            log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
         });
     }
 
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
-        return this.getOrRefreshDelegationTokenFor(scope, streamName, null);
-    }
-
-    @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
-                                                                    AuthHandler.Permissions permission) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
