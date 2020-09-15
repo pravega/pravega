@@ -93,7 +93,7 @@ public class RawClient implements AutoCloseable {
         this.connection = connectionPool.getClientConnection(flow, uri, responseProcessor)
         .exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
-            throw new CompletionException(new ConnectionFailedException("Failed to obtain client connection to  " + uri));
+            throw new CompletionException(new ConnectionFailedException(e));
         });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
@@ -104,7 +104,7 @@ public class RawClient implements AutoCloseable {
                                     .thenCompose((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor))
                                     .exceptionally(e -> {
                                         log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
-                                        throw new CompletionException(new ConnectionFailedException("Failed to obtain client connection to segment " + segmentId));
+                                        throw new CompletionException(new ConnectionFailedException(e));
                                     });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
