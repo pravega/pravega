@@ -22,10 +22,13 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
+
+import java.util.Map;
 
 /**
  * Implementation for {@link ByteStreamClientFactory}.
@@ -48,11 +51,20 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
 
     @Override
     public ByteStreamReader createByteStreamReader(String streamName) {
-        StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
-        Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
-        Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
-        Segment segment = segments.getSegments().iterator().next();
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, segment);
+        // Fetch the segments pointing to the current HEAD of the stream.
+        Map<Segment, Long> segments = Futures.getThrowingException(controller.getSegmentsAtTime(Stream.of(scope, streamName), 0L));
+        Preconditions.checkState(segments.size() == 1, "Stream is configured with more than one segment or has none");
+        Segment segment = segments.keySet().iterator().next();
+        return createByteStreamReaders(segment);
+    }
+
+    private ByteStreamReader createByteStreamReaders(Segment segment) {
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+                                                                                                          segment.getStream()
+                                                                                                                 .getStreamName()),
+                                                                RuntimeException::new);
+
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
         SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
         long startOffset = metaClient.getSegmentInfo().getStartingOffset();
         return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),

@@ -124,14 +124,12 @@ public class ByteStreamReaderTest {
                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
                                                                   .build());
         AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream1));
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream1));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamWriter(stream1));
         String stream2 = "invalidstream2";
         controller.createStream(SCOPE, stream2, StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         controller.sealStream(SCOPE, stream2);
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream2));
-        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamReader(stream2));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamWriter(stream2));
     }
-
 }
