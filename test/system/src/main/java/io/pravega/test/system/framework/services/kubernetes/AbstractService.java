@@ -138,7 +138,7 @@ public abstract class AbstractService implements Service {
                                                                                                    bookieCount, props)));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
+    protected Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
 
@@ -179,6 +179,10 @@ public abstract class AbstractService implements Service {
                 .put("image", pravegaImgSpec)
                 .put("tier2", tier2Spec())
                 .build();
+
+        for (Map.Entry<String, String> entry : props.entrySet()) {
+            log.info("Pravega cluster option name={}, value={}", entry.getKey(), entry.getValue());
+        }
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
                 .put("controllerSecret", SECRET_NAME_USED_FOR_TLS)
@@ -234,32 +238,6 @@ public abstract class AbstractService implements Service {
         }
 
         return builder.build();
-    }
-
-    /**
-     * Helper method to create the Pravega Cluster Spec which specifies just those values in the
-     * spec which need to be patched. Other values remain same as were specified at the time of
-     * deployment.
-     * @param service Name of the service to be patched (bookkeeper/ segment store/ controller).
-     * @param replicaCount Number of replicas.
-     * @param component Name of the component (pravega/ bookkeeper).
-     *
-     * @return the new Pravega Cluster Spec containing the values that need to be patched.
-     */
-    protected static Map<String, Object> buildPatchedPravegaClusterSpec(String service, int replicaCount, String component) {
-
-        final Map<String, Object> componentSpec = ImmutableMap.<String, Object>builder()
-                .put(service, replicaCount)
-                .build();
-
-        return ImmutableMap.<String, Object>builder()
-                .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
-                .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
-                .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", ImmutableMap.builder()
-                        .put(component, componentSpec)
-                        .build())
-                .build();
     }
 
     private Map<String, Object> tier2Spec() {

@@ -96,7 +96,7 @@ public class BookkeeperK8sService extends AbstractService {
                             log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                       currentControllerCount, currentSegmentStoreCount);
                             if (currentBookkeeperCount != newInstanceCount) {
-                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("replicas", newInstanceCount, "bookkeeper");
+                                final Map<String, Object> patchedSpec = getPravegaDeployment(zkUri.getAuthority(), DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, newInstanceCount, properties);
                                 return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                             } else {

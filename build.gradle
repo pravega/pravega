@@ -772,6 +772,7 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
+        compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
     }
     //disable the default test task.
     test {
@@ -842,6 +843,7 @@ project('test:system') {
     }
 
     task copyTestsToK8sCluster(type: Exec) {
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
         commandLine './kubernetes/setupTestPod.sh'
@@ -890,7 +892,7 @@ project('test:system') {
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
-       
+
         maxParallelForks = 1
     }
 

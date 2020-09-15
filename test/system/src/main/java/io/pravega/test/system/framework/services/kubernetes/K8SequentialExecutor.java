@@ -46,7 +46,7 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
-    private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
+    private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u212-jre");
     private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
     @Override
@@ -124,6 +124,9 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withCommand("/bin/sh")
                 .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
                                   + " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED
+                                  + " -Dgrpc.ssl_target_name_override=pravega-pravega-controller.default"
+                                  + " -Dcom.sun.net.ssl.checkRevocation=false"
+                                  + " -Dgrpc.default_authority=pravega-pravega-controller.default"
                                   + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
@@ -131,11 +134,15 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withRestartPolicy("Never")
                 .endSpec().build();
         if (Utils.TLS_AND_AUTH_ENABLED) {
-            pod  = new V1PodBuilder(pod).editSpec().withVolumes(new V1VolumeBuilder().withName("tls-certs")
+            pod  = new V1PodBuilder(pod).editSpec().withVolumes(new V1VolumeBuilder().withName("tls-secret")
                                                   .withSecret(new V1SecretVolumeSourceBuilder().withSecretName(Utils.TLS_SECRET_NAME).build())
+                                                  .build())
+                                                  .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
+                                                  .withPersistentVolumeClaim(new V1PersistentVolumeClaimVolumeSourceBuilder().withClaimName("task-pv-claim").build())
                                                   .build())
                 .editContainer(0)
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath(Utils.TLS_MOUNT_PATH).withName("tls-secret").build())
+                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .endSpec()
                 .build();

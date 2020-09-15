@@ -73,6 +73,8 @@ spec:
 EOF
 
 # Step 6: Create an init pod and wait until pod is running.
+kubectl create -f ./build/resources/test/secret.yaml || true
+
 cat <<EOF | kubectl create -f -
 kind: Pod
 apiVersion: v1
@@ -83,6 +85,10 @@ spec:
     - name: task-pv-storage
       persistentVolumeClaim:
        claimName: task-pv-claim
+    - name: tls-secret
+      secret:
+        defaultMode: 420
+        secretName: selfsigned-cert-tls
   containers:
     - name: task-pv-container
       image: openjdk:8u181-jre-alpine
@@ -91,6 +97,8 @@ spec:
       volumeMounts:
         - mountPath: "/data"
           name: task-pv-storage
+        - mountPath: /etc/secret-volume
+          name: tls-secret
 EOF
 kubectl wait --timeout=1m --for=condition=Ready pod/task-pv-pod
 
@@ -108,7 +116,7 @@ else
   echo "Copying test artifact to cluster, (this will take a couple of minutes)..."
   kubectl cp ./build/libs/test-collection.jar task-pv-pod:/data
 fi
-
+kubectl cp ./build/resources/test/secret.yaml task-pv-pod:/data
 #delete the pod that was created.
 echo "Deleting pod task-pv-pod that was used to copy the test artifacts"
 kubectl delete po task-pv-pod --now
