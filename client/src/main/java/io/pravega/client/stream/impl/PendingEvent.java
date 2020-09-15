@@ -60,13 +60,7 @@ public class PendingEvent {
         ByteBuf eventBuf = getByteBuf(data);
         return new PendingEvent(routingKey, eventBuf, 1, ackFuture);
     }
-
-    private static ByteBuf getByteBuf(ByteBuffer data) {
-        ByteBuf eventBuf = new Event(Unpooled.wrappedBuffer(data)).getAsByteBuf();
-        Preconditions.checkArgument(eventBuf.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", eventBuf.readableBytes());
-        return eventBuf;
-    }
-
+    
     public static PendingEvent withHeader(@NonNull String routingKey, @NonNull List<ByteBuffer> batch, @NonNull CompletableFuture<Void> ackFuture) {
         Preconditions.checkArgument(!batch.isEmpty(), "Batch cannot be empty");
         ByteBuf[] buffers = new ByteBuf[batch.size()];
@@ -85,5 +79,11 @@ public class PendingEvent {
         Preconditions.checkArgument(dataBuf.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", dataBuf.readableBytes());
 
         return new PendingEvent(routingKey, dataBuf, 1, ackFuture);
+    }
+
+    private static ByteBuf getByteBuf(ByteBuffer data) {
+        ByteBuf eventBuf = new Event(Unpooled.wrappedBuffer(data)).getAsByteBuf();
+        Preconditions.checkArgument(eventBuf.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", eventBuf.readableBytes());
+        return eventBuf;
     }
 }
