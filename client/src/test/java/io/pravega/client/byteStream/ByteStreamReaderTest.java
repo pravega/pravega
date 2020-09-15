@@ -130,6 +130,7 @@ public class ByteStreamReaderTest {
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         controller.sealStream(SCOPE, stream2);
+        clientFactory.createByteStreamReader(stream2);
         AssertExtensions.assertThrows(IllegalStateException.class, () -> clientFactory.createByteStreamWriter(stream2));
     }
 }
