@@ -85,7 +85,7 @@ public class MultiControllerTest extends AbstractSystemTest {
         assertEquals("2 controller instances should be running", 2, uris.size());
 
         // use the last two uris
-        controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
+        controllerURIDirect.set(URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
