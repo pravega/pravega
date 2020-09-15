@@ -66,6 +66,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
 
     @Override
     public boolean write(ByteBuffer data, long expectedOffset) throws SegmentSealedException {
+        Exceptions.checkNotClosed(closed.get(), this);
         synchronized (lock) { //Used to preserver order.
             long appendSequence = requestIdGenerator.get();
             return retrySchedule.retryWhen(e -> {
