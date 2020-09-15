@@ -1028,6 +1028,7 @@ task publishAllJars() {
     dependsOn ':shared:security'
     dependsOn ':shared:protocol:publish'
     dependsOn ':segmentstore:contracts:publish'
+    dependsOn ':segmentstore:storage:testJar'
     dependsOn ':segmentstore:storage:publish'
     dependsOn ':segmentstore:storage:impl:publish'
     dependsOn ':segmentstore:server:publish'

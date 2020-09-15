@@ -23,6 +23,7 @@ import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.apis.RbacAuthorizationV1beta1Api;
+import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ContainerState;
 import io.kubernetes.client.openapi.models.V1ContainerStateTerminated;
 import io.kubernetes.client.openapi.models.V1ContainerStatus;
@@ -33,7 +34,9 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
 import io.kubernetes.client.openapi.models.V1PodStatus;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1ServiceAccount;
+import io.kubernetes.client.openapi.models.V1Status;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
 import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
@@ -562,6 +565,90 @@ public class K8sClient {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Method to get V1ConfigMap.
+     * @param name Name of the ConfigMap.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @return Future representing the V1ConfigMap.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1ConfigMap> getConfigMap(String name, String namespace) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("readNamespacedConfigMap");
+        api.readNamespacedConfigMapAsync(name, namespace, PRETTY_PRINT, false, false, callback);
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to create V1ConfigMap.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param configMap V1ConfigMap to create
+     * @return Future representing the V1ConfigMap.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1ConfigMap> createConfigMap(String namespace, V1ConfigMap configMap) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1ConfigMap> callback = new K8AsyncCallback<>("createNamespacedConfigMap");
+        api.createNamespacedConfigMapAsync(namespace, configMap, PRETTY_PRINT, null, null, callback);
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to delete V1ConfigMap.
+     * @param name Name of the ConfigMap.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @return Future representing the V1ConfigMap.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1Status> deleteConfigMap(String name, String namespace) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Status> callback = new K8AsyncCallback<>("deleteNamespacedConfigMap");
+        api.deleteNamespacedConfigMapAsync(name, namespace, PRETTY_PRINT, null, 0, false, null, null, callback);
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to create V1Secret.
+     * @param namespace Namespace in which the secret should be created. Secrets cannot be shared outside namespace.
+     * @param secret V1Secret to create
+     * @return Future representing the V1Secret.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1Secret> createSecret(String namespace, V1Secret secret) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Secret> callback = new K8AsyncCallback<>("createNamespacedSecret");
+        api.createNamespacedSecretAsync(namespace, secret, PRETTY_PRINT, null, null, callback);
+        return exceptionallyExpecting(callback.getFuture(), isConflict, null);
+    }
+
+    /**
+     * Method to get V1Secret.
+     * @param name Name of the Secret.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @return Future representing the V1Secret.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1Secret> getSecret(String name, String namespace) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Secret> callback = new K8AsyncCallback<>("readNamespacedSecret");
+        api.readNamespacedSecretAsync(name, namespace, PRETTY_PRINT, false, false, callback);
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to delete V1Secret.
+     * @param name Name of the Secret.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @return Future representing the V1Secret.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1Status> deleteSecret(String name, String namespace) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Status> callback = new K8AsyncCallback<>("deleteNamespacedSecret");
+        api.deleteNamespacedSecretAsync(name, namespace, PRETTY_PRINT, null, 0, false, null, null, callback);
+        return callback.getFuture();
     }
 
     /**
