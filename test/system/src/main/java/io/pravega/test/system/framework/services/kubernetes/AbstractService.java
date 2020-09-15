@@ -179,7 +179,7 @@ public abstract class AbstractService implements Service {
                 .put("image", pravegaImgSpec)
                 .put("tier2", tier2Spec())
                 .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
-                .put("controllerJVMOptions", getControllerJVMOptions())
+                .put("controllerjvmOptions", getControllerJVMOptions())
                 .build();
 
         final Map<String, Object> staticTlsSpec = ImmutableMap.<String, Object>builder()
