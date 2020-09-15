@@ -290,8 +290,8 @@ public abstract class AbstractService implements Service {
         }));
     }
 
-    // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environemnts >= 10. This option
-    // is supplied by default by the operators. We cannot 'deactive' it using the XX:- counterpart as it is unrecorgnized.
+    // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
+    // is supplied by default by the operators. We cannot 'deactive' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
     }
