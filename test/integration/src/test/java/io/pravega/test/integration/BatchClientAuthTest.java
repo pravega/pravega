@@ -12,7 +12,7 @@ package io.pravega.test.integration;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -158,9 +158,9 @@ public class BatchClientAuthTest extends BatchClientTest {
             String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
 
             List<PasswordAuthHandlerInput.Entry> entries = Arrays.asList(
-                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"),
-                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "*,READ_UPDATE;"),
-                    PasswordAuthHandlerInput.Entry.of("unauthorizeduser", encryptedPassword, "")
+                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("unauthorizeduser", encryptedPassword, "prn::")
             );
             result.postEntries(entries);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
