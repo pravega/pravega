@@ -472,7 +472,7 @@ public abstract class AbstractService implements Service {
                                                                 new V1EnvVarBuilder().withName(WEBHOOK_CERT_GENERATE)
                                                                                      .withValue("true")
                                                                                      .build(),
-                                                                new V1EnvVarBuilder().withName("TLS_AND_AUTH_ENABLED")
+                                                                new V1EnvVarBuilder().withName("TLS_ENABLED")
                                                                         .withValue(String.valueOf(Utils.TLS_AND_AUTH_ENABLED))
                                                                         .build(),
                                                                 new V1EnvVarBuilder().withName("TLS_AND_AUTH_ENABLED_FOR_SEGMENT_STORE")
