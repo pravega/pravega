@@ -14,6 +14,7 @@ package io.pravega.cli.admin.utils;
  * An exception that is thrown when cannot connect to the zookeeper with given address.
  */
 public class ZKConnectionFailedException extends Exception {
+
     ZKConnectionFailedException() {
         super("Fail to connect to zookeeper in the given address.");
     }

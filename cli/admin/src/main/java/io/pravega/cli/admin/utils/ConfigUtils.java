@@ -15,12 +15,20 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.Properties;
 
+/**
+ * Utility class for configuration purposes.
+ */
 public class ConfigUtils {
+
+    private static final String CONFIG_FILE_PROPERTY_NAME = "pravega.configurationFile";
+    private static final String PRAVEGA_SERVICE_PROPERTY_NAME = "pravegaservice";
+    private static final String CLI_PROPERTY_NAME = "cli";
+    private static final String BOOKKEEPER_PROPERTY_NAME = "bookkeeper";
 
     public static void loadProperties(AdminCommandState state) {
         Properties pravegaProperties = new Properties();
         // First, load the properties from file, if any.
-        try (InputStream input = new FileInputStream(System.getProperty("pravega.configurationFile"))) {
+        try (InputStream input = new FileInputStream(System.getProperty(CONFIG_FILE_PROPERTY_NAME))) {
             pravegaProperties.load(input);
         } catch (Exception e) {
             System.err.println("Exception reading input properties file: " + e.getMessage());
@@ -29,7 +37,9 @@ public class ConfigUtils {
 
         // Second, load properties from command line if any.
         for (String propertyName: System.getProperties().stringPropertyNames()) {
-            if (propertyName.startsWith("pravegaservice") || propertyName.startsWith("cli") || propertyName.startsWith("bookkeeper")) {
+            if (propertyName.startsWith(PRAVEGA_SERVICE_PROPERTY_NAME)
+                    || propertyName.startsWith(CLI_PROPERTY_NAME)
+                    || propertyName.startsWith(BOOKKEEPER_PROPERTY_NAME)) {
                 pravegaProperties.setProperty(propertyName, System.getProperties().getProperty(propertyName));
             }
         }
