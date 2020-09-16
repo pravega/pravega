@@ -104,7 +104,7 @@ public final class Config {
     public static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named(
             "security.auth.enable", false, "auth.enabled");
 
-    public static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named(
+    public static final Property<String> PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE = Property.named(
             "security.pwdAuthHandler.accountsDb.location", "", "auth.userPasswordFile");
 
     public static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named(
@@ -184,7 +184,7 @@ public final class Config {
 
     public static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
-    
+
     public static final String COMPONENT_CODE = "controller";
 
     //endregion
@@ -265,7 +265,7 @@ public final class Config {
 
     // Print stack trace for all threads during shutdown
     public static final boolean DUMP_STACK_ON_SHUTDOWN;
-    
+
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
@@ -295,7 +295,7 @@ public final class Config {
         CLUSTER_MIN_REBALANCE_INTERVAL = p.getInt(PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS);
 
         AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTH_ENABLED);
-        USER_PASSWORD_FILE = p.get(PROPERTY_AUTH_PASSWORD_FILE);
+        USER_PASSWORD_FILE = p.get(PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
         ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
 
