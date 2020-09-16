@@ -66,7 +66,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 1;
+        return 2;
     }
 
     @Before
@@ -97,7 +97,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         zkTestServer.close();
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 90000)
     public void testScale() throws Exception {
         final String scope = "test";
         final String streamName = "test";

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.grpc.v1;
+package io.pravega.controller.server.v1;
 
 import com.google.common.base.Strings;
 import io.grpc.Status;
@@ -21,6 +21,7 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -883,15 +884,6 @@ public abstract class ControllerServiceImplTest {
         exists = new ResultObserver<>();
         this.controllerService.checkScopeExists(ScopeInfo.newBuilder().setScope(SCOPE1).build(), exists);
         assertTrue(exists.get().getExists());
-    }
-
-    @Test
-    public void testTokenSupplier() {
-        ControllerServiceImpl mockControllerService = spy(this.controllerService);
-
-        // mockControllerService.createDelegationTokenSupplier()
-        // mockControllerService.createDelegationTokenSupplier()
-
     }
 
     @Test(timeout = 30000L)

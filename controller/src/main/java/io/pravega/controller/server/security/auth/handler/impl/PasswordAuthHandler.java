@@ -40,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 public class PasswordAuthHandler implements AuthHandler {
     private final ConcurrentHashMap<String, AccessControlList> aclsByUser;
     private final StrongPasswordProcessor encryptor;
-    private final boolean isOldAclFormatEnabled;
 
     public PasswordAuthHandler() {
         this(new ConcurrentHashMap<>(), false);
@@ -50,7 +49,6 @@ public class PasswordAuthHandler implements AuthHandler {
     PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean useAclsInOldFormat) {
         aclsByUser = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
-        isOldAclFormatEnabled = useAclsInOldFormat;
     }
 
     private void loadPasswordFile(String userPasswordFile) {
@@ -147,8 +145,7 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     private Permissions authorizeForUser(AccessControlList accessControlList, String resource) {
-        AclAuthorizer aclAuthorizer = this.isOldAclFormatEnabled ? AclAuthorizer.legacyAuthorizerInstance() :
-                AclAuthorizer.instance();
+        AclAuthorizer aclAuthorizer = AclAuthorizer.instance();
         return aclAuthorizer.authorize(accessControlList, resource);
     }
 

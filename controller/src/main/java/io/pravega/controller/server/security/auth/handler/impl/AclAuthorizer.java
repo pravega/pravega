@@ -16,17 +16,7 @@ import io.pravega.auth.AuthHandler;
  */
 abstract class AclAuthorizer {
 
-    private final static AclAuthorizerImpl AUTHORIZER_FOR_NEW_FORMAT = new AclAuthorizerImpl();
-    private final static LegacyAclAuthorizerImpl AUTHORIZER_FOR_LEGACY_FORMAT = new LegacyAclAuthorizerImpl();
-
-    /**
-     * Returns a cached instance of the legacy implementation.
-     *
-     * @return an instance
-     */
-    static AclAuthorizer legacyAuthorizerInstance() {
-        return AUTHORIZER_FOR_LEGACY_FORMAT;
-    }
+    private final static AclAuthorizerImpl AUTHORIZER_IMPL = new AclAuthorizerImpl();
 
     /**
      * Returns a cached instance of the implementation.
@@ -34,7 +24,7 @@ abstract class AclAuthorizer {
      * @return an instance
      */
     static AclAuthorizer instance() {
-        return AUTHORIZER_FOR_NEW_FORMAT;
+        return AUTHORIZER_IMPL;
     }
 
     /**

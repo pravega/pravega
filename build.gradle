@@ -804,7 +804,7 @@ project('test:system') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
-
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
@@ -835,6 +835,7 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
+        systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
@@ -849,7 +850,9 @@ project('test:system') {
 
     task startK8SystemTests(type: Test) {
         tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
+        tasks.withType(Test) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
@@ -886,6 +889,7 @@ project('test:system') {
         }
         
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
+        systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
        
         maxParallelForks = 1
@@ -926,7 +930,7 @@ project('test:system') {
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
-
+        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'testJarForDocker', 'execShellScript'
 
         if (System.getProperty("awsExec").equals("true")) {
@@ -975,6 +979,7 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+        systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
     }
 
