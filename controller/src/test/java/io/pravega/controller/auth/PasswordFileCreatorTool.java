@@ -10,7 +10,7 @@
 package io.pravega.controller.auth;
 
 import com.google.common.base.Strings;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;

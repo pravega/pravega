@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.controller.server.security.auth.handler;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.grpc.Context;
@@ -50,7 +51,8 @@ public class AuthInterceptor implements ServerInterceptor {
     @Getter
     private final AuthHandler handler;
 
-    AuthInterceptor(AuthHandler handler) {
+    @VisibleForTesting
+    public AuthInterceptor(AuthHandler handler) {
         Preconditions.checkNotNull(handler, "handler can not be null");
         this.handler = handler;
     }
