@@ -10,6 +10,7 @@
 package io.pravega.client.connection.impl;
 
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -78,20 +80,32 @@ public class RawClient implements AutoCloseable {
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth token check failed on segment {} with {}", segmentId, authTokenCheckFailed);
-            closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            if (authTokenCheckFailed.isTokenExpired()) {
+                closeConnection(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
+            } else {
+                closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            }
         }
     }
 
-    public RawClient(PravegaNodeUri uri, ConnectionPool connectonPool) {
+    public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {
         this.segmentId = null;
-        this.connection = connectonPool.getClientConnection(flow, uri, responseProcessor);
+        this.connection = connectionPool.getClientConnection(flow, uri, responseProcessor)
+        .exceptionally(e -> {
+            log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
+            throw new CompletionException(new ConnectionFailedException(e));
+        });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
-    public RawClient(Controller controller, ConnectionPool connectonPool, Segment segmentId) {
+    public RawClient(Controller controller, ConnectionPool connectionPool, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectonPool.getClientConnection(flow, uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor))
+                                    .exceptionally(e -> {
+                                        log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
+                                        throw new CompletionException(new ConnectionFailedException(e));
+                                    });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -106,6 +120,7 @@ public class RawClient implements AutoCloseable {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
+
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
             log.debug("Closing connection as requested");
         } else {
