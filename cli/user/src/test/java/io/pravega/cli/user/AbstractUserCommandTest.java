@@ -16,7 +16,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
 
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,13 +30,13 @@ public abstract class AbstractUserCommandTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
-        SETUP_UTILS.startAllServices();
-        InteractiveConfig interactiveConfig = new InteractiveConfig();
-        pravegaProperties.setProperty("cli.controllerRestUri", SETUP_UTILS.getControllerRestUri().toString());
+        /*SETUP_UTILS.startAllServices();
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        Properties pravegaProperties.setProperty("cli.controllerRestUri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controllerGrpcUri", SETUP_UTILS.getControllerUri().toString());
         pravegaProperties.setProperty("pravegaservice.zkURL", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.containerCount", "4");
-        CONFIG.set(pravegaProperties);
+        CONFIG.set(pravegaProperties);*/
     }
 
     @AfterClass
