@@ -11,6 +11,7 @@ package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import java.util.AbstractMap;
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -696,32 +696,6 @@ class BTreePage {
             this.entryLength = this.keyLength + this.valueLength;
             this.maxPageSize = maxPageSize;
             this.isIndexPage = isIndexPage;
-        }
-    }
-
-    //endregion
-
-    //region SearchResult
-
-    /**
-     * The result of a BTreePage Search.
-     */
-    @Getter
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class SearchResult {
-        /**
-         * The resulting position.
-         */
-        private final int position;
-        /**
-         * Indicates whether an exact match for the sought key was found. If so, position refers to that key. If not,
-         * position refers to the location where the key would have been.
-         */
-        private final boolean exactMatch;
-
-        @Override
-        public String toString() {
-            return String.format("%s (%s)", this.position, this.exactMatch ? "E" : "NE");
         }
     }
 

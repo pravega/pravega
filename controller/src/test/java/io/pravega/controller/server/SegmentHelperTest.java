@@ -11,19 +11,16 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.Flow;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.tables.impl.IteratorState;
+import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.impl.IteratorStateImpl;
-import io.pravega.client.tables.impl.KeyVersion;
-import io.pravega.client.tables.impl.KeyVersionImpl;
-import io.pravega.client.tables.impl.TableEntry;
-import io.pravega.client.tables.impl.TableEntryImpl;
-import io.pravega.client.tables.impl.TableKey;
-import io.pravega.client.tables.impl.TableKeyImpl;
-import io.pravega.client.tables.impl.TableSegment;
+import io.pravega.client.tables.impl.TableSegmentEntry;
+import io.pravega.client.tables.impl.TableSegmentKey;
+import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
@@ -37,6 +34,8 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -48,10 +47,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
-
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
@@ -61,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SegmentHelperTest {
+public class SegmentHelperTest extends ThreadPooledTestSuite {
 
     private final byte[] key0 = "k".getBytes();
     private final byte[] key1 = "k1".getBytes();
@@ -70,11 +70,11 @@ public class SegmentHelperTest {
     private final byte[] value = "v".getBytes();
     private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
     private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
-
+    
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
         helper.getSegmentUri("", "", 0);
     }
@@ -82,7 +82,7 @@ public class SegmentHelperTest {
     @Test
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -122,7 +122,7 @@ public class SegmentHelperTest {
     @Test
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -156,7 +156,7 @@ public class SegmentHelperTest {
     @Test
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.deleteSegment("", "", 0L, "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -185,7 +185,7 @@ public class SegmentHelperTest {
     @Test
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -218,7 +218,7 @@ public class SegmentHelperTest {
     @Test
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         UUID txId = new UUID(0, 0L);
         CompletableFuture<Void> retVal = helper.createTransaction("", "", 0L, txId,
                 "");
@@ -251,7 +251,7 @@ public class SegmentHelperTest {
     @Test
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -282,7 +282,7 @@ public class SegmentHelperTest {
     @Test
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -313,7 +313,7 @@ public class SegmentHelperTest {
     @Test
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
                 "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -340,7 +340,7 @@ public class SegmentHelperTest {
     @Test
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -367,24 +367,24 @@ public class SegmentHelperTest {
     @Test
     public void testCreateTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId);
+        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", requestId);
+        result = helper.createTableSegment("", "", requestId, false);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, true);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -396,7 +396,7 @@ public class SegmentHelperTest {
     @Test
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         long requestId = System.nanoTime();
 
         // On receiving NoSuchSegment true should be returned.
@@ -432,18 +432,17 @@ public class SegmentHelperTest {
     @Test
     public void testUpdateTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
-        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), null), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(10L)),
-                                                                                      "v".getBytes()));
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        List<TableSegmentEntry> entries = Arrays.asList(TableSegmentEntry.notExists("k".getBytes(), "v".getBytes()),
+                TableSegmentEntry.unversioned("k1".getBytes(), "v".getBytes()),
+                TableSegmentEntry.versioned("k2".getBytes(), "v".getBytes(), 10L));
 
-        List<KeyVersion> expectedVersions = Arrays.asList(new KeyVersionImpl(0L),
-                                                          new KeyVersionImpl(1L),
-                                                          new KeyVersionImpl(11L));
+        List<TableSegmentKeyVersion> expectedVersions = Arrays.asList(TableSegmentKeyVersion.from(0L),
+                TableSegmentKeyVersion.from(1L),
+                TableSegmentKeyVersion.from(11L));
 
         // On receiving TableEntriesUpdated.
-        CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", entries, "", System.nanoTime());
+        CompletableFuture<List<TableSegmentKeyVersion>> result = helper.updateTableEntries("", entries, "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.TableEntriesUpdated(requestId, Arrays.asList(0L, 1L, 11L)));
         assertEquals(expectedVersions, result.join());
@@ -478,15 +477,15 @@ public class SegmentHelperTest {
     @Test
     public void testRemoveTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
-        List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS),
-                                                    new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        List<TableSegmentKey> keys = Arrays.asList(TableSegmentKey.notExists("k".getBytes()),
+                TableSegmentKey.notExists("k1".getBytes()));
 
         // On receiving TableKeysRemoved.
         CompletableFuture<Void> result = helper.removeTableKeys("", keys, "",
-                                                                            System.nanoTime());
+                System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.TableKeysRemoved(requestId, getQualifiedStreamSegmentName("", "", 0L) ));
+        factory.rp.process(new WireCommands.TableKeysRemoved(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(Futures.await(result));
 
         // On receiving TableKeyDoesNotExist.
@@ -518,28 +517,28 @@ public class SegmentHelperTest {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
-        List<TableKey<byte[]>> keysToBeRead = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NO_VERSION),
-                                                    new TableKeyImpl<>(key1, KeyVersion.NO_VERSION));
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
+                TableSegmentKey.unversioned(key1));
 
-        List<TableEntry<byte[], byte[]>> reponseFromSegmentStore = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
-                                                                                                              new KeyVersionImpl(10L)), value),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>(key1, KeyVersion.NOT_EXISTS), value));
+        List<TableSegmentEntry> responseFromSegmentStore = Arrays.asList(
+                TableSegmentEntry.versioned(key0, value, 10L),
+                TableSegmentEntry.notExists(key1, value));
 
-        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", keysToBeRead, 
-                                                                                      "", System.nanoTime());
+        CompletableFuture<List<TableSegmentEntry>> result = helper.readTable("", keysToBeRead,
+                "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.TableRead(requestId, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(reponseFromSegmentStore)));
-        List<TableEntry<byte[], byte[]>> readResult = result.join();
-        assertArrayEquals(key0, readResult.get(0).getKey().getKey());
+        factory.rp.process(new WireCommands.TableRead(requestId, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(responseFromSegmentStore)));
+        List<TableSegmentEntry> readResult = result.join();
+        assertArrayByteBufEquals(key0, readResult.get(0).getKey().getKey());
         assertEquals(10L, readResult.get(0).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(value, readResult.get(0).getValue());
-        assertArrayEquals(key1, readResult.get(1).getKey().getKey());
-        assertEquals(KeyVersion.NOT_EXISTS, readResult.get(1).getKey().getVersion());
-        assertArrayEquals(value, readResult.get(1).getValue());
+        assertArrayByteBufEquals(value, readResult.get(0).getValue());
+        assertArrayByteBufEquals(key1, readResult.get(1).getKey().getKey());
+        assertEquals(TableSegmentKeyVersion.NOT_EXISTS, readResult.get(1).getKey().getVersion());
+        assertArrayByteBufEquals(value, readResult.get(1).getValue());
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", keysToBeRead, 
-                                                                               "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", keysToBeRead,
+                "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -552,17 +551,19 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
 
-        final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>(key0, new KeyVersionImpl(2L)),
-                                                           new TableKeyImpl<>(key1, new KeyVersionImpl(10L)));
+        final List<TableSegmentKey> keys1 = Arrays.asList(
+                TableSegmentKey.versioned(key0, 2L),
+                TableSegmentKey.versioned(key1, 10L));
 
-        final List<TableKey<byte[]>> keys2 = Arrays.asList(new TableKeyImpl<>(key2, new KeyVersionImpl(2L)),
-                                                           new TableKeyImpl<>(key3, new KeyVersionImpl(10L)));
+        final List<TableSegmentKey> keys2 = Arrays.asList(
+                TableSegmentKey.versioned(key2, 2L),
+                TableSegmentKey.versioned(key3, 10L));
 
-        CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> result = helper.readTableKeys("", 3,
-                                                                                                     IteratorState.EMPTY,
-                                                                                                     "", System.nanoTime());
+        CompletableFuture<IteratorItem<TableSegmentKey>> result = helper.readTableKeys("", 3,
+                IteratorStateImpl.EMPTY,
+                "", System.nanoTime());
 
         assertFalse(result.isDone());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
@@ -570,16 +571,16 @@ public class SegmentHelperTest {
         factory.rp.process(getTableKeysRead(requestId, keys1, token1));
         assertTrue(Futures.await(result));
         // Validate the results.
-        List<TableKey<byte[]>> iterationResult = result.join().getItems();
-        assertArrayEquals(key0, iterationResult.get(0).getKey());
+        List<TableSegmentKey> iterationResult = result.join().getItems();
+        assertArrayByteBufEquals(key0, iterationResult.get(0).getKey());
         assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
-        assertArrayEquals(key1, iterationResult.get(1).getKey());
+        assertArrayByteBufEquals(key1, iterationResult.get(1).getKey());
         assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
-        assertArrayEquals(token1.array(), result.join().getState().toBytes().array());
+        assertArrayEquals(token1.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         // fetch the next value
-        result = helper.readTableKeys("", 3, IteratorState.fromBytes(token1), "",
-                                      System.nanoTime());
+        result = helper.readTableKeys("", 3, IteratorStateImpl.fromBytes(token1), "",
+                System.nanoTime());
         assertFalse(result.isDone());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
@@ -587,15 +588,15 @@ public class SegmentHelperTest {
         assertTrue(Futures.await(result));
         // Validate the results.
         iterationResult = result.join().getItems();
-        assertArrayEquals(key2, iterationResult.get(0).getKey());
+        assertArrayByteBufEquals(key2, iterationResult.get(0).getKey());
         assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
-        assertArrayEquals(key3, iterationResult.get(1).getKey());
+        assertArrayByteBufEquals(key3, iterationResult.get(1).getKey());
         assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
-        assertArrayEquals(token2.array(), result.join().getState().toBytes().array());
+        assertArrayEquals(token2.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableKeys("", 1,
-                                                                                   new IteratorStateImpl(wrappedBuffer(new byte[0])),
-                                                                                   "", 0L);
+                IteratorStateImpl.fromBytes(wrappedBuffer(new byte[0])),
+                "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -609,50 +610,48 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
-        List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
-                                                                                                          new KeyVersionImpl(10L)), value),
-                                                                  new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)),
-                                                                                       value));
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        List<TableSegmentEntry> entries1 = Arrays.asList(
+                TableSegmentEntry.versioned(key0, value, 10L),
+                TableSegmentEntry.versioned(key1, value, 10L));
 
-        List<TableEntry<byte[], byte[]>> entries2 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key2,
-                                                                                                          new KeyVersionImpl(10L)), value),
-                                                                  new TableEntryImpl<>(new TableKeyImpl<>(key3,
-                                                                                                          new KeyVersionImpl(10L)), value));
-        
-        CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = helper.readTableEntries("", 3,
-                                                                                                                  null,
-                                                                                                                  "", System.nanoTime());
+        List<TableSegmentEntry> entries2 = Arrays.asList(
+                TableSegmentEntry.versioned(key2, value, 10L),
+                TableSegmentEntry.versioned(key3, value, 10L));
+
+        CompletableFuture<IteratorItem<TableSegmentEntry>> result = helper.readTableEntries("", 3,
+                null,
+                "", System.nanoTime());
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         assertFalse(result.isDone());
         factory.rp.process(getTableEntriesRead(requestId, entries1, token1));
         result.join();
-        List<TableEntry<byte[], byte[]>> iterationResult = result.join().getItems();
-        assertArrayEquals(key0, iterationResult.get(0).getKey().getKey());
+        List<TableSegmentEntry> iterationResult = result.join().getItems();
+        assertArrayByteBufEquals(key0, iterationResult.get(0).getKey().getKey());
         assertEquals(10L, iterationResult.get(0).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(value, iterationResult.get(0).getValue());
-        assertArrayEquals(key1, iterationResult.get(1).getKey().getKey());
+        assertArrayByteBufEquals(value, iterationResult.get(0).getValue());
+        assertArrayByteBufEquals(key1, iterationResult.get(1).getKey().getKey());
         assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(token1.array(), result.join().getState().toBytes().array());
+        assertArrayEquals(token1.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
-        result = helper.readTableEntries("", 3, IteratorState.fromBytes(token1), "",
-                                         System.nanoTime());
+        result = helper.readTableEntries("", 3, IteratorStateImpl.fromBytes(token1), "",
+                System.nanoTime());
         assertFalse(result.isDone());
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(getTableEntriesRead(requestId, entries2, token2));
         assertTrue(Futures.await(result));
         iterationResult = result.join().getItems();
-        assertArrayEquals(key2, iterationResult.get(0).getKey().getKey());
+        assertArrayByteBufEquals(key2, iterationResult.get(0).getKey().getKey());
         assertEquals(10L, iterationResult.get(0).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(value, iterationResult.get(0).getValue());
-        assertArrayEquals(key3, iterationResult.get(1).getKey().getKey());
+        assertArrayByteBufEquals(value, iterationResult.get(0).getValue());
+        assertArrayByteBufEquals(key3, iterationResult.get(1).getKey().getKey());
         assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
-        assertArrayEquals(token2.array(), result.join().getState().toBytes().array());
+        assertArrayEquals(token2.array(), IteratorStateImpl.copyOf(result.join().getState()).getToken().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableEntries("", 1,
-                                                                                      new IteratorStateImpl(wrappedBuffer(new byte[0])),
-                                                                                      "", System.nanoTime());
+                IteratorStateImpl.fromBytes(wrappedBuffer(new byte[0])),
+                "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -663,24 +662,40 @@ public class SegmentHelperTest {
         testConnectionFailure(factory, futureSupplier);
     }
 
-    private WireCommands.TableEntries getTableEntries(List<TableEntry<byte[], byte[]>> entries) {
+    @Test(timeout = 10000)
+    public void testTimeout() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        helper.setTimeout(Duration.ofMillis(100));
+        List<TableSegmentKey> keysToBeRead = Arrays.asList(TableSegmentKey.unversioned(key0),
+                TableSegmentKey.unversioned(key1));
+
+        CompletableFuture<List<TableSegmentEntry>> result = helper.readTable("", keysToBeRead,
+                "", System.nanoTime());
+        
+        AssertExtensions.assertFutureThrows("result should timeout", result, 
+                e -> Exceptions.unwrap(e) instanceof WireCommandFailedException && 
+                        ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
+    }
+
+    private WireCommands.TableEntries getTableEntries(List<TableSegmentEntry> entries) {
         return new WireCommands.TableEntries(entries.stream().map(e -> {
-            val k = new WireCommands.TableKey(wrappedBuffer(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());
-            val v = new WireCommands.TableValue(wrappedBuffer(e.getValue()));
+            val k = new WireCommands.TableKey(e.getKey().getKey(), e.getKey().getVersion().getSegmentVersion());
+            val v = new WireCommands.TableValue(e.getValue());
             return new AbstractMap.SimpleImmutableEntry<>(k, v);
         }).collect(Collectors.toList()));
     }
 
-    private WireCommands.TableKeysRead getTableKeysRead(long requestId, List<TableKey<byte[]>> keys, ByteBuf continuationToken) {
+    private WireCommands.TableKeysRead getTableKeysRead(long requestId, List<TableSegmentKey> keys, ByteBuf continuationToken) {
         return new WireCommands.TableKeysRead(requestId, getQualifiedStreamSegmentName("", "", 0L),
-                                              keys.stream().map(e -> new WireCommands.TableKey(wrappedBuffer(e.getKey()), e.getVersion().getSegmentVersion()))
-                                                  .collect(Collectors.toList()),
-                                              continuationToken);
+                keys.stream().map(e -> new WireCommands.TableKey(e.getKey(), e.getVersion().getSegmentVersion()))
+                    .collect(Collectors.toList()),
+                continuationToken);
     }
 
-    private WireCommands.TableEntriesRead getTableEntriesRead(long requestId, List<TableEntry<byte[], byte[]>> entries, ByteBuf continuationToken) {
+    private WireCommands.TableEntriesRead getTableEntriesRead(long requestId, List<TableSegmentEntry> entries, ByteBuf continuationToken) {
         return new WireCommands.TableEntriesRead(requestId, getQualifiedStreamSegmentName("", "", 0L),
-                                                 getTableEntries(entries), continuationToken);
+                getTableEntries(entries), continuationToken);
     }
 
     private void validateAuthTokenCheckFailed(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
@@ -752,7 +767,17 @@ public class SegmentHelperTest {
         AssertExtensions.assertFutureThrows("",
                 future.get(),
                 ex -> ex instanceof WireCommandFailedException &&
-                ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
+                        ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
+    }
+
+    private void assertArrayByteBufEquals(byte[] expected, ByteBuf actual) {
+        // For all our tests, the ByteBuf is backed by arrays so we can make use of that.
+        AssertExtensions.assertArrayEquals("", expected, 0, actual.array(), actual.arrayOffset(), expected.length);
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 2;
     }
 
     private static class MockHostControllerStore implements HostControllerStore {
@@ -783,7 +808,7 @@ public class SegmentHelperTest {
         }
     }
 
-    private class MockConnectionFactory implements ConnectionFactory {
+    private class MockConnectionFactory implements ConnectionFactory, ConnectionPool {
         private final AtomicBoolean failConnection = new AtomicBoolean(false);
         @Getter
         private ReplyProcessor rp;
@@ -801,12 +826,19 @@ public class SegmentHelperTest {
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp) {
             this.rp = rp;
             this.connection = new MockConnection(rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
 
+        @Override
+        public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
+            this.rp = rp;
+            this.connection = new MockConnection(rp, failConnection);
+            return CompletableFuture.completedFuture(connection);
+        }
+        
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
@@ -834,7 +866,10 @@ public class SegmentHelperTest {
 
         @Override
         public void send(WireCommand cmd) throws ConnectionFailedException {
-
+            this.requestId = ((Request) cmd).getRequestId();
+            if (toFail.get()) {
+                throw new ConnectionFailedException();
+            }
         }
 
         @Override
@@ -842,13 +877,6 @@ public class SegmentHelperTest {
 
         }
 
-        @Override
-        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-            this.requestId = ((Request) cmd).getRequestId();
-            if (toFail.get()) {
-                callback.complete(new ConnectionFailedException());
-            }
-        }
 
         @Override
         public void sendAsync(List<Append> appends, CompletedCallback callback) {

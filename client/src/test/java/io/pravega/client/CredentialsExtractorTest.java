@@ -10,7 +10,6 @@
 package io.pravega.client;
 
 import io.pravega.client.stream.impl.Credentials;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -40,7 +39,7 @@ public class CredentialsExtractorTest {
 
     @Test
     public void testExtractsCredentialsFromEnvVariables() {
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_method", "amethod");
         authEnvVariables.put("pravega_client_auth_token", "atoken");
 
@@ -60,7 +59,7 @@ public class CredentialsExtractorTest {
         properties.setProperty("pravega.client.auth.method", "amethod");
         properties.setProperty("pravega.client.auth.token", "atoken");
 
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_method", "amethod");
         authEnvVariables.put("pravega_client_auth_token", "atoken");
 
@@ -91,7 +90,7 @@ public class CredentialsExtractorTest {
         properties.setProperty("pravega.client.auth.method", "amethod");
         properties.setProperty("pravega.client.auth.token", "atoken");
 
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_method", "bmethod");
         authEnvVariables.put("pravega_client_auth_token", "btoken");
 
@@ -122,7 +121,7 @@ public class CredentialsExtractorTest {
 
     @Test
     public void testLoadsCredentialsObjOfAGenericTypeFromEnvVariablesIfLoadDynamicIsFalse() {
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_loadDynamic", "false");
         authEnvVariables.put("pravega_client_auth_method", "amethod");
         authEnvVariables.put("pravega_client_auth_token", "atoken");
@@ -145,7 +144,7 @@ public class CredentialsExtractorTest {
         properties.setProperty("pravega.client.auth.method", "amethod");
         properties.setProperty("pravega.client.auth.token", "atoken");
 
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_loadDynamic", "true");
         authEnvVariables.put("pravega_client_auth_method", "amethod");
         authEnvVariables.put("pravega_client_auth_token", "atoken");
@@ -176,7 +175,7 @@ public class CredentialsExtractorTest {
 
     @Test
     public void testLoadsCredentialsObjOfARegisteredTypeFromEnvVariablesIfLoadDynamicIsTrue() {
-        Map authEnvVariables = new HashMap();
+        Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_loadDynamic", "true");
         authEnvVariables.put("pravega_client_auth_method", "Bearer");
 

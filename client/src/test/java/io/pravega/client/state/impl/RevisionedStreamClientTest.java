@@ -12,7 +12,7 @@ package io.pravega.client.state.impl;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -34,7 +34,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -42,8 +42,10 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ByteBufferUtils;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.Serializable;
@@ -52,9 +54,6 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -139,7 +138,7 @@ public class RevisionedStreamClientTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
-        
+               
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
@@ -176,7 +175,7 @@ public class RevisionedStreamClientTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
-        
+            
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
@@ -261,7 +260,7 @@ public class RevisionedStreamClientTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
-
+        
         SynchronizerConfig config = SynchronizerConfig.builder().build();
 
         // Simulate sealed stream.
@@ -371,7 +370,7 @@ public class RevisionedStreamClientTest {
     }
 
     @Test
-    public void testRetryOnTimeout() {
+    public void testRetryOnTimeout() throws ConnectionFailedException {
         String scope = "scope";
         String stream = "stream";
         Segment segment = new Segment(scope, stream, 0L);
@@ -430,16 +429,12 @@ public class RevisionedStreamClientTest {
             // Invoke Reply processor to simulate a successful read.
             rp.process(new WireCommands.SegmentRead(request.getSegment(), 15L, true, true, eventData, request
                     .getRequestId()));
-            ClientConnection.CompletedCallback callback = i.getArgument(1);
-            callback.complete(null);
             return null;
-        }).when(c)
-                   .sendAsync(any(WireCommands.ReadSegment.class), any(ClientConnection.CompletedCallback.class));
+        }).when(c).send(any(WireCommands.ReadSegment.class));
         Entry<Revision, String> r = iterator.next();
         assertEquals("A", r.getValue());
         // Verify retries have been performed.
-        verify(c, times(3))
-                .sendAsync(any(WireCommands.ReadSegment.class), any(ClientConnection.CompletedCallback.class));
+        verify(c, times(3)).send(any(WireCommands.ReadSegment.class));
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {

@@ -12,7 +12,9 @@ package io.pravega.client.stream.mock;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -25,27 +27,31 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import java.util.function.Supplier;
-import lombok.Getter;
 
-public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-    private final ConnectionFactoryImpl connectionFactory;
-    @Getter
-    private final Controller controller;
+public class MockClientFactory extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
+
     private final ClientFactoryImpl impl;
 
+    private MockClientFactory(String scope, ClientConfig config, ConnectionPoolImpl connectionPool, MockSegmentStreamFactory ioFactory) {
+        super(scope, new MockController("localhost", 0, connectionPool, false), connectionPool);
+        this.impl = new ClientFactoryImpl(scope, controller, connectionPool, ioFactory, ioFactory, ioFactory, ioFactory);
+    }
+    
+    private MockClientFactory(String scope, ClientConfig config, MockSegmentStreamFactory ioFactory) {
+        this(scope, config, new ConnectionPoolImpl(config, new SocketConnectionFactoryImpl(config)), ioFactory);
+    }
+    
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.controller = new MockController("localhost", 0, connectionFactory, false);
-        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
+        this(scope, ClientConfig.builder().build(), ioFactory);
     }
 
-    public MockClientFactory(String scope, Controller controller) {
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.controller = controller;
-        this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
+    public MockClientFactory(String scope, Controller controller, ConnectionPool connectionPool) {
+        super(scope, controller, connectionPool);
+        this.impl = new ClientFactoryImpl(scope, controller, connectionPool);
     }
 
     @Override
@@ -95,6 +101,7 @@ public class MockClientFactory implements EventStreamClientFactory, Synchronizer
 
     @Override
     public void close() {
-        this.connectionFactory.close();
+        this.controller.close();
+        this.impl.close();
     }
 }

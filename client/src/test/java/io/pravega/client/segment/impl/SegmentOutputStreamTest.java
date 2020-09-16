@@ -11,9 +11,9 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
-import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ClientConnection.CompletedCallback;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -35,6 +35,7 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -44,7 +45,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.List;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
@@ -999,6 +999,26 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     @Test(timeout = 10000)
+    public void testAlreadySealedSegment() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 10000)
     public void testFlushDuringTransactionAbort() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -1162,13 +1182,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     }
 
     private static class MockControllerWithTokenTask extends MockController {
-        final ConnectionFactory cf;
+        final ConnectionPool cp;
         final CompletableFuture<Void> signal;
 
-        public MockControllerWithTokenTask(String endpoint, int port, ConnectionFactory connectionFactory,
+        public MockControllerWithTokenTask(String endpoint, int port, ConnectionPool connectionPool,
                                            boolean callServer, CompletableFuture<Void> signal) {
-            super(endpoint, port, connectionFactory, callServer);
-            this.cf = connectionFactory;
+            super(endpoint, port, connectionPool, callServer);
+            this.cp = connectionPool;
             this.signal = signal;
         }
 
@@ -1177,7 +1197,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             return CompletableFuture.supplyAsync(() -> {
                 signal.complete(null);
                 return "my-test-token";
-            }, cf.getInternalExecutor());
+            }, cp.getInternalExecutor());
         }
     }
 }

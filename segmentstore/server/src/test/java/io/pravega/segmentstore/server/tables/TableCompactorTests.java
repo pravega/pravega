@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -22,7 +22,6 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -287,7 +286,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
      * @param context TestContext.
      * @return A Map of Keys to {@link KeyData}.
      */
-    private Map<HashedArray, KeyData> populate(TestContext context) {
+    private Map<BufferView, KeyData> populate(TestContext context) {
         val rnd = new Random(0);
 
         // Generate keys.
@@ -295,7 +294,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         for (int i = 0; i < KEY_COUNT; i++) {
             byte[] key = new byte[KEY_LENGTH];
             rnd.nextBytes(key);
-            keys.add(new KeyData(new HashedArray(key)));
+            keys.add(new KeyData(new ByteArraySegment(key)));
         }
 
         // Populate segment.
@@ -307,15 +306,14 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 // Serialize removal and append it to the segment.
                 val keyData = keys.get(minIndex);
                 val key = TableKey.unversioned(keyData.key);
-                val serialization = new byte[context.serializer.getRemovalLength(key)];
-                context.serializer.serializeRemoval(Collections.singleton(key), serialization);
-                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
+                val serialization = context.serializer.serializeRemoval(Collections.singleton(key));
+                val offset = context.segment.append(serialization, null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
                 minIndex++;
                 val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, true);
-                index(keyUpdate, offset, previousOffset, serialization.length, context);
+                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
 
                 // Store it as a deletion.
                 keyData.values.put(offset, null);
@@ -327,18 +325,17 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 val keyData = keys.get(keyIndex);
                 byte[] valueData = new byte[VALUE_LENGTH];
                 rnd.nextBytes(valueData);
-                val value = new HashedArray(valueData);
+                val value = new ByteArraySegment(valueData);
 
                 // Serialize and append it to the segment.
                 val entry = TableEntry.unversioned(keyData.key, value);
-                val serialization = new byte[context.serializer.getUpdateLength(entry)];
-                context.serializer.serializeUpdate(Collections.singleton(entry), serialization);
-                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
+                val serialization = context.serializer.serializeUpdate(Collections.singleton(entry));
+                val offset = context.segment.append(serialization, null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
                 val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, false);
-                index(keyUpdate, offset, previousOffset, serialization.length, context);
+                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
 
                 // Store it, but also encode its version within.
                 keyData.values.put(offset, TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), offset));
@@ -386,7 +383,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
      * @param context TestContext.
      * @return Result.
      */
-    private List<KeyInfo> sort(Map<HashedArray, KeyData> keys, TestContext context) {
+    private List<KeyInfo> sort(Map<BufferView, KeyData> keys, TestContext context) {
         val result = new ArrayList<KeyInfo>();
         for (val keyData : keys.values()) {
             long lastOffset = keyData.values.lastKey();
@@ -462,13 +459,13 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     private TableEntry readEntryAt(long offset, int length, TestContext context) throws Exception {
         byte[] copiedData = new byte[length];
         context.segment.read(offset, length, TIMEOUT).readRemaining(copiedData, TIMEOUT);
-        val c = AsyncTableEntryReader.readEntryComponents(new ByteArrayInputStream(copiedData), offset, context.serializer);
-        return TableEntry.versioned(new ByteArraySegment(c.getKey()), new ByteArraySegment(c.getValue()), c.getVersion());
+        val c = AsyncTableEntryReader.readEntryComponents(new ByteArraySegment(copiedData).getBufferViewReader(), offset, context.serializer);
+        return TableEntry.versioned(c.getKey(), c.getValue(), c.getVersion());
     }
 
     @RequiredArgsConstructor
     private static class KeyInfo {
-        final HashedArray key;
+        final BufferView key;
         final long offset;
         final int length;
         final boolean isActive;
@@ -480,11 +477,11 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     }
 
     private static class KeyData {
-        final HashedArray key;
+        final BufferView key;
         final UUID keyHash;
         final SortedMap<Long, TableEntry> values = new TreeMap<>();
 
-        KeyData(HashedArray key) {
+        KeyData(BufferView key) {
             this.key = key;
             this.keyHash = KEY_HASHER.hash(key);
         }
@@ -533,6 +530,11 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         @Override
         public SegmentMetadata getMetadata() {
             return this.segment.getMetadata();
+        }
+
+        @Override
+        public SegmentSortedKeyIndex getSortedKeyIndex() {
+            return SegmentSortedKeyIndex.noop();
         }
 
         @Override

@@ -10,16 +10,17 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.CancellableRequest;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.ControllerFailureException;
-import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.control.impl.CancellableRequest;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -27,11 +28,15 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableSegments;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -54,7 +59,7 @@ import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
 
-    private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
+    private static final int PAGE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
     private final boolean authorizationEnabled;
@@ -63,6 +68,27 @@ public class LocalController implements Controller {
         this.controller = controller;
         this.tokenSigningKey = tokenSigningKey;
         this.authorizationEnabled = authorizationEnabled;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
+        return Futures.exceptionallyExpecting(this.controller.getScope(scopeName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
+    }
+
+    @Override
+    public AsyncIterator<String> listScopes() {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<String>>>> function = token ->
+                controller.listScopes(token, PAGE_LIMIT)
+                          .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getValue(), result.getKey()));
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
+        return Futures.exceptionallyExpecting(this.controller.getStream(scopeName, streamName).thenApply(v -> true),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override
@@ -87,7 +113,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                controller.listStreams(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                controller.listStreams(scopeName, token, PAGE_LIMIT)
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
                               return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
@@ -309,11 +335,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
-        for (SegmentRange r : ranges) {
-            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
-        }
-        return new StreamSegments(rangeMap, retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
     }
 
     @Override
@@ -444,4 +466,77 @@ public class LocalController implements Controller {
     public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
         return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
+
+    //region KeyValueTables
+
+    @Override
+    public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
+        return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis()).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create KeyValueTable: " + kvtName);
+                case INVALID_TABLE_NAME:
+                    throw new IllegalArgumentException("Illegal KeyValueTable name: " + kvtName);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case TABLE_EXISTS:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status creating kvtable " + kvtName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+    
+    @Override
+    public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
+                controller.listKeyValueTables(scopeName, token, PAGE_LIMIT)
+                        .thenApply(result -> {
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
+                                    .collect(Collectors.toList());
+
+                            return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);
+                        });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
+        return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
+                case TABLE_NOT_FOUND:
+                    return false;
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting KeyValueTable " + kvtName + " "
+                            + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
+        return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
+                .thenApply(this::getKeyValueTableSegments);
+    }
+
+    private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
+        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+    }
+
+    private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
+        for (SegmentRange r : ranges) {
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+        }
+        return rangeMap;
+    }
+    //endregion
 }

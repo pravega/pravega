@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.stream.records.StateRecord;
 
 import java.util.Optional;

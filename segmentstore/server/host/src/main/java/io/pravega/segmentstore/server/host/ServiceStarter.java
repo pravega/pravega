@@ -176,8 +176,10 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
-            return loader.load(setup, this.serviceConfig.getStorageImplementation().toString(), setup.getStorageExecutor());
-
+            return loader.load(setup,
+                    this.serviceConfig.getStorageImplementation().toString(),
+                    this.serviceConfig.getStorageLayout(),
+                    setup.getStorageExecutor());
         });
     }
 
@@ -187,6 +189,7 @@ public final class ServiceStarter {
                         this.zkClient,
                         new Host(this.serviceConfig.getPublishedIPAddress(),
                                 this.serviceConfig.getPublishedPort(), null),
+                        this.serviceConfig.getParallelContainerStarts(),
                         setup.getCoreExecutor()));
     }
 

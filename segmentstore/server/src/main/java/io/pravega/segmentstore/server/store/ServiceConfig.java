@@ -18,6 +18,8 @@ import io.pravega.segmentstore.server.CachePolicy;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Duration;
+
+import io.pravega.segmentstore.storage.StorageLayoutType;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -28,6 +30,7 @@ public class ServiceConfig {
     //region Config Names
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("container.count", null, "containerCount");
+    public static final Property<Integer> PARALLEL_CONTAINER_STARTS = Property.named("container.parallelStarts", 2);
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPool.core.size", 30, "threadPoolSize");
     public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("threadPool.storage.size", 200, "storageThreadPoolSize");
     public static final Property<Integer> LOW_PRIORITY_THREAD_POOL_SIZE = Property.named("threadPool.lowPriorityTasks.size", 10, "lowPriorityThreadPoolSize");
@@ -48,10 +51,10 @@ public class ServiceConfig {
     // 1. Modify the operator to set this old, as well as the new property.
     // 2. Modify this property to use the new key, with legacy key name set as the old key.
     // 3. Remove old property from the operator.
-
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLog.impl.name", DataLogType.INMEMORY, "dataLogImplementation");
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storage.impl.name", StorageType.HDFS, "storageImplementation");
+    public static final Property<StorageLayoutType> STORAGE_LAYOUT = Property.named("storage.layout", StorageLayoutType.ROLLING_STORAGE);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnly.enable", false, "readOnlySegmentStore");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cache.size.max", 4L * 1024 * 1024 * 1024, "cacheMaxSize");
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cache.utilization.percent.target", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION), "cacheTargetUtilizationPercent");
@@ -66,7 +69,6 @@ public class ServiceConfig {
     public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
-
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -168,6 +170,12 @@ public class ServiceConfig {
     private final String publishedIPAddress;
 
     /**
+     * Number of segment containers that a Segment Store will start (and recover) in parallel.
+     */
+    @Getter
+    private final int parallelContainerStarts;
+
+    /**
      * The Zookeeper URL.
      */
     @Getter
@@ -228,6 +236,12 @@ public class ServiceConfig {
     private final StorageType storageImplementation;
 
     /**
+     * The Type of Storage layout to use.
+     */
+    @Getter
+    private final StorageLayoutType storageLayout;
+
+    /**
      * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
      * Note that if this is set to 'true', then many other settings will not apply. The most important other one to set
      * is 'Storage Implementation'.
@@ -281,7 +295,6 @@ public class ServiceConfig {
 
     //endregion
 
-
     //region Constructor
 
     /**
@@ -317,6 +330,7 @@ public class ServiceConfig {
         } else {
             this.publishedIPAddress = publishedIPAddress;
         }
+        this.parallelContainerStarts = properties.getInt(PARALLEL_CONTAINER_STARTS);
         this.zkURL = properties.get(ZK_URL);
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
@@ -324,6 +338,7 @@ public class ServiceConfig {
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
+        this.storageLayout = properties.getEnum(STORAGE_LAYOUT, StorageLayoutType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.secureZK = properties.getBoolean(SECURE_ZK);
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
@@ -367,6 +382,7 @@ public class ServiceConfig {
                 .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
                 .append(String.format("publishedPort: %d, ", publishedPort))
                 .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
+                .append(String.format("parallelContainerStarts: %d, ", parallelContainerStarts))
                 .append(String.format("zkURL: %s, ", zkURL))
                 .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
                 .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))
@@ -392,7 +408,6 @@ public class ServiceConfig {
                 .append(")")
                 .toString();
     }
-
 
     @SneakyThrows(UnknownHostException.class)
     private static String getHostAddress() {

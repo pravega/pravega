@@ -9,20 +9,44 @@
  */
 package io.pravega.storage.hdfs;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
-    public String getName() {
-        return "HDFS";
+    public StorageFactoryInfo[] getStorageFactories() {
+        return new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("HDFS")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build(),
+                StorageFactoryInfo.builder()
+                        .name("HDFS")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build()
+        };
     }
 
     @Override
-    public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
-        return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
+    public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(storageFactoryInfo, "storageFactoryInfo");
+        Preconditions.checkNotNull(setup, "setup");
+        Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkArgument(storageFactoryInfo.getName().equals("HDFS"));
+        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
+            return new HDFSSimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(HDFSStorageConfig::builder),
+                    executor);
+        } else {
+            return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
+        }
     }
 }

@@ -22,9 +22,10 @@ class TruncatedReadResultEntry extends ReadResultEntryBase {
      * @param segmentReadOffset   The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.
      * @param segmentStartOffset  The first offset in the StreamSegment available for reading.
+     * @param segmentName         Name of the segment.
      */
-    TruncatedReadResultEntry(long segmentReadOffset, int requestedReadLength, long segmentStartOffset) {
+    TruncatedReadResultEntry(long segmentReadOffset, int requestedReadLength, long segmentStartOffset, String segmentName) {
         super(ReadResultEntryType.Truncated, segmentReadOffset, requestedReadLength);
-        fail(new StreamSegmentTruncatedException(segmentStartOffset));
+        fail(new StreamSegmentTruncatedException(segmentName, segmentStartOffset, segmentReadOffset));
     }
 }

@@ -10,50 +10,36 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import io.pravega.controller.store.VersionedMetadata;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
- * Cache for asynchronously retrieving and loading records from underlying store using the supplied loader.
- * This uses Guava's loading cache and takes a loader function for loading entries into the cache. 
- * This class caches Futures which hold the metadata record with version. The cache is untyped and the CompletableFutures
- * can hold any value under the VersionedMetadata wrapper.
- * The values are by default held for 2 minutes after creation unless invalidated explicitly.
- * The maximum number of records that can be held in the cache is 10000. 
+ * The cache for storing versioned records against a cache key.
+ * Cache key is an interface and users of this cache and provide any cache key implementation. 
  */
 public class Cache {
     private static final int MAX_CACHE_SIZE = 10000;
     
-    private final LoadingCache<CacheKey, CompletableFuture<VersionedMetadata<?>>> cache;
+    private final com.google.common.cache.Cache<CacheKey, VersionedMetadata<?>> cache;
 
-    public Cache(final Function<CacheKey, CompletableFuture<VersionedMetadata<?>>> loader) {
+    public Cache() {
         cache = CacheBuilder.newBuilder()
                             .maximumSize(MAX_CACHE_SIZE)
                             .expireAfterAccess(2, TimeUnit.MINUTES)
-                            .build(new CacheLoader<CacheKey, CompletableFuture<VersionedMetadata<?>>>() {
-                                @ParametersAreNonnullByDefault
-                                @Override
-                                public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
-                                    return loader.apply(key);
-                                }
-                            });
+                            .build();
     }
 
-    CompletableFuture<VersionedMetadata<?>> getCachedData(CacheKey key) {
-        return cache.getUnchecked(key).exceptionally(ex -> {
-            invalidateCache(key);
-            throw new CompletionException(ex);
-        });
+    public VersionedMetadata<?> getCachedData(CacheKey key) {
+        return cache.getIfPresent(key);
     }
 
-    void invalidateCache(final CacheKey key) {
+    public void invalidateCache(final CacheKey key) {
         cache.invalidate(key);
+    }
+
+    public void put(CacheKey cacheKey, VersionedMetadata<?> record) {
+        cache.put(cacheKey, record);
     }
 
     /**

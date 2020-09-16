@@ -13,11 +13,14 @@ import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.client.BatchClientFactory;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamCutHelper;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -30,7 +33,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import java.util.Iterator;
 import java.util.Optional;
@@ -48,17 +51,17 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 public class BatchClientFactoryImpl implements BatchClientFactory {
 
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
+    private final ConnectionPool connectionPool;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
     private final StreamCutHelper streamCutHelper;
 
-    public BatchClientFactoryImpl(Controller controller, ConnectionFactory connectionFactory) {
+    public BatchClientFactoryImpl(Controller controller, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
-        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
+        this.connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
+        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionPool);
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
+        this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
     @Override
@@ -144,7 +147,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     @Override
     public void close() {
         controller.close();
-        connectionFactory.close();
+        connectionPool.close();
     }
 
 }

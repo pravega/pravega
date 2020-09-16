@@ -10,14 +10,16 @@
 package io.pravega.shared;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-
+import static org.apache.commons.lang3.RandomStringUtils.randomAlphanumeric;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -29,11 +31,36 @@ public class NameUtilsTest {
 
     @Test
     public void testUserStreamNameVerifier() {
-        NameUtils.validateUserStreamName("stream123");
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserStreamName("_stream"));
-        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserStreamName(null));
-        NameUtils.validateUserStreamName("a-b-c");
-        NameUtils.validateUserStreamName("1.2.3");
+        testUserStreamNameVerifier(NameUtils::validateUserStreamName);
+    }
+
+    private void testUserStreamNameVerifier(Function<String, String> toTest) {
+        Assert.assertEquals("stream123", toTest.apply("stream123"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> toTest.apply("_stream"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> toTest.apply(null));
+        Assert.assertEquals("a-b-c", toTest.apply("a-b-c"));
+        Assert.assertEquals("1.2.3", toTest.apply("1.2.3"));
+    }
+
+    @Test
+    public void testUserKeyValueTableNameVerifier() {
+        // Currently, the same set of rules apply as for User Stream Names.
+        testUserStreamNameVerifier(NameUtils::validateUserKeyValueTableName);
+    }
+
+    @Test
+    public void testGetScopedKeyValueTableName() {
+        String scope = "scope";
+        String kvt = "kvt";
+        String scopedName = NameUtils.getScopedKeyValueTableName(scope, kvt);
+        Assert.assertTrue(scopedName.startsWith(scope));
+        Assert.assertTrue(scopedName.endsWith(kvt));
+        val tokens = NameUtils.extractScopedNameTokens(scopedName);
+        Assert.assertEquals(2, tokens.size());
+        Assert.assertEquals(scope, tokens.get(0));
+        Assert.assertEquals(kvt, tokens.get(1));
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens(scope), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
@@ -48,10 +75,28 @@ public class NameUtilsTest {
     }
 
     @Test
+    public void testStreamNameLimit() {
+        int leftLimit = 48; // numeral '0'
+        int rightLimit = 122; // letter 'z'
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String internalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateStreamName(internalName));
+        targetStringLength = NameUtils.MAX_GIVEN_NAME_SIZE + 1;
+        final String externalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateUserStreamName(externalName));
+    }
+
+    @Test
     public void testUserScopeNameVerifier() {
         NameUtils.validateUserScopeName("stream123");
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserScopeName("_stream"));
         AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserScopeName(null));
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String externalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateUserScopeName(externalName));
     }
 
     @Test
@@ -62,6 +107,10 @@ public class NameUtilsTest {
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system_scope"));
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system/scope"));
         AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateScopeName(null));
+        int targetStringLength = NameUtils.MAX_NAME_SIZE + 1;
+        final String internalName = randomAlphanumeric(targetStringLength);
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> NameUtils.validateScopeName(internalName));
 
     }
 

@@ -11,16 +11,23 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.gson.internal.LinkedTreeMap;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.store.InMemoryScope;
+import io.pravega.controller.store.Scope;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
@@ -30,12 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * In-memory stream store.
  */
 @Slf4j
-class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
+public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryStream> streams = new HashMap<>();
@@ -44,8 +52,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Map<String, Integer> deletedStreams = new HashMap<>();
 
     @GuardedBy("$lock")
-    private final Map<String, InMemoryScope> scopes = new HashMap<>();
-
+    private final HashMap<String, InMemoryScope> scopes = new HashMap<>();
+    private final AtomicInteger position = new AtomicInteger();
+    @GuardedBy("$lock")
+    private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
+    
     @GuardedBy("$lock")
     private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
 
@@ -56,10 +67,15 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Executor executor;
 
-    InMemoryStreamMetadataStore(Executor executor) {
+    public InMemoryStreamMetadataStore(Executor executor) {
         super(new InMemoryHostIndex(), new InMemoryHostIndex());
         this.executor = executor;
         this.counter = new AtomicInt96();
+    }
+
+    @Synchronized
+    public boolean scopeExists(String scopeName) {
+        return scopes.containsKey(scopeName);
     }
 
     @Override
@@ -79,7 +95,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
@@ -182,6 +198,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             InMemoryScope scope = new InMemoryScope(scopeName);
             scope.createScope();
             scopes.put(scopeName, scope);
+            orderedScopes.put(scopeName, position.incrementAndGet());
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.SUCCESS).build());
         } else {
@@ -198,6 +215,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                 if (streams.isEmpty()) {
                     scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
+                    orderedScopes.remove(scopeName);
                     return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
                 } else {
                     return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
@@ -225,6 +243,23 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
+        List<String> result = new ArrayList<>();
+        String nextToken = continuationToken;
+        int start = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
+        for (Map.Entry<String, Integer> x : orderedScopes.entrySet()) {
+            if (x.getValue() > start) {
+                result.add(x.getKey());
+                nextToken = x.getValue().toString();
+            }
+            if (result.size() == limit) {
+                break;
+            }
+        }
+        return CompletableFuture.completedFuture(new ImmutablePair<>(result, nextToken));
+    }
+
     /**
      * List the streams in scope.
      *
@@ -240,10 +275,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> {
                         HashMap<String, StreamConfiguration> result = new HashMap<>();
                         for (String stream : streams) {
+                            State state = getState(scopeName, stream, true, null, executor).join();
                             StreamConfiguration configuration = Futures.exceptionallyExpecting(
                                     getConfiguration(scopeName, stream, null, executor),
                                     e -> e instanceof StoreException.DataNotFoundException, null).join();
-                            if (configuration != null) {
+                            if (configuration != null && !state.equals(State.CREATING) && !state.equals(State.UNKNOWN)) {
                                 result.put(stream, configuration);
                             }
                         }

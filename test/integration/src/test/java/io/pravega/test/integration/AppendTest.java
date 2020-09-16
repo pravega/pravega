@@ -15,9 +15,10 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.netty.impl.RawClient;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.RawClient;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -31,7 +32,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteBufferSerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -77,6 +77,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.val;
@@ -253,13 +254,14 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
@@ -284,13 +286,14 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF, true);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
-        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
+        ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
@@ -324,7 +327,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    
+
     @Test(timeout = 100000)
     public void appendALotOfData() {
         String endpoint = "localhost";
@@ -341,20 +344,23 @@ public class AppendTest extends LeakDetectorTestSuite {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, tokenExpiryExecutor);
         server.startListening();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        MockController controller = new MockController(endpoint, port, connectionFactory, true);
+        ClientConfig config = ClientConfig.builder().build();
+        SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(config);
         @Cleanup
-        StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionFactory);
+        ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(config, clientCF);
+        Controller controller = new MockController(endpoint, port, connectionPool, true);
+        @Cleanup
+        StreamManagerImpl streamManager = new StreamManagerImpl(controller, connectionPool);
         streamManager.createScope(scope);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, config);
         streamManager.createStream("Scope", streamName,
                                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
         EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(),
                                                                                  EventWriterConfig.builder().build());
         @Cleanup
-        RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionFactory);
+        RawClient rawClient = new RawClient(new PravegaNodeUri(endpoint, port), connectionPool);
         for (int i = 0; i < 10; i++) {
             for (int j = 0; j < 100; j++) {
                 producer.writeEvent(payload.slice());
@@ -369,14 +375,14 @@ public class AppendTest extends LeakDetectorTestSuite {
         }
         producer.close();
     }
-    
-    
+
+
     @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        String testString = "Hello world\n";
+        byte[] testPayload = new byte[1000];
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
@@ -389,25 +395,32 @@ public class AppendTest extends LeakDetectorTestSuite {
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
-        long blockingTime = timeWrites(testString, 200, producer, true);
-        long nonBlockingTime = timeWrites(testString, 10000, producer, false);
+        EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
+        long blockingTime = timeWrites(testPayload, 3000, producer, true);
+        long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
-        assertTrue(blockingTime < 5000);
-        assertTrue(nonBlockingTime < 5000);
+        assertTrue(blockingTime < 10000);
+        assertTrue(nonBlockingTime < 10000);
     }
 
-    private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
+    private long timeWrites(byte[] testPayload, int number, EventStreamWriter<ByteBuffer> producer, boolean synchronous)
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
+        AtomicLong maxLatency = new AtomicLong(0);
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
+            Timer latencyTimer = new Timer();
+            CompletableFuture<Void> ack = producer.writeEvent(ByteBuffer.wrap(testPayload));
+            ack.thenRun(() -> {
+                long elapsed = latencyTimer.getElapsedNanos();
+                maxLatency.getAndUpdate(l -> Math.max(elapsed, l));
+            });
             if (synchronous) {
                 ack.get(5, TimeUnit.SECONDS);
             }
         }
         producer.flush();
+        System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
     

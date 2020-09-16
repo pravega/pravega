@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;

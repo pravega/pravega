@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -142,7 +143,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void handleLogSealed(Segment segment) {
         sealedSegmentQueue.add(segment);
         retransmitPool.execute(() -> {
-            Retry.indefinitelyWithExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+            Retry.indefinitelyWithExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                                              config.getMaxBackoffMillis(),
                                              t -> log.error("Encountered exception when handling a sealed segment: ", t))
                  .run(() -> {

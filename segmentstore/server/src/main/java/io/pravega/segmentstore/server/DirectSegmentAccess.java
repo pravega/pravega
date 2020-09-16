@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines an API that can be used to get direct access to a Segment. This can be used instead of the SegmentContainer API
  * for short periods of time if a rapid sequence of operations is desired (since it caches the locations of the Segment and
- * it does not need to all the usual SegmentContainer and StreamSegment lookups on every invocation).
+ * it does not need to call the usual SegmentContainer and StreamSegment lookups on every invocation).
  */
 public interface DirectSegmentAccess {
     /**
@@ -41,7 +41,7 @@ public interface DirectSegmentAccess {
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
-     * @param timeout          Timeout for the operation
+     * @param timeout          Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the offset at which the data were added. If the
      * operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null, except attributeUpdates.
@@ -52,13 +52,34 @@ public interface DirectSegmentAccess {
     CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
+     * Appends a range of bytes at the end of the Segment and atomically updates the given attributes. The byte range
+     * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
+     * method.
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
+     *
+     * @param data             The data to add.
+     * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                         See Notes about AttributeUpdates in the interface Javadoc.
+     * @param offset           The expected length of the segment. If the current length of the Segment does not equal this
+     *                         value, the operation will fail with a {@link io.pravega.segmentstore.contracts.BadOffsetException}.
+     * @param timeout          Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the offset at which the data were added. If the
+     * operation failed, the future will be failed with the causing exception.
+     * @throws NullPointerException     If any of the arguments are null, except attributeUpdates.
+     * @throws IllegalArgumentException If the Segment Name is invalid (NOTE: this doesn't
+     *                                  check if the Segment does not exist - that exception will be set in the
+     *                                  returned CompletableFuture).
+     */
+    CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout);
+
+    /**
      * Performs an attribute update operation on the Segment.
      *
      *  @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
      *
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
-     * @param timeout          Timeout for the operation
+     * @param timeout          Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the update completed successfully.
      * If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
@@ -113,7 +134,7 @@ public interface DirectSegmentAccess {
      * Seals the Segment.
      * @see io.pravega.segmentstore.contracts.StreamSegmentStore#sealStreamSegment(String, Duration)
      *
-     * @param timeout Timeout for the operation
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the final length of the Segment.
      * If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.

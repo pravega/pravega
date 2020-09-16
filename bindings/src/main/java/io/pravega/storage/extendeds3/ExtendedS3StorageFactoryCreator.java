@@ -9,19 +9,43 @@
  */
 package io.pravega.storage.extendeds3;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
+import io.pravega.segmentstore.storage.StorageFactoryInfo;
+import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+
 import java.util.concurrent.ScheduledExecutorService;
 
 public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
     @Override
-    public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
-        return new ExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+    public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(storageFactoryInfo, "storageFactoryInfo");
+        Preconditions.checkNotNull(setup, "setup");
+        Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkArgument(storageFactoryInfo.getName().equals("EXTENDEDS3"));
+        if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
+            return new ExtendedS3SimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder),
+                    setup.getConfig(ExtendedS3StorageConfig::builder),
+                    executor);
+        } else {
+            return new ExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+        }
     }
 
     @Override
-    public String getName() {
-        return "EXTENDEDS3";
+    public StorageFactoryInfo[] getStorageFactories() {
+        return new StorageFactoryInfo[]{
+                StorageFactoryInfo.builder()
+                        .name("EXTENDEDS3")
+                        .storageLayoutType(StorageLayoutType.CHUNKED_STORAGE)
+                        .build(),
+                StorageFactoryInfo.builder()
+                        .name("EXTENDEDS3")
+                        .storageLayoutType(StorageLayoutType.ROLLING_STORAGE)
+                        .build()
+        };
     }
 }

@@ -45,6 +45,30 @@ import lombok.val;
 public final class Futures {
 
     /**
+     * Returns a new {@link CompletableFuture} that completes with the same outcome as the given one, but on the given {@link Executor}.
+     * This helps transfer the downstream callback executions on another executor.
+     *
+     * @param future The future whose result is wanted.
+     * @param <T> The Type of the future's result.
+     * @param executor The executor to transfer callback execution onto.
+     * @return A new {@link CompletableFuture} that will complete with the same outcome as the given one, but on the given {@link Executor}.
+     */
+    public static <T> CompletableFuture<T> completeOn(CompletableFuture<T> future, final Executor executor) {
+
+        CompletableFuture<T> result = new CompletableFuture<>();
+
+        future.whenCompleteAsync((r, e) -> {
+            if (e != null) {
+                result.completeExceptionally(e);
+            } else {
+                result.complete(r);
+            }
+        }, executor);
+
+        return result;
+    }
+
+    /**
      * Waits for the provided future to be complete, and returns true if it was successful, false otherwise.
      *
      * @param f   The future to wait for.
@@ -185,34 +209,6 @@ public final class Futures {
             } else {
                 throw result;
             }
-        }
-    }
-
-    /**
-     * Similar to {@link #getAndHandleExceptions(Future, Function)} but with an exception handler rather than a transforming function
-     * and a timeout on get().
-     *
-     * @param future               The future whose result is wanted
-     * @param handler              An exception handler
-     * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
-     * @param <ResultT>            Type of the result.
-     * @param <ExceptionT>         Type of the Exception.
-     * @throws ExceptionT       If thrown by the future.
-     * @return The result of calling future.get() or null if the timeout expired prior to the future completing.
-     */
-    @SneakyThrows(InterruptedException.class)
-    public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Consumer<Throwable> handler, long timeoutMillis) throws ExceptionT {
-        try {
-            return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-        } catch (ExecutionException e) {
-            handler.accept(e.getCause());
-            return null;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (TimeoutException e) {
-            return null;
         }
     }
 
@@ -538,12 +534,31 @@ public final class Futures {
      * @return The result.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, String tag, ScheduledExecutorService executorService) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
-        result.whenComplete((r, ex) -> sf.cancel(true));
-        return result;
+        return futureWithTimeout(CompletableFuture::new, timeout, tag, executorService);
     }
-
+    
+    /**
+     * Creates a new CompletableFuture that either holds the result of future from the futureSupplier
+     * or will timeout after the given amount of time.
+     *
+     * @param futureSupplier  Supplier of the future. 
+     * @param timeout         The timeout for the future.
+     * @param tag             A tag (identifier) to be used as a parameter to the TimeoutException.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param <T>             The Type argument for the CompletableFuture to create.
+     * @return A CompletableFuture which is either completed within given timebound or failed with timeout exception.
+     */
+    public static <T> CompletableFuture<T> futureWithTimeout(Supplier<CompletableFuture<T>> futureSupplier,
+                                                             Duration timeout, String tag, ScheduledExecutorService executorService) {
+        CompletableFuture<T> future = futureSupplier.get();
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> future.completeExceptionally(
+                new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        
+        return future.whenComplete((r, ex) -> {
+            sf.cancel(true);
+        });
+    }
+    
     /**
      * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
      * the future times out (fails with a TimeoutException).

@@ -12,8 +12,8 @@ package io.pravega.test.integration.endtoendtest;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -24,7 +24,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -112,7 +112,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             controllerWrapper.getControllerService().createScope(scope).get();
             controller.createStream(scope, streamName, config).get();
             @Cleanup
-            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+            ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
             @Cleanup
@@ -132,8 +132,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             assertTrue(result);
             writer.writeEvent("0", "txntest2" + i).get();
             @Cleanup
-            ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
-                    connectionFactory);
+            ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
             groupManager.createReaderGroup("reader" + i, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).
                     stream(Stream.of(scope, streamName).getScopedName()).build());
             @Cleanup

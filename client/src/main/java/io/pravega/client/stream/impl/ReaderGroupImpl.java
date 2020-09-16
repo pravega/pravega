@@ -13,7 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -62,8 +63,8 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
@@ -83,16 +84,16 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
-                           SynchronizerClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
+                           SynchronizerClientFactory clientFactory, Controller controller, ConnectionPool connectionPool) {
         Preconditions.checkNotNull(synchronizerConfig);
         Preconditions.checkNotNull(initSerializer);
         Preconditions.checkNotNull(updateSerializer);
         Preconditions.checkNotNull(clientFactory);
-        Preconditions.checkNotNull(connectionFactory);
+        Preconditions.checkNotNull(connectionPool);
         this.scope = Preconditions.checkNotNull(scope);
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
-        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
         this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                                                   updateSerializer, initSerializer, synchronizerConfig);
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);

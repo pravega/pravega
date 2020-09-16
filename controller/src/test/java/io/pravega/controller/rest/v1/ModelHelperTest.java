@@ -14,6 +14,7 @@ import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -69,6 +70,15 @@ public class ModelHelperTest {
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
 
+        retentionConfig.setValue(0L);
+        TimeBasedRetention tr = new TimeBasedRetention();
+        tr.days(10L).hours(4L).minutes(7L);
+        retentionConfig.setTimeBasedRetention(tr);
+        streamConfig = getCreateStreamConfig(createStreamRequest);
+        Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
+        Duration retentionDuration = Duration.ofDays(10L).plusHours(4L).plusMinutes(7L);
+        Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
+
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC);
         scalingConfig.setTargetRate(1234);
         scalingConfig.setScaleFactor(23);
@@ -114,6 +124,15 @@ public class ModelHelperTest {
         Assert.assertEquals(123, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
+
+        retentionConfig.setValue(0L);
+        TimeBasedRetention tr = new TimeBasedRetention();
+        tr.days(21L).hours(8L).minutes(25L);
+        retentionConfig.setTimeBasedRetention(tr);
+        streamConfig = getUpdateStreamConfig(updateStreamRequest);
+        Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
+        Duration retentionDuration = Duration.ofDays(21L).plusHours(8L).plusMinutes(25L);
+        Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
 
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC);
         scalingConfig.setTargetRate(1234);

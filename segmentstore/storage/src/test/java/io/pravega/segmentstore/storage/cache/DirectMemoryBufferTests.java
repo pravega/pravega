@@ -55,7 +55,7 @@ public class DirectMemoryBufferTests {
         Assert.assertEquals(1, b.getUsedBlockCount());
 
         // Allocate it, and write something.
-        val w1 = b.write(new ByteArraySegment(new byte[0]), CacheLayout.NO_ADDRESS);
+        val w1 = b.write(BufferView.empty(), CacheLayout.NO_ADDRESS);
         checkAllocatedMemory(LAYOUT.bufferSize());
         Assert.assertTrue(b.isAllocated());
         Assert.assertTrue(b.hasCapacity());

@@ -14,7 +14,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.Version;
 import lombok.extern.slf4j.Slf4j;
 
 /**

@@ -13,12 +13,12 @@ package io.pravega.test.system;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -127,7 +127,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
         createScopeAndStream(SCOPE, STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", SCOPE);
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
+        clientFactory = new ClientFactoryImpl(SCOPE, controller, new SocketConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
         readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
     }
 

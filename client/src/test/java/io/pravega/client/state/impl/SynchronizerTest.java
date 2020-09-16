@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -20,13 +21,13 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -562,7 +563,7 @@ public class SynchronizerTest {
 
         Controller controller = mock(Controller.class);
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, ClientConfig.builder().build());
 
         // Simulate a sealed stream.
         CompletableFuture<StreamSegments> result = new CompletableFuture<>();

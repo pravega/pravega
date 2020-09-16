@@ -23,17 +23,17 @@ tags:
   description: "Scope related APIs"
   externalDocs:
     description: "Find out more about pravega"
-    url: "http://pravega.io"
+    url: "https://pravega.io"
 - name: "Streams"
   description: "Stream related APIs"
   externalDocs:
     description: "Find out more about pravega"
-    url: "http://pravega.io"
+    url: "https://pravega.io"
 - name: "ReaderGroups"
   description: "Reader group related APIs"
   externalDocs:
     description: "Find out more about pravega"
-    url: "http://pravega.io"
+    url: "https://pravega.io"
 schemes:
   - http
 paths:
@@ -442,12 +442,15 @@ definitions:
     properties:
       type:
         type: string
+        description: Indicates if retention is by space or time.
         enum:
-        - LIMITED_DAYS
-        - LIMITED_SIZE_MB
+        - LIMITED_DAYS     # Time based retention, for granularity lower than DAYS use timeBasedRetention field to populate the value
+        - LIMITED_SIZE_MB  # Space based retention
       value:
         type: integer
         format: int64
+      timeBasedRetention:
+        $ref: "#/definitions/TimeBasedRetention"
   StreamState:
     type: object
     properties:
@@ -511,3 +514,15 @@ definitions:
         type: array
         items:
           type: string
+  TimeBasedRetention:
+    type: object
+    properties:
+      days:
+        type: integer
+        format: int64
+      hours:
+        type: integer
+        format: int64
+      minutes:
+        type: integer
+        format: int64
