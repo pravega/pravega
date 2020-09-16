@@ -734,8 +734,9 @@ project('cli:user') {
         compile project(':client')
         compile project(':shared:protocol')
         compile project(':test:testcommon')
-        testCompile group: 'junit', name: 'junit', version: '4.12'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:integration')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
     }
 
     javadoc {
