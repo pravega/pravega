@@ -53,7 +53,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
     public ByteStreamReader createByteStreamReader(String streamName) {
         // Fetch the segments pointing to the current HEAD of the stream.
         Map<Segment, Long> segments = Futures.getThrowingException(controller.getSegmentsAtTime(Stream.of(scope, streamName), 0L));
-        Preconditions.checkState(segments.size() == 1, "Stream is configured with more than one segment or has none");
+        Preconditions.checkState(segments.size() == 1, "ByteStreamReader supports single segment stream. Provided stream contains %s segments", segments.size());
         Segment segment = segments.keySet().iterator().next();
         return createByteStreamReaders(segment);
     }
