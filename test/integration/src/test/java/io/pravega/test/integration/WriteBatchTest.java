@@ -69,7 +69,7 @@ public class WriteBatchTest {
     private static final String STREAM_NAME = "testBatchWrite" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
-    private static final int NUM_EVENTS_BY_WRITER = 1000;
+    private static final int NUM_EVENT_ITERATIONS_BY_WRITER = 1000;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
@@ -218,12 +218,11 @@ public class WriteBatchTest {
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
-            for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
+            for (int i = 0; i < NUM_EVENT_ITERATIONS_BY_WRITER; i++) {
                 // for every 20th event, create a batch of 10 events.
                 if (i % 20 == 0) {
                     long l = data.addAndGet(10);
-                    List<Long> values = LongStream.range(l - 9, l + 1).boxed().collect(Collectors.toList()) ;
-                    i += 10;
+                    List<Long> values = LongStream.range(l - 9, l + 1).boxed().collect(Collectors.toList());
                     totalNumberOfEvents.addAndGet(10);
                     log.info("Writing events {}", values);
                     writer.writeEvents(String.valueOf(values.get(0)), values);
