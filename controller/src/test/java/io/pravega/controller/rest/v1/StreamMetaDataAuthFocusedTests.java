@@ -29,8 +29,8 @@ import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.TestUtils;
@@ -146,33 +146,32 @@ public class StreamMetaDataAuthFocusedTests {
             String encryptedPassword = passwordEncryptor.encryptPassword(DEFAULT_PASSWORD);
 
             // This user can do anything in the system.
-            writer.write(credentialsAndAclAsString(USER_PRIVILEGED, encryptedPassword, "*,READ_UPDATE"));
+            writer.write(credentialsAndAclAsString(USER_PRIVILEGED, encryptedPassword, "prn::*,READ_UPDATE"));
 
-            // This user can list, get, update and delete all scopes
-            writer.write(credentialsAndAclAsString(USER_SCOPE_CREATOR, encryptedPassword, "/,READ_UPDATE"));
+            writer.write(credentialsAndAclAsString(USER_SCOPE_CREATOR, encryptedPassword, "prn::/,READ_UPDATE"));
 
             // This user can list scopes and upon listing will see all scopes (/*).
-            writer.write(credentialsAndAclAsString(USER_SCOPE_LISTER, encryptedPassword, "/,READ;/*,READ"));
+            writer.write(credentialsAndAclAsString(USER_SCOPE_LISTER, encryptedPassword, "prn::/,READ;prn::/*,READ"));
 
             // This user can list, read, update, delete all scopes. Upon listing scopes, this user will see all scopes.
-            writer.write(credentialsAndAclAsString(USER_SCOPE_MANAGER, encryptedPassword, "/,READ_UPDATE;/*,READ_UPDATE"));
+            writer.write(credentialsAndAclAsString(USER_SCOPE_MANAGER, encryptedPassword, "prn::/,READ_UPDATE;prn::/*,READ_UPDATE"));
 
             // This user can create, update, delete all child objects of a scope (streams, reader groups, etc.)
-            writer.write(credentialsAndAclAsString(USER_STREAMS_IN_A_SCOPE_CREATOR, encryptedPassword, "sisc-scope,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_STREAMS_IN_A_SCOPE_CREATOR, encryptedPassword, "prn::/scope:sisc-scope,READ_UPDATE;"));
 
-            writer.write(credentialsAndAclAsString(USER_USER1, encryptedPassword, "/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;"));
-            writer.write(credentialsAndAclAsString(USER_WITH_NO_ROOT_ACCESS, encryptedPassword, "scope1,READ_UPDATE;scope2,READ_UPDATE;"));
-            writer.write(credentialsAndAclAsString(USER_UNAUTHORIZED, encryptedPassword, "/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;"));
-            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SUBSET_OF_SCOPES, encryptedPassword, "/,READ;scope3,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_USER1, encryptedPassword, "prn::/,READ_UPDATE;prn::/scope:scope1,READ_UPDATE;prn::/scope:scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_WITH_NO_ROOT_ACCESS, encryptedPassword, "prn::/scope:scope1,READ_UPDATE;prn::/scope:scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_UNAUTHORIZED, encryptedPassword, "prn::/,READ_UPDATE;prn::/scope:scope1,READ_UPDATE;prn::/scope:scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SUBSET_OF_SCOPES, encryptedPassword, "prn::/,READ;prn::/scope:scope3,READ_UPDATE;"));
             writer.write(credentialsAndAclAsString(USER_WITH_NO_AUTHORIZATIONS, encryptedPassword, ";"));
-            writer.write(credentialsAndAclAsString(USER_WITH_READ_UPDATE_ROOT, encryptedPassword, "scopeToDelete,READ_UPDATE;"));
-            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_BUT_NOSTREAMS, encryptedPassword, "myscope,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_WITH_READ_UPDATE_ROOT, encryptedPassword, "prn::/scope:scopeToDelete,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_BUT_NOSTREAMS, encryptedPassword, "prn::/scope:myscope,READ_UPDATE;"));
             writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_READ_ALLSTREAMS, encryptedPassword,
-                    "myscope,READ_UPDATE;myscope/*,READ;"));
+                    "prn::/scope:myscope,READ_UPDATE;prn::/scope:myscope/*,READ;"));
             writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_READUPDATE_ALLSTREAMS, encryptedPassword,
-                    "myscope,READ_UPDATE;myscope/*,READ_UPDATE;"));
+                    "prn::/scope:myscope,READ_UPDATE;prn::/scope:myscope/*,READ_UPDATE;"));
             writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPE_WRITE_SPECIFIC_STREAM, encryptedPassword,
-                    "myscope,READ_UPDATE;myscope/stream1,READ_UPDATE;"));
+                    "prn::/scope:myscope,READ_UPDATE;prn::/scope:myscope/stream:stream1,READ_UPDATE;"));
         }
 
         AuthHandlerManager authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()

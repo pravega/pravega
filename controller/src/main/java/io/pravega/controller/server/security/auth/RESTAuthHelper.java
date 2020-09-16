@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.controller.server.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -15,6 +15,7 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 
 import javax.ws.rs.core.Response;
 import java.security.Principal;
@@ -125,7 +126,7 @@ public class RESTAuthHelper {
     }
 
     @VisibleForTesting
-    boolean isAuthEnabled() {
+    public boolean isAuthEnabled() {
         return pravegaAuthManager != null;
     }
 }
