@@ -17,7 +17,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;

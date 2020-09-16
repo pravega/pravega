@@ -11,7 +11,7 @@ package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import org.apache.commons.lang3.NotImplementedException;
