@@ -240,15 +240,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     @GuardedBy("writeFlushLock")
     private void tryWaitForSuccessors() {
-        if (sealedSegmentQueue.isEmpty()) {
-            synchronized (writeSealLock) {
-                // Nothing needs to be done here.
-                // When the lock is released the sealing should be complete.
-                log.debug("Segment sealing completed, retrying flush.");
-            }
-        } else {
+        while (!sealedSegmentQueue.isEmpty()) {
             // A background thread should be waking up to process things. Give it a moment.
-            Exceptions.handleInterrupted(() -> Thread.sleep(100));
+            Exceptions.handleInterrupted(() -> Thread.sleep(10));
+        }
+        synchronized (writeSealLock) {
+            // Nothing needs to be done here.
+            // When the lock is released the sealing should be complete.
+            log.debug("Segment sealing completed, retrying flush.");
         }
     }
 
