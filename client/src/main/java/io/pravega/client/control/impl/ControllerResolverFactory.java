@@ -201,7 +201,7 @@ class ControllerResolverFactory extends NameResolver.Factory {
         public void shutdown() {
             shutdown = true;
             if (scheduledFuture != null) {
-                scheduledFuture.cancel(false);
+                scheduledFuture.cancel(true);
             }
         }
 

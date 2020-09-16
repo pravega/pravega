@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -30,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -78,7 +80,8 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         }).doAnswer(new Answer<Void>() {
         @Override
         public Void answer(InvocationOnMock invocation) throws Throwable {
-            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(in.getRequestId(), "SomeException"));
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(
+                    in.getRequestId(), "SomeException", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
             return null;
         }
         }).doAnswer(new Answer<Void>() {
@@ -144,6 +147,38 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         verifyNoMoreInteractions(c);
         // ensure retrieve Token is invoked for every retry.
         verify(tokenProvider, times(2)).retrieveToken();
+    }
+
+    @SneakyThrows
+    @Test(timeout = 10000)
+    public void testAuthenticationFailure() {
+        Segment segment = new Segment("scope", "testRead", 1);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        Semaphore dataAvailable = new Semaphore(0);
+
+        @Cleanup
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
+        ClientConnection c = mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, c);
+
+        //Non-token expiry auth token check failure response from Segment store.
+        WireCommands.AuthTokenCheckFailed authTokenCheckFailed = new WireCommands.AuthTokenCheckFailed( in.getRequestId(), "SomeException",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED);
+
+        //Trigger read.
+        CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
+        assertEquals(0, dataAvailable.availablePermits());
+
+        //verify that a response from Segment store completes the readFuture and the future completes with the specified exception.
+        AssertExtensions.assertBlocks(() -> assertThrows(AuthenticationException.class, () -> readFuture.get()), () -> {
+            ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+            processor.process(authTokenCheckFailed);
+        });
+        verify(c).send(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())));
+        assertTrue(!Futures.isSuccessful(readFuture)); // verify read future completedExceptionally
     }
 
     @Test(timeout = 10000)

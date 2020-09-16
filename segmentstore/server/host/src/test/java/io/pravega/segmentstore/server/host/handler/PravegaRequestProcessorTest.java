@@ -63,6 +63,7 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -109,6 +110,7 @@ public class PravegaRequestProcessorTest {
         boolean closed = false;
         final List<ReadResultEntry> results;
         long currentOffset = 0;
+        boolean copyOnRead = false;
 
         @Override
         public boolean hasNext() {
@@ -117,6 +119,7 @@ public class PravegaRequestProcessorTest {
 
         @Override
         public ReadResultEntry next() {
+            Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", this.copyOnRead);
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
             return result;
