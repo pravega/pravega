@@ -7,12 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.controller.server.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
+import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.shared.security.token.JsonWebToken;
 
 import java.util.HashMap;
