@@ -9,7 +9,6 @@
 package io.pravega.client.byteStream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
@@ -25,6 +24,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
@@ -54,12 +54,9 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
 
     private ByteStreamReader createByteStreamReaders(Segment segment) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStream()
-                                                                                                                 .getStreamName(),
-                                                                AuthHandler.Permissions.READ),
-                                                                RuntimeException::new);
+                segment.getStream().getStreamName(), AccessOperation.READ), RuntimeException::new);
 
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ);
         SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
         long startOffset = metaClient.getSegmentInfo().getStartingOffset();
         return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),
@@ -74,7 +71,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        DelegationTokenProvider tokenProvider =
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.WRITE);
         return new BufferedByteStreamWriterImpl(
                 new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
                 metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider)));

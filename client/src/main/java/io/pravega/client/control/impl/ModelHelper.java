@@ -12,7 +12,6 @@ package io.pravega.client.control.impl;
 import com.google.common.base.Preconditions;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.RetentionPolicy;
@@ -37,6 +36,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -379,15 +380,17 @@ public final class ModelHelper {
     }
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream,
-                                                    AuthHandler.Permissions permissions) {
+                                                    AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
-        if (permissions != null) {
-            builder.setRequestedPermission(permissions.name());
+        if (accessOperation != null) {
+            builder.setRequestedPermission(accessOperation.name());
         }
         return builder.build();
     }
+
+
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");

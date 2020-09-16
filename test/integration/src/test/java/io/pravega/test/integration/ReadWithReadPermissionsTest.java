@@ -59,7 +59,7 @@ public class ReadWithReadPermissionsTest {
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",
-                "prn::/scope:MarketData,READ_UPDATE",
+                "prn::/scope:MarketData,READ",
                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
                 "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ",
                 "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ"

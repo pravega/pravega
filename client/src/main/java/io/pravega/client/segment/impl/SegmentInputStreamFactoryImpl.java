@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
@@ -18,6 +17,8 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
 import java.util.concurrent.Semaphore;
+
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.RequiredArgsConstructor;
 
 @VisibleForTesting
@@ -44,11 +45,9 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStream()
-                                                                                                                 .getStreamName(), AuthHandler.Permissions.READ),
-                                                                RuntimeException::new);
+                segment.getStream().getStreamName(), AccessOperation.READ), RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment,
-                DelegationTokenProviderFactory.create(delegationToken, controller, segment), hasData);
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ), hasData);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);

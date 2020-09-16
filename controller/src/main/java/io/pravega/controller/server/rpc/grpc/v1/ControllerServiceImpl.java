@@ -27,7 +27,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.PermissionsHelper;
+import io.pravega.shared.security.auth.PermissionsHelper;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;

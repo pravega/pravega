@@ -9,7 +9,6 @@
  */
 package io.pravega.client.control.impl;
 
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
@@ -28,6 +27,8 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -370,7 +371,7 @@ public interface Controller extends AutoCloseable {
     void close();
 
     /**
-     * Refreshes an expired/non-existent delegation token.
+     * Obtains a delegation token from the server.
      *
      * @param scope      Scope of the stream.
      * @param streamName Name of the stream.
@@ -378,7 +379,16 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
 
-    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AuthHandler.Permissions permission);
+    /**
+     * Obtains a delegation token from the server.
+     *
+     * @param scope Scope of the stream.
+     * @param streamName Name of the stream.
+     * @param accessOperation The requested permission.
+     * @return The delegation token for the given stream.
+     */
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
+                                                             AccessOperation accessOperation);
 
     //region KeyValueTables
 

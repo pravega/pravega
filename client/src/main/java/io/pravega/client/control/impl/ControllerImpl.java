@@ -22,7 +22,6 @@ import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
-import io.pravega.auth.AuthHandler;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
@@ -99,6 +98,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.io.File;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -1247,6 +1247,11 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        return this.getOrRefreshDelegationTokenFor(scope, streamName, null);
+    }
+
+    @Override
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
@@ -1255,17 +1260,17 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor", scope, streamName);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, permission), callback);
+                    .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, accessOperation), callback);
             return callback.getFuture();
         }, this.executor);
 
         return result.thenApply( token -> token.getDelegationToken())
-        .whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("getOrRefreshDelegationTokenFor {}/{} failed: ", scope, streamName, e);
-            }
-            LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
-        });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("getOrRefreshDelegationTokenFor {}/{} failed: ", scope, streamName, e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
+                });
     }
 
     //region KeyValueTables

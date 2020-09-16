@@ -11,7 +11,6 @@ package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -66,6 +65,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
@@ -654,7 +655,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AuthHandler.Permissions permission) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         return getOrRefreshDelegationTokenFor(scope, streamName);
     }
 
