@@ -163,6 +163,8 @@ public abstract class AbstractService implements Service {
                 .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                 .put("options", props)
                 .put("image", pravegaImgSpec)
+                .put("segmentStoreJVMOptions", getSegmentStoreJVMOptions())
+                .put("controllerjvmOptions", getControllerJVMOptions())
                 .put("tier2", tier2Spec())
                 .build();
 
@@ -172,6 +174,16 @@ public abstract class AbstractService implements Service {
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
                 .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
                 .build();
+    }
+
+    // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
+    // is supplied by default by the operators. We cannot 'deactive' it using the XX:- counterpart as it is unrecognized.
+    private String[] getSegmentStoreJVMOptions() {
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+    }
+
+    private String[] getControllerJVMOptions() {
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
     }
 
     /**
