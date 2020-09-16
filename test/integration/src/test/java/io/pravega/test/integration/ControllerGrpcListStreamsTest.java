@@ -15,7 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
@@ -96,8 +96,8 @@ public class ControllerGrpcListStreamsTest {
     public void testListStreamsReturnsAuthorizedStreamsOnly() {
         // Arrange
         Map<String, String> passwordInputFileEntries = new HashMap<>();
-        passwordInputFileEntries.put("admin", "*,READ_UPDATE");
-        passwordInputFileEntries.put("user", "scope1,READ;scope1/stream1,READ");
+        passwordInputFileEntries.put("admin", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put("user", "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ");
 
         @Cleanup
         ClusterWrapper cluster = new ClusterWrapper(true, "secret",

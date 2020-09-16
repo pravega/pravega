@@ -20,6 +20,7 @@ import io.pravega.common.Exceptions;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.shared.security.token.JwtParser;
@@ -28,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TokenVerifierImpl implements DelegationTokenVerifier {
+
+    private static final Pattern RESOURCE_PARTS_TO_REPLACE = Pattern.compile("prn::|/scope:|stream:");
 
     private final byte[] tokenSigningKey;
 
@@ -75,6 +78,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
      * @return
      */
     private boolean resourceMatchesClaimKey(String claimKey, String resource) {
+        log.trace("claimKey = {}, resourceKey = {}", claimKey, resource);
+
+        // Replace `prn::`, `/scope:` and `stream:` with an empty string.
+        claimKey = RESOURCE_PARTS_TO_REPLACE.matcher(claimKey).replaceAll("");
+
         /*
          * Examples of the conditions when the claimKey (key of the key-value pair claim) matches the resource are:
          *      1) claimKey = "myscope", resource = "myscope"
