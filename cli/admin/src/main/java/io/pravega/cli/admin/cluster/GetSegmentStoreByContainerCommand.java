@@ -10,6 +10,7 @@
 package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.ZKConnectionFailedException;
 import io.pravega.cli.admin.utils.ZKHelper;
 import io.pravega.common.cluster.Host;
 import java.util.Optional;
@@ -33,7 +34,7 @@ public class GetSegmentStoreByContainerCommand extends ClusterCommand {
             ZKHelper zkStoreHelper = ZKHelper.create(getServiceConfig().getZkURL(), getServiceConfig().getClusterName());
             Optional<Host> host = zkStoreHelper.getHostForContainer(getIntArg(0));
             prettyJSONOutput("owner_segment_store", host.get());
-        } catch (Exception e) {
+        } catch (ZKConnectionFailedException e) {
             System.err.println("Exception accessing to Zookeeper cluster metadata.");
         }
     }

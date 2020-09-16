@@ -10,6 +10,7 @@
 package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.ZKConnectionFailedException;
 import io.pravega.cli.admin.utils.ZKHelper;
 import lombok.Cleanup;
 
@@ -33,7 +34,7 @@ public class GetClusterNodesCommand extends ClusterCommand {
             prettyJSONOutput("controllers", zkStoreHelper.getControllers());
             prettyJSONOutput("segment_stores", zkStoreHelper.getSegmentStores());
             prettyJSONOutput("bookies", zkStoreHelper.getBookies());
-        } catch (Exception e) {
+        } catch (ZKConnectionFailedException e) {
             System.err.println("Exception accessing to Zookeeper cluster metadata.");
         }
     }
