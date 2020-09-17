@@ -75,8 +75,6 @@ import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
-    private static final int MAX_TRANSACTION_COMMIT_BATCH_SIZE = 100;
-    
     private final String scope;
     private final String name;
     private final AtomicInteger historyChunkSize;
@@ -1423,11 +1421,11 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions() {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(int limit) {
         return getVersionedCommitTransactionsRecord()
                 .thenCompose(versioned -> {
                     if (versioned.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
-                        return getOrderedCommittingTxnInLowestEpoch(MAX_TRANSACTION_COMMIT_BATCH_SIZE)
+                        return getOrderedCommittingTxnInLowestEpoch(limit)
                                 .thenCompose(list -> {
                                     if (list.isEmpty()) {
                                         return CompletableFuture.completedFuture(versioned);

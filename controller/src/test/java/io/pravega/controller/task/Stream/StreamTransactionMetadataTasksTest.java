@@ -598,7 +598,7 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(PingTxnStatus.Status.COMMITTED, txnTasks.pingTxn(SCOPE, STREAM, txnId, 10000L, null).join().getStatus());
 
         // complete commit of transaction. 
-        streamStoreMock.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        streamStoreMock.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
         val record = streamStoreMock.getVersionedCommittingTransactionsRecord(SCOPE, STREAM, null, executor).join();
         streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
 
