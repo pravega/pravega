@@ -36,7 +36,7 @@ public class HDFSSimpleStorageFactory implements StorageFactory {
     @Override
     public Storage createStorageAdapter() {
         ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
-                new HDFSChunkStorage(this.config),
+                new HDFSChunkStorage(this.config, this.executor),
                 this.executor,
                 this.chunkedSegmentStorageConfig);
         return storageProvider;

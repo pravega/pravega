@@ -114,7 +114,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
         protected Storage getStorage(S3JerseyClient client) {
             return new ChunkedSegmentStorage(
-                    new ExtendedS3ChunkStorage(client, this.config),
+                    new ExtendedS3ChunkStorage(client, this.config, executorService()),
                     this.storageExecutor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }

@@ -39,7 +39,7 @@ public class InMemorySimpleStorageFactory implements StorageFactory {
             if (null != singletonStorage) {
                 return singletonStorage;
             }
-            Storage storage = newStorage(executor, new InMemoryChunkStorage());
+            Storage storage = newStorage(executor, new InMemoryChunkStorage(executor));
             if (reuseStorage) {
                 singletonStorage = storage;
             }

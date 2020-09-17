@@ -118,8 +118,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static StorageMetadata get(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return txn.get(key);
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
+            return txn.get(key).get();
         }
     }
 
@@ -132,8 +132,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static SegmentMetadata getSegmentMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return (SegmentMetadata) txn.get(key);
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
+            return (SegmentMetadata) txn.get(key).get();
         }
     }
 
@@ -146,8 +146,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ChunkMetadata getChunkMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return (ChunkMetadata) txn.get(key);
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
+            return (ChunkMetadata) txn.get(key).get();
         }
     }
 
@@ -160,13 +160,14 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ArrayList<ChunkMetadata> getChunkList(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(new String[] {key})) {
             val segmentMetadata = getSegmentMetadata(metadataStore, key);
             Assert.assertNotNull(segmentMetadata);
             ArrayList<ChunkMetadata> chunkList = new ArrayList<ChunkMetadata>();
             String current = segmentMetadata.getFirstChunk();
             while (null != current) {
-                val chunk = (ChunkMetadata) txn.get(current);
+                val chunk = (ChunkMetadata) txn.get(current).get();
+                Assert.assertNotNull(chunk);
                 chunkList.add(chunk);
                 current = chunk.getNextChunk();
             }
@@ -189,8 +190,8 @@ public class TestUtils {
         HashSet<String> visited = new HashSet<>();
         val chunkList = getChunkList(metadataStore, segmentName);
         for (ChunkMetadata chunkMetadata : chunkList) {
-            Assert.assertTrue(storageProvider.exists(chunkMetadata.getName()));
-            val info = storageProvider.getInfo(chunkMetadata.getName());
+            Assert.assertTrue(storageProvider.exists(chunkMetadata.getName()).get());
+            val info = storageProvider.getInfo(chunkMetadata.getName()).get();
             Assert.assertTrue(String.format("Actual %s, Expected %d", chunkMetadata, info.getLength()),
                     chunkMetadata.getLength() <= info.getLength());
             chunkCount++;

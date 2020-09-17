@@ -53,7 +53,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkStorage getChunkStorage() throws Exception {
-        return new InMemoryChunkStorage();
+        return new InMemoryChunkStorage(executorService());
     }
 
     /**
@@ -63,7 +63,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore();
+        return new InMemoryMetadataStore(executorService());
     }
 
     @Override
