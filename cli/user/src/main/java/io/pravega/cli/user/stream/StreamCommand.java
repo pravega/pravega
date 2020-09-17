@@ -26,6 +26,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.Timer;
 import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
@@ -223,10 +224,11 @@ public abstract class StreamCommand extends Command {
 
         @Override
         public void execute() throws Exception {
-            ensureArgCount(1, 2);
+            ensureArgCount(1, 2, 3);
             val scopedStream = getScopedNameArg(0);
             boolean group = getCommandArgs().getArgs().size() >= 2 && getBooleanArg(1);
             final Aggregator aggregator = group ? new GroupedItems() : new SingleItem();
+            long timeoutInMillis = (getCommandArgs().getArgs().size() == 3) ? getLongArg(2) * 1000 : Long.MAX_VALUE;
 
             @Cleanup
             val listener = new BackgroundConsoleListener();
@@ -246,7 +248,8 @@ public abstract class StreamCommand extends Command {
             try (val reader = factory.createReader(readerId, readerGroup, new UTF8StringSerializer(), readerConfig)) {
                 EventRead<String> event;
                 int displayCount = 0;
-                while (!listener.isTriggered() && (event = reader.readNextEvent(2000)) != null) {
+                Timer timer = new Timer();
+                while (!listener.isTriggered() && timer.getElapsedMillis() < timeoutInMillis && (event = reader.readNextEvent(2000)) != null) {
                     if (event.getEvent() == null) {
                         // Nothing read yet.
                         aggregator.flush();
@@ -272,6 +275,7 @@ public abstract class StreamCommand extends Command {
             return createDescriptor("read", "Reads all Events from a Stream and then tails the Stream.")
                     .withArg("scoped-stream-name", "Scoped Stream name to read from.")
                     .withArg("[group-similar]", "(Optional). If set ('true'), displays a count of events per prefix (as generated using 'stream append').")
+                    .withArg("[timeout-in-seconds]", "(Optional). If set (>=0), reads events up to the specified timeout in seconds.")
                     .withSyntaxExample("scope1/stream1", "Reads and displays all events in 'scope1/stream1'.")
                     .withSyntaxExample("scope1/stream1 true", "Reads all events in `scope1/stream1' and displays a summary.")
                     .build();
