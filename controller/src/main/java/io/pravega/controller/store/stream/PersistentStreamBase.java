@@ -62,7 +62,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1647,7 +1646,7 @@ public abstract class PersistentStreamBase implements Stream {
                           // smallest epoch has transactions in committing state, we should break, else continue.
                           // also remove any transaction order references which are invalid.
                           return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
-                              return fetchTransactionsInEpoch(iterator.next(), toPurge, transactionsMap, limit, executor);
+                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap, limit, executor);
                           }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
                                         .thenApply(v ->
                                                 transactionsMap.entrySet().stream().sorted(
@@ -1663,8 +1662,7 @@ public abstract class PersistentStreamBase implements Stream {
                                            .collect(Collectors.toMap(Map.Entry::getKey, x -> UUID.fromString(x.getValue()))));
     }
 
-    @VisibleForTesting
-    CompletableFuture<Void> fetchTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
+    private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
                                                              ConcurrentSkipListSet<Long> toPurge,
                                                              ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap,
                                                              int limit,
@@ -1678,8 +1676,7 @@ public abstract class PersistentStreamBase implements Stream {
         });
 
         AtomicInteger from = new AtomicInteger(0);
-        Function<Integer, Integer> tillFunc = f -> f + limit < txnIds.size() ? f + limit : txnIds.size();
-        AtomicInteger till = new AtomicInteger(tillFunc.apply(0));
+        AtomicInteger till = new AtomicInteger(Math.min(limit, txnIds.size()));
         return Futures.loop(() -> from.get() < txnIds.size() && transactionsMap.size() < limit, 
                 () -> getTransactionRecords(epoch, txnIds.subList(from.get(), till.get())).thenAccept(txns -> {
             for (int i = 0; i < txns.size(); i++) {
@@ -1715,7 +1712,7 @@ public abstract class PersistentStreamBase implements Stream {
                 }
             }
             from.set(till.get());
-            till.set(tillFunc.apply(from.get()));
+            till.set(Math.min(from.get() + limit, txnIds.size()));
         }), executor);
     }
 
