@@ -176,7 +176,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @edu.umd.cs.findbugs.annotations.SuppressFBWarnings(value = "OS_OPEN_STREAM", justification = "Rare operation. " +
-            "The leaked object is collected by GC. In case of a iterator in a for loop this would be fast.")
+            "The leaked object is collected by GC. In case of a iteraror in a for loop this would be fast.")
     @Override
     public Iterator<SegmentProperties> listSegments() throws IOException {
         try {
@@ -204,10 +204,6 @@ public class FileSystemStorage implements SyncStorage {
                 .build();
     }
 
-    private static void deleteSegmentFile(String name) throws IOException {
-        Path path = Paths.get(name);
-        Files.delete(path);
-    }
     //endregion
 
     //region AutoClosable
