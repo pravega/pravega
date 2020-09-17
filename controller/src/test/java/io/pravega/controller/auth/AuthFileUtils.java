@@ -11,6 +11,12 @@ package io.pravega.controller.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import lombok.NonNull;
+import lombok.SneakyThrows;
+
+import java.io.FileWriter;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class AuthFileUtils {
 
@@ -22,5 +28,21 @@ public class AuthFileUtils {
 
         // This will return a string that looks like this:"<username>:<pasword>:acl\n"
         return String.format("%s:%s:%s%n", username, password, acl);
+    }
+
+    public static String createAclString(@NonNull List<String> aceStrings) {
+        return aceStrings.stream().collect(Collectors.joining(";"));
+    }
+
+    @SneakyThrows
+    public static void addAuthFileEntry(@NonNull FileWriter writer, @NonNull String entryAsString) {
+        writer.write(entryAsString + "\n");
+    }
+
+    @SneakyThrows
+    public static void addAuthFileEntry(@NonNull FileWriter writer, @NonNull String username,
+                                           @NonNull String hashedPwd, @NonNull List<String> aceStrings) {
+        String fileEntry = String.format("%s:%s:%s", username, hashedPwd, createAclString(aceStrings));
+        addAuthFileEntry(writer, fileEntry);
     }
 }

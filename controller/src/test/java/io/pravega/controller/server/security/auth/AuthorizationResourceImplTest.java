@@ -7,66 +7,70 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server;
-
-import static org.junit.Assert.assertEquals;
+package io.pravega.controller.server.security.auth;
 
 import org.junit.Test;
 
-/**
- * Unit tests for the AuthResourceRepresentation class.
- */
-public class AuthResourceRepresentationTest {
+import static org.junit.Assert.assertEquals;
+
+public class AuthorizationResourceImplTest {
+    private final AuthorizationResourceImpl objectUnderTest = new AuthorizationResourceImpl();
 
     @Test
     public void testOfScopesReturnsValidResourceStr() {
-        assertEquals("/", AuthResourceRepresentation.ofScopes());
+        assertEquals("prn::/", objectUnderTest.ofScopes());
     }
 
     @Test
     public void testOfAScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofScope("testScopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofScope("testScopeName"));
     }
 
     @Test
     public void testOfStreamsInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofStreamsInScope("testScopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofStreamsInScope("testScopeName"));
     }
 
     @Test (expected = NullPointerException.class)
     public void testOfStreamsInScopeThrowsExceptionWhenInputIsNull() {
-        AuthResourceRepresentation.ofStreamsInScope(null);
+        objectUnderTest.ofStreamsInScope(null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testOfStreamsInScopeThrowsExceptionWhenInputIsEmpty() {
-        AuthResourceRepresentation.ofStreamsInScope("");
+        objectUnderTest.ofStreamsInScope("");
     }
 
     @Test
     public void testOfAStreamInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName/testStreamName",
-                AuthResourceRepresentation.ofStreamInScope("testScopeName", "testStreamName"));
+        assertEquals("prn::/scope:testScopeName/stream:testStreamName",
+                objectUnderTest.ofStreamInScope("testScopeName", "testStreamName"));
     }
 
     @Test (expected = NullPointerException.class)
     public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsNull() {
-        AuthResourceRepresentation.ofStreamInScope("testScopeName", null);
+        objectUnderTest.ofStreamInScope("testScopeName", null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsEmpty() {
-        AuthResourceRepresentation.ofStreamInScope("testScopeName", "");
+        objectUnderTest.ofStreamInScope("testScopeName", "");
     }
 
     @Test
     public void testOfReaderGroupsInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("scopeName", AuthResourceRepresentation.ofReaderGroupsInScope("scopeName"));
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofReaderGroupsInScope("testScopeName"));
     }
 
     @Test
     public void testOfAReaderGroupInScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("scopeName/readerGroupName",
-                AuthResourceRepresentation.ofReaderGroupInScope("scopeName", "readerGroupName"));
+        assertEquals("prn::/scope:testScopeName/reader-group:readerGroupName",
+                objectUnderTest.ofReaderGroupInScope("testScopeName", "readerGroupName"));
+    }
+
+    @Test
+    public void testOfAKvtableInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("prn::/scope:testScopeName/key-value-table:kvtName",
+                objectUnderTest.ofKeyValueTableInScope("testScopeName", "kvtName"));
     }
 }
