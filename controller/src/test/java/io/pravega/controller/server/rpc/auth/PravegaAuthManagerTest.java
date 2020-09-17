@@ -13,34 +13,37 @@ import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.io.FileWriter;
-import java.net.URI;
-import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
+import java.util.Arrays;
+
+import org.junit.AfterClass;
 import org.junit.Test;
 
+import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class PravegaAuthManagerTest {
+    private final static File PWD_AUTH_HANDLER_FILE;
+    private final static AuthHandlerManager AUTH_HANDLER_MANAGER;
 
-    private final ControllerServiceGrpc.ControllerServiceImplBase serviceImpl = new ControllerServiceGrpc.ControllerServiceImplBase() {
+    private final static ControllerServiceGrpc.ControllerServiceImplBase SERVICE_IMPL = new ControllerServiceGrpc.ControllerServiceImplBase() {
         @Override
         public void createScope(io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo request,
                                 io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus> responseObserver) {
@@ -48,103 +51,125 @@ public class PravegaAuthManagerTest {
         }
     };
 
-    private File file;
+    static {
+        try {
+            PWD_AUTH_HANDLER_FILE = File.createTempFile("passwd", ".txt");
+            StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
+            try (FileWriter writer = new FileWriter(PWD_AUTH_HANDLER_FILE.getAbsolutePath())) {
+                addAuthFileEntry(writer, "#:");
+                addAuthFileEntry(writer, ":");
+                addAuthFileEntry(writer, "::");
+                addAuthFileEntry(writer, ":::");
+                addAuthFileEntry(writer, "dummy", "password", new ArrayList<>());
+                addAuthFileEntry(writer, "dummy1", "password", Arrays.asList("prn::/scope:readresource;"));
+                addAuthFileEntry(writer, "dummy2", "password", Arrays.asList(
+                        "prn::/scope:readresource,READ",
+                        "prn::/scope:specificresouce,READ",
+                        "prn::/scope:totalaccess,READ_UPDATE"));
+                addAuthFileEntry(writer, "dummy3", passwordEncryptor.encryptPassword("password"), Arrays.asList(
+                        "prn::/scope:readresource,READ",
+                        "prn::/scope:specificresouce,READ",
+                        "prn::/scope:readresource/*,READ",
+                        "prn::/scope:totalaccess,READ_UPDATE"));
+                addAuthFileEntry(writer, "dummy4", passwordEncryptor.encryptPassword("password"), Arrays.asList(
+                        "prn::/scope:readresource",
+                        "prn::/scope:specificresouce,READ",
+                        "prn::*,READ_UPDATE"));
+            }
 
-    @Before
-    public void setUp() throws Exception {
-        file = File.createTempFile("passwd", ".txt");
-        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
+            //Test the registration method.
+            GRPCServerConfig config = GRPCServerConfigImpl.builder()
+                    .authorizationEnabled(true)
+                    .userPasswordFile(PWD_AUTH_HANDLER_FILE.getAbsolutePath())
+                    .port(1000)
+                    .build();
 
-        try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
-            writer.write("#:\n");
-            writer.write(":\n");
-            writer.write("::\n");
-            writer.write(":::\n");
-            writer.write("dummy:password:\n");
-            writer.write("dummy1:password:readresource;;\n");
-            writer.write("dummy2:password:readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
-            writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;readresource/*,READ;totalaccess,READ_UPDATE\n");
-            writer.write("dummy4:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;*,READ_UPDATE\n");
+            AUTH_HANDLER_MANAGER = new AuthHandlerManager(config);
+            int port = TestUtils.getAvailableListenPort();
+            ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(
+                    new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                    new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
+
+            server.addService(SERVICE_IMPL);
+            AUTH_HANDLER_MANAGER.registerInterceptors(server);
+            server.build().start();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
+            throw new RuntimeException(e);
         }
-
     }
 
-    @After
-    public void tearDown() throws Exception {
+    @AfterClass
+    public static void tearDown() throws Exception {
+        PWD_AUTH_HANDLER_FILE.delete();
     }
 
     @Test
-    public void registerInterceptors() throws Exception {
-        //Test the registration method.
-        GRPCServerConfig config = GRPCServerConfigImpl.builder()
-                                                      .authorizationEnabled(true)
-                                                      .userPasswordFile(file.getAbsolutePath())
-                                                      .port(1000)
-                                                      .build();
-
-        AuthHandlerManager manager = new AuthHandlerManager(config);
-        int port = TestUtils.getAvailableListenPort();
-        ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(
-                new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
-                new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
-
-        server.addService(serviceImpl);
-        manager.registerInterceptors(server);
-        server.build().start();
-
-        InlineExecutor executor = new InlineExecutor();
-        @Cleanup
-        final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                                          .controllerURI(URI.create("tcp://localhost:" + port)).build())
-                .retryAttempts(1).build(),
-                executor);
-
-        //Malformed authorization header.
+    public void testMalformedAuthorizationHeaderIsRejected() {
+        //Empty authorization header.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticateAndAuthorize("hi", "", AuthHandler.Permissions.READ));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:hi", "", AuthHandler.Permissions.READ));
 
+        //Specify a credentials ith valid method but malformed parameters for password interceptor.
+        assertThrows(IllegalArgumentException.class, () ->
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:hi", credentials(AuthConstants.BASIC, ":"),
+                        AuthHandler.Permissions.READ));
+    }
+
+    @Test
+    public void testUnRegisteredAuthMethodThrowsAuthenticationException() {
         //Non existent interceptor method.
         assertThrows(AuthenticationException.class, () ->
-        manager.authenticateAndAuthorize("hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
+    }
 
-        //Specify a valid method but malformed parameters for password interceptor.
-        assertThrows(IllegalArgumentException.class, () ->
-        manager.authenticateAndAuthorize("hi", credentials(AuthConstants.BASIC, ":"), AuthHandler.Permissions.READ));
-
+    @Test
+    public void testWrongPasswordThrowsAuthenticationException() {
         //Specify a valid method but incorrect password for password interceptor.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticateAndAuthorize("hi", basic("dummy3", "wrong"), AuthHandler.Permissions.READ));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:hi", basic("dummy3", "wrong"), AuthHandler.Permissions.READ));
+    }
 
-        //Specify a valid method and parameters but invalid resource for default interceptor.
-        assertFalse("Not existent resource should return false",
-                manager.authenticateAndAuthorize("invalid", basic("dummy3", "password"), AuthHandler.Permissions.READ));
-
+    @Test
+    public void testAuthenticatesUserAndAuthorizesResources() {
         //Valid parameters for default interceptor
         assertTrue("Read access for read resource should return true",
-                manager.authenticateAndAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:readresource",
+                        basic("dummy3", "password"), AuthHandler.Permissions.READ));
+    }
 
-        //Stream/scope access should be extended to segment.
-        assertTrue("Read access for read resource should return true",
-                manager.authenticateAndAuthorize("readresource/segment", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+    @Test
+    public void testAuthorizationFailsForInvalidOrUnauthorizedResource() {
+        //Specify a valid method and parameters but invalid resource for default interceptor.
+        assertFalse("Not existent resource should return false",
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("", basic("dummy3", "password"),
+                        AuthHandler.Permissions.READ));
 
         //Levels of access
         assertFalse("Write access for read resource should return false",
-                manager.authenticateAndAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
+    }
+
+    @Test
+    public void testAuthorizationSucceedsForAuthorizedResources() {
+        //Valid parameters for default interceptor
+        assertTrue("Read access for read resource should return true",
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+
+        //Stream/scope access should be extended to segment.
+        assertTrue("Read access for read resource should return true",
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:readresource/stream:readStream", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         assertTrue("Read access for write resource should return true",
-                manager.authenticateAndAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         assertTrue("Write access for write resource should return true",
-                manager.authenticateAndAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
 
         //Check the wildcard access
         assertTrue("Write access for write resource should return true",
-                manager.authenticateAndAuthorize("totalaccess", basic("dummy4", "password"), AuthHandler.Permissions.READ_UPDATE));
+                AUTH_HANDLER_MANAGER.authenticateAndAuthorize("prn::/scope:totalaccess", basic("dummy4", "password"), AuthHandler.Permissions.READ_UPDATE));
 
-        assertTrue("Test handler should be called", manager.authenticateAndAuthorize("any", testHandler(), AuthHandler.Permissions.READ));
-
-        assertThrows(RetriesExhaustedException.class, () -> controllerClient.createScope("hi").join());
+        assertTrue("Test handler should be called", AUTH_HANDLER_MANAGER.authenticateAndAuthorize("any", testHandler(), AuthHandler.Permissions.READ));
     }
 
     private static String credentials(String scheme, String token) {
