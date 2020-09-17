@@ -223,12 +223,22 @@ public abstract class StreamCommand extends Command {
         }
 
         @Override
-        public void execute() throws Exception {
+        public void execute() {
             ensureArgCount(1, 2, 3);
             val scopedStream = getScopedNameArg(0);
-            boolean group = getCommandArgs().getArgs().size() >= 2 && getBooleanArg(1);
+            boolean group = false;
+            long timeoutInMillis = Long.MAX_VALUE;
+            if (getCommandArgs().getArgs().size() == 3) {
+                group = getBooleanArg(1);
+                timeoutInMillis = Long.parseLong(getArg(2)) * 1000;
+            } else if (getCommandArgs().getArgs().size() == 2) {
+                if (isBooleanArg(1)) {
+                    group = getBooleanArg(1);
+                } else {
+                    timeoutInMillis = getLongArg(1) * 1000;
+                }
+            }
             final Aggregator aggregator = group ? new GroupedItems() : new SingleItem();
-            long timeoutInMillis = (getCommandArgs().getArgs().size() == 3) ? getLongArg(2) * 1000 : Long.MAX_VALUE;
 
             @Cleanup
             val listener = new BackgroundConsoleListener();

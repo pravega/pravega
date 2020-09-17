@@ -112,6 +112,10 @@ public abstract class Command {
         return getArg(index, Boolean::parseBoolean);
     }
 
+    protected boolean isBooleanArg(int index) {
+        return isArg(index, Boolean::parseBoolean);
+    }
+
     protected ScopedName getScopedNameArg(int index) {
         return getArg(index, scopedName -> {
             val parts = NameUtils.extractScopedNameTokens(scopedName);
@@ -137,6 +141,16 @@ public abstract class Command {
             return converter.apply(s);
         } catch (Exception ex) {
             throw new IllegalArgumentException(String.format("Unexpected argument '%s' at position %d: %s.", s, index, ex.getMessage()));
+        }
+    }
+
+    private <T> boolean isArg(int index, Function<String, T> converter) {
+        try {
+            String s = getArg(index);
+            converter.apply(s);
+            return true;
+        } catch (Exception ex) {
+            return false;
         }
     }
 
