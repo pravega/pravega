@@ -13,11 +13,13 @@ import io.pravega.cli.user.AbstractUserCommandTest;
 import io.pravega.cli.user.CommandArgs;
 import org.junit.Test;
 
+import java.util.Collections;
+
 public class ScopeCommandsTest extends AbstractUserCommandTest {
 
-    @Test
+    @Test(timeout = 5000)
     public void testCreateScope() {
-        CommandArgs commandArgs = new CommandArgs(null, CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), CONFIG.get());
         new ScopeCommand.Create(commandArgs);
     }
 }

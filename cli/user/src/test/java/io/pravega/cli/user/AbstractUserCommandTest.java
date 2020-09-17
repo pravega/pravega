@@ -30,13 +30,13 @@ public abstract class AbstractUserCommandTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
-        /*SETUP_UTILS.startAllServices();
+        SETUP_UTILS.startAllServices();
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
-        Properties pravegaProperties.setProperty("cli.controllerRestUri", SETUP_UTILS.getControllerRestUri().toString());
-        pravegaProperties.setProperty("cli.controllerGrpcUri", SETUP_UTILS.getControllerUri().toString());
-        pravegaProperties.setProperty("pravegaservice.zkURL", SETUP_UTILS.getZkTestServer().getConnectString());
-        pravegaProperties.setProperty("pravegaservice.containerCount", "4");
-        CONFIG.set(pravegaProperties);*/
+        interactiveConfig.setControllerUri(SETUP_UTILS.getControllerUri().toString());
+        interactiveConfig.setDefaultSegmentCount(4);
+        interactiveConfig.setMaxListItems(100);
+        interactiveConfig.setTimeoutMillis(1000);
+        CONFIG.set(interactiveConfig);
     }
 
     @AfterClass
