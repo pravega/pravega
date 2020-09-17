@@ -831,7 +831,7 @@ public abstract class StreamMetadataStoreTest {
         EpochTransitionRecord response2 = versioned2.getObject();
         assertEquals(activeEpoch.getEpoch(), response2.getActiveEpoch());
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -889,7 +889,7 @@ public abstract class StreamMetadataStoreTest {
 
         store.sealTransaction(scope, stream, tx15.getId(), true, Optional.of(tx15.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
-        record = store.startCommitTransactions(scope, stream, null, executor).join();
+        record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).get();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -946,7 +946,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, response.getActiveEpoch());
 
         EpochRecord activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -1071,7 +1071,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(5L), tx11);
         assertEquals(positions.get(6L), tx12);
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         
         // verify that after including transaction tx00 in the record, we no longer keep its reference in the ordered
         positions = streamObj.getAllOrderedCommittingTxns().join();
@@ -1115,7 +1115,7 @@ public abstract class StreamMetadataStoreTest {
 
         // we will issue next round of commit, which will commit txns on epoch 1. 
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
-        record = store.startCommitTransactions(scope, stream, null, executor).join();
+        record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         // verify that the order in record is same
         assertEquals(record.getObject().getTransactionsToCommit(), ordered);
         
@@ -1641,7 +1641,7 @@ public abstract class StreamMetadataStoreTest {
         String writer1 = "writer1";
         long time = 1L;
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.recordCommitOffsets(scope, stream, txnId, Collections.singletonMap(0L, 1L), null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor).join();
 
