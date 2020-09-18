@@ -94,10 +94,12 @@ import org.junit.Test;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -348,15 +350,23 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Creates a Pravega instance.
      */
     private static class PravegaRunner {
+        private final int containerCount;
         private BookKeeperRunner bookKeeperRunner;
         private SegmentStoreRunner segmentStoreRunner;
         private ControllerRunner controllerRunner;
 
         PravegaRunner(int instanceId, int bookieCount, int containerCount, StorageFactory storageFactory) throws Exception {
+            this.containerCount = containerCount;
             this.bookKeeperRunner = new BookKeeperRunner(instanceId, bookieCount);
             this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, null, containerCount);
             this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort,
                     containerCount);
+        }
+
+        public void restartControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
+                throws DurableDataLogException, InterruptedException {
+            this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
+            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
         }
 
         public void close() throws Exception {
@@ -475,26 +485,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        log.info("Segment Store Shutdown");
-
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("BookKeeper & ZooKeeper shutdown");
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        this.dataLogFactory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(),
-                pravegaRunner.bookKeeperRunner.zkClient.get(),
-                executorService());
-        this.dataLogFactory.initialize();
+        createBookKeeperLogFactory(pravegaRunner);
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
         runRecovery(containerCount, storage);
 
         // Start a new segment store and controller
-        pravegaRunner.segmentStoreRunner = new SegmentStoreRunner(this.storageFactory, this.dataLogFactory, containerCount);
-        pravegaRunner.controllerRunner = new ControllerRunner(pravegaRunner.bookKeeperRunner.bkPort,
-                pravegaRunner.segmentStoreRunner.servicePort, containerCount);
+        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
@@ -507,6 +510,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Try reading all events again to verify that the recovery was successful.
         readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
         log.info("Read all events again to verify that segments were recovered.");
+    }
+
+    private void createBookKeeperLogFactory(PravegaRunner pravegaRunner) throws DurableDataLogException {
+        this.dataLogFactory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(),
+                pravegaRunner.bookKeeperRunner.zkClient.get(),
+                executorService());
+        this.dataLogFactory.initialize();
     }
 
     // Creates debug segment container instances, puts them in a map and returns it.
@@ -590,7 +600,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 180000)
-    public void testDurableDataLogFailRecoveryReadersStall() throws Exception {
+    public void testDurableDataLogFailRecoveryReadersPaused() throws Exception {
         int instanceId = 0;
         int bookieCount = 1;
         int containerCount = 4;
@@ -654,26 +664,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        log.info("Segment Store Shutdown");
-
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("BookKeeper & ZooKeeper shutdown");
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        this.dataLogFactory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(),
-                pravegaRunner.bookKeeperRunner.zkClient.get(),
-                executorService());
-        this.dataLogFactory.initialize();
+        createBookKeeperLogFactory(pravegaRunner);
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
         runRecovery(containerCount, storage);
 
         // Start a new segment store and controller
-        pravegaRunner.segmentStoreRunner = new SegmentStoreRunner(this.storageFactory, this.dataLogFactory, containerCount);
-        pravegaRunner.controllerRunner = new ControllerRunner(pravegaRunner.bookKeeperRunner.bkPort,
-                pravegaRunner.segmentStoreRunner.servicePort, containerCount);
+        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
@@ -786,19 +789,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         scale(pravegaRunner.controllerRunner.controller, streamObj, config);
 
         // get watermarks
-        @Cleanup
-        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE,
-                ClientConfig.builder().controllerURI(pravegaRunner.controllerRunner.controllerURI).build());
-
-        String markStream = NameUtils.getMarkStreamForStream(STREAM1);
-        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
-                new WatermarkSerializer(), SynchronizerConfig.builder().build());
-        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
-        fetchWatermarks(watermarkReader, watermarks, stopFlag);
-        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
-        stopFlag.set(true);
-        writer1Future.join();
-        writer2Future.join();
+        LinkedBlockingQueue<Watermark> watermarks = getWatermarks(pravegaRunner, stopFlag, writer1Future, writer2Future);
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
@@ -816,30 +807,81 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        log.info("Segment Store Shutdown");
-
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("BookKeeper & ZooKeeper shutdown");
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        this.dataLogFactory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(),
-                pravegaRunner.bookKeeperRunner.zkClient.get(), executorService());
-        this.dataLogFactory.initialize();
+        createBookKeeperLogFactory(pravegaRunner);
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
         runRecovery(containerCount, storage);
 
         // Start a new segment store and controller
-        pravegaRunner.segmentStoreRunner = new SegmentStoreRunner(this.storageFactory, this.dataLogFactory, containerCount);
-        pravegaRunner.controllerRunner = new ControllerRunner(pravegaRunner.bookKeeperRunner.bkPort,
-                pravegaRunner.segmentStoreRunner.servicePort, containerCount);
+        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
         clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
 
+        // read events and verify
+        readVerifyEventsWithWatermarks(readerGroup, clientRunner, streamObj, watermarks);
+    }
+
+    /**
+     * Creates reader and verifies watermarking by verifying the time bounds for events.
+     */
+    private void readVerifyEventsWithWatermarks(String readerGroup, ClientRunner clientRunner, Stream streamObj,
+                                                LinkedBlockingQueue<Watermark> watermarks) throws InterruptedException {
+        List<Map<Stream, StreamCut>> streamCuts = getStreamCutsFromWaterMarks(readerGroup, clientRunner, streamObj, watermarks);
+        // read from stream cut of first watermark
+        clientRunner.readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
+                .startingStreamCuts(streamCuts.get(0))
+                .endingStreamCuts(streamCuts.get(1))
+                .build());
+        @Cleanup
+        final EventStreamReader<Long> reader = clientRunner.clientFactory.createReader("myreaderTx", readerGroup,
+                new JavaSerializer<>(), ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(READ_TIMEOUT.toMillis());
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(READ_TIMEOUT.toMillis());
+            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        currentTimeWindow = verifyEventsWithTimeBounds(streamObj, reader, event, currentTimeWindow);
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+    }
+
+    /**
+     * Gets watermarks used while writing the events
+     */
+    private LinkedBlockingQueue<Watermark> getWatermarks(PravegaRunner pravegaRunner, AtomicBoolean stopFlag,
+                                                         CompletableFuture<Void> writer1Future, CompletableFuture<Void>
+                                                                 writer2Future) throws Exception {
+        @Cleanup
+        SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE,
+                ClientConfig.builder().controllerURI(pravegaRunner.controllerRunner.controllerURI).build());
+
+        String markStream = NameUtils.getMarkStreamForStream(STREAM1);
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(), SynchronizerConfig.builder().build());
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+        stopFlag.set(true);
+        writer1Future.join();
+        writer2Future.join();
+        return watermarks;
+    }
+
+    private List<Map<Stream, StreamCut>> getStreamCutsFromWaterMarks(Stream streamObj, LinkedBlockingQueue<Watermark> watermarks)
+            throws InterruptedException {
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
         assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
@@ -856,25 +898,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
 
-        // read from stream cut of first watermark
-        clientRunner.readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                .startingStreamCuts(firstMarkStreamCut)
-                .endingStreamCuts(secondMarkStreamCut)
-                .build());
+        return new ArrayList<Map<Stream, StreamCut>>(Arrays.asList(firstMarkStreamCut, secondMarkStreamCut));
+    }
 
-        @Cleanup
-        final EventStreamReader<Long> reader = clientRunner.clientFactory.createReader("myreaderTx", readerGroup,
-                new JavaSerializer<>(), ReaderConfig.builder().build());
-
-        EventRead<Long> event = reader.readNextEvent(READ_TIMEOUT.toMillis());
-        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
-            event = reader.readNextEvent(READ_TIMEOUT.toMillis());
-            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        }
-
-        assertNotNull(currentTimeWindow.getUpperTimeBound());
-
+    private TimeWindow verifyEventsWithTimeBounds(Stream streamObj, EventStreamReader<Long> reader, EventRead<Long> event, TimeWindow currentTimeWindow) {
         // read all events and verify that all events are below the bounds
         while (event.getEvent() != null) {
             Long time = event.getEvent();
@@ -892,10 +919,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 event = reader.readNextEvent(READ_TIMEOUT.toMillis());
             }
         }
-
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
+        return currentTimeWindow;
     }
 
+    /**
+     * Adds water marks to the watermarks queue.
+     */
     private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
                                  AtomicBoolean stop) {
         AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
