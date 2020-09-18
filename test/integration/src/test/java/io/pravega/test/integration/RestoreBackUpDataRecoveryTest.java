@@ -834,7 +834,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     private void readVerifyEventsWithWatermarks(String readerGroup, ClientRunner clientRunner, Stream streamObj,
                                                 LinkedBlockingQueue<Watermark> watermarks) throws InterruptedException {
-        List<Map<Stream, StreamCut>> streamCuts = getStreamCutsFromWaterMarks(readerGroup, clientRunner, streamObj, watermarks);
+        List<Map<Stream, StreamCut>> streamCuts = getStreamCutsFromWaterMarks(streamObj, watermarks);
         // read from stream cut of first watermark
         clientRunner.readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
                 .startingStreamCuts(streamCuts.get(0))
