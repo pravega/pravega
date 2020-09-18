@@ -43,6 +43,7 @@ public abstract class AbstractAdminCommandTest {
     @AfterClass
     public static void tearDown() throws Exception {
         SETUP_UTILS.stopAllServices();
+        STATE.get().close();
     }
 
 }

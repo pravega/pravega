@@ -10,14 +10,18 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.AdminCommandState;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicReference;
-
 import io.pravega.cli.admin.utils.TestUtils;
+import org.apache.bookkeeper.client.api.DigestType;
+import org.apache.bookkeeper.client.api.WriteHandle;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -44,6 +48,11 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         STATE.get().getConfigBuilder().include(bkProperties);
     }
 
+    @After
+    public void tierDown() {
+        STATE.get().close();
+    }
+
     @Test
     public void testBookKeeperListCommand() throws Exception {
         String commandResult = TestUtils.executeCommand("bk list", STATE.get());
@@ -56,5 +65,27 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         String commandResult = TestUtils.executeCommand("bk details 0", STATE.get());
         System.err.println(commandResult);
         Assert.assertTrue(commandResult.contains("log_no_metadata"));
+    }
+
+    @Test
+    public void testBookKeeperEnableCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
+    }
+
+    @Test
+    public void testBookKeeperDisableCommand() throws Exception {
+        String commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
+    }
+
+    private WriteHandle createLedger () throws Exception {
+        return FutureUtils.result(bkc.newCreateLedgerOp()
+                .withEnsembleSize(1)
+                .withWriteQuorumSize(1)
+                .withAckQuorumSize(1)
+                .withDigestType(DigestType.CRC32)
+                .withPassword("".getBytes())
+                .execute());
     }
 }
