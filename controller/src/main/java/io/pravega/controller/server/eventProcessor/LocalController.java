@@ -182,6 +182,25 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String readerGroupId) {
+        return this.controller.addSubscriber(scope, streamName, readerGroupId).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update stream: " + readerGroupId);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + readerGroupId);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + readerGroupId);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status updating subscriber " + readerGroupId + "on stream " + scope + "/" + streamName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
                                                                .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),

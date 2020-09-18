@@ -14,40 +14,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE;
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_SCOPE_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_SCOPE_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
-import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM_FAILED;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE;
-import static io.pravega.shared.MetricsNames.KVTABLE_SEGMENTS_COUNT;
-import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
-import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.*;
 import static io.pravega.shared.MetricsTags.streamTags;
 
 /**
@@ -61,6 +28,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger deleteStreamLatency;
     private final OpStatsLogger sealStreamLatency;
     private final OpStatsLogger updateStreamLatency;
+    private final OpStatsLogger addSubscriberStreamLatency;
     private final OpStatsLogger truncateStreamLatency;
     private final OpStatsLogger createKeyValueTableLatency;
     private final OpStatsLogger deleteKeyValueTableLatency;
@@ -74,6 +42,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+        addSubscriberStreamLatency = STATS_LOGGER.createStats(ADD_SUBSCRIBER_LATENCY);
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
@@ -298,6 +267,32 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_STREAM_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(UPDATE_STREAM_FAILED, 1, streamTags(scope, streamName));
     }
+
+    /**
+     * This method increments the global and Stream-specific counters for addSubscriber operation on a Stream
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the addSubscriber operation.
+     */
+    public void addSubscriber(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER), 1);
+        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER, 1, streamTags(scope, streamName));
+        updateStreamLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed addSubscriber operation attempts on a Stream.
+     *
+     * @param scope         Scope Name.
+     * @param streamName    Stream Name.
+     */
+    public void addSubscriberFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    }
+
 
     /**
      * This method increments the global and Stream-specific counters of Stream truncations and reports the latency of

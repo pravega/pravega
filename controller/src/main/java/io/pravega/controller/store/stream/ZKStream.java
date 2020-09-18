@@ -19,19 +19,7 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.CompletedTxnRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StateRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -246,6 +234,26 @@ class ZKStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<RetentionSet>> getRetentionSetData() {
         return store.getData(retentionSetPath, RetentionSet::fromBytes);
+    }
+
+    @Override
+    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> data) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> configuration) {
+        return null;
     }
 
     @Override

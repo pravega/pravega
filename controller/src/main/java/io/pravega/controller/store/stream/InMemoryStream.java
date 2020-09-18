@@ -18,20 +18,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RecordHelper;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.CompletedTxnRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StateRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.*;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -821,6 +808,26 @@ public class InMemoryStream extends PersistentStreamBase {
             }
         }
         return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> data) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> configuration) {
+        return null;
     }
 
     @Override

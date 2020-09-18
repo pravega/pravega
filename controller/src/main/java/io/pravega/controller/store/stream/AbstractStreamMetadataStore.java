@@ -24,19 +24,7 @@ import io.pravega.common.lang.Int96;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.index.HostIndex;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.*;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -519,6 +507,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue())));
 
         return future;
+    }
+
+    @Override
+    public CompletableFuture<Void> startUpdateSubscribers(final String scope,
+                                                            final String name,
+                                                            final StreamConfiguration configuration,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).startUpdateConfiguration(configuration), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersRecord(final String scope,
+                                                                                              final String name,
+                                                                                              final OperationContext context,
+                                                                                              final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).getVersionedSubscribersRecord(), executor);
     }
 
     @Override

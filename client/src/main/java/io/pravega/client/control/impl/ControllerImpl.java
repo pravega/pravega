@@ -526,6 +526,11 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String readerGroupId) {
+        return CompletableFuture.completedFuture(Boolean.FALSE);
+    }
+
+    @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         return truncateStream(scope, stream, getStreamCutMap(streamCut));
     }

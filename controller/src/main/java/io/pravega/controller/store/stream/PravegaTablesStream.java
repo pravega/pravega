@@ -18,19 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.CompletedTxnRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StateRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -84,6 +72,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String STATE_KEY = "state";
     private static final String EPOCH_TRANSITION_KEY = "epochTransition";
     private static final String RETENTION_SET_KEY = "retention";
+    private static final String SUBSCRIBER_SET_KEY = "subscribers";
     private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
     private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
@@ -267,6 +256,46 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
                         data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
+    }
+
+    @Override
+    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord subscribers) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, SUBSCRIBER_SET_KEY, subscribers.toBytes())
+                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY)));
+    }
+
+    @Override
+    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> subscribers) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY, subscribers.getObject().toBytes(), subscribers.getVersion())
+                        .thenApply(v -> {
+                            storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY);
+                            return v;
+                        }));
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    if (ignoreCached) {
+                        return storeHelper.getEntry(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
+                    }
+
+                    return storeHelper.getCachedData(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
+                });
+    }
+
+    @Override
+    CompletableFuture<Version> setSubscribersData(final VersionedMetadata<StreamSubscribersRecord> subscribers) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY,
+                        subscribers.getObject().toBytes(), subscribers.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY);
+                            return r;
+                        }));
     }
 
     @Override
