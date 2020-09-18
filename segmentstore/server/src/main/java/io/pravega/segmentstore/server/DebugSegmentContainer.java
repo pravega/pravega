@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.storage.Storage;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Defines debug segment container for stream segments.
