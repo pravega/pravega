@@ -8,7 +8,10 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server;
+import io.pravega.segmentstore.storage.Storage;
+
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Defines debug segment container for stream segments.
@@ -25,4 +28,6 @@ public interface DebugSegmentContainer extends SegmentContainer {
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed);
+
+    void copySegment(Storage storage, String sourceSegment, String targetSegment) throws ExecutionException, InterruptedException;
 }

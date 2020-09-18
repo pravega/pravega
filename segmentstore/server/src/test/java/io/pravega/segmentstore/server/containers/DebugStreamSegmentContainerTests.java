@@ -41,6 +41,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,8 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +80,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
+    private static final int APPENDS_PER_SEGMENT = 10;
+    private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -245,6 +250,82 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
             debugStreamSegmentContainerMap.get(containerId).close();
         }
+    }
+
+    @Test
+    public void testCopySegment() throws Exception {
+        // Create a storage.
+        @Cleanup
+        val baseStorage =  new InMemoryStorage();
+
+        @Cleanup
+        val s = new AsyncStorageWrapper(new RollingStorage(baseStorage, new SegmentRollingPolicy(1)), executorService());
+        s.initialize(1);
+        log.info("Created a storage instance");
+
+        // Record details(name, container Id & sealed status) of each segment to be created.
+        byte[] data = "data".getBytes();
+
+        String sourceSegmentName = "segment-" + RANDOM.nextInt();
+        String targetSegmentName = "segment-" + RANDOM.nextInt();
+
+        // Create segments, write data and randomly seal some of them.
+        s.create(sourceSegmentName, TIMEOUT).join();
+        val handle = s.openWrite(sourceSegmentName).join();
+
+        // do some writing
+        ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
+        long offset = 0;
+        for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
+            byte[] writeData = populate(APPEND_FORMAT.length());
+
+            val dataStream = new ByteArrayInputStream(writeData);
+            s.write(handle, offset, dataStream, writeData.length, TIMEOUT).join();
+            writeStream.write(writeData);
+            offset += writeData.length;
+        }
+
+        @Cleanup
+        TestContext context = createContext(executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
+                executorService());
+
+        MetadataCleanupContainer localContainer = new MetadataCleanupContainer(0, CONTAINER_CONFIG, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+
+        Services.startAsync(localContainer, executorService()).join();
+
+        localContainer.copySegment(s, sourceSegmentName, targetSegmentName);
+
+        // new segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
+        // Old segment should exist
+        Assert.assertTrue("Unexpected result for missing segment (no files).", s.exists(targetSegmentName, null).join());
+
+        // Do some reading.
+        val readHandle = s.openRead(targetSegmentName).join();
+        byte[] expectedData = writeStream.toByteArray();
+
+        for (offset = 0; offset < expectedData.length / 2; offset++) {
+            int length = (int) (expectedData.length - 2 * offset);
+            byte[] readBuffer = new byte[length];
+            int bytesRead = s.read(readHandle, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+            Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                    length, bytesRead);
+            AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                    expectedData, (int) offset, readBuffer, 0, bytesRead);
+        }
+    }
+
+    private void populate(byte[] data) {
+        RANDOM.nextBytes(data);
+    }
+
+    private byte[] populate(int size) {
+        byte[] bytes = new byte[size];
+        populate(bytes);
+        return bytes;
     }
 
     public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {

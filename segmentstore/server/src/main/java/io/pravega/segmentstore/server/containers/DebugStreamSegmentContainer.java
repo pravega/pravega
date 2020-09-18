@@ -17,17 +17,22 @@ import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 public class DebugStreamSegmentContainer extends StreamSegmentContainer implements DebugSegmentContainer {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    private static final int BUFFER_SIZE = 8 * 1024;
     private final ContainerConfig config;
 
     /**
@@ -57,5 +62,21 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     public CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed) {
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
+    }
+
+    @Override
+    public void copySegment(Storage storage, String sourceSegment, String targetSegment)
+            throws ExecutionException, InterruptedException {
+        storage.create(targetSegment, TIMEOUT);
+        val info = storage.getStreamSegmentInfo(sourceSegment, TIMEOUT);
+        int bytesToRead = (int) info.get().getLength();
+        int offset = 0;
+        while (bytesToRead > 0) {
+            byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
+            int size = storage.read(storage.openRead(sourceSegment).join(), offset, buffer, 0, buffer.length, TIMEOUT).join();
+            bytesToRead -= size;
+            storage.write(storage.openWrite(targetSegment).join(), offset, new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).join();
+            offset += size;
+        }
     }
 }
