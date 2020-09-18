@@ -66,7 +66,7 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
 
     @Override
     public void copySegment(Storage storage, String sourceSegment, String targetSegment)
-            throws ExecutionException, InterruptedException {
+            throws Exception {
         storage.create(targetSegment, TIMEOUT);
         val info = storage.getStreamSegmentInfo(sourceSegment, TIMEOUT);
         int bytesToRead = (int) info.get().getLength();

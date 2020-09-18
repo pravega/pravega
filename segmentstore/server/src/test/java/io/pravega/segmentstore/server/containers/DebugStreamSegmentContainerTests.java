@@ -251,24 +251,24 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * The test creates a segment and then writes some data to it. The segment and its contents are then copied to a segment
+     * with different name. At the end, it is verified that the new segment has the accurate contents from the first one.
+     */
     @Test
     public void testCopySegment() throws Exception {
         // Create a storage.
         @Cleanup
         val baseStorage =  new InMemoryStorage();
-
         @Cleanup
         val s = new AsyncStorageWrapper(new RollingStorage(baseStorage, new SegmentRollingPolicy(1)), executorService());
         s.initialize(1);
         log.info("Created a storage instance");
 
-        // Record details(name, container Id & sealed status) of each segment to be created.
-        byte[] data = "data".getBytes();
-
         String sourceSegmentName = "segment-" + RANDOM.nextInt();
         String targetSegmentName = "segment-" + RANDOM.nextInt();
 
-        // Create segments, write data and randomly seal some of them.
+        // Create source segment
         s.create(sourceSegmentName, TIMEOUT).join();
         val handle = s.openWrite(sourceSegmentName).join();
 
@@ -284,17 +284,19 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             offset += writeData.length;
         }
 
+        // create a debug segment container instance
         @Cleanup
         TestContext context = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
                 executorService());
 
+        @Cleanup
         MetadataCleanupContainer localContainer = new MetadataCleanupContainer(0, CONTAINER_CONFIG, localDurableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
                 context.getDefaultExtensions(), executorService());
-
         Services.startAsync(localContainer, executorService()).join();
 
+        // copy segment
         localContainer.copySegment(s, sourceSegmentName, targetSegmentName);
 
         // new segment should exist

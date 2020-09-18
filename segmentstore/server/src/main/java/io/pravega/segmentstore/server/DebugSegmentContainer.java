@@ -29,5 +29,12 @@ public interface DebugSegmentContainer extends SegmentContainer {
      */
     CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed);
 
-    void copySegment(Storage storage, String sourceSegment, String targetSegment) throws ExecutionException, InterruptedException;
+    /**
+     * Creates a segment with target segment name and copies the contents of the source segment to the target segment.
+     * @param storage                   A storage instance to create the segment.
+     * @param sourceSegment             The name of the source segment to copy the contents from.
+     * @param targetSegment             The name of the segment to write the contents to.
+     * @throws Exception                In case of an exception occurred while execution.
+     */
+    void copySegment(Storage storage, String sourceSegment, String targetSegment) throws Exception;
 }
