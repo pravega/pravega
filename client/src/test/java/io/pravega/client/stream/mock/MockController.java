@@ -78,11 +78,13 @@ public class MockController implements Controller {
     private final ConnectionPool connectionPool;
     @GuardedBy("$lock")
     private final Map<String, MockScope> createdScopes = new HashMap<>();
+
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
 
     private static class MockScope {
         private final Map<Stream, StreamConfiguration> streams = new HashMap<>();
+        private final Map<Stream, Boolean> streamSealStatus = new HashMap<>();
         private final Map<KeyValueTableInfo, KeyValueTableConfiguration> keyValueTables = new HashMap<>();
     }
 
@@ -259,7 +261,13 @@ public class MockController implements Controller {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
+        MockScope scopeMeta = createdScopes.get(scope);
+        assert scopeMeta != null : "Scope not created";
+        Stream stream = Stream.of(scope, streamName);
+        assert scopeMeta.streams.containsKey(stream) : "Stream not created";
+        scopeMeta.streamSealStatus.put(stream, true);
         return CompletableFuture.completedFuture(true);
     }
 
@@ -397,13 +405,17 @@ public class MockController implements Controller {
     }
 
     private StreamSegments getCurrentSegments(Stream stream) {
-        List<Segment> segmentsInStream = getSegmentsForStream(stream);
-        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
-        for (int i = 0; i < segmentsInStream.size(); i++) {
-            SegmentWithRange s = createRange(stream.getScope(), stream.getStreamName(), segmentsInStream.size(), i);
-            segments.put(s.getRange().getHigh(), s);
+        if (isStreamSealed(stream)) {
+            return new StreamSegments(new TreeMap<>(), "");
+        } else {
+            List<Segment> segmentsInStream = getSegmentsForStream(stream);
+            TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+            for (int i = 0; i < segmentsInStream.size(); i++) {
+                SegmentWithRange s = createRange(stream.getScope(), stream.getStreamName(), segmentsInStream.size(), i);
+                segments.put(s.getRange().getHigh(), s);
+            }
+            return new StreamSegments(segments, "");
         }
-        return new StreamSegments(segments, "");
     }
 
     private KeyValueTableSegments getCurrentSegments(KeyValueTableInfo kvt) {
@@ -414,6 +426,14 @@ public class MockController implements Controller {
             segments.put(s.getRange().getHigh(), s);
         }
         return new KeyValueTableSegments(segments, "");
+    }
+
+    @Synchronized
+    private boolean isStreamSealed(Stream stream) {
+        MockScope scopeMeta = createdScopes.get(stream.getScope());
+        assert scopeMeta != null : "Scope not created";
+        assert scopeMeta.streams.containsKey(stream) : "Stream is not created";
+        return scopeMeta.streamSealStatus.getOrDefault(stream, false );
     }
 
     private SegmentWithRange createRange(String scope, String stream, int numSegments, int segmentNumber) {
