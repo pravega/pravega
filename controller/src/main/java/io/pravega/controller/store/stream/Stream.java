@@ -515,10 +515,10 @@ interface Stream {
      * Method to fetch committing transaction record from the store for a given stream.
      * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
      * it returns null.
-     *
+     * @param limit maximum number of transactions to include in a commit batch 
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions();
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(int limit);
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.
