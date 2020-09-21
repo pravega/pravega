@@ -603,7 +603,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
             val toSerialize = t.realMetadata.getAllStreamSegmentIds().stream()
-                    .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
+                                            .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
             output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
 
