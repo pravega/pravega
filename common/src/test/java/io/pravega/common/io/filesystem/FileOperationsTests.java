@@ -27,7 +27,6 @@ public class FileOperationsTests {
         // File should successfully be deleted.
         Assert.assertTrue(FileOperations.cleanupDirectories(files));
         // File does not exist, should throw exception.
-        files.put(0, dir);
         Assert.assertFalse(FileOperations.cleanupDirectories(files));
     }
 
