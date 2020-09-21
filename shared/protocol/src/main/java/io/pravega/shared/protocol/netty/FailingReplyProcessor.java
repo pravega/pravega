@@ -207,12 +207,6 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void errorMessage(WireCommands.ErrorMessage errorMessage) {
-        log.warn("Request {} produced an unhandled {} on segment {} : {}",
-                errorMessage.getRequestId(),
-                errorMessage.getErrorCode().getExceptionType().getSimpleName(),
-                errorMessage.getSegment(),
-                errorMessage.getMessage());
-
-        throw errorMessage.getThrowableException();
+        throw new IllegalStateException("Unexpected operation: " + errorMessage);
     }
 }

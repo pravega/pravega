@@ -61,7 +61,11 @@ public class RawClient implements AutoCloseable {
             } else if (reply instanceof WireCommands.WrongHost) {
                 closeConnection(new ConnectionFailedException(reply.toString()));
             } else if (reply instanceof WireCommands.ErrorMessage) {
-                errorMessage((ErrorMessage) reply);
+                ErrorMessage errorMessage = (ErrorMessage) reply;
+                log.info("Received an errorMessage containing an unhandled {} on segment {}",
+                        errorMessage.getErrorCode().getExceptionType().getSimpleName(),
+                        errorMessage.getSegment());
+                closeConnection(errorMessage.getThrowableException());
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
