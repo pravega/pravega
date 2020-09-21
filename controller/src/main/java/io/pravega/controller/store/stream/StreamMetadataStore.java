@@ -999,11 +999,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope scope name
      * @param stream stream name
+     * @param limit maximum number of transactions to include
      * @param context operation context
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
+                                                                                               final int limit,
                                                                                                final OperationContext context,
                                                                                                final ScheduledExecutorService executor);
 
