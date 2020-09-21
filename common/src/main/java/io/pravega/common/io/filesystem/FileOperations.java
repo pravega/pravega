@@ -26,7 +26,6 @@ public class FileOperations {
                 return false;
             }
         }
-        toDelete.clear();
         return true;
     }
 
