@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
@@ -603,11 +602,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
-            val toSerialize = t.realMetadata.getAllStreamSegmentIds()
-                    .stream()
-                    .map(t.realMetadata::getStreamSegmentMetadata)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+            val toSerialize = t.realMetadata.getAllStreamSegmentIds().stream()
+                    .map(t.realMetadata::getStreamSegmentMetadata).collect(Collectors.toList());
             output.writeCollection(toSerialize, this::writeSegmentMetadata00);
         }
 
