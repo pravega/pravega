@@ -119,7 +119,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ReplyProcessor processor = cf.getProcessor(uri);
 
         WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, "segment", "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
+        processor.process(reply);
+        verify(connection).close();
     }
 
 

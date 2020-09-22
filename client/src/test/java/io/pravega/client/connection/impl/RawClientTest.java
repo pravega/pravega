@@ -94,7 +94,8 @@ public class RawClientTest {
 
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
         WireCommands.ErrorMessage reply = new ErrorMessage(requestId, segment.getScopedName(), "error.", ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.process(reply));
+        processor.process(reply);
+        Mockito.verify(connection).close();
     }
 
     @Test
