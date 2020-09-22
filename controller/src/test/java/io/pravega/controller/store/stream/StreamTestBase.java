@@ -121,7 +121,7 @@ public abstract class StreamTestBase {
     }
 
     private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
-        stream.startCommittingTransactions()
+        stream.startCommittingTransactions(100)
                                         .thenCompose(ctr ->
                                                 stream.getVersionedState()
                                                       .thenCompose(state -> stream.updateVersionedState(state, State.COMMITTING_TXN))
@@ -651,7 +651,7 @@ public abstract class StreamTestBase {
         List<StreamSegmentRecord> activeSegmentsBefore = stream.getActiveSegments().join();
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100).join();
         stream.getVersionedState().thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN)).join();
 
         // start rolling transaction
@@ -1508,7 +1508,7 @@ public abstract class StreamTestBase {
         String writer1 = "writer1";
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100).join();
         streamObj.recordCommitOffsets(txnId, Collections.singletonMap(0L, 1L)).join();
         streamObj.generateMarksForTransactions(record.getObject()).join();
 
@@ -1556,7 +1556,7 @@ public abstract class StreamTestBase {
         VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100).join();
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L).join();
 
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100).join();
         streamObj.recordCommitOffsets(txnId1, Collections.singletonMap(0L, 1L)).join();
         streamObj.recordCommitOffsets(txnId2, Collections.singletonMap(0L, 2L)).join();
         streamObj.recordCommitOffsets(txnId3, Collections.singletonMap(0L, 3L)).join();

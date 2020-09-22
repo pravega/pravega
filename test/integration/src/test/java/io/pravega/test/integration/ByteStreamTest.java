@@ -51,6 +51,7 @@ import org.junit.Test;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ByteStreamTest extends LeakDetectorTestSuite {
@@ -280,7 +281,47 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         writer.closeAndSeal();
         assertEquals(-1, reader.read());
     }
-    
+
+    @Test(timeout = 30000)
+    public void testRecreateStream() {
+        String scope = "ByteStreamTest";
+        String stream = "stream";
+
+        StreamConfiguration config = StreamConfiguration.builder().build();
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        // create a scope
+        assertTrue("Create scope failed", streamManager.createScope(scope));
+        // create a stream
+        assertTrue("Create stream failed", streamManager.createStream(scope, stream, config));
+        // verify read and write.
+        verifyByteClientReadWrite(scope, stream);
+        // delete the stream and recreate
+        assertTrue("Seal stream operation failed", streamManager.sealStream(scope, stream));
+        assertTrue("Delete Stream operation failed", streamManager.deleteStream(scope, stream));
+        assertTrue("Recreate stream failed", streamManager.createStream(scope, stream, config));
+        // verify read and write.
+        verifyByteClientReadWrite(scope, stream);
+    }
+
+    private void verifyByteClientReadWrite(String scope, String stream) {
+        @Cleanup
+        ByteStreamClientFactory client = createClientFactory(scope);
+
+        byte[] payload = new byte[100];
+        Arrays.fill(payload, (byte) 1);
+        byte[] readBuffer = new byte[200];
+        Arrays.fill(readBuffer, (byte) 0);
+
+        ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        ByteStreamReader reader = client.createByteStreamReader(stream);
+        AssertExtensions.assertBlocks(() -> {
+            assertEquals(100, reader.read(readBuffer));
+        }, () -> writer.write(payload));
+        assertEquals(1, readBuffer[99]);
+        assertEquals(0, readBuffer[100]);
+    }
+
     ByteStreamClientFactory createClientFactory(String scope) {
         ClientConfig config = ClientConfig.builder().build();
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);

@@ -744,8 +744,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(String scope,
-                                                                                                      String stream, OperationContext context, ScheduledExecutorService executor) {
-        return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(), executor);
+                                                                                                      String stream, int limit, 
+                                                                                                      OperationContext context, ScheduledExecutorService executor) {
+        return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit), executor);
     }
 
     @Override

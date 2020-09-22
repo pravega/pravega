@@ -122,7 +122,7 @@ public class ByteStreamWriterTest {
         @Cleanup
         ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         @Cleanup
-        ByteStreamReader reader =         clientFactory.createByteStreamReader(STREAM);
+        ByteStreamReader reader = clientFactory.createByteStreamReader(STREAM);
 
         ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });
         writer.write(toWrite);
