@@ -454,8 +454,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 containerCount, this.dataLogFactory, this.storageFactory);
 
         // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        for (val containerEntry : debugStreamSegmentContainerMap.entrySet()) {
+            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerEntry.getValue(), executorService())
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerEntry.getKey())
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         // List segments from storage and recover them using debug segment container instance.

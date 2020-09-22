@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -21,8 +22,10 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -112,6 +115,32 @@ public class ContainerRecoveryUtils {
             }
         }
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, DebugStreamSegmentContainer container,
+                                                                              ExecutorService executorService) {
+        Preconditions.checkNotNull(storage);
+        String metadataSegmentName = NameUtils.getMetadataSegmentName(container.getId());
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
+        String timeStamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+        return container.copySegment(storage, metadataSegmentName, "NewMetadataSegment_" + timeStamp + "_" +
+                container.getId(), executorService)
+                .exceptionally(e -> {
+                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                        log.info("Segment '{}' doesn't exist.", metadataSegmentName);
+                        return null;
+                    }
+                    log.error("Error occurred while copying the segment.");
+                    return null;
+                }).thenAcceptAsync(x -> container.copySegment(storage, attributeSegmentName, "NewAttributeSegment" + timeStamp + "_" +
+                        container.getId(), executorService)).exceptionally(e -> {
+                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                        log.info("Segment '{}' doesn't exist.", attributeSegmentName);
+                        return null;
+                    }
+                    log.error("Error occurred while copying the segment.");
+                    return null;
+                });
     }
 
     /**

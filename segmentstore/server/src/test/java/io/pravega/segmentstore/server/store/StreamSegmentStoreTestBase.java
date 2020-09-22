@@ -95,7 +95,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
-    private static final int CONTAINER_COUNT = 4;
+    private static final int CONTAINER_COUNT = 1;
     private static final long DEFAULT_EPOCH = 1;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
@@ -220,9 +220,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-                // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                         context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
@@ -230,6 +227,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 Services.startAsync(localContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 debugStreamSegmentContainerMap.put(containerId, localContainer);
+
+                // BackUp and delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, localContainer, executorService())
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
             // Restore all segments from the long term storage using debug segment container.
