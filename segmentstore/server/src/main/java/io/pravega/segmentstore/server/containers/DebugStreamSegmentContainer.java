@@ -80,10 +80,10 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
                     return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
                             .thenComposeAsync(size -> {
                                 bytesToRead -= size;
-                                return storage.write(targetHandle, offset, new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
-                                        .thenAcceptAsync(r -> {
+                                return (size > 0) ? storage.write(targetHandle, offset, new ByteArrayInputStream(buffer, 0, size),
+                                        size, TIMEOUT).thenAcceptAsync(r -> {
                                             offset += size;
-                                        }, executor);
+                                        }, executor) : null;
                             }, executor);
                 },
                 executor
