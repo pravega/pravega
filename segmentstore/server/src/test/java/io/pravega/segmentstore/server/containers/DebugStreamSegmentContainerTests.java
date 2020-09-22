@@ -252,8 +252,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * The test creates a segment and then writes some data to it. The segment and its contents are then copied to a segment
-     * with different name. At the end, it is verified that the new segment has the accurate contents from the first one.
+     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
+     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
+     * contents from the first one.
      */
     @Test
     public void testCopySegment() throws Exception {
@@ -297,7 +298,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Services.startAsync(localContainer, executorService()).join();
 
         // copy segment
-        localContainer.copySegment(s, sourceSegmentName, targetSegmentName);
+        localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
 
         // new segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());

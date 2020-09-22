@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.storage.Storage;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Defines debug segment container for stream segments.
@@ -33,7 +34,9 @@ public interface DebugSegmentContainer extends SegmentContainer {
      * @param storage                   A storage instance to create the segment.
      * @param sourceSegment             The name of the source segment to copy the contents from.
      * @param targetSegment             The name of the segment to write the contents to.
-     * @throws Exception                In case of an exception occurred while execution.
+     * @param executor                  An Executor for async operations.
+     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
+     * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    void copySegment(Storage storage, String sourceSegment, String targetSegment) throws Exception;
+    CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor);
 }

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -26,13 +27,16 @@ import lombok.val;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 public class DebugStreamSegmentContainer extends StreamSegmentContainer implements DebugSegmentContainer {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int BUFFER_SIZE = 8 * 1024;
+    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
     private final ContainerConfig config;
+    private int bytesToRead;
+    private int offset;
 
     /**
      * Creates a new instance of the DebugStreamSegmentContainer class.
@@ -64,18 +68,25 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     }
 
     @Override
-    public void copySegment(Storage storage, String sourceSegment, String targetSegment)
-            throws Exception {
-        storage.create(targetSegment, TIMEOUT);
-        val info = storage.getStreamSegmentInfo(sourceSegment, TIMEOUT);
-        int bytesToRead = (int) info.get().getLength();
-        int offset = 0;
-        while (bytesToRead > 0) {
-            byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-            int size = storage.read(storage.openRead(sourceSegment).join(), offset, buffer, 0, buffer.length, TIMEOUT).join();
-            bytesToRead -= size;
-            storage.write(storage.openWrite(targetSegment).join(), offset, new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).join();
-            offset += size;
-        }
+    public CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+        val targetHandle = storage.create(targetSegment, TIMEOUT).thenCompose(v -> storage.openWrite(targetSegment)).join();
+        bytesToRead = (int) storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).join().getLength();
+        val sourceHandle = storage.openRead(sourceSegment).join();
+        offset = 0;
+        return Futures.loop(
+                () -> bytesToRead > 0,
+                () -> {
+                    byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
+                    return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
+                            .thenComposeAsync(size -> {
+                                bytesToRead -= size;
+                                return storage.write(targetHandle, offset, new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
+                                        .thenAcceptAsync(r -> {
+                                            offset += size;
+                                        }, executor);
+                            }, executor);
+                },
+                executor
+        );
     }
 }
