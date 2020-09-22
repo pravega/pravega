@@ -724,7 +724,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit) {
         List<Long> toPurge = new ArrayList<>();
         Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
         AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
@@ -767,6 +767,7 @@ public class InMemoryStream extends PersistentStreamBase {
         // ordered position
         List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
                                                                 .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                                .limit(limit)
                                                                 .collect(Collectors.toList());
 
         return CompletableFuture.completedFuture(list);
