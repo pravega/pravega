@@ -9,19 +9,25 @@
  */
 package io.pravega.cli.admin.config;
 
-import io.pravega.cli.admin.AbstractAdminCommandTest;
+import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class ConfigCommandsTest extends AbstractAdminCommandTest {
+import java.util.Properties;
+
+public class ConfigCommandsTest {
 
     @Test
     public void testSetAndListConfigCommands() throws Exception {
-        String commandResult = TestUtils.executeCommand("config list", STATE.get());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", "test");
+        AdminCommandState adminCommandState = new AdminCommandState();
+        adminCommandState.getConfigBuilder().include(pravegaProperties);
+        String commandResult = TestUtils.executeCommand("config list", adminCommandState);
         Assert.assertTrue(commandResult.contains("cli.controller.rest.uri"));
-        TestUtils.executeCommand("config set hello=world", STATE.get());
-        commandResult = TestUtils.executeCommand("config list", STATE.get());
+        TestUtils.executeCommand("config set hello=world", adminCommandState);
+        commandResult = TestUtils.executeCommand("config list", adminCommandState);
         Assert.assertTrue(commandResult.contains("hello=world"));
     }
 

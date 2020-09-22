@@ -60,6 +60,7 @@ public class ZKHostStore implements HostControllerStore {
      * Zookeeper based host store implementation.
      *
      * @param client                    The curator client instance.
+     * @param containerCount            Number of containers in the system.
      */
     @VisibleForTesting
     public ZKHostStore(CuratorFramework client, int containerCount) {

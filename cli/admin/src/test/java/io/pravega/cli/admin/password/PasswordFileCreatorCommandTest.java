@@ -9,7 +9,22 @@
  */
 package io.pravega.cli.admin.password;
 
+import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.utils.TestUtils;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class PasswordFileCreatorCommandTest {
 
-
+    @Test
+    public void testPasswordFileCreatorCommand() throws Exception {
+        final String fileName = "passwordFileTest";
+        TestUtils.executeCommand("password create-password-file " + fileName + " user:password:acl", new AdminCommandState());
+        Assert.assertTrue(Files.exists(Paths.get(fileName)));
+        // Remove generated file by command.
+        Files.delete(Paths.get(fileName));
+    }
 }
