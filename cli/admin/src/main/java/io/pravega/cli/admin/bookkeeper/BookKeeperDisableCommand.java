@@ -59,10 +59,10 @@ public class BookKeeperDisableCommand extends BookKeeperCommand {
         output("BookKeeperLog '%s' is about to be DISABLED.", logId);
         output("\tIts SegmentContainer will shut down and it will not be able to restart until re-enabled.");
         output("\tNo request on this SegmentContainer can be processed until that time (OUTAGE ALERT).");
-        if (!confirmContinue()) {
+        /*if (!confirmContinue()) {
             output("Not disabling anything at this time.");
             return;
-        }
+        }*/
 
         try {
             AtomicInteger count = new AtomicInteger(0);
