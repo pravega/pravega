@@ -11,8 +11,20 @@ package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.common.cluster.Host;
+import io.pravega.controller.store.host.ZKHostStore;
+import lombok.Cleanup;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class ClusterCommandsTest extends AbstractAdminCommandTest {
 
@@ -23,17 +35,34 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotNull(GetClusterNodesCommand.descriptor());
     }
 
-    //@Test
+    @Test
     public void testGetSegmentStoreByContainerCommand() throws Exception {
+        createDummyHostContainerAssignment();
         String commandResult = TestUtils.executeCommand("cluster get-host-by-container 0", STATE.get());
         Assert.assertTrue(commandResult.contains("owner_segment_store"));
         Assert.assertNotNull(GetSegmentStoreByContainerCommand.descriptor());
     }
 
-    //@Test
+    @Test
     public void testListContainersCommand() throws Exception {
+        createDummyHostContainerAssignment();
         String commandResult = TestUtils.executeCommand("cluster list-containers", STATE.get());
         Assert.assertTrue(commandResult.contains("segment_store_container_map"));
         Assert.assertNotNull(ListContainersCommand.descriptor());
+    }
+
+    /**
+     * This method creates a dummy Host-Container mapping, given that it is not created in Pravega standalone.
+     */
+    private void createDummyHostContainerAssignment() {
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
+                .connectString(SETUP_UTILS.getZkTestServer().getConnectString())
+                .retryPolicy(new RetryOneTime(5000)).build();
+        curatorFramework.start();
+        ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
+        Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
+        dummyHostContainerAssignment.put(new Host("localhost", 1234, "localhost"), new HashSet<>(Arrays.asList(0, 1, 2, 3)));
+        zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
     }
 }
