@@ -91,6 +91,13 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         Assert.assertTrue(commandResult.contains("no Ledgers eligible for deletion"));
     }
 
+    @Test
+    public void testBookKeeperRecoveryCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        String commandResult = TestUtils.executeCommand("container recover 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("Recovery complete"));
+    }
+
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
         BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder().with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
