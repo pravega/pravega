@@ -42,9 +42,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
         STATE.set(new AdminCommandState());
         Properties bkProperties = new Properties();
-        bkProperties.setProperty("pravegaservice.containerCount", "4");
-        bkProperties.setProperty("pravegaservice.zkURL", zkUtil.getZooKeeperConnectString());
-        bkProperties.setProperty("bookkeeper.bkLedgerPath", "/ledgers");
+        bkProperties.setProperty("pravegaservice.container.count", "4");
+        bkProperties.setProperty("pravegaservice.zk.connect.uri", zkUtil.getZooKeeperConnectString());
+        bkProperties.setProperty("bookkeeper.ledger.path", "/ledgers");
         STATE.get().getConfigBuilder().include(bkProperties);
     }
 

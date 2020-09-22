@@ -38,10 +38,10 @@ public final class AdminCLIRunner {
      * <p>
      * To speed up setup, create a config.properties file and put the following properties (at a minimum):
      * <p>
-     * pravegaservice.containerCount={number of containers}
-     * pravegaservice.zkURL={host:port for ZooKeeper}
-     * cli.controllerRestUri={host:port for a Controller REST API endpoint}
-     * bookkeeper.bkLedgerPath={path in ZooKeeper where BookKeeper stores Ledger metadata}
+     * pravegaservice.container.count={number of containers}
+     * pravegaservice.zk.connect.uri={host:port for ZooKeeper}
+     * cli.controller.rest.uri={host:port for a Controller REST API endpoint}
+     * bookkeeper.ledger.path={path in ZooKeeper where BookKeeper stores Ledger metadata}
      * <p>
      * This program can be executed in two modes. First, the "interactive mode", in which you may want to point to a
      * config file that contains the previous mandatory configuration parameters:
@@ -52,7 +52,7 @@ public final class AdminCLIRunner {
      *
      * Second, this program can be executed in "batch mode" to execute a single command. To this end, you need to pass
      * as program argument the command to execute and as properties the configuration parameters (-D flag):
-     * ./pravega-cli controller list-scopes -Dpravegaservice.containerCount={value} -Dpravegaservice.zkURL={value} ...
+     * ./pravega-cli controller list-scopes -Dpravegaservice.container.count={value} -Dpravegaservice.zk.connect.uri={value} ...
      *
      * @param args Arguments.
      * @throws Exception If one occurred.
