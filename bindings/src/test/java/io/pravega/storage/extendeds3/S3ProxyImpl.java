@@ -60,7 +60,7 @@ public class S3ProxyImpl extends S3ImplBase {
         properties.setProperty("s3proxy.authorization", "none");
         properties.setProperty("s3proxy.endpoint", endpoint);
         properties.setProperty("jclouds.provider", "filesystem");
-        properties.setProperty("jclouds.filesystem.basedir", "/tmp/s3proxy");
+        properties.setProperty("jclouds.filesystem.basedir", System.getProperty("java.io.tmpdir", "/tmp") + "/s3proxy");
 
         ContextBuilder builder = ContextBuilder
                 .newBuilder("filesystem")
