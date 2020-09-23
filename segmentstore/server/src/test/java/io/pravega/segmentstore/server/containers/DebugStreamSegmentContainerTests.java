@@ -257,7 +257,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCopySegment() throws Exception {
-        int appendCount = 10;
+        int dataSize = 10 * 1024 * 1024;
         // Create a storage.
         @Cleanup
         val baseStorage =  new InMemoryStorage();
@@ -274,16 +274,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         val handle = s.openWrite(sourceSegmentName).join();
 
         // do some writing
-        ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
-        long offset = 0;
-        for (int j = 0; j < appendCount; j++) {
-            byte[] writeData = populate(APPEND_FORMAT.length());
-
-            val dataStream = new ByteArrayInputStream(writeData);
-            s.write(handle, offset, dataStream, writeData.length, TIMEOUT).join();
-            writeStream.write(writeData);
-            offset += writeData.length;
-        }
+        byte[] writeData = populate(dataSize);
+        val dataStream = new ByteArrayInputStream(writeData);
+        s.write(handle, 0, dataStream, writeData.length, TIMEOUT).join();
 
         // create a debug segment container instance
         @Cleanup
@@ -307,17 +300,11 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Do reading on target segment to verify if the copy was successful or not
         val readHandle = s.openRead(targetSegmentName).join();
-        byte[] expectedData = writeStream.toByteArray();
-
-        for (offset = 0; offset < expectedData.length / 2; offset++) {
-            int length = (int) (expectedData.length - 2 * offset);
-            byte[] readBuffer = new byte[length];
-            int bytesRead = s.read(readHandle, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
-                    length, bytesRead);
-            AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
-                    expectedData, (int) offset, readBuffer, 0, bytesRead);
-        }
+        int length = writeData.length;
+        byte[] readBuffer = new byte[length];
+        int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals(String.format("Unexpected number of bytes read."), length, bytesRead);
+        AssertExtensions.assertArrayEquals(String.format("Unexpected read result."), writeData, 0, readBuffer, 0, bytesRead);
     }
 
     private void populate(byte[] data) {
