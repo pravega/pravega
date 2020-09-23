@@ -22,7 +22,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
@@ -69,24 +68,26 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
 
     @Override
     public CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
-        val targetHandle = storage.create(targetSegment, TIMEOUT).thenCompose(v -> storage.openWrite(targetSegment)).join();
-        bytesToRead = (int) storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).join().getLength();
-        val sourceHandle = storage.openRead(sourceSegment).join();
-        offset = 0;
-        return Futures.loop(
-                () -> bytesToRead > 0,
-                () -> {
-                    byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-                    return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
-                            .thenComposeAsync(size -> {
-                                bytesToRead -= size;
-                                return (size > 0) ? storage.write(targetHandle, offset, new ByteArrayInputStream(buffer, 0, size),
-                                        size, TIMEOUT).thenAcceptAsync(r -> {
-                                            offset += size;
-                                        }, executor) : null;
-                            }, executor);
-                },
-                executor
-        );
+        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
+                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
+                    offset = 0;
+                    bytesToRead = (int) info.getLength();
+                    return Futures.loop(
+                            () -> bytesToRead > 0,
+                            () -> {
+                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
+                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
+                                        .thenComposeAsync(size -> {
+                                            bytesToRead -= size;
+                                            return (size > 0) ? storage.write(targetHandle, offset, new
+                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
+                                                        offset += size;
+                                                        }, executor) : null;
+                                            }, executor);
+                                }, executor);
+                });
+            });
+        });
     }
 }

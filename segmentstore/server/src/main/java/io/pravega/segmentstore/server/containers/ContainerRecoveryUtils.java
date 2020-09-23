@@ -117,30 +117,26 @@ public class ContainerRecoveryUtils {
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Copies the contents of container metadata segment and its attribute segment to new segments. The new segments has names
+     * as "NewMetadataSegment" & "NewAttributeSegment" appended with timestamp and container Id.
+     * @param storage           A {@link Storage} instance where segments are stored.
+     * @param container         A {@link DebugStreamSegmentContainer} instance to get the container Id and execute copy Segment.
+     * @param executorService   A thread pool for execution.
+     * @return                  CompletableFuture which when completed will have the segments' contents copied to another segments.
+     */
     public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, DebugStreamSegmentContainer container,
                                                                               ExecutorService executorService) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(container.getId());
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
         String timeStamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
-        return container.copySegment(storage, metadataSegmentName, "NewMetadataSegment_" + timeStamp + "_" +
-                container.getId(), executorService)
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                        log.info("Segment '{}' doesn't exist.", metadataSegmentName);
-                        return null;
-                    }
-                    log.error("Error occurred while copying the segment.");
-                    return null;
-                }).thenAcceptAsync(x -> container.copySegment(storage, attributeSegmentName, "NewAttributeSegment" + timeStamp + "_" +
-                        container.getId(), executorService)).exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                        log.info("Segment '{}' doesn't exist.", attributeSegmentName);
-                        return null;
-                    }
-                    log.error("Error occurred while copying the segment.");
-                    return null;
-                });
+        return Futures.exceptionallyExpecting(
+                container.copySegment(storage, metadataSegmentName, "NewMetadataSegment_" + timeStamp + "_" +
+                        container.getId(), executorService)
+                        .thenAcceptAsync(x -> container.copySegment(storage, attributeSegmentName, "NewAttributeSegment_" +
+                                timeStamp + "_" + container.getId(), executorService)),
+                ex -> ex instanceof StreamSegmentNotExistsException, null);
     }
 
     /**

@@ -453,7 +453,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context,
                 containerCount, this.dataLogFactory, this.storageFactory);
 
-        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+        // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
         for (val containerEntry : debugStreamSegmentContainerMap.entrySet()) {
             ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerEntry.getValue(), executorService())
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

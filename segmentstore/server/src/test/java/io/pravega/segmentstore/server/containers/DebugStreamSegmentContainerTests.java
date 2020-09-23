@@ -52,7 +52,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,7 +78,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
-    private static final int APPENDS_PER_SEGMENT = 10;
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
@@ -257,7 +255,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * contents from the first one.
      */
     @Test
-    public void testCopySegment() throws Exception {
+    public void testCopySegment() {
+        int dataSize = 10 * 1024 * 1024;
         // Create a storage.
         @Cleanup
         val baseStorage =  new InMemoryStorage();
@@ -274,16 +273,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         val handle = s.openWrite(sourceSegmentName).join();
 
         // do some writing
-        ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
-        long offset = 0;
-        for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
-            byte[] writeData = populate(APPEND_FORMAT.length());
-
-            val dataStream = new ByteArrayInputStream(writeData);
-            s.write(handle, offset, dataStream, writeData.length, TIMEOUT).join();
-            writeStream.write(writeData);
-            offset += writeData.length;
-        }
+        byte[] writeData = populate(dataSize);
+        val dataStream = new ByteArrayInputStream(writeData);
+        s.write(handle, 0, dataStream, writeData.length, TIMEOUT).join();
 
         // create a debug segment container instance
         @Cleanup
@@ -300,24 +292,18 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // copy segment
         localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
 
-        // new segment should exist
+        // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
-        // Old segment should exist
+        // target segment should exist
         Assert.assertTrue("Unexpected result for missing segment (no files).", s.exists(targetSegmentName, null).join());
 
-        // Do some reading.
+        // Do reading on target segment to verify if the copy was successful or not
         val readHandle = s.openRead(targetSegmentName).join();
-        byte[] expectedData = writeStream.toByteArray();
-
-        for (offset = 0; offset < expectedData.length / 2; offset++) {
-            int length = (int) (expectedData.length - 2 * offset);
-            byte[] readBuffer = new byte[length];
-            int bytesRead = s.read(readHandle, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-            Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
-                    length, bytesRead);
-            AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
-                    expectedData, (int) offset, readBuffer, 0, bytesRead);
-        }
+        int length = writeData.length;
+        byte[] readBuffer = new byte[length];
+        int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals(String.format("Unexpected number of bytes read."), length, bytesRead);
+        AssertExtensions.assertArrayEquals(String.format("Unexpected read result."), writeData, 0, readBuffer, 0, bytesRead);
     }
 
     private void populate(byte[] data) {
