@@ -129,8 +129,9 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
+    CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) throws Exception {
     return registerTLSSecret()
+            .thenCompose(v -> k8sClient.createSecret(NAMESPACE, getAuthSecret()))
             .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
             NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
             getPravegaOnlyDeployment(zkUri.getAuthority(),
@@ -296,18 +297,22 @@ public abstract class AbstractService implements Service {
         return CompletableFuture.completedFuture(null);
     }
 
-    private static V1Secret getAuthSecret() throws IOException {
+    private static V1Secret getAuthSecret() {
+        log.info("inside getAuthSecret###");
         String data = "";
         String yamlInputPath = "authSecret.yaml";
         try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
             data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         Yaml.addModelMap("v1", "Secret", V1Secret.class);
         V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
+        log.info("yaml value $$$$$$$" + yamlSecret);
         return yamlSecret;
     }
 
-    private CompletableFuture<V1Secret> authSecret() {
+    private CompletableFuture<V1Secret> authGenericSecret() {
         if (!Utils.AUTH_ENABLED) {
             return CompletableFuture.completedFuture(null);
         }
@@ -317,7 +322,7 @@ public abstract class AbstractService implements Service {
             if (existingSecret != null) {
                 Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_AUTH, NAMESPACE));
             }
-            return k8sClient.createSecret(NAMESPACE, authSecret);
+            return k8sClient.createSecret(NAMESPACE, getAuthSecret());
         } catch (Exception e) {
             log.error("Could not register secret: ", e);
         }
