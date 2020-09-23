@@ -22,7 +22,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
