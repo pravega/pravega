@@ -92,6 +92,7 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
     static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
     static final String SECRET_NAME_USED_FOR_TLS = "selfsigned-cert-tls";
+    static final String SECRET_NAME_USED_FOR_AUTH = "password-auth";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
@@ -166,16 +167,21 @@ public abstract class AbstractService implements Service {
                 .put("static", staticTlsSpec)
                 .build();
 
+        final Map<String, Object> authGenericSpec = ImmutableMap.<String, Object>builder()
+                .put("enabled", true)
+                .put("passwordAuthSecret", SECRET_NAME_USED_FOR_AUTH)
+                .build();
+
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", CUSTOM_RESOURCE_API_VERSION)
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec, tlsSpec))
+                .put("spec", buildPravegaClusterSpecWithBookieUri(zkLocation, pravegaSpec, tlsSpec, authGenericSpec))
                 .build();
     }
 
     protected Map<String, Object> buildPravegaClusterSpecWithBookieUri(String zkLocation, Map<String, Object> pravegaSpec,
-                                                                       Map<String, Object> tlsSpec) {
+                                                                       Map<String, Object> tlsSpec, Map<String, Object> authGenericSpec) {
 
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.<String, Object>builder();
         builder.put("zookeeperUri", zkLocation)
@@ -185,6 +191,9 @@ public abstract class AbstractService implements Service {
 
         if (Utils.TLS_AND_AUTH_ENABLED) {
             builder.put("tls", tlsSpec);
+        }
+        if (Utils.AUTH_ENABLED) {
+            builder.put("authentication", authGenericSpec);
         }
         return builder.build();
     }
@@ -275,17 +284,46 @@ public abstract class AbstractService implements Service {
             return CompletableFuture.completedFuture(null);
         }
         try {
-        V1Secret secret = getTLSSecret();
-        V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
-        if (existingSecret != null) {
-            Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
-        }
-        return k8sClient.createSecret(NAMESPACE, secret);
+            V1Secret secret = getTLSSecret();
+            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+            if (existingSecret != null) {
+                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_TLS, NAMESPACE));
+            }
+            return k8sClient.createSecret(NAMESPACE, secret);
         } catch (Exception e) {
             log.error("Could not register secret: ", e);
         }
         return CompletableFuture.completedFuture(null);
     }
+
+    private static V1Secret getAuthSecret() throws IOException {
+        String data = "";
+        String yamlInputPath = "authSecret.yaml";
+        try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
+            data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        }
+        Yaml.addModelMap("v1", "Secret", V1Secret.class);
+        V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
+        return yamlSecret;
+    }
+
+    private CompletableFuture<V1Secret> authSecret() {
+        if (!Utils.AUTH_ENABLED) {
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+            V1Secret authSecret = getAuthSecret();
+            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_AUTH, NAMESPACE));
+            if (existingSecret != null) {
+                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_AUTH, NAMESPACE));
+            }
+            return k8sClient.createSecret(NAMESPACE, authSecret);
+        } catch (Exception e) {
+            log.error("Could not register secret: ", e);
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
