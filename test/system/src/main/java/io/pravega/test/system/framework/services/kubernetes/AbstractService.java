@@ -130,8 +130,7 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props){
-    return registerTLSSecret()
-            .thenCompose(v -> k8sClient.createSecret(NAMESPACE, getAuthSecret()))
+    return authGenericSecret()
             .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
             NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
             getPravegaOnlyDeployment(zkUri.getAuthority(),
