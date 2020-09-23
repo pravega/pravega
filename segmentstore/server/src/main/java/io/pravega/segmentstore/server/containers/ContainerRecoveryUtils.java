@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
