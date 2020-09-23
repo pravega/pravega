@@ -11,39 +11,7 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.openapi.models.V1ConfigMap;
-import io.kubernetes.client.openapi.models.V1ConfigMapBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
-import io.kubernetes.client.openapi.models.V1Container;
-import io.kubernetes.client.openapi.models.V1ContainerBuilder;
-import io.kubernetes.client.openapi.models.V1ContainerPortBuilder;
-import io.kubernetes.client.openapi.models.V1Deployment;
-import io.kubernetes.client.openapi.models.V1DeploymentBuilder;
-import io.kubernetes.client.openapi.models.V1DeploymentSpecBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarBuilder;
-import io.kubernetes.client.openapi.models.V1EnvVarSourceBuilder;
-import io.kubernetes.client.openapi.models.V1LabelSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectFieldSelectorBuilder;
-import io.kubernetes.client.openapi.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.openapi.models.V1PodSpecBuilder;
-import io.kubernetes.client.openapi.models.V1PodTemplateSpecBuilder;
-import io.kubernetes.client.openapi.models.V1Secret;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinition;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionNamesBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionSpecBuilder;
-import io.kubernetes.client.openapi.models.V1beta1CustomResourceDefinitionStatus;
-import io.kubernetes.client.openapi.models.V1beta1PolicyRuleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1Role;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRole;
-import io.kubernetes.client.openapi.models.V1beta1RoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBinding;
-import io.kubernetes.client.openapi.models.V1beta1RoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBindingBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1ClusterRoleBuilder;
-import io.kubernetes.client.openapi.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.openapi.models.V1beta1SubjectBuilder;
+import io.kubernetes.client.openapi.models.*;
 import io.kubernetes.client.util.Yaml;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
@@ -130,7 +98,8 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props){
-    return authGenericSecret()
+    return registerTLSSecret()
+            .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
             .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
             NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
             getPravegaOnlyDeployment(zkUri.getAuthority(),
@@ -328,6 +297,19 @@ public abstract class AbstractService implements Service {
         return CompletableFuture.completedFuture(null);
     }
 
+    private V1Secret authSecret() {
+        Map<String, String>  dataMap = new HashMap<>();
+        dataMap.put("password.txt", "YWRtaW46MzUzMDMwMzAzYTM4MzYzNTM0MzE2MTYxNjQ2NDMyMzE2MTM4MzkzMjM4NjQzNzYxMzgzMTMxMzQzOTYxMzA2MTM4NjQ2NDM3MzQ2MjM2NjU2MjM0NjIzMTMwMzgzNTYzNjIzMDMyMzE2NjY2NjQzNzY0NjMzMjM1NjMzMDM0MzA2MzM0NjE2MjY1M2E2MTY1MzEzNDM4MzkzNDM5MzQzMzMyMzczOTMyMzgzNzMyNjU2MTYxNjQ2NjMyNjEzNDM5NjQzMzY2NjM2MTY0MzkzNDY2NjU2MjY1NjE2NTY0MzA2NDYxMzMzNDM2NjIzNzMxMzE2MzM5MzIzOTM1MzQzMzM1NjI2MzY2NjY2NTY1MzUzNjMzNjM2NjM1NjEzNzM0MzQ2MTY2MzczMzYxMzEzMTMxNjYzMDM4MzAzNjM1MzkzMDM0MzQ2NjM0Mzc2NDMyMzYzOTM5MzA2NDM5Mzk2NTM4NjUzMTYyMzMzNDM4MzU2NDY1MzE2MzMxMzgzMjYzMzMzMTY2NjQ2MTMxOiosUkVBRF9VUERBVEUKdGVzdHJlYWQ6MzUzMDMwMzAzYTYxMzM2MTM2NjYzOTMwMzg2NjMxMzg2MjMxMzIzOTY1NjMzMTM5NjMzNjMyNjM2MzMxMzYzNzM5MzQ2MTY1NjUzNzYzNjQzOTYzNjUzNjYzMzMzNDMwNjIzNjMxMzM2NjM0NjIzNDMxNjIzNTMxNjQzNTY0MzY2NDY1NjY2MzYyM2E2NTYzNjYzNzY1NjE2MjM4NjYzMzY2NjQzMDMzMzI2NjMwNjQ2NDM1NjQzOTYyMzczNjM3Mzg2NTYyMzY2MzY2NjUzMDM4MzgzNDYxMzAzMDM2NjMzODMzNjUzMjYxMzc2MTYzMzIzODMyNjMzNDMzMzc2NjMyNjIzNTY2NjMzNjMyMzc2NDYyNjUzODM4MzEzMjM5MzAzNzM2MzgzOTM1MzAzMjM2NjE2NjYzMzczNzMwMzk2NjMwMzAzNDM4MzMzMDMxNjQzOTYyMzk2NTM5NjMzMjY1NjQzODM4MzY2MTYxMzAzNjMxMzU2MTM1NjIzNDMxMzIzOTM1NjUzMDY1OiosUkVBRAoK");
+        //dataMap.put("VCENTER_PASSWORD", "UEBzc3cwcmQ=");
+        return new V1SecretBuilder()
+                .withStringData(dataMap)
+                .withApiVersion("v1")
+                .withKind("Secret")
+                .withMetadata(new V1ObjectMeta().name(SECRET_NAME_USED_FOR_AUTH))
+                .withType("Opaque")
+                .withStringData(dataMap)
+                .build();
+    }
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
