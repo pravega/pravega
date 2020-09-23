@@ -295,7 +295,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
         // target segment should exist
-        Assert.assertTrue("Unexpected result for missing segment (no files).", s.exists(targetSegmentName, null).join());
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(targetSegmentName, null).join());
 
         // Do reading on target segment to verify if the copy was successful or not
         val readHandle = s.openRead(targetSegmentName).join();

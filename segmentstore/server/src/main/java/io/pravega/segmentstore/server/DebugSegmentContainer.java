@@ -30,11 +30,11 @@ public interface DebugSegmentContainer extends SegmentContainer {
     CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed);
 
     /**
-     * Creates a segment with target segment name and copies the contents of the source segment to the target segment.
+     * Creates a target segment with the given name and copies the contents of the source segment to the target segment.
      * @param storage                   A storage instance to create the segment.
      * @param sourceSegment             The name of the source segment to copy the contents from.
      * @param targetSegment             The name of the segment to write the contents to.
-     * @param executor                  An Executor for async operations.
+     * @param executor                  A thread pool for execution.
      * @return                          A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
