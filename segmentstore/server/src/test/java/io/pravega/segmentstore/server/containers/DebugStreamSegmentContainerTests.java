@@ -256,7 +256,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * contents from the first one.
      */
     @Test
-    public void testCopySegment() throws Exception {
+    public void testCopySegment() {
         int dataSize = 10 * 1024 * 1024;
         // Create a storage.
         @Cleanup
