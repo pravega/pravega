@@ -79,7 +79,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
-    private static final int APPENDS_PER_SEGMENT = 10;
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
@@ -258,6 +257,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testCopySegment() throws Exception {
+        int appendCount = 10;
         // Create a storage.
         @Cleanup
         val baseStorage =  new InMemoryStorage();
@@ -276,7 +276,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // do some writing
         ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
         long offset = 0;
-        for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
+        for (int j = 0; j < appendCount; j++) {
             byte[] writeData = populate(APPEND_FORMAT.length());
 
             val dataStream = new ByteArrayInputStream(writeData);
@@ -300,12 +300,12 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // copy segment
         localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
 
-        // new segment should exist
+        // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
-        // Old segment should exist
+        // target segment should exist
         Assert.assertTrue("Unexpected result for missing segment (no files).", s.exists(targetSegmentName, null).join());
 
-        // Do some reading.
+        // Do reading on target segment to verify if the copy was successful or not
         val readHandle = s.openRead(targetSegmentName).join();
         byte[] expectedData = writeStream.toByteArray();
 
