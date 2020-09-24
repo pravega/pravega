@@ -845,14 +845,14 @@ project('test:system') {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
         commandLine './kubernetes/setupTestPod.sh'
-        environment tier2Type: "nfs"
-        environment "pravegaOperatorVersion": "latest"
-        environment "bookkeeperOperatorVersion": "latest"
-        environment "zookeeperOperatorVersion": "latest"
-        environment "publishedChartName": "pravega"
-        environment "helmRepository": "pravega"
-        environment "desiredPravegaCMVersion": "0.9.0"
-        environment "tlsEnabled": "false"
+        systemProperty "tier2Type", "nfs"
+        systemProperty "bookkeeperOperatorVersion", "latest"
+        systemProperty "zookeeperOperatorVersion", "latest"
+        systemProperty "publishedChartName", "pravega"
+        systemProperty "helmRepository", "pravega"
+        systemProperty "desiredPravegaCMVersion", "0.9.0"
+        systemProperty "tlsEnabled", "false"
+        systemProperty "pravegaOperatorVersion", "latest"
     }
 
     task startK8SystemTests(type: Test) {
