@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -62,6 +63,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 
@@ -255,13 +257,13 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * contents from the first one.
      */
     @Test
-    public void testCopySegment() {
+    public void testCopySegment() throws Exception {
         int dataSize = 10 * 1024 * 1024;
         // Create a storage.
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
         @Cleanup
-        val baseStorage =  new InMemoryStorage();
-        @Cleanup
-        val s = new AsyncStorageWrapper(new RollingStorage(baseStorage, new SegmentRollingPolicy(1)), executorService());
+        Storage s = new AsyncStorageWrapper(new RollingStorage(storageFactory.createSyncStorage(),
+                new SegmentRollingPolicy(1)), executorService());
         s.initialize(1);
         log.info("Created a storage instance");
 
@@ -285,11 +287,13 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Cleanup
         MetadataCleanupContainer localContainer = new MetadataCleanupContainer(0, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService());
         Services.startAsync(localContainer, executorService()).join();
 
-        // copy segment
+        val tableExtension = localContainer.getExtension(ContainerTableExtension.class);
+        tableExtension.createSegment(targetSegmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
         localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
 
         // source segment should exist
