@@ -121,7 +121,6 @@ abstract class TableBucketReader<ResultT> {
                     // Read the Key from the Segment. Copy it out of the Segment to avoid losing it or getting corrupted
                     // values back in case of a cache eviction. See {@link ReadResult#setCopyOnRead(boolean)}.
                     ReadResult readResult = segment.read(offset.get(), getMaxReadLength(), timer.getRemaining());
-                    readResult.setCopyOnRead(true);
                     val reader = getReader(null, offset.get(), timer);
                     AsyncReadResultProcessor.process(readResult, reader, this.executor);
                     return reader.getResult()
@@ -158,7 +157,6 @@ abstract class TableBucketReader<ResultT> {
                     // Read the Key from the Segment. Copy it out of the Segment to avoid losing it or getting corrupted
                     // values back in case of a cache eviction. See {@link ReadResult#setCopyOnRead(boolean)}.
                     ReadResult readResult = this.segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    readResult.setCopyOnRead(true);
                     val reader = getReader(soughtKey, offset.get(), timer);
                     AsyncReadResultProcessor.process(readResult, reader, this.executor);
                     return reader
