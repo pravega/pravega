@@ -48,6 +48,8 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.SubscriberConfiguration;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -58,14 +60,19 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.controller.event.*;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.AddSubscriberEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -276,52 +283,62 @@ public class StreamMetadataTasks extends TaskBase {
      * Needed only for Consumption based retention.
      * @param scope      scope.
      * @param stream     stream name.
-     * @param subscriber  Id of the subscribing ReaderGroup
+     * @param newSubscriber  Id of the ReaderGroup to be added as subscriber
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<AddSubscriberStatus.Status> addSubscriber(String scope, String stream,
-                                                                     String subscriber,
+    public CompletableFuture<UpdateStreamStatus.Status> addSubscriber(String scope, String stream,
+                                                                     String newSubscriber,
                                                                      OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
 
         return streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
-                    if(!exists) {
-                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
+                    if (!exists) {
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_NOT_FOUND);
                     }
                     // 1. get configuration
                     return streamMetadataStore.getSubscribersRecord(scope, stream, context, executor)
-                            .thenCompose(steamSubscribersData -> {
+                            .thenCompose(subscribersData -> {
                                 // 2. post event to start update workflow
-                                if (!steamSubscribersData.getObject().isUpdating()) {
-                                    /*
-                                    return eventHelper.addIndexAndSubmitTask(new AddSubscriberEvent(scope, stream, requestId),
-                                            // 3. update new configuration in the store with updating flag = true
+                                if (!subscribersData.getObject().isUpdating()) {
+                                    return eventHelper.addIndexAndSubmitTask(new AddSubscriberEvent(scope, stream, newSubscriber, requestId),
+                                            // 3. update new subscriber in the store with updating flag = true
                                             // if attempt to update fails, we bail out with no harm done
-
-                                            () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
-                                                    context, executor))
-
+                                            () -> streamMetadataStore.startUpdateSubscribers(scope, stream, newSubscriber,
+                                                    SubscriberConfiguration.EMPTY, context, executor))
                                             // 4. wait for update to complete
-                                            .thenCompose(x -> eventHelper.checkDone(() -> isSubscriberAdded(scope, stream, newConfig, context))
-                                                    .thenApply(y -> AddSubscriberStatus.Status.SUCCESS));
-
-                                             */
-                                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
+                                            .thenCompose(x -> eventHelper.checkDone(() -> isSubscriberAdded(scope, stream, newSubscriber, context))
+                                                    .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                                 } else {
-                                    log.warn(requestId, "Another update in progress for {}/{}",
+                                    log.warn(requestId, "Another subscriber update in progress for {}/{}",
                                             scope, stream);
-                                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.FAILURE);
+                                    return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                                 }
                             })
                             .exceptionally(ex -> {
-                                log.warn(requestId, "Exception thrown in trying to update stream configuration {}",
+                                log.warn(requestId, "Exception thrown in trying to update stream subscriber configuration {}",
                                         ex.getMessage());
-                                //return handleUpdateStreamError(ex, requestId);
-                                return AddSubscriberStatus.Status.FAILURE;
+                                return handleUpdateStreamError(ex, requestId);
                             });
+                });
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Boolean> isSubscriberAdded(String scope, String stream, String newSubscriber, OperationContext context) {
+        CompletableFuture<State> stateFuture = streamMetadataStore.getState(scope, stream, true, context, executor);
+        CompletableFuture<StreamSubscribersRecord> subscribersFuture
+                = streamMetadataStore.getSubscribersRecord(scope, stream, context, executor).thenApply(VersionedMetadata::getObject);
+        return CompletableFuture.allOf(stateFuture, subscribersFuture)
+                .thenApply(v -> {
+                    State state = stateFuture.join();
+                    StreamSubscribersRecord subscribers = subscribersFuture.join();
+                    // if property is updating and doesn't match our request, it's a subsequent update
+                    if (!state.equals(State.UPDATING_SUBSCRIBERS) && !subscribers.isUpdating()) {
+                        return subscribers.contains(newSubscriber);
+                    }
+                    return false;
                 });
     }
 

@@ -40,8 +40,9 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.SubscriberConfiguration;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -164,13 +165,13 @@ public abstract class PersistentStreamBase implements Stream {
      * @return future of operation.
      */
     @Override
-    public CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber) {
+    public CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber, final SubscriberConfiguration subConfig) {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
                     Preconditions.checkArgument(!subscribersRecord.getObject().isUpdating());
-                    StreamSubscribersRecord updated = StreamSubscribersRecord.update(
-                            subscribersRecord.getObject().getSubscribersWithStreamCuts(), newSubscriber);
-                    return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updated, subscribersRecord.getVersion())));
+                    StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.update(
+                            subscribersRecord.getObject().getSubscribersWithConfiguration(), newSubscriber, subConfig);
+                    return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
                 });
     }
 
@@ -183,7 +184,7 @@ public abstract class PersistentStreamBase implements Stream {
         StreamSubscribersRecord current = subscribers.getObject();
         Preconditions.checkNotNull(current);
         if (current.isUpdating()) {
-            StreamSubscribersRecord newSubscribersRecord = StreamSubscribersRecord.complete(current.getSubscribersWithStreamCuts());
+            StreamSubscribersRecord newSubscribersRecord = StreamSubscribersRecord.complete(current.getSubscribersWithConfiguration());
             log.debug("Completing update subscribers for stream {}/{}", scope, name);
             return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(newSubscribersRecord, subscribers.getVersion())));
         } else {

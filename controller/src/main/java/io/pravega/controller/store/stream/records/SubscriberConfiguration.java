@@ -16,49 +16,39 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NonNull;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+import java.io.Serializable;
 
 /**
- * This is data class for storing Subscriber Stream cut with time when the cut was submitted.
+ * The configuration of a Stream Subscriber.
  */
 @Data
-@Slf4j
-public class SubscriberStreamCut {
-    public static final SubscriberStreamCutSerializer SERIALIZER = new SubscriberStreamCutSerializer();
-    public static final SubscriberStreamCut EMPTY = new SubscriberStreamCut(0L, ImmutableMap.of());
+@Builder
+public class SubscriberConfiguration implements Serializable {
+
+    public static final SubscriberConfigurationSerializer SERIALIZER = new SubscriberConfigurationSerializer();
+    public static final SubscriberConfiguration EMPTY = new SubscriberConfiguration(0L, ImmutableMap.of());
+    private static final long serialVersionUID = 1L;
     /**
-     * Time when this stream cut was updated.
+     * Time when this configuration was updated.
      */
-    final long updateTime;
+    private final long updateTime;
+
     /**
-     * Stream cut for truncation
+     * Truncation Stream cut published by this subscriber
      */
-    final ImmutableMap<Long, Long> streamCut;
+    private final ImmutableMap<Long, Long> streamCut;
 
-    @Builder
-    public SubscriberStreamCut(long updateTime, @NonNull ImmutableMap<Long, Long> streamCut) {
-        this.updateTime = updateTime;
-        this.streamCut = streamCut;
-    }
-
-    public Map<Long, Long> getStreamCut() {
-        return Collections.unmodifiableMap(streamCut);
-    }
-
-    private static class SubscriberStreamCutBuilder implements ObjectBuilder<SubscriberStreamCut> {
+    private static class SubscriberConfigurationBuilder implements ObjectBuilder<SubscriberConfiguration> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static SubscriberStreamCut fromBytes(final byte[] data) {
+    public static SubscriberConfiguration fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -67,8 +57,8 @@ public class SubscriberStreamCut {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    static class SubscriberStreamCutSerializer
-            extends VersionedSerializer.WithBuilder<SubscriberStreamCut, SubscriberStreamCut.SubscriberStreamCutBuilder> {
+    static class SubscriberConfigurationSerializer
+            extends VersionedSerializer.WithBuilder<SubscriberConfiguration, SubscriberConfiguration.SubscriberConfigurationBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -78,8 +68,8 @@ public class SubscriberStreamCut {
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
         }
-        
-        private void read00(RevisionDataInput revisionDataInput, SubscriberStreamCutBuilder streamCutRecordBuilder)
+
+        private void read00(RevisionDataInput revisionDataInput, SubscriberConfigurationBuilder streamCutRecordBuilder)
                 throws IOException {
             streamCutRecordBuilder.updateTime(revisionDataInput.readLong());
             ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
@@ -87,15 +77,14 @@ public class SubscriberStreamCut {
             streamCutRecordBuilder.streamCut(streamCutBuilder.build());
         }
 
-        private void write00(SubscriberStreamCut streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(SubscriberConfiguration streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeLong(streamCutRecord.getUpdateTime());
             revisionDataOutput.writeMap(streamCutRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
         }
 
         @Override
-        protected SubscriberStreamCutBuilder newBuilder() {
-            return SubscriberStreamCut.builder();
+        protected SubscriberConfigurationBuilder newBuilder() {
+            return SubscriberConfiguration.builder();
         }
     }
-
 }

@@ -34,6 +34,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AddSubscriberTask;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
@@ -666,6 +667,7 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new AddSubscriberTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -716,6 +718,7 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new AddSubscriberTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -765,6 +768,7 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new AddSubscriberTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -859,6 +863,7 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new AddSubscriberTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -907,6 +912,7 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new AddSubscriberTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";

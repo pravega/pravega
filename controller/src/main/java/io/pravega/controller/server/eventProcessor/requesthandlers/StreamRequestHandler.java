@@ -33,6 +33,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     private final SealStreamTask sealStreamTask;
     private final DeleteStreamTask deleteStreamTask;
     private final TruncateStreamTask truncateStreamTask;
+    private final AddSubscriberTask addSubscriberTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
@@ -40,6 +41,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
                                 TruncateStreamTask truncateStreamTask,
+                                AddSubscriberTask addSubscriberTask,
                                 StreamMetadataStore streamMetadataStore,
                                 ScheduledExecutorService executor) {
         super(streamMetadataStore, executor);
@@ -49,6 +51,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
         this.truncateStreamTask = truncateStreamTask;
+        this.addSubscriberTask = addSubscriberTask;
     }
     
     @Override
@@ -78,7 +81,13 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
 
     @Override
     public CompletableFuture<Void> processAddSubscriberStream(AddSubscriberEvent addSubscriberEvent) {
-        return null;
+        log.info("Processing update request {} for stream {}/{}", addSubscriberEvent.getRequestId(), addSubscriberEvent.getScope(), addSubscriberEvent.getStream());
+        return withCompletion(addSubscriberTask, addSubscriberEvent, addSubscriberEvent.getScope(), addSubscriberEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing add subscriber request {} for stream {}/{} complete", addSubscriberEvent.getRequestId(),
+                                                                    addSubscriberEvent.getScope(), addSubscriberEvent.getStream());
+                });
     }
 
     @Override

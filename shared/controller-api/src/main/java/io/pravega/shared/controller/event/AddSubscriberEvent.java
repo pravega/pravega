@@ -27,6 +27,7 @@ public class AddSubscriberEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
+    private final String newSubscriber;
     private final long requestId;
 
     @Override
@@ -40,7 +41,6 @@ public class AddSubscriberEvent implements ControllerEvent {
     }
 
     //region Serialization
-
     private static class AddSubscriberEventBuilder implements ObjectBuilder<AddSubscriberEvent> {
     }
 
@@ -63,12 +63,14 @@ public class AddSubscriberEvent implements ControllerEvent {
         private void write00(AddSubscriberEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
             target.writeUTF(e.stream);
+            target.writeUTF(e.newSubscriber);
             target.writeLong(e.requestId);
         }
 
         private void read00(RevisionDataInput source, AddSubscriberEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.stream(source.readUTF());
+            b.newSubscriber(source.readUTF());
             b.requestId(source.readLong());
         }
     }

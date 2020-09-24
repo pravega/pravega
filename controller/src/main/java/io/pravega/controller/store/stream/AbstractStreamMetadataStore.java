@@ -24,7 +24,21 @@ import io.pravega.common.lang.Int96;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.index.HostIndex;
-import io.pravega.controller.store.stream.records.*;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.SubscriberConfiguration;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -512,10 +526,18 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> startUpdateSubscribers(final String scope,
                                                             final String name,
-                                                            final StreamConfiguration configuration,
+                                                            final String newSubscriber,
+                                                            final SubscriberConfiguration subConfig,
                                                             final OperationContext context,
                                                             final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).startUpdateConfiguration(configuration), executor);
+        return Futures.completeOn(getStream(scope, name, context).startUpdateSubscribers(newSubscriber, subConfig), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeUpdateSubscribers(final String scope, final String name,
+                                                               final VersionedMetadata<StreamSubscribersRecord> existing,
+                                                               final OperationContext context, final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).completeUpdateSubscribers(existing), executor);
     }
 
     @Override

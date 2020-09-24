@@ -12,7 +12,21 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.*;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.SubscriberConfiguration;
+import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -111,7 +125,7 @@ interface Stream {
      * @param newSubscriber new subscriber for the Stream.
      * @return void
      */
-    CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber);
+    CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber, final SubscriberConfiguration config);
 
     /**
      * Completes an ongoing update subscribers for an existing stream.

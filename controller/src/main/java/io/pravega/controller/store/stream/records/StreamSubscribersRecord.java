@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -37,26 +37,29 @@ public class StreamSubscribersRecord {
 
     public static final StreamSubscribersRecord EMPTY = new StreamSubscribersRecord(ImmutableMap.of(), false);
 
-    /**
-     * Stream cut that is applied as part of this truncation.
-     */
-    private final ImmutableMap<String, SubscriberStreamCut> subscribersWithStreamCuts;
+    private final ImmutableMap<String, SubscriberConfiguration> subscribersWithConfiguration;
     private final boolean updating;
 
     @Builder
-    public StreamSubscribersRecord(@NonNull ImmutableMap<String, SubscriberStreamCut> streamSubcribers, boolean updating) {
-        this.subscribersWithStreamCuts = streamSubcribers;
+    public StreamSubscribersRecord(@NonNull ImmutableMap<String, SubscriberConfiguration> streamSubcribers, boolean updating) {
+        this.subscribersWithConfiguration = streamSubcribers;
         this.updating = updating;
     }
 
-    public static StreamSubscribersRecord update(ImmutableMap<String, SubscriberStreamCut> existingSubscribers, String newSubscriber ) {
-        Map<String, SubscriberStreamCut> streamSubscribers = new HashMap<String, SubscriberStreamCut>();
+    public boolean contains(String subscriber) {
+        Preconditions.checkArgument(subscribersWithConfiguration != null, "Null subscribers for Stream");
+        return subscribersWithConfiguration.containsKey(subscriber);
+    }
+
+    public static StreamSubscribersRecord update(ImmutableMap<String, SubscriberConfiguration> existingSubscribers,
+                                                 String newSubscriber, SubscriberConfiguration config) {
+        Map<String, SubscriberConfiguration> streamSubscribers = new HashMap<String, SubscriberConfiguration>();
         streamSubscribers.putAll(existingSubscribers);
-        streamSubscribers.put(newSubscriber, SubscriberStreamCut.EMPTY);
+        streamSubscribers.put(newSubscriber, config);
         return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers), true);
     }
 
-    public static StreamSubscribersRecord complete(ImmutableMap<String, SubscriberStreamCut> subscribers) {
+    public static StreamSubscribersRecord complete(ImmutableMap<String, SubscriberConfiguration> subscribers) {
         return StreamSubscribersRecord.builder().streamSubcribers(subscribers).updating(false).build();
     }
 
@@ -89,16 +92,16 @@ public class StreamSubscribersRecord {
         private void read00(RevisionDataInput revisionDataInput,
                             StreamSubscribersRecordBuilder recordBuilder)
                 throws IOException {
-            ImmutableMap.Builder<String, SubscriberStreamCut> subscriberStreamCutBuilder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readUTF, SubscriberStreamCut.SERIALIZER::deserialize,
+            ImmutableMap.Builder<String, SubscriberConfiguration> subscriberStreamCutBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readUTF, SubscriberConfiguration.SERIALIZER::deserialize,
                                                                            subscriberStreamCutBuilder);
         }
 
         private void write00(StreamSubscribersRecord streamSubscribersRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
-            revisionDataOutput.writeMap(streamSubscribersRecord.getSubscribersWithStreamCuts(),
+            revisionDataOutput.writeMap(streamSubscribersRecord.getSubscribersWithConfiguration(),
                                          DataOutput::writeUTF,
-                                         SubscriberStreamCut.SERIALIZER::serialize);
+                                         SubscriberConfiguration.SERIALIZER::serialize);
 
         }
 
