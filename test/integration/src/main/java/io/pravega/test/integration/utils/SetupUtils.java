@@ -72,6 +72,7 @@ public final class SetupUtils {
     private final String scope = "scope";
     private final int controllerRPCPort = TestUtils.getAvailableListenPort();
     private final int controllerRESTPort = TestUtils.getAvailableListenPort();
+    @Getter
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
     

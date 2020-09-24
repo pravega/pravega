@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.admin.controller;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.client.ClientConfig;
@@ -122,7 +123,8 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
                 new ArgDescriptor("stream-name", "Name of the Stream to describe."));
     }
 
-    private SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+    @VisibleForTesting
+    protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                                                                    .hostMonitorEnabled(true)
                                                                    .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
