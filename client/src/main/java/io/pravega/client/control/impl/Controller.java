@@ -119,7 +119,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
-     * API to add a Subscriber to the Stream
+     * API to add a Subscriber to the Stream.
      * @param scope Scope name
      * @param streamName Stream name
      * @param readerGroupId Name/Id that uniquely identifies the Reader Group subscribing to the Stream.
