@@ -34,11 +34,11 @@ Unzip the result distribution artifact:
 
 ```
 cd build/distributions/
-tar -xvf pravega-admin-cli.tar
+tar -xzvf pravega-xxx-SNAPSHOT.tar
 ```
 
 You will find the executable file (`pravega-admin`) as well as the default configuration under the
-`pravega-admin` directory.
+`bin` directory.
 
 ## Executing the Pravega Admin CLI
 
@@ -50,7 +50,7 @@ of deploying Pravega in the project's [documentation](http://pravega.io/docs/lat
 
 You can run the Pravega Admin CLI as follows:
 ```
-./bin/pravega-cli
+./bin/pravega-admin
 ```
 You will se an output related to the default configuration parameters available at `conf/config.properties`
 (you may want to change this file according to your setting):
@@ -68,23 +68,24 @@ From that point onwards, you can check the available commands typing `help`:
 ``` 
 > help
 All available commands:
-        bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
-        bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
-        bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
-        bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
-        bk list : Lists all BookKeeper Logs.
-        cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
-        cluster list-containers: Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
-        cluster get-host-by-container: Get the Segment Store host responsible for a given container id.
-        config list : Lists all configuration set during this session.
-        config set <name=value list>: Sets one or more config values for use during this session.
-        container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
-        controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
-        controller describe-scope <scope-name>: Get the details of a given Scope.
-        controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
-        controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
-        controller list-scopes : Lists all the existing scopes in the system.
-        controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
+	bk cleanup : Removes orphan BookKeeper Ledgers that are not used by any BookKeeperLog.
+	bk details <log-id>: Lists metadata details about a BookKeeperLog, including BK Ledger information.
+	bk disable <log-id>: Disables a BookKeeperLog by open-fencing it and updating its metadata in ZooKeeper (with the Enabled flag set to 'false').
+	bk enable <log-id>: Enables a BookKeeperLog by updating its metadata in ZooKeeper (with the Enabled flag set to 'true').
+	bk list : Lists all BookKeeper Logs.
+	cluster get-host-by-container <container-id>: Get the Segment Store host responsible for a given container id.
+	cluster list-containers : Lists all the containers in the Pravega cluster and the Segment Stores responsible for them.
+	cluster list-instances : Lists all nodes in the Pravega cluster (Controllers, Segment Stores).
+	config list : Lists all configuration set during this session.
+	config set <name=value list>: Sets one or more config values for use during this session.
+	container recover <container-id>: Executes a local, non-invasive recovery for a SegmentContainer.
+	controller describe-readergroup <scope-name> <readergroup-id>: Get the details of a given ReaderGroup in a Scope.
+	controller describe-scope <scope-name>: Get the details of a given Scope.
+	controller describe-stream <scope-name> <stream-name>: Get the details of a given Stream.
+	controller list-readergroups <scope-name>: Lists all the existing ReaderGroups in a given Scope.
+	controller list-scopes : Lists all the existing scopes in the system.
+	controller list-streams <scope-name>: Lists all the existing Streams in a given Scope.
+	password create-password-file <filename> <user:passwword:acl>: Generates file with encrypted password using filename and user:password:acl given as argument.
 ```
 And execute any of them:
 ```

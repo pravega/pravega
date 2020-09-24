@@ -43,7 +43,7 @@ public class UserCLIRunner {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
-        System.out.println("Pravega Interactive Demo Tool.");
+        System.out.println("Pravega User CLI Tool.");
         System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool\n");
         val config = InteractiveConfig.getDefault();
 

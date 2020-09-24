@@ -69,7 +69,7 @@ public final class AdminCLIRunner {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
-        System.out.println("Pravega CLI.\n");
+        System.out.println("Pravega Admin CLI.\n");
         @Cleanup
         AdminCommandState state = new AdminCommandState();
         ConfigUtils.loadProperties(state);
