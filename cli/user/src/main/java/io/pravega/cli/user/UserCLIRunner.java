@@ -11,6 +11,7 @@ package io.pravega.cli.user;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import io.pravega.cli.user.config.ConfigCommand;
 import io.pravega.cli.user.config.InteractiveConfig;
@@ -33,6 +34,12 @@ public class UserCLIRunner {
     private static final String CMD_EXIT = "exit";
 
     public static void main(String[] args) {
+        doMain(args);
+        System.exit(0);
+    }
+
+    @VisibleForTesting
+    public static void doMain(String[] args) {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
@@ -51,7 +58,6 @@ public class UserCLIRunner {
             String commandLine = Arrays.stream(args).collect(Collectors.joining(" ", "", ""));
             processCommand(commandLine, config);
         }
-        System.exit(0);
     }
 
     private static void interactiveMode(InteractiveConfig config) {
@@ -66,7 +72,8 @@ public class UserCLIRunner {
         }
     }
 
-    private static void processCommand(String line, InteractiveConfig config) {
+    @VisibleForTesting
+    public static void processCommand(String line, InteractiveConfig config) {
         if (Strings.isNullOrEmpty(line.trim())) {
             return;
         }
@@ -112,7 +119,8 @@ public class UserCLIRunner {
                 d.getDescription()));
     }
 
-    private static void printCommandDetails(Parser.Command command) {
+    @VisibleForTesting
+    public static void printCommandDetails(Parser.Command command) {
         Command.CommandDescriptor d = Command.Factory.getDescriptor(command.getComponent(), command.getName());
         if (d == null) {
             printHelp(command);

@@ -11,8 +11,10 @@ package io.pravega.cli.admin;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -58,6 +60,12 @@ public final class AdminCLIRunner {
      * @throws Exception If one occurred.
      */
     public static void main(String[] args) throws Exception {
+        doMain(args);
+        System.exit(0);
+    }
+
+    @VisibleForTesting
+    public static void doMain(String[] args) throws IOException {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
@@ -77,7 +85,6 @@ public final class AdminCLIRunner {
             String commandLine = Arrays.stream(args).collect(Collectors.joining(" ", "", ""));
             processCommand(commandLine, state);
         }
-        System.exit(0);
     }
 
     private static void interactiveMode(AdminCommandState state) {
@@ -92,7 +99,8 @@ public final class AdminCLIRunner {
         }
     }
 
-    private static void processCommand(String line, AdminCommandState state) {
+    @VisibleForTesting
+    public static void processCommand(String line, AdminCommandState state) {
         if (Strings.isNullOrEmpty(line.trim())) {
             return;
         }
@@ -138,7 +146,8 @@ public final class AdminCLIRunner {
                 d.getDescription()));
     }
 
-    private static void printCommandDetails(Parser.Command command) {
+    @VisibleForTesting
+    public static void printCommandDetails(Parser.Command command) {
         AdminCommand.CommandDescriptor d = AdminCommand.Factory.getDescriptor(command.getComponent(), command.getName());
         if (d == null) {
             printHelp(command);
