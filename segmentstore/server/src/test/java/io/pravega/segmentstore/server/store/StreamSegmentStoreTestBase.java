@@ -40,6 +40,7 @@ import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTest
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
@@ -99,7 +100,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final long DEFAULT_EPOCH = 1;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
-    private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration TIMEOUT = Duration.ofSeconds(600);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -207,8 +208,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished waiting for segments in Storage.");
 
             // Get the persistent storage from readOnlySegmentStore.
+            StorageFactory storageFactory = builder.createStorageFactory();
             @Cleanup
-            Storage storage = builder.createStorageFactory().createStorageAdapter();
+            Storage storage = storageFactory.createStorageAdapter();
             storage.initialize(DEFAULT_EPOCH);
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
@@ -219,27 +221,50 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
+            Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-                DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
-                        DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                        context.getDefaultExtensions(), executorService());
-
-                Services.startAsync(localContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                debugStreamSegmentContainerMap.put(containerId, localContainer);
-
                 // BackUp and delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, localContainer, executorService())
+                String backUpMetadataSegment = "New_" + containerId;
+                String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+                int containerId1 = segToConMapper.getContainerId(backUpAttributeSegment);
+                int containerId2 = segToConMapper.getContainerId(backUpAttributeSegment);
+                log.info("Original container Id: {}, new container Ids {}, {}", containerId, containerId1, containerId2);
+                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId, backUpMetadataSegment, backUpAttributeSegment, executorService())
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
 
+            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
+                DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
+                        DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                        context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                        context.getDefaultExtensions(), executorService());
+
+                Services.startAsync(localContainer, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                debugStreamSegmentContainerMap.put(containerId, localContainer);
+
+
+//                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
+//                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+//                backUpMetadataSegments.put(containerId, backUpMetadataSegment);
+//                val tableExtension = localContainer.getExtension(ContainerTableExtension.class);
+//                tableExtension.createSegment(backUpMetadataSegment, TIMEOUT).join();
+
+//                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, localContainer, backUpMetadataSegment,
+//                        backUpAttributeSegment, executorService())
+//                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+//                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
+//                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
+
             // Restore all segments from the long term storage using debug segment container.
             ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
+            //ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
+
             // Verify that segment details match post restoration.
-            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
             for (String segment : segmentNames) {
                 int containerId = segToConMapper.getContainerId(segment);
                 SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT)

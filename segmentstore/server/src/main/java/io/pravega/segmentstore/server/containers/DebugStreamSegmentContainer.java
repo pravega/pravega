@@ -65,29 +65,4 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
     }
-
-    @Override
-    public CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
-        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
-            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
-                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
-                    offset = 0;
-                    bytesToRead = (int) info.getLength();
-                    return Futures.loop(
-                            () -> bytesToRead > 0,
-                            () -> {
-                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
-                                        .thenComposeAsync(size -> {
-                                            bytesToRead -= size;
-                                            return (size > 0) ? storage.write(targetHandle, offset, new
-                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
-                                                        offset += size;
-                                                        }, executor) : null;
-                                            }, executor);
-                                }, executor);
-                });
-            });
-        });
-    }
 }

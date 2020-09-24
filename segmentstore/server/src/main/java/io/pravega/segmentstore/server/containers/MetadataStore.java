@@ -724,13 +724,17 @@ public abstract class MetadataStore implements AutoCloseable {
                     .build());
         }
 
+        static SegmentInfo oldSegment(BufferView bufferView) {
+            return deserialize(bufferView);
+        }
+
         @SneakyThrows(IOException.class)
         static ArrayView serialize(SegmentInfo state) {
             return SERIALIZER.serialize(state);
         }
 
         @SneakyThrows(IOException.class)
-        static SegmentInfo deserialize(BufferView contents) {
+        static public SegmentInfo deserialize(BufferView contents) {
             try {
                 return SERIALIZER.deserialize(contents);
             } catch (EOFException | SerializationException ex) {

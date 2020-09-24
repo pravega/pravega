@@ -38,5 +38,5 @@ public interface DebugSegmentContainer extends SegmentContainer {
      * @return                          A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor);
+    //CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor);
 }

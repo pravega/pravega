@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -258,15 +259,15 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testCopySegment() {
         int dataSize = 10 * 1024 * 1024;
         // Create a storage.
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
         @Cleanup
-        val baseStorage =  new InMemoryStorage();
-        @Cleanup
-        val s = new AsyncStorageWrapper(new RollingStorage(baseStorage, new SegmentRollingPolicy(1)), executorService());
+        Storage s = new AsyncStorageWrapper(new RollingStorage(storageFactory.createSyncStorage(),
+                new SegmentRollingPolicy(1)), executorService());
         s.initialize(1);
         log.info("Created a storage instance");
 
-        String sourceSegmentName = "segment-" + RANDOM.nextInt();
-        String targetSegmentName = "segment-" + RANDOM.nextInt();
+        String sourceSegmentName = "segment-source"; //+ RANDOM.nextInt();
+        String targetSegmentName = "segment-target"; //+ RANDOM.nextInt();
 
         // Create source segment
         s.create(sourceSegmentName, TIMEOUT).join();
@@ -285,12 +286,18 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Cleanup
         MetadataCleanupContainer localContainer = new MetadataCleanupContainer(0, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService());
         Services.startAsync(localContainer, executorService()).join();
 
+        val tableExtension = localContainer.getExtension(ContainerTableExtension.class);
+        tableExtension.createSegment(targetSegmentName, TIMEOUT).join();
+
         // copy segment
-        localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
+        ContainerRecoveryUtils.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
+
+        //val info1 = localContainer.getStreamSegmentInfo(sourceSegmentName, TIMEOUT).join();
+        //val info2 = localContainer.getStreamSegmentInfo(targetSegmentName, TIMEOUT).join();
 
         // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());

@@ -11,6 +11,9 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
@@ -21,21 +24,27 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.ByteArrayInputStream;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
+import static io.pravega.shared.NameUtils.segmentTags;
 
 /**
  * Utility methods for container recovery.
@@ -43,7 +52,9 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 @Slf4j
 public class ContainerRecoveryUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-
+    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
+    private static int bytesToRead;
+    private static int offset;
     /**
      * Recovers Segments from the given Storage instance. This is done by:
      * 1. Listing all Segments from the given Storage instance and partitioning them by their assigned Container Id using
@@ -93,6 +104,7 @@ public class ContainerRecoveryUtils {
         while (segmentIterator.hasNext()) {
             val currentSegment = segmentIterator.next();
 
+
             // skip recovery if the segment is an attribute segment.
             if (NameUtils.isAttributeSegment(currentSegment.getName())) {
                 continue;
@@ -117,25 +129,84 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * Copies the contents of container metadata segment and its attribute segment to new segments. The new segments has names
-     * as "NewMetadataSegment" & "NewAttributeSegment" appended with timestamp and container Id.
-     * @param storage           A {@link Storage} instance where segments are stored.
-     * @param container         A {@link DebugStreamSegmentContainer} instance to get the container Id and execute copy Segment.
-     * @param executorService   A thread pool for execution.
-     * @return                  CompletableFuture which when completed will have the segments' contents copied to another segments.
+     * Copies the contents of container metadata segment and its attribute segment to new segments. The new names to the segments
+     * are passed as parameters.
+     * @param storage                    A {@link Storage} instance where segments are stored.
+     * @param containerId                 A {@link DebugStreamSegmentContainer} instance to get the container Id and execute copy Segment.
+     * @param backUpMetadataSegmentName  A name to the back up metadata segment.
+     * @param backUpAttributeSegmentName A name to the back attribute segment.
+     * @param executorService            A thread pool for execution.
+     * @return                           CompletableFuture which when completed will have the segments' contents copied to another segments.
      */
-    public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, DebugStreamSegmentContainer container,
-                                                                              ExecutorService executorService) {
+    public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
+                                                                             String backUpMetadataSegmentName,
+                                                                             String backUpAttributeSegmentName,
+                                                                             ExecutorService executorService) {
         Preconditions.checkNotNull(storage);
-        String metadataSegmentName = NameUtils.getMetadataSegmentName(container.getId());
+        String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        String timeStamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
         return Futures.exceptionallyExpecting(
-                container.copySegment(storage, metadataSegmentName, "NewMetadataSegment_" + timeStamp + "_" +
-                        container.getId(), executorService)
-                        .thenAcceptAsync(x -> container.copySegment(storage, attributeSegmentName, "NewAttributeSegment_" +
-                                timeStamp + "_" + container.getId(), executorService)),
+                copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService)
+                        .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
+                                executorService)),
                 ex -> ex instanceof StreamSegmentNotExistsException, null);
+    }
+
+    public static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
+                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
+                    offset = 0;
+                    bytesToRead = (int) info.getLength();
+                    return Futures.loop(
+                            () -> bytesToRead > 0,
+                            () -> {
+                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
+                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
+                                        .thenComposeAsync(size -> {
+                                            bytesToRead -= size;
+                                            return (size > 0) ? storage.write(targetHandle, offset, new
+                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
+                                                offset += size;
+                                            }, executor) : null;
+                                        }, executor);
+                            }, executor);
+                });
+            });
+        });
+    }
+
+    public static void updateCoreAttributes(Map<Integer, String> metadataSegments,
+                                                               Map<Integer, DebugStreamSegmentContainer> containersMap,
+                                                               ExecutorService executorService)
+            throws Exception {
+        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
+        for (val metadataEntry : metadataSegments.entrySet()) {
+            val container = containersMap.get(segToConMapper.getContainerId(metadataEntry.getValue()));
+            log.info("container id: {}, segment Name: {}", container.getId(), metadataEntry.getValue());
+            val tableExtension = container.getExtension(ContainerTableExtension.class);
+            val keyIterator = tableExtension.keyIterator(metadataEntry.getValue(), args)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Store the segments in a set
+            val hashes = new HashSet<BufferView>();
+            keyIterator.forEachRemaining(item -> {
+                hashes.add(item.getState());
+            }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            for (val segment : hashes) {
+                val segmentInfo = MetadataStore.SegmentInfo.deserialize(segment);
+                val properties = segmentInfo.getProperties();
+                List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
+                        .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                        .collect(Collectors.toList());
+                container.getStreamSegmentInfo(properties.getName(), TIMEOUT)
+                        .thenAccept(x -> {
+                            container.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT);
+                        }).join();
+            }
+        }
     }
 
     /**
@@ -185,16 +256,20 @@ public class ContainerRecoveryUtils {
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            try {
+                val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+                        containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            // Store the segments in a set
-            Set<String> metadataSegments = new HashSet<>();
-            keyIterator.forEachRemaining(k ->
-                    metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
-                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
+                // Store the segments in a set
+                Set<String> metadataSegments = new HashSet<>();
+                keyIterator.forEachRemaining(k ->
+                        metadataSegments.addAll(k.getEntries().stream()
+                                .map(entry -> entry.getKey().toString())
+                                .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
+            } catch (Exception e) {
+                continue;
+            }
         }
         return metadataSegmentsMap;
     }
@@ -220,7 +295,7 @@ public class ContainerRecoveryUtils {
         boolean isSealed = storageSegment.isSealed();
         String segmentName = storageSegment.getName();
 
-        log.info("Registering: {}, {}, {}.", segmentName, segmentLength, isSealed);
+        log.info("Registering: {}, {}, {}, {}.", segmentName, segmentLength, isSealed, container.getId());
         return Futures.exceptionallyComposeExpecting(
                 container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
                         .thenCompose(e -> {

@@ -52,6 +52,7 @@ import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
@@ -454,15 +455,24 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 containerCount, this.dataLogFactory, this.storageFactory);
 
         // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
-        for (val containerEntry : debugStreamSegmentContainerMap.entrySet()) {
-            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerEntry.getValue(), executorService())
+        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            String backUpMetadataSegment = "New_" + containerId; //NameUtils.getMetadataSegmentName(containerId) + "_1234";
+            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+            backUpMetadataSegments.put(containerId, backUpMetadataSegment);
+
+            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                    backUpMetadataSegment, backUpAttributeSegment, executorService())
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerEntry.getKey())
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         // List segments from storage and recover them using debug segment container instance.
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
+
+        // Update core attributes from the backUp Metadata segments
+        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
 
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap, storage);
