@@ -11,92 +11,100 @@ package io.pravega.cli.user.kvs;
 
 import io.pravega.cli.user.AbstractUserCommandTest;
 import io.pravega.cli.user.CommandArgs;
+import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 10000)
-    public void testCreateKVT() {
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList("createKVTable"), CONFIG.get());
-        new ScopeCommand.Create(commandArgs).execute();
+    public void testCreateKVT() throws Exception {
+        final String scope = "createKVTable";
+        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
+        String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG.get());
+        Assert.assertTrue(commandResult.contains("created successfully"));
 
-        commandArgs = new CommandArgs(Arrays.asList("createKVTable/kvt1", "createKVTable/kvt2", "createKVTable/kvt3"), CONFIG.get());
-        new KeyValueTableCommand.Create(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt create " + table, CONFIG.get());
+        Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Create.descriptor());
     }
 
     @Test(timeout = 20000)
-    public void testDeleteKVT() {
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList("deleteKVTable"), CONFIG.get());
+    public void testDeleteKVT() throws Exception {
+        final String scope = "deleteKVTable";
+        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
         new ScopeCommand.Create(commandArgs).execute();
 
-        commandArgs = new CommandArgs(Collections.singletonList("deleteKVTable/kvt1"), CONFIG.get());
+        commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG.get());
         new KeyValueTableCommand.Create(commandArgs).execute();
 
-        new KeyValueTableCommand.Delete(commandArgs).execute();
+        String commandResult = TestUtils.executeCommand("kvt delete " + table, CONFIG.get());
+        Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Delete.descriptor());
     }
 
     @Test(timeout = 10000)
-    public void testListKVT() {
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList("listKVTable"), CONFIG.get());
+    public void testListKVT() throws Exception {
+        final String scope = "listKVTable";
+        final String table = scope + "/kvt1";
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
         new ScopeCommand.Create(commandArgs).execute();
 
-        CommandArgs commandArgsCreate = new CommandArgs(Arrays.asList("listKVTable/kvt1", "listKVTable/kvt2", "listKVTable/kvt3"), CONFIG.get());
+        CommandArgs commandArgsCreate = new CommandArgs(Collections.singletonList(table), CONFIG.get());
         new KeyValueTableCommand.Create(commandArgsCreate).execute();
 
-        new KeyValueTableCommand.ListKVTables(commandArgs).execute();
+        String commandResult = TestUtils.executeCommand("kvt list " + scope, CONFIG.get());
+        Assert.assertTrue(commandResult.contains("kvt1"));
         Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
     }
 
     @Test(timeout = 60000)
     public void testPutAndGetKVT() throws Exception {
-        String scope = "putAndGetKVTable";
-        String scopedStreamName = NameUtils.getScopedStreamName(scope, "kvt1");
+        final String scope = "putAndGetKVTable";
+        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
         new ScopeCommand.Create(commandArgs).execute();
-        commandArgs = new CommandArgs(Collections.singletonList(scopedStreamName), CONFIG.get());
+        commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG.get());
         new KeyValueTableCommand.Create(commandArgs).execute();
 
         // Exercise puts first.
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "key1", "value1"), CONFIG.get());
-        new KeyValueTableCommand.Put(commandArgs).execute();
+        String commandResult = TestUtils.executeCommand("kvt put " + table + " key-family-1 key1 value1", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("updated successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Put.descriptor());
 
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "key1", "1:1", "value1"), CONFIG.get());
-        new KeyValueTableCommand.PutIf(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt put-if " + table + " key-family-1 key1 0:0 value2", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("BadKeyVersionException"));
         Assert.assertNotNull(KeyValueTableCommand.PutIf.descriptor());
 
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "key2", "value1"), CONFIG.get());
-        new KeyValueTableCommand.PutIfAbsent(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt put-if-absent " + table + " key-family-1 key2 value1", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("inserted successfully"));
         Assert.assertNotNull(KeyValueTableCommand.PutIfAbsent.descriptor());
 
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "{[[key1, value1]]}"), CONFIG.get());
-        new KeyValueTableCommand.PutAll(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt put-all " + table + " key-family-1 {[[key3, value2]]}", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Updated"));
         Assert.assertNotNull(KeyValueTableCommand.PutAll.descriptor());
 
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "1", "2"), CONFIG.get());
-        new KeyValueTableCommand.PutRange(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt put-range " + table + " key-family-1 1 2", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Bulk-updated"));
         Assert.assertNotNull(KeyValueTableCommand.PutRange.descriptor());
 
         // Exercise list commands.
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1"), CONFIG.get());
-        new KeyValueTableCommand.ListKeys(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt list-keys " + table + " key-family-1", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("key1"));
         Assert.assertNotNull(KeyValueTableCommand.ListKeys.descriptor());
 
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1"), CONFIG.get());
-        new KeyValueTableCommand.ListEntries(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt list-entries " + table + " key-family-1", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("value1"));
         Assert.assertNotNull(KeyValueTableCommand.ListEntries.descriptor());
 
         // Exercise Remove commands.
-        commandArgs = new CommandArgs(Arrays.asList(scopedStreamName, "key-family-1", "{[[key1]]}"), CONFIG.get());
-        new KeyValueTableCommand.Remove(commandArgs).execute();
+        commandResult = TestUtils.executeCommand("kvt remove " + table + " key-family-1 {[[key1]]}", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Removed"));
         Assert.assertNotNull(KeyValueTableCommand.Remove.descriptor());
     }
 

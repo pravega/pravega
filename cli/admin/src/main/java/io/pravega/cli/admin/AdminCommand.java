@@ -143,13 +143,6 @@ public abstract class AdminCommand {
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
     }
 
-    protected boolean confirmContinue() {
-        output("Do you want to continue?[yes|no]");
-        Scanner s = new Scanner(System.in);
-        String input = s.nextLine();
-        return input.equals("yes");
-    }
-
     //endregion
 
     //region Arguments

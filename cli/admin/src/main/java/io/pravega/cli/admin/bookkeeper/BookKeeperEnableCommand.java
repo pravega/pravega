@@ -48,10 +48,6 @@ public class BookKeeperEnableCommand extends BookKeeperCommand {
         }
 
         output("BookKeeperLog '%s' is about to be ENABLED.", logId);
-        /*if (!confirmContinue()) {
-            output("Not enabling anything at this time.");
-            return;
-        }*/
 
         try {
             log.enable();
