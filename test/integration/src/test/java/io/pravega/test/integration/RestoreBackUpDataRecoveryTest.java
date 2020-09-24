@@ -64,6 +64,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -456,14 +457,25 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            String backUpMetadataSegment = "New_" + containerId; //NameUtils.getMetadataSegmentName(containerId) + "_1234";
+            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + "_1234";
             String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
             backUpMetadataSegments.put(containerId, backUpMetadataSegment);
 
-            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+            val container = debugStreamSegmentContainerMap.get(segToConMapper.getContainerId(backUpMetadataSegment));
+            val tableExtension = container.getExtension(ContainerTableExtension.class);
+            tableExtension.createSegment(backUpMetadataSegment, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            tableExtension.createSegment(backUpAttributeSegment, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId, debugStreamSegmentContainerMap,
                     backUpMetadataSegment, backUpAttributeSegment, executorService())
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(Collections.singleton(backUpMetadataSegment), debugStreamSegmentContainerMap.get(containerId),
+                    storage)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
             ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
@@ -472,7 +484,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
         // Update core attributes from the backUp Metadata segments
-        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
+        // ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
 
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap, storage);

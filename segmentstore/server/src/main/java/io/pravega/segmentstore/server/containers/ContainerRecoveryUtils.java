@@ -139,12 +139,14 @@ public class ContainerRecoveryUtils {
      * @return                           CompletableFuture which when completed will have the segments' contents copied to another segments.
      */
     public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
+                                                                             Map<Integer, DebugStreamSegmentContainer> containerMap,
                                                                              String backUpMetadataSegmentName,
                                                                              String backUpAttributeSegmentName,
-                                                                             ExecutorService executorService) {
+                                                                             ExecutorService executorService) throws Exception {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
+
         return Futures.exceptionallyExpecting(
                 copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService)
                         .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
