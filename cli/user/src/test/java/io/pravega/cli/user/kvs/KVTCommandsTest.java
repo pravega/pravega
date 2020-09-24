@@ -102,6 +102,11 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         Assert.assertTrue(commandResult.contains("value1"));
         Assert.assertNotNull(KeyValueTableCommand.ListEntries.descriptor());
 
+        // Exercise Get command.
+        commandResult = TestUtils.executeCommand("kvt get " + table + " key-family-1 \"{[key1, key2]}\"", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Get"));
+        Assert.assertNotNull(KeyValueTableCommand.Get.descriptor());
+
         // Exercise Remove commands.
         commandResult = TestUtils.executeCommand("kvt remove " + table + " key-family-1 {[[key1]]}", CONFIG.get());
         Assert.assertTrue(commandResult.contains("Removed"));
