@@ -45,7 +45,6 @@ public abstract class AbstractService implements Service {
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
-    static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
     static final int ZKPORT = 2181;
 
     static final int SEGMENTSTORE_PORT = 12345;
@@ -58,12 +57,10 @@ public abstract class AbstractService implements Service {
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
     static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
-    static final String PRAVEGA_CONTROLLER_CONFIG_MAP = "pravega-pravega-controller";
     static final String SECRET_NAME_USED_FOR_TLS = "selfsigned-cert-tls";
     static final String SECRET_NAME_USED_FOR_AUTH = "password-auth";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
-    static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
     static final String BOOKKEEPER_ID = "pravega-bk";
     static final String CUSTOM_RESOURCE_GROUP_BOOKKEEPER = "bookkeeper.pravega.io";
@@ -78,7 +75,6 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private static final String WEBHOOK_CERT_GENERATE = "webhookCert.generate";
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
     private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
@@ -265,42 +261,9 @@ public abstract class AbstractService implements Service {
         return CompletableFuture.completedFuture(null);
     }
 
-    private static V1Secret getAuthSecret() {
-        log.info("inside getAuthSecret###");
-        String data = "";
-        String yamlInputPath = "authSecret.yaml";
-        try (InputStream inputStream = Utils.class.getClassLoader().getResourceAsStream(yamlInputPath)) {
-            data = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        Yaml.addModelMap("v1", "Secret", V1Secret.class);
-        V1Secret yamlSecret = (V1Secret) Yaml.loadAs(data, V1Secret.class);
-        log.info("yaml value $$$$$$$" + yamlSecret);
-        return yamlSecret;
-    }
-
-    private CompletableFuture<V1Secret> authGenericSecret() {
-        if (!Utils.AUTH_ENABLED) {
-            return CompletableFuture.completedFuture(null);
-        }
-        try {
-            V1Secret authSecret = getAuthSecret();
-            V1Secret existingSecret  = Futures.getThrowingException(k8sClient.getSecret(SECRET_NAME_USED_FOR_AUTH, NAMESPACE));
-            if (existingSecret != null) {
-                Futures.getThrowingException(k8sClient.deleteSecret(SECRET_NAME_USED_FOR_AUTH, NAMESPACE));
-            }
-            return k8sClient.createSecret(NAMESPACE, getAuthSecret());
-        } catch (Exception e) {
-            log.error("Could not register secret: ", e);
-        }
-        return CompletableFuture.completedFuture(null);
-    }
-
     private V1Secret authSecret() {
         Map<String, String>  dataMap = new HashMap<>();
         dataMap.put("password.txt", "YWRtaW46MzUzMDMwMzAzYTM4MzYzNTM0MzE2MTYxNjQ2NDMyMzE2MTM4MzkzMjM4NjQzNzYxMzgzMTMxMzQzOTYxMzA2MTM4NjQ2NDM3MzQ2MjM2NjU2MjM0NjIzMTMwMzgzNTYzNjIzMDMyMzE2NjY2NjQzNzY0NjMzMjM1NjMzMDM0MzA2MzM0NjE2MjY1M2E2MTY1MzEzNDM4MzkzNDM5MzQzMzMyMzczOTMyMzgzNzMyNjU2MTYxNjQ2NjMyNjEzNDM5NjQzMzY2NjM2MTY0MzkzNDY2NjU2MjY1NjE2NTY0MzA2NDYxMzMzNDM2NjIzNzMxMzE2MzM5MzIzOTM1MzQzMzM1NjI2MzY2NjY2NTY1MzUzNjMzNjM2NjM1NjEzNzM0MzQ2MTY2MzczMzYxMzEzMTMxNjYzMDM4MzAzNjM1MzkzMDM0MzQ2NjM0Mzc2NDMyMzYzOTM5MzA2NDM5Mzk2NTM4NjUzMTYyMzMzNDM4MzU2NDY1MzE2MzMxMzgzMjYzMzMzMTY2NjQ2MTMxOiosUkVBRF9VUERBVEUKdGVzdHJlYWQ6MzUzMDMwMzAzYTYxMzM2MTM2NjYzOTMwMzg2NjMxMzg2MjMxMzIzOTY1NjMzMTM5NjMzNjMyNjM2MzMxMzYzNzM5MzQ2MTY1NjUzNzYzNjQzOTYzNjUzNjYzMzMzNDMwNjIzNjMxMzM2NjM0NjIzNDMxNjIzNTMxNjQzNTY0MzY2NDY1NjY2MzYyM2E2NTYzNjYzNzY1NjE2MjM4NjYzMzY2NjQzMDMzMzI2NjMwNjQ2NDM1NjQzOTYyMzczNjM3Mzg2NTYyMzY2MzY2NjUzMDM4MzgzNDYxMzAzMDM2NjMzODMzNjUzMjYxMzc2MTYzMzIzODMyNjMzNDMzMzc2NjMyNjIzNTY2NjMzNjMyMzc2NDYyNjUzODM4MzEzMjM5MzAzNzM2MzgzOTM1MzAzMjM2NjE2NjYzMzczNzMwMzk2NjMwMzAzNDM4MzMzMDMxNjQzOTYyMzk2NTM5NjMzMjY1NjQzODM4MzY2MTYxMzAzNjMxMzU2MTM1NjIzNDMxMzIzOTM1NjUzMDY1OiosUkVBRAoK");
-        //dataMap.put("VCENTER_PASSWORD", "UEBzc3cwcmQ=");
         return new V1SecretBuilder()
                 .withStringData(dataMap)
                 .withApiVersion("v1")
