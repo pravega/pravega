@@ -841,18 +841,16 @@ project('test:system') {
         onlyIf { dockerRegistryUrl && repoUrl }
     }
 
+        def tier2Type() {
+        return System.getProperty("tier2Type", "nfs")
+    }
+
     task copyTestsToK8sCluster(type: Exec) {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
         commandLine './kubernetes/setupTestPod.sh'
-        systemProperty "tier2Type", "nfs"
-        systemProperty "bookkeeperOperatorVersion", "latest"
-        systemProperty "zookeeperOperatorVersion", "latest"
-        systemProperty "publishedChartName", "pravega"
-        systemProperty "helmRepository", "pravega"
-        systemProperty "desiredPravegaCMVersion", "0.9.0"
-        systemProperty "tlsEnabled", "false"
-        systemProperty "pravegaOperatorVersion", "latest"
+        environment "tier2Type", System.getProperty("tier2Type", "nfs")
+        environment "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
     }
 
     task startK8SystemTests(type: Test) {
