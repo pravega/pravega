@@ -841,10 +841,6 @@ project('test:system') {
         onlyIf { dockerRegistryUrl && repoUrl }
     }
 
-        def tier2Type() {
-        return System.getProperty("tier2Type", "nfs")
-    }
-
     task copyTestsToK8sCluster(type: Exec) {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
