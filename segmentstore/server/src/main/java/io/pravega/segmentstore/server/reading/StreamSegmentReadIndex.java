@@ -614,7 +614,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 if (existingEntry != null && existingEntry.getLastStreamSegmentOffset() >= segmentOffset) {
                     // First offset exists already. We need to skip over to the end of this entry.
                     overlapLength = existingEntry.getStreamSegmentOffset() + existingEntry.getLength() - segmentOffset;
-                    segmentOffset += overlapLength;
                 } else {
                     // First offset does not exist. Let's find out how much we can insert.
                     existingEntry = this.indexEntries.getCeiling(segmentOffset);
@@ -641,6 +640,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // Slice the remainder of the buffer, or set it to null if we processed everything.
                 assert overlapLength != 0 : "unable to make any progress";
                 data = overlapLength >= data.getLength() ? null : data.slice((int) overlapLength, data.getLength() - (int) overlapLength);
+                segmentOffset += overlapLength;
             }
         }
 
