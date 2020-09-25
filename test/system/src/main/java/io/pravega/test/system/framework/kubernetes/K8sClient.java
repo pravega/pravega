@@ -187,13 +187,13 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, "POD_NAME=" + podName, null,
-                null, null, false, callback);
+			 	   null, null, false, callback);
         return callback.getFuture()
-                .thenApply(v1PodList -> {
-                    Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
-                            v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
-                    return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
-                });
+               .thenApply(v1PodList -> {
+                   Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
+                           v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
+                   return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
+               });
     }
 
     /**
@@ -238,7 +238,7 @@ public class K8sClient {
         String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, ALLOW_WATCH_BOOKMARKS, null, null, labelSelector, null,
-                null, null, false, callback);
+                		   null, null, false, callback);
         return callback.getFuture();
     }
 
@@ -252,11 +252,11 @@ public class K8sClient {
      */
     public CompletableFuture<Map<String, V1ContainerStatus>> getRestartedPods(String namespace, String labelName, String labelValue) {
         return getPodsWithLabel(namespace, labelName, labelValue)
-                .thenApply(v1PodList -> v1PodList.getItems().stream()
-                        .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
-                                (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
-                        .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
-                                pod -> pod.getStatus().getContainerStatuses().get(0))));
+                     .thenApply(v1PodList -> v1PodList.getItems().stream()
+                             .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
+                                     (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
+                             .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
+                                     pod -> pod.getStatus().getContainerStatuses().get(0))));
     }
 
     /**
@@ -329,7 +329,7 @@ public class K8sClient {
                         //patch object
                         K8AsyncCallback<Object> cb1 = new K8AsyncCallback<>("patchCustomObject");
                         PatchUtils.patch(CustomObjectsApi.class,
-                                () -> api.patchNamespacedCustomObjectCall(
+                                 () -> api.patchNamespacedCustomObjectCall(
                                         customResourceGroup,
                                         version,
                                         namespace,
