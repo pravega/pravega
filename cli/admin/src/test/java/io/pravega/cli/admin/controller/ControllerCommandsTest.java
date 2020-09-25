@@ -34,6 +34,8 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -128,6 +131,14 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         Assert.assertTrue(commandResult.contains("active_epoch"));
         Assert.assertTrue(commandResult.contains("truncation_record"));
         Assert.assertTrue(commandResult.contains("scaling_info"));
+
+        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(SETUP_UTILS.getZkTestServer().getConnectString(),
+                new RetryOneTime(5000));
+        curatorFramework.start();
+        Assert.assertNotNull(command.instantiateSegmentHelper(curatorFramework));
     }
 
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {
