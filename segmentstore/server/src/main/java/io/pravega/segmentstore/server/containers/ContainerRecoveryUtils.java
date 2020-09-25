@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -139,7 +140,6 @@ public class ContainerRecoveryUtils {
      * @return                           CompletableFuture which when completed will have the segments' contents copied to another segments.
      */
     public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
-                                                                             Map<Integer, DebugStreamSegmentContainer> containerMap,
                                                                              String backUpMetadataSegmentName,
                                                                              String backUpAttributeSegmentName,
                                                                              ExecutorService executorService) throws Exception {
@@ -188,26 +188,28 @@ public class ContainerRecoveryUtils {
             val container = containersMap.get(segToConMapper.getContainerId(metadataEntry.getValue()));
             log.info("container id: {}, segment Name: {}", container.getId(), metadataEntry.getValue());
             val tableExtension = container.getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(metadataEntry.getValue(), args)
+            val entryIterator = tableExtension.entryIterator(metadataEntry.getValue(), args)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Store the segments in a set
-            val hashes = new HashSet<BufferView>();
-            keyIterator.forEachRemaining(item -> {
-                hashes.add(item.getState());
-            }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-            for (val segment : hashes) {
-                val segmentInfo = MetadataStore.SegmentInfo.deserialize(segment);
-                val properties = segmentInfo.getProperties();
-                List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
-                        .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
-                        .collect(Collectors.toList());
-                container.getStreamSegmentInfo(properties.getName(), TIMEOUT)
-                        .thenAccept(x -> {
-                            container.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT);
-                        }).join();
-            }
+            entryIterator.forEachRemaining(item -> {
+                for (val entry : item.getEntries()) {
+                    val segmentInfo = MetadataStore.SegmentInfo.deserialize(entry.getValue());
+                    val properties = segmentInfo.getProperties();
+                    List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
+                            .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfGreater, e.getValue()))
+                            .collect(Collectors.toList());
+                    log.info("Updating attributes = {} for segment '{}'", attributeUpdates, properties.getName());
+                    container.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT)
+                            .exceptionally(e -> {
+                                if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                                    log.info("Update attributes failed. Segment '{}' doesn't exist.", properties.getName());
+                                    return null;
+                                }
+                                return null;
+                            }).join();
+                }
+            }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);;
         }
     }
 

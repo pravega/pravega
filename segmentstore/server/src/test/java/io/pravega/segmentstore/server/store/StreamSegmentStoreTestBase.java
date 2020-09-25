@@ -230,7 +230,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 int containerId1 = segToConMapper.getContainerId(backUpAttributeSegment);
                 int containerId2 = segToConMapper.getContainerId(backUpAttributeSegment);
                 log.info("Original container Id: {}, new container Ids {}, {}", containerId, containerId1, containerId2);
-                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId, debugStreamSegmentContainerMap,
+                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
                         backUpMetadataSegment, backUpAttributeSegment, executorService())
                         .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
