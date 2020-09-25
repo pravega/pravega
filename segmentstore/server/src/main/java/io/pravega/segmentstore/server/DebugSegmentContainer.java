@@ -8,10 +8,8 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server;
-import io.pravega.segmentstore.storage.Storage;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Defines debug segment container for stream segments.

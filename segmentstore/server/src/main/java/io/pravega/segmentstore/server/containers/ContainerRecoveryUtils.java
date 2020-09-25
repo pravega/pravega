@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
@@ -43,8 +44,6 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 public class ContainerRecoveryUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int BUFFER_SIZE = 8 * 1024 * 1024;
-    private static int bytesToRead;
-    private static int offset;
 
     /**
      * Recovers Segments from the given Storage instance. This is done by:
@@ -256,22 +255,24 @@ public class ContainerRecoveryUtils {
      * @return                          A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    public static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+    protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+        AtomicInteger offset = new AtomicInteger();
+        AtomicInteger bytesToRead = new AtomicInteger();
         return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
             return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
                 return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
-                    offset = 0;
-                    bytesToRead = (int) info.getLength();
+                    offset.set(0);
+                    bytesToRead.set((int) info.getLength());
                     return Futures.loop(
-                            () -> bytesToRead > 0,
+                            () -> bytesToRead.get() > 0,
                             () -> {
-                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
+                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead.get())];
+                                return storage.read(sourceHandle, offset.get(), buffer, 0, buffer.length, TIMEOUT)
                                         .thenComposeAsync(size -> {
-                                            bytesToRead -= size;
-                                            return (size > 0) ? storage.write(targetHandle, offset, new
+                                            bytesToRead.addAndGet(-size);
+                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new
                                                     ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
-                                                offset += size;
+                                                offset.addAndGet(size);
                                             }, executor) : null;
                                         }, executor);
                             }, executor);
