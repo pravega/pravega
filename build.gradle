@@ -118,7 +118,7 @@ allprojects {
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
-            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "io.netty:netty-common:" + nettyVersion
@@ -159,7 +159,7 @@ project('common') {
 }
 
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    exclude group: 'org.slf4j', module: 'slf4j-simple' }
+                      exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
 project('shared:authplugin') {
     dependencies {
@@ -471,7 +471,7 @@ project('test:integration') {
     }
 
     test {
-        jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+            jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
                    "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                    "-Dlog.name=selftest"]
     }
@@ -584,7 +584,7 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-        // Since Java 10 javax.annotation is no more bundled with the JRE
+         // Since Java 10 javax.annotation is no more bundled with the JRE
         compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
@@ -898,7 +898,6 @@ project('test:system') {
         systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
         systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
         systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
-
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
@@ -948,6 +947,7 @@ project('test:system') {
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
+
         tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'testJarForDocker', 'execShellScript'
 
@@ -957,7 +957,7 @@ project('test:system') {
         }
 
         doFirst {
-            systemProperty "awsMasterIP", variable
+                systemProperty "awsMasterIP", variable
         }
 
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
