@@ -472,8 +472,8 @@ project('test:integration') {
 
     test {
 		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                 "-Dlog.name=selftest"]
+				   "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                   "-Dlog.name=selftest"]
     }
 
     dependencies {
@@ -844,23 +844,29 @@ project('test:system') {
     task copyTestsToK8sCluster(type: Exec) {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
+
+        environment "tier2Type", System.getProperty("tier2Type", "nfs")
+        environment "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
+        environment "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
+        environment "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
+        environment "publishedChartName",System.getProperty("publishedChartName", "pravega")
+        environment "helmRepository",System.getProperty("helmRepository", "pravega")
+        // To update config map with desired pravega version
+        environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
+
         commandLine './kubernetes/setupTestPod.sh'
     }
 
     task startK8SystemTests(type: Test) {
-        tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
-        tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
-        tasks.withType(Test) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
-
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
-        systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest")
-        systemProperty "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest")
         // The below properties are used to to specify the pravega docker image properties
         // e.g: private-docker-repo/pravega-prefix/pravega:version
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
@@ -872,25 +878,37 @@ project('test:system') {
         systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
-        // bookkeeper version defaults to pravega version.
-        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-
+        // bookkeeper version can be different from pravega version.
+        systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "imageVersion") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
+        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
+        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
+        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
 
+        // target versions wrt Upgrade for all operators & clusters
+        systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
+        systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
+        systemProperty "targetZookeeperOperatorVersion",System.getProperty("targetZookeeperOperatorVersion", "latest")
+        systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
+        systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
+        systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
-        
+
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
-       
+
         maxParallelForks = 1
     }
 
@@ -929,6 +947,7 @@ project('test:system') {
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
+
         tasks.withType(Exec) { environment "tlsEnabled", System.getProperty("tlsEnabled", "false") }
         dependsOn 'testJarForDocker', 'execShellScript'
 
