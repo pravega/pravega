@@ -52,7 +52,7 @@ service ControllerService {
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
-    rpc addSubscriber(KeyValueTableInfo) returns (UpdateStreamStatus);
+    rpc addSubscriber(StreamSubscriberInfo) returns (UpdateStreamStatus);
 }
 
 message ServerRequest {
@@ -223,6 +223,12 @@ message ContinuationToken {
 message StreamInfo {
     string scope = 1;
     string stream = 2;
+}
+
+message StreamSubscriberInfo {
+    string scope = 1;
+    string stream = 2;
+    string subscriber = 3;
 }
 
 message ScalingPolicy {

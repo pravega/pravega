@@ -526,8 +526,43 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String readerGroupId) {
-        return CompletableFuture.completedFuture(Boolean.FALSE);
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriberId) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(subscriberId, "subscriberId");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriberId, requestId);
+
+        final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriberId);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "addSubscriber", scope, streamName)
+                    .addSubscriber(ModelHelper.decode(scope, streamName, subscriberId), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to update stream: {}", streamName);
+                    throw new ControllerFailureException("Failed to add subscriber: "+ subscriberId);
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}", streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully updated stream: {}", streamName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriberId
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "addSubscriber {}/{} failed: ", scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "addSubscriber", traceId, subscriberId, requestId);
+        });
     }
 
     @Override
@@ -1562,6 +1597,11 @@ public class ControllerImpl implements Controller {
         public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .deleteStream(streamInfo, callback);
+        }
+
+        public void addSubscriber(StreamSubscriberInfo subscriberInfo, RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .addSubscriber(subscriberInfo, callback);
         }
 
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {

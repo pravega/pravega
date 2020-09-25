@@ -30,6 +30,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -321,6 +322,21 @@ public final class ModelHelper {
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriberId Id of the subscriber for this stream.
+     * @return StreamSubscriberInfo instance.
+     */
+    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriberId) {
+        Preconditions.checkNotNull(subscriberId, "subscriber");
+        final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
+                .setScope(scope).setStream(streamName).setSubscriber(subscriberId);
         return builder.build();
     }
 
