@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -18,24 +17,18 @@ import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 public class DebugStreamSegmentContainer extends StreamSegmentContainer implements DebugSegmentContainer {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
     private final ContainerConfig config;
-    private int bytesToRead;
-    private int offset;
 
     /**
      * Creates a new instance of the DebugStreamSegmentContainer class.
@@ -64,30 +57,5 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
     public CompletableFuture<Void> registerSegment(String streamSegmentName, long length, boolean isSealed) {
         ArrayView segmentInfo = MetadataStore.SegmentInfo.recoveredSegment(streamSegmentName, length, isSealed);
         return metadataStore.createSegment(streamSegmentName, segmentInfo, new TimeoutTimer(TIMEOUT));
-    }
-
-    @Override
-    public CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
-        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
-            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
-                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
-                    offset = 0;
-                    bytesToRead = (int) info.getLength();
-                    return Futures.loop(
-                            () -> bytesToRead > 0,
-                            () -> {
-                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
-                                        .thenComposeAsync(size -> {
-                                            bytesToRead -= size;
-                                            return (size > 0) ? storage.write(targetHandle, offset, new
-                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
-                                                        offset += size;
-                                                        }, executor) : null;
-                                            }, executor);
-                                }, executor);
-                });
-            });
-        });
     }
 }

@@ -262,8 +262,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Create a storage.
         StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
         @Cleanup
-        Storage s = new AsyncStorageWrapper(new RollingStorage(storageFactory.createSyncStorage(),
-                new SegmentRollingPolicy(1)), executorService());
+        Storage s = storageFactory.createStorageAdapter();
         s.initialize(1);
         log.info("Created a storage instance");
 
@@ -279,22 +278,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         val dataStream = new ByteArrayInputStream(writeData);
         s.write(handle, 0, dataStream, writeData.length, TIMEOUT).join();
 
-        // create a debug segment container instance
-        @Cleanup
-        TestContext context = createContext(executorService());
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory,
-                executorService());
-
-        @Cleanup
-        MetadataCleanupContainer localContainer = new MetadataCleanupContainer(0, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                context.getDefaultExtensions(), executorService());
-        Services.startAsync(localContainer, executorService()).join();
-
-        val tableExtension = localContainer.getExtension(ContainerTableExtension.class);
-        tableExtension.createSegment(targetSegmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        localContainer.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
+        // copy segment
+        ContainerRecoveryUtils.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
 
         // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
