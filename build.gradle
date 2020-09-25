@@ -118,7 +118,7 @@ allprojects {
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
-            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "io.netty:netty-common:" + nettyVersion
@@ -471,9 +471,9 @@ project('test:integration') {
     }
 
     test {
-             jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
-                                "-Dlog.dir=PRAVEGA_APP_HOME/logs",
-                                "-Dlog.name=selftest"]
+		jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
+				   "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                   "-Dlog.name=selftest"]
     }
 
     dependencies {
