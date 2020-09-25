@@ -38,7 +38,7 @@ public final class AdminCLIRunner {
     /**
      * Main entry point for the Admin Tools Runner.
      * <p>
-     * To speed up setup, create a config.properties file and put the following properties (at a minimum):
+     * To speed up setup, create a admin-cli.properties file and put the following properties (at a minimum):
      * <p>
      * pravegaservice.container.count={number of containers}
      * pravegaservice.zk.connect.uri={host:port for ZooKeeper}
@@ -47,7 +47,7 @@ public final class AdminCLIRunner {
      * <p>
      * This program can be executed in two modes. First, the "interactive mode", in which you may want to point to a
      * config file that contains the previous mandatory configuration parameters:
-     * -Dpravega.configurationFile=config.properties
+     * -Dpravega.configurationFile=admin-cli.properties
      *
      * If you don't want to use a config file, you still can load configuration properties dynamically using the command
      * "config set property=value".

@@ -58,11 +58,17 @@ You will se an output related to the default configuration parameters available 
 Pravega Admin CLI.
    
 Initial configuration:
-       pravegaservice.zkURL=localhost:2181
-       bookkeeper.bkLedgerPath=/pravega/pravega-cluster/bookkeeper/ledgers
-       pravegaservice.containerCount=4
-       cli.controllerRestUri=http://localhost:9091
-       pravegaservice.clusterName=pravega-cluster
+	pravegaservice.container.count=4
+	bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+	cli.security.auth.enable=false
+	cli.security.auth.credentials.password=1111_aaaa
+	pravegaservice.cluster.name=pravega/pravega
+	cli.store.metadata.backend=segmentstore
+	cli.controller.rest.uri=http://localhost:9091
+	cli.security.auth.credentials.username=admin
+	pravegaservice.zk.connect.uri=localhost:2181
+	cli.controller.grpc.uri=tcp://localhost:9090
+
 ```
 From that point onwards, you can check the available commands typing `help`:
 ``` 
@@ -102,11 +108,17 @@ You can also execute the Pravega Admin CLI in "batch mode" by passing a command 
 Pravega Admin CLI.
 
 Initial configuration:
-        pravegaservice.zkURL=localhost:2181
-        bookkeeper.bkLedgerPath=/pravega/pravega-cluster/bookkeeper/ledgers
-        pravegaservice.containerCount=4
-        cli.controllerRestUri=http://localhost:9091
-        pravegaservice.clusterName=pravega-cluster
+	pravegaservice.container.count=4
+	bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+	cli.security.auth.enable=false
+	cli.security.auth.credentials.password=1111_aaaa
+	pravegaservice.cluster.name=pravega/pravega
+	cli.store.metadata.backend=segmentstore
+	cli.controller.rest.uri=http://localhost:9091
+	cli.security.auth.credentials.username=admin
+	pravegaservice.zk.connect.uri=localhost:2181
+	cli.controller.grpc.uri=tcp://localhost:9090
+	
 {"scopes":[{"scopeName":"_system"},{"scopeName":"streamsinscope"}]}
 ```
 
