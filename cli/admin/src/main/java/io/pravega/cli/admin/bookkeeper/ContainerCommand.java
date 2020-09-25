@@ -37,7 +37,7 @@ abstract class ContainerCommand extends BookKeeperCommand {
      * @throws DurableDataLogException If the BookKeeperLogFactory could not be initialized.
      */
     @Override
-    protected Context createContext() throws DurableDataLogException {
+    public Context createContext() throws DurableDataLogException {
         val serviceConfig = getServiceConfig();
         val containerConfig = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
         val bkConfig = getCommandArgs().getState().getConfigBuilder()

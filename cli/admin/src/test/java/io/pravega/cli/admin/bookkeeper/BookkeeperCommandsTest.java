@@ -10,7 +10,9 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -24,7 +26,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+    private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+    private final PrintStream originalOut = System.out;
 
     public BookkeeperCommandsTest() {
         super(3);
@@ -54,10 +62,13 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         bkProperties.setProperty("bookkeeper.zk.metadata.path", "ledgers");
         bkProperties.setProperty("pravegaservice.clusterName", "");
         STATE.get().getConfigBuilder().include(bkProperties);
+
+        System.setOut(new PrintStream(outContent));
     }
 
     @After
     public void tierDown() {
+        System.setOut(originalOut);
         STATE.get().close();
     }
 
@@ -89,6 +100,22 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         createLedgerInBookkeeperTestCluster(0);
         String commandResult = TestUtils.executeCommand("bk cleanup", STATE.get());
         Assert.assertTrue(commandResult.contains("no Ledgers eligible for deletion"));
+
+        CommandArgs args = new CommandArgs(Collections.singletonList(""), STATE.get());
+        BookKeeperCleanupCommand command = new BookKeeperCleanupCommand(args);
+        BookKeeperCommand.Context context = command.createContext();
+
+        // List one existing and one
+        command.listCandidates(Collections.singletonList(0L), context);
+        Assert.assertFalse(outContent.toString().contains("No such ledger exists"));
+        command.listCandidates(Collections.singletonList(1L), context);
+        Assert.assertTrue(outContent.toString().contains("No such ledger exists"));
+
+        // Try to exercise deletion standalone.
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(0L), context);
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(1L), context);
+        Assert.assertTrue(outContent.toString().contains("Deleted Ledger 0"));
+        command.deleteCandidates(Collections.singletonList(-1L), Collections.singletonList(0L), context);
     }
 
     @Test
@@ -96,6 +123,12 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         createLedgerInBookkeeperTestCluster(0);
         String commandResult = TestUtils.executeCommand("container recover 0", STATE.get());
         Assert.assertTrue(commandResult.contains("Recovery complete"));
+        CommandArgs args = new CommandArgs(Collections.singletonList("0"), STATE.get());
+        ContainerRecoverCommand command = new ContainerRecoverCommand(args);
+        // Test unwrap exception options.
+        command.unwrapDataCorruptionException(new DataCorruptionException("test"));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {

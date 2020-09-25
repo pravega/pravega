@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.admin.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.Exceptions;
@@ -59,7 +60,8 @@ abstract class BookKeeperCommand extends AdminCommand {
      * @return A new Context.
      * @throws DurableDataLogException If the BookKeeperLogFactory could not be initialized.
      */
-    protected Context createContext() throws DurableDataLogException {
+    @VisibleForTesting
+    public Context createContext() throws DurableDataLogException {
         val serviceConfig = getServiceConfig();
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
                                        .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, serviceConfig.getZkURL()))

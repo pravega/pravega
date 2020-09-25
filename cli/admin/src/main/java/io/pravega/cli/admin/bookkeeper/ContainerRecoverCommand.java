@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.admin.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.Exceptions;
@@ -75,7 +76,8 @@ public class ContainerRecoverCommand extends ContainerCommand {
         }
     }
 
-    private void unwrapDataCorruptionException(DataCorruptionException dce) {
+    @VisibleForTesting
+    void unwrapDataCorruptionException(DataCorruptionException dce) {
         Object[] context = dce.getAdditionalData();
         if (context == null || context.length == 0) {
             return;

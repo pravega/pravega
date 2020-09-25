@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.admin.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.Exceptions;
@@ -85,7 +86,8 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         deleteCandidates(deletionCandidates, referencedLedgerIds, context);
     }
 
-    private void deleteCandidates(List<Long> deletionCandidates, Collection<Long> referencedLedgerIds, Context context) {
+    @VisibleForTesting
+    void deleteCandidates(List<Long> deletionCandidates, Collection<Long> referencedLedgerIds, Context context) {
         for (long ledgerId : deletionCandidates) {
             if (referencedLedgerIds.contains(ledgerId)) {
                 output("Not deleting Ledger %d because is is now referenced.", ledgerId);
@@ -101,7 +103,8 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
         }
     }
 
-    private void listCandidates(List<Long> deletionCandidates, Context context) {
+    @VisibleForTesting
+    void listCandidates(List<Long> deletionCandidates, Context context) {
         for (long ledgerId : deletionCandidates) {
             try {
                 val lh = context.bkAdmin.openLedgerNoRecovery(ledgerId);
