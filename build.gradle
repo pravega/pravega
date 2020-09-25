@@ -118,7 +118,7 @@ allprojects {
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
-            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "io.netty:netty-common:" + nettyVersion
@@ -844,7 +844,7 @@ project('test:system') {
     task copyTestsToK8sCluster(type: Exec) {
         description 'Used to copy test artifacts to the Kubernetes Cluster.'
         dependsOn 'jar'
-        
+
         environment "tier2Type", System.getProperty("tier2Type", "nfs")
         environment "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
         environment "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
@@ -855,7 +855,7 @@ project('test:system') {
         // To update config map with desired pravega version
         environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
-        
+
         commandLine './kubernetes/setupTestPod.sh'
     }
 
@@ -879,7 +879,7 @@ project('test:system') {
         systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
         // bookkeeper version can be different from pravega version.
-        systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "latest") // // bookkeeper image version
+        systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "imageVersion") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
@@ -890,7 +890,7 @@ project('test:system') {
         systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
         systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
         systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
-        
+
         // target versions wrt Upgrade for all operators & clusters
         systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
         systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
