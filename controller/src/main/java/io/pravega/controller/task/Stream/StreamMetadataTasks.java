@@ -60,6 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
@@ -289,7 +290,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<UpdateStreamStatus.Status> addSubscriber(String scope, String stream,
+    public CompletableFuture<AddSubscriberStatus.Status> addSubscriber(String scope, String stream,
                                                                      String newSubscriber,
                                                                      OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -298,11 +299,14 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
                     if (!exists) {
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.STREAM_NOT_FOUND);
+                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
                     }
                     // 1. get configuration
                     return streamMetadataStore.getSubscribersRecord(scope, stream, context, executor)
                             .thenCompose(subscribersData -> {
+                                if (subscribersData.getObject().contains(newSubscriber)) {
+                                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
+                                }
                                 // 2. post event to start update workflow
                                 if (!subscribersData.getObject().isUpdating()) {
                                     return eventHelper.addIndexAndSubmitTask(new AddSubscriberEvent(scope, stream, newSubscriber, requestId),
@@ -312,17 +316,25 @@ public class StreamMetadataTasks extends TaskBase {
                                                     SubscriberConfiguration.EMPTY, false, context, executor))
                                             // 4. wait for update to complete
                                             .thenCompose(x -> eventHelper.checkDone(() -> isSubscriberAdded(scope, stream, newSubscriber, context))
-                                                    .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
+                                                    .thenApply(y -> AddSubscriberStatus.Status.SUCCESS));
                                 } else {
                                     log.warn(requestId, "Another subscriber update in progress for {}/{}",
                                             scope, stream);
-                                    return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.FAILURE);
                                 }
                             })
                             .exceptionally(ex -> {
                                 log.warn(requestId, "Exception thrown in trying to update stream subscriber configuration {}",
                                         ex.getMessage());
-                                return handleUpdateStreamError(ex, requestId);
+                                Throwable cause = Exceptions.unwrap(ex);
+                                if (cause instanceof StoreException.DataNotFoundException) {
+                                    return AddSubscriberStatus.Status.STREAM_NOT_FOUND;
+                                } else if (cause instanceof TimeoutException) {
+                                    throw new CompletionException(cause);
+                                } else {
+                                    log.warn(requestId, "Update stream failed due to ", cause);
+                                    return AddSubscriberStatus.Status.FAILURE;
+                                }
                             });
                 });
     }

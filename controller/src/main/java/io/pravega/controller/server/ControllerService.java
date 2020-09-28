@@ -47,6 +47,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -159,7 +160,7 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<UpdateStreamStatus> addSubscriber(String scope, String stream, final String subscriber) {
+    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
@@ -167,7 +168,7 @@ public class ControllerService {
         return streamMetadataTasks.addSubscriber(scope, stream, subscriber, null)
                 .thenApplyAsync(status -> {
                     reportAddSubscriberMetrics(scope, stream, status, timer.getElapsed());
-                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                    return AddSubscriberStatus.newBuilder().setStatus(status).build();
                 }, executor);
     }
 
@@ -636,10 +637,10 @@ public class ControllerService {
         }
     }
 
-    private void reportAddSubscriberMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
-        if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
+    private void reportAddSubscriberMetrics(String scope, String streamName, AddSubscriberStatus.Status status, Duration latency) {
+        if (status.equals(AddSubscriberStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().addSubscriber(scope, streamName, latency);
-        } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
+        } else if (status.equals(AddSubscriberStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().addSubscriberFailed(scope, streamName);
         }
     }

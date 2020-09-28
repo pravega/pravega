@@ -532,8 +532,8 @@ public class ControllerImpl implements Controller {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriber, requestId);
 
-        final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriber);
+        final CompletableFuture<AddSubscriberStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<AddSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriber);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "addSubscriber", scope, streamName)
                     .addSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
             return callback.getFuture();
@@ -549,6 +549,9 @@ public class ControllerImpl implements Controller {
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_EXISTS:
+                    log.warn(requestId, "Subscriber {} for stream {}/{} already exists {}.", subscriber, scope, streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUCCESS:
                     log.info(requestId, "Successfully updated stream: {}", streamName);
                     return true;
@@ -559,7 +562,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "addSubscriber {}/{} failed: ", scope, streamName, e);
+                log.warn(requestId, "addSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
             }
             LoggerHelpers.traceLeave(log, "addSubscriber", traceId, subscriber, requestId);
         });
@@ -570,7 +573,7 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(subscriber, "subscriberId");
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriber, requestId);
+        long traceId = LoggerHelpers.traceEnter(log, "removeSubscriber", subscriber, requestId);
 
         final CompletableFuture<RemoveSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<RemoveSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "removeSubscriber", scope, streamName, subscriber);
@@ -602,9 +605,9 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "addSubscriber {}/{} failed: ", scope, streamName, e);
+                log.warn(requestId, "removeSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
             }
-            LoggerHelpers.traceLeave(log, "addSubscriber", traceId, subscriber, requestId);
+            LoggerHelpers.traceLeave(log, "removeSubscriber", traceId, subscriber, requestId);
         });
     }
 
@@ -1642,7 +1645,7 @@ public class ControllerImpl implements Controller {
                       .deleteStream(streamInfo, callback);
         }
 
-        public void addSubscriber(StreamSubscriberInfo subscriberInfo, RPCAsyncCallback<UpdateStreamStatus> callback) {
+        public void addSubscriber(StreamSubscriberInfo subscriberInfo, RPCAsyncCallback<AddSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .addSubscriber(subscriberInfo, callback);
         }
