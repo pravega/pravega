@@ -114,6 +114,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.common.concurrent.Futures.loop;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -261,7 +262,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a segment store.
      */
-    private static class SegmentStoreRunner {
+    private static class SegmentStoreRunner implements AutoCloseable {
         private final int servicePort = TestUtils.getAvailableListenPort();
         private final ServiceBuilder serviceBuilder;
         private final SegmentStoreWithSegmentTracker segmentsTracker;
@@ -293,6 +294,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.server.startListening();
         }
 
+        @Override
         public void close() {
             this.server.close();
             this.serviceBuilder.close();
@@ -302,7 +304,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Creates a controller instance and runs it.
      */
-    private static class ControllerRunner {
+    private static class ControllerRunner implements AutoCloseable {
         private final int controllerPort = TestUtils.getAvailableListenPort();
         private final String serviceHost = "localhost";
         private final ControllerWrapper controllerWrapper;
@@ -316,6 +318,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.controller = controllerWrapper.getController();
         }
 
+        @Override
         public void close() throws Exception {
             this.controller.close();
             this.controllerWrapper.close();
@@ -323,10 +326,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     /**
-
      * Creates a client to read and write events.
      */
-    private static class ClientRunner {
+    private static class ClientRunner implements AutoCloseable {
         private final ConnectionFactory connectionFactory;
         private final ClientFactoryImpl clientFactory;
         private final ReaderGroupManager readerGroupManager;
@@ -338,6 +340,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.readerGroupManager = new ReaderGroupManagerImpl(SCOPE, controllerRunner.controller, clientFactory);
         }
 
+        @Override
         public void close() {
             this.readerGroupManager.close();
             this.clientFactory.close();
@@ -345,11 +348,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-
     /**
      * Creates a Pravega instance.
      */
-    private static class PravegaRunner {
+    private static class PravegaRunner implements AutoCloseable {
         private final int containerCount;
         private BookKeeperRunner bookKeeperRunner;
         private SegmentStoreRunner segmentStoreRunner;
@@ -358,9 +360,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         PravegaRunner(int instanceId, int bookieCount, int containerCount, StorageFactory storageFactory) throws Exception {
             this.containerCount = containerCount;
             this.bookKeeperRunner = new BookKeeperRunner(instanceId, bookieCount);
-            this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, null, containerCount);
-            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort,
-                    containerCount);
+            restartControllerAndSegmentStore(storageFactory, null);
         }
 
         public void restartControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
@@ -369,6 +369,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
         }
 
+        @Override
         public void close() throws Exception {
             this.controllerRunner.close();
             this.segmentStoreRunner.close();
@@ -458,16 +459,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Created two streams.");
 
         // Create a client to read and write events.
-        @Cleanup
-        ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
-        // Write events to the streams.
-        writeEventsToStreams(clientRunner.clientFactory, withTransaction);
+        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
+            // Write events to the streams.
+            writeEventsToStreams(clientRunner.clientFactory, withTransaction);
 
-        // Verify events have been written by reading from the streams.
-        readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
-        log.info("Verified that events were written, by reading them.");
-
-        clientRunner.close(); // Close the client.
+            // Verify events have been written by reading from the streams.
+            readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
+            log.info("Verified that events were written, by reading them.");
+        }
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
@@ -500,16 +499,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
         log.info("Started segment store and controller again.");
 
-        // Create the client with new controller.
-        clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
-
         // Try creating the same segments again with the new controller
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
 
-        // Try reading all events again to verify that the recovery was successful.
-        readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
-        log.info("Read all events again to verify that segments were recovered.");
+        // Create the client with new controller.
+        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
+            // Try reading all events again to verify that the recovery was successful.
+            readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
+            log.info("Read all events again to verify that segments were recovered.");
+        }
     }
 
     private void createBookKeeperLogFactory(PravegaRunner pravegaRunner) throws DurableDataLogException {
@@ -872,9 +871,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(), SynchronizerConfig.builder().build());
         LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
-        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+        CompletableFuture<Void> fetchWaterMarksFuture = fetchWatermarks(watermarkReader, watermarks, stopFlag);
         AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
         stopFlag.set(true);
+        fetchWaterMarksFuture.join();
         writer1Future.join();
         writer2Future.join();
         return watermarks;
@@ -898,7 +898,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
 
-        return new ArrayList<Map<Stream, StreamCut>>(Arrays.asList(firstMarkStreamCut, secondMarkStreamCut));
+        return new ArrayList<>(Arrays.asList(firstMarkStreamCut, secondMarkStreamCut));
     }
 
     private TimeWindow verifyEventsWithTimeBounds(Stream streamObj, EventStreamReader<Long> reader, EventRead<Long> event, TimeWindow currentTimeWindow) {
@@ -925,26 +925,24 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Adds water marks to the watermarks queue.
      */
-    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
+    private CompletableFuture<Void> fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
                                  AtomicBoolean stop) {
         AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
-
-        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
+        return Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
                 log.info("watermark = {}", next.getValue());
-
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
             return null;
-        }, Duration.ofSeconds(10), executorService()), executorService());
+        }, Duration.ofSeconds(1), executorService()), executorService());
     }
 
     private CompletableFuture<Void> writeTxEvents(TransactionalEventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
         AtomicInteger count = new AtomicInteger(0);
-        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
+        return loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
             AtomicLong currentTime = new AtomicLong();
             Transaction<Long> txn = writer.beginTxn();
             return CompletableFuture.runAsync(() -> {
@@ -1117,7 +1115,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
-        return Futures.loop(
+        return loop(
                 tryAgain::get,
                 () -> {
                     val segInfo = getStorageSegmentInfo(sp.getName(), timer, storage);
