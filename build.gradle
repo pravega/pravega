@@ -1,4 +1,3 @@
-import com.github.spotbugs.SpotBugsTask
 import org.gradle.internal.jvm.Jvm
 
 /**
