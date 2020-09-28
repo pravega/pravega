@@ -23,5 +23,6 @@ public class FormatterTest {
         formatter = new Formatter.JsonFormatter();
         Assert.notEmpty(formatter.format("hello=test"));
         Assert.notEmpty(formatter.format("hello=test", "hello2=test2"));
+        Assert.isTrue(formatter.separator().equals(""));
     }
 }

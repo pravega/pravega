@@ -13,9 +13,11 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.apache.curator.framework.CuratorFramework;
@@ -84,6 +86,8 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         createLedgerInBookkeeperTestCluster(0);
         String commandResult = TestUtils.executeCommand("bk details 0", STATE.get());
         Assert.assertTrue(commandResult.contains("log_summary") && commandResult.contains("logId\": 0"));
+        commandResult = TestUtils.executeCommand("bk details 100", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
     }
 
     @Test
@@ -93,6 +97,14 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         Assert.assertTrue(commandResult.contains("enabled\": false"));
         commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": true"));
+        // Enable an already enabled log.
+        commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("enabled\": true"));
+        commandResult = TestUtils.executeCommand("bk enable 100", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
+        // Execute closing Zookeeper server.
+        this.zkUtil.killCluster();
+        AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("bk enable 0", STATE.get()));
     }
 
     @Test
