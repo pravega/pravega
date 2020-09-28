@@ -67,7 +67,7 @@ public interface StreamRequestProcessor extends RequestProcessor {
      * @param removeSubscriberEvent remove subscriber event.
      * @return CompletableFuture that caller can use to synchronize.
      */
-    CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent addSubscriberEvent);
+    CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent removeSubscriberEvent);
 
     /**
      * Method to process truncate stream event.
