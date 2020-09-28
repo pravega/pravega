@@ -159,7 +159,7 @@ spec:
         - mountPath: "/data"
           name: task-pv-storage
 EOF
-kubectl wait --timeout=1m --for=condition=Ready pod/task-pv-pod
+kubectl wait --timeout=5m --for=condition=Ready pod/task-pv-pod
 
 #Step 12: Compute the checksum of the local test artifact and the artifact on the persistent volume. Copy test artifact only if required.
 checksum="$(kubectl exec task-pv-pod md5sum '/data/test-collection.jar' | awk '{ print $1 }' || true)"
