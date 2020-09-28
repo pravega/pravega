@@ -928,7 +928,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                                  AtomicBoolean stop) {
         AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
         return Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
-            if(!stop.get()) {
+            if(stop.get()) {
                 return null;
             }
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
@@ -945,7 +945,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private CompletableFuture<Void> writeTxEvents(TransactionalEventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
         AtomicInteger count = new AtomicInteger(0);
         return loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
-            if(!stopFlag.get()) {
+            if(stopFlag.get()) {
                 return null;
             }
             AtomicLong currentTime = new AtomicLong();
@@ -996,6 +996,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 ReaderConfig.builder().build());
     }
 
+    // Reads the given number of events using the given reader and returns its position
     private Position readNEvents(EventStreamReader<String> reader, int num) {
         Position position = null;
         for (int q = 0; q < num;) {
