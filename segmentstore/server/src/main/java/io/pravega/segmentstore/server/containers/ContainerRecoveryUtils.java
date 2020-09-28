@@ -256,23 +256,21 @@ public class ContainerRecoveryUtils {
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
     protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
-        AtomicInteger offset = new AtomicInteger();
-        AtomicInteger bytesToRead = new AtomicInteger();
+        byte[] buffer = new byte[BUFFER_SIZE];
         return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
             return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
                 return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
-                    offset.set(0);
-                    bytesToRead.set((int) info.getLength());
+                    AtomicInteger offset = new AtomicInteger(0);
+                    AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
                     return Futures.loop(
                             () -> bytesToRead.get() > 0,
                             () -> {
-                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead.get())];
-                                return storage.read(sourceHandle, offset.get(), buffer, 0, buffer.length, TIMEOUT)
+                                return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
                                         .thenComposeAsync(size -> {
-                                            bytesToRead.addAndGet(-size);
-                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new
-                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
-                                                offset.addAndGet(size);
+                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
+                                                    .thenAcceptAsync(r -> {
+                                                        bytesToRead.addAndGet(-size);
+                                                        offset.addAndGet(size);
                                             }, executor) : null;
                                         }, executor);
                             }, executor);
