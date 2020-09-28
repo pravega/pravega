@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import java.util.concurrent.CancellationException;
-import java.util.function.BiFunction;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
@@ -25,7 +25,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-class StreamSegmentReadResult implements ReadResult {
+@VisibleForTesting
+public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final String traceObjectId;
@@ -40,6 +41,8 @@ class StreamSegmentReadResult implements ReadResult {
     private boolean canRead;
     @GuardedBy("this")
     private boolean closed;
+    @GuardedBy("this")
+    private boolean copyOnRead;
 
     //endregion
 
@@ -52,10 +55,11 @@ class StreamSegmentReadResult implements ReadResult {
      * @param maxResultLength          The maximum number of bytes to read.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume. The first argument
      *                                 is startOffset (long) and the second is remainingLength (int).
+     * @param traceObjectId            Used for logging.
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
+    public StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
         Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
         Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
         this.traceObjectId = traceObjectId;
@@ -64,6 +68,11 @@ class StreamSegmentReadResult implements ReadResult {
         this.getNextItem = getNextItem;
         this.consumedLength = 0;
         this.canRead = true;
+
+        // By default, all cache reads are to be copied into heap buffers before being served to calling code. This is
+        // to avoid situations where there upstream code has pointers to evicted (and reallocated) cache blocks. If this
+        // is not desired, then the upstream code should disable this and document WHY it is safe to do so.
+        this.copyOnRead = true;
     }
 
     //endregion
@@ -83,6 +92,16 @@ class StreamSegmentReadResult implements ReadResult {
     @Override
     public synchronized int getConsumedLength() {
         return this.consumedLength;
+    }
+
+    @Override
+    public synchronized boolean isCopyOnRead() {
+        return this.copyOnRead;
+    }
+
+    @Override
+    public synchronized void setCopyOnRead(boolean value) {
+        this.copyOnRead = value;
     }
 
     @Override
@@ -167,7 +186,7 @@ class StreamSegmentReadResult implements ReadResult {
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
         int remainingLength = this.maxResultLength - this.consumedLength;
-        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
+        CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength, this.copyOnRead);
 
         if (entry == null) {
             assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
@@ -206,10 +225,12 @@ class StreamSegmentReadResult implements ReadResult {
     //region NextEntrySupplier
 
     /**
-     * Defines a Function that given a startOffset (long) and remainingLength (int), returns the next entry to be consumed (ReadResultEntry).
+     * Defines a Function that given a startOffset (long), remainingLength (int) and whether to make a copy of any returned
+     * cached data, returns the next entry to be consumed (CompletableReadResultEntry).
      */
     @FunctionalInterface
-    interface NextEntrySupplier extends BiFunction<Long, Integer, CompletableReadResultEntry> {
+    public interface NextEntrySupplier {
+        CompletableReadResultEntry apply(Long startOffset, Integer remainingLength, Boolean makeCopy);
     }
 
     //endregion

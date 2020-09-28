@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -58,6 +59,8 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
     private final ScheduledExecutorService executor;
+    @GuardedBy("this")
+    private BiConsumer<Long, Integer> appendCallback;
 
     SegmentMock(ScheduledExecutorService executor) {
         this(new StreamSegmentMetadata("Mock", 0, 0), executor);
@@ -260,7 +263,7 @@ class SegmentMock implements DirectSegmentAccess {
     //region TruncateableReadResultMock
 
     private class TruncateableReadResultMock extends ReadResultMock {
-        TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
+        private TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
             super(streamSegmentStartOffset, data, maxResultLength, entryLength);
         }
 
