@@ -623,29 +623,26 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Created two streams.");
 
         // Create a client to read and write events.
-        @Cleanup
-        ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
+        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
+            // Write events to the streams.
+            writeEventsToStreams(clientRunner.clientFactory, true);
 
-        // Write events to the streams.
-        writeEventsToStreams(clientRunner.clientFactory, true);
+            // Create two readers for reading both the streams.
+            EventStreamReader<String> reader1 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
+                    SCOPE, STREAM1, testReaderGroup1, testReader1);
+            EventStreamReader<String> reader2 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
+                    SCOPE, STREAM2, testReaderGroup2, testReader2);
 
-        // Create two readers for reading both the streams.
-        EventStreamReader<String> reader1 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
-                SCOPE, STREAM1, testReaderGroup1, testReader1);
-        EventStreamReader<String> reader2 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
-                SCOPE, STREAM2, testReaderGroup2, testReader2);
+            // Let readers read N number of events and mark their positions.
+            Position p1 = readNEvents(reader1, eventsReadCount);
+            Position p2 = readNEvents(reader2, eventsReadCount);
 
-        // Let readers read N number of events and mark their positions.
-        Position p1 = readNEvents(reader1, eventsReadCount);
-        Position p2 = readNEvents(reader2, eventsReadCount);
+            ReaderGroup readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
+            ReaderGroup readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
 
-        ReaderGroup readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
-        ReaderGroup readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
-
-        readerGroup1.readerOffline(testReader1, p1);
-        readerGroup2.readerOffline(testReader2, p2);
-
-        clientRunner.close();
+            readerGroup1.readerOffline(testReader1, p1);
+            readerGroup2.readerOffline(testReader2, p2);
+        }
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
@@ -679,32 +676,33 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
-        clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
+        try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
 
-        // Try creating the same segments again with the new controller
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
+            // Try creating the same segments again with the new controller
+            createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
+            createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
 
-        // Get reader group.
-        readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
-        readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
-        assertNotNull(readerGroup1);
-        assertNotNull(readerGroup2);
+            // Get reader group.
+            ReaderGroup readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
+            ReaderGroup readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
+            assertNotNull(readerGroup1);
+            assertNotNull(readerGroup2);
 
-        reader1 = clientRunner.clientFactory.createReader(testReader1, testReaderGroup1, new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
-        reader2 = clientRunner.clientFactory.createReader(testReader2, testReaderGroup2, new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
+            EventStreamReader<String> reader1 = clientRunner.clientFactory.createReader(testReader1, testReaderGroup1,
+                    new UTF8StringSerializer(), ReaderConfig.builder().build());
+            EventStreamReader<String> reader2 = clientRunner.clientFactory.createReader(testReader2, testReaderGroup2,
+                    new UTF8StringSerializer(), ReaderConfig.builder().build());
 
-        // Read the remaining number of events.
-        readNEvents(reader1, TOTAL_NUM_EVENTS - eventsReadCount);
-        readNEvents(reader2, TOTAL_NUM_EVENTS - eventsReadCount);
+            // Read the remaining number of events.
+            readNEvents(reader1, TOTAL_NUM_EVENTS - eventsReadCount);
+            readNEvents(reader2, TOTAL_NUM_EVENTS - eventsReadCount);
 
-        // Reading next event should return null.
-        assertNull(reader1.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
-        assertNull(reader2.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
-        reader1.close();
-        reader2.close();
+            // Reading next event should return null.
+            assertNull(reader1.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
+            assertNull(reader2.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
+            reader1.close();
+            reader2.close();
+        }
     }
 
     private void runRecovery(int containerCount, Storage storage) throws Exception {
@@ -822,10 +820,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started segment store and controller again.");
 
         // Create the client with new controller.
-        clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
+        @Cleanup
+        ClientRunner newClientRunner = new ClientRunner(pravegaRunner.controllerRunner);
 
         // read events and verify
-        readVerifyEventsWithWatermarks(readerGroup, clientRunner, streamObj, watermarks);
+        readVerifyEventsWithWatermarks(readerGroup, newClientRunner, streamObj, watermarks);
     }
 
     /**
@@ -898,7 +897,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
 
-        return new ArrayList<>(Arrays.asList(firstMarkStreamCut, secondMarkStreamCut));
+        return Arrays.asList(firstMarkStreamCut, secondMarkStreamCut);
     }
 
     private TimeWindow verifyEventsWithTimeBounds(Stream streamObj, EventStreamReader<Long> reader, EventRead<Long> event, TimeWindow currentTimeWindow) {
