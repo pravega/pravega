@@ -182,23 +182,45 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String readerGroupId) {
-        return this.controller.addSubscriber(scope, streamName, readerGroupId).thenApply(x -> {
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber) {
+        return this.controller.addSubscriber(scope, streamName, subscriber).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + readerGroupId);
+                    throw new ControllerFailureException("Failed to update stream: " + subscriber);
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + readerGroupId);
+                    throw new IllegalArgumentException("Scope does not exist: " + subscriber);
                 case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + readerGroupId);
+                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status updating subscriber " + readerGroupId + "on stream " + scope + "/" + streamName
+                    throw new ControllerFailureException("Unknown return status updating subscriber " + subscriber + "on stream " + scope + "/" + streamName
                             + " " + x.getStatus());
             }
         });
     }
+
+    @Override
+    public CompletableFuture<Boolean> removeSubscriber(final String scope, final String streamName, final String subscriber) {
+        return this.controller.removeSubscriber(scope, streamName, subscriber).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update stream: " + subscriber);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + subscriber);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
+                case SUBSCRIBER_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status removing subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {

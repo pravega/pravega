@@ -135,6 +135,14 @@ interface Stream {
     CompletableFuture<Void> completeUpdateSubscribers(VersionedMetadata<StreamSubscribersRecord> subscribers);
 
     /**
+     * Remove subscriber from list of Subscribers for the Stream.
+     *
+     * @param subscriber  subscriber to be reomved.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> startRemoveSubscriber(final String subscriber);
+
+    /**
      * Starts truncating an existing stream.
      *
      * @param streamCut new stream cut.

@@ -11,7 +11,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
@@ -20,6 +19,7 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.controller.event.AddSubscriberEvent;
+import io.pravega.shared.controller.event.RemoveSubscriberEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +34,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     private final DeleteStreamTask deleteStreamTask;
     private final TruncateStreamTask truncateStreamTask;
     private final AddSubscriberTask addSubscriberTask;
+    private final RemoveSubscriberTask removeSubscriberTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
@@ -42,6 +43,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                                 DeleteStreamTask deleteStreamTask,
                                 TruncateStreamTask truncateStreamTask,
                                 AddSubscriberTask addSubscriberTask,
+                                RemoveSubscriberTask removeSubscriberTask,
                                 StreamMetadataStore streamMetadataStore,
                                 ScheduledExecutorService executor) {
         super(streamMetadataStore, executor);
@@ -52,6 +54,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.deleteStreamTask = deleteStreamTask;
         this.truncateStreamTask = truncateStreamTask;
         this.addSubscriberTask = addSubscriberTask;
+        this.removeSubscriberTask = removeSubscriberTask;
     }
     
     @Override
@@ -87,6 +90,17 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                 .thenAccept(v -> {
                     log.info("Processing add subscriber request {} for stream {}/{} complete", addSubscriberEvent.getRequestId(),
                                                                     addSubscriberEvent.getScope(), addSubscriberEvent.getStream());
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent removeSubscriberEvent) {
+        log.info("Processing update request {} for stream {}/{}", removeSubscriberEvent.getRequestId(), removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream());
+        return withCompletion(removeSubscriberTask, removeSubscriberEvent, removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE)
+                .thenAccept(v -> {
+                    log.info("Processing add subscriber request {} for stream {}/{} complete", removeSubscriberEvent.getRequestId(),
+                            removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream());
                 });
     }
 

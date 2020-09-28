@@ -526,11 +526,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> startUpdateSubscribers(final String scope,
                                                             final String name,
-                                                            final String newSubscriber,
+                                                            final String subscriber,
                                                             final SubscriberConfiguration subConfig,
+                                                            final boolean removeSubscriber,
                                                             final OperationContext context,
                                                             final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).startUpdateSubscribers(newSubscriber, subConfig), executor);
+        if (removeSubscriber) {
+            return Futures.completeOn(getStream(scope, name, context).startRemoveSubscriber(subscriber), executor);
+        }
+        return Futures.completeOn(getStream(scope, name, context).startUpdateSubscribers(subscriber, subConfig), executor);
     }
 
     @Override

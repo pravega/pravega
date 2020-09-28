@@ -26,6 +26,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Data class for storing information about stream's subscribers.
@@ -56,6 +57,14 @@ public class StreamSubscribersRecord {
         Map<String, SubscriberConfiguration> streamSubscribers = new HashMap<String, SubscriberConfiguration>();
         streamSubscribers.putAll(existingSubscribers);
         streamSubscribers.put(newSubscriber, config);
+        return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers), true);
+    }
+
+    public static StreamSubscribersRecord remove(ImmutableMap<String, SubscriberConfiguration> existingSubscribers,
+                                                 String subscriber) {
+        Map<String, SubscriberConfiguration> streamSubscribers = existingSubscribers.entrySet().stream()
+                                                                .filter(e -> !e.getKey().equals(subscriber))
+                                                                .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
         return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers), true);
     }
 

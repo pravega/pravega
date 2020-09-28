@@ -54,12 +54,20 @@ public interface StreamRequestProcessor extends RequestProcessor {
     CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent);
 
     /**
-     * Method to process update stream event.
+     * Method to process add subscriber event.
      *
-     * @param addSubscriberEvent update stream event.
+     * @param addSubscriberEvent add subscriber event.
      * @return CompletableFuture that caller can use to synchronize.
      */
     CompletableFuture<Void> processAddSubscriberStream(AddSubscriberEvent addSubscriberEvent);
+
+    /**
+     * Method to process remove subscriber event.
+     *
+     * @param removeSubscriberEvent remove subscriber event.
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent addSubscriberEvent);
 
     /**
      * Method to process truncate stream event.

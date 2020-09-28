@@ -176,6 +176,23 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     /**
+     * Remove subscriber from list of Subscribers for the Stream.
+     *
+     * @param subscriber  subscriber to be removed.
+     * @return future of operation.
+     */
+    @Override
+    public CompletableFuture<Void> startRemoveSubscriber(final String subscriber) {
+        return getVersionedSubscribersRecord()
+                .thenCompose(subscribersRecord -> {
+                    Preconditions.checkArgument(!subscribersRecord.getObject().isUpdating());
+                    StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.remove(
+                            subscribersRecord.getObject().getSubscribersWithConfiguration(), subscriber);
+                    return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
+                });
+    }
+
+    /**
      * Complete subscriber update.
      * @return future of operation
      */

@@ -122,12 +122,21 @@ public interface Controller extends AutoCloseable {
      * API to add a Subscriber to the Stream.
      * @param scope Scope name
      * @param streamName Stream name
-     * @param readerGroupId Name/Id that uniquely identifies the Reader Group subscribing to the Stream.
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String readerGroupId);
+    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber);
 
+    /**
+     * API to add a Subscriber to the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> removeSubscriber(final String scope, final String streamName, final String subscriber);
 
 
     /**

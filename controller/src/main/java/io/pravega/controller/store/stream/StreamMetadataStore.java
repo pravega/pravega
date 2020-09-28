@@ -297,6 +297,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param name          stream name.
      * @param newSubscriber new stream subscriber.
      * @param newSubscriberConfig new subscriber configuration.
+     * @param removeSubscriber a flag to indicate if this update is for removing a subscriber or otherwise.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
@@ -305,6 +306,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final String name,
                                                      final String newSubscriber,
                                                      final SubscriberConfiguration newSubscriberConfig,
+                                                     final boolean removeSubscriber,
                                                      final OperationContext context,
                                                      final Executor executor);
 

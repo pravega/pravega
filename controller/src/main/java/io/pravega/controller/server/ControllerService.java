@@ -47,6 +47,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -170,6 +171,18 @@ public class ControllerService {
                 }, executor);
     }
 
+    public CompletableFuture<RemoveSubscriberStatus> removeSubscriber(String scope, String stream, final String subscriber) {
+        Preconditions.checkNotNull(scope, "scopeName is null");
+        Preconditions.checkNotNull(stream, "streamName is null");
+        Preconditions.checkNotNull(subscriber, "subscriber is null");
+        Timer timer = new Timer();
+        return streamMetadataTasks.removeSubscriber(scope, stream, subscriber, null)
+                .thenApplyAsync(status -> {
+                    reportRemoveSubscriberMetrics(scope, stream, status, timer.getElapsed());
+                    return RemoveSubscriberStatus.newBuilder().setStatus(status).build();
+                }, executor);
+    }
+
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
@@ -200,7 +213,7 @@ public class ControllerService {
                                       CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
                           }
                       });
-        
+
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
@@ -427,7 +440,7 @@ public class ControllerService {
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client 
+                            // let it be thrown and translated to appropriate error code so that the client
                             // retries upon failure.
                             throw new CompletionException(unwrap);
                         }
@@ -460,7 +473,7 @@ public class ControllerService {
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client 
+                            // let it be thrown and translated to appropriate error code so that the client
                             // retries upon failure.
                             throw new CompletionException(unwrap);
                         }
@@ -540,7 +553,7 @@ public class ControllerService {
      *
      * @param scope Name of the scope.
      * @param token continuation token
-     * @param limit limit for number of streams to return. 
+     * @param limit limit for number of streams to return.
      * @return List of streams in scope.
      */
     public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit) {
@@ -561,7 +574,7 @@ public class ControllerService {
      * List Scopes in cluster from continuation token and limit it to number of elements specified by limit parameter.
      *
      * @param token continuation token
-     * @param limit number of elements to return.  
+     * @param limit number of elements to return.
      * @return List of scopes.
      */
     public CompletableFuture<Pair<List<String>, String>> listScopes(final String token, final int limit) {
@@ -631,6 +644,14 @@ public class ControllerService {
         }
     }
 
+    private void reportRemoveSubscriberMetrics(String scope, String streamName, RemoveSubscriberStatus.Status status, Duration latency) {
+        if (status.equals(RemoveSubscriberStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().removeSubscriber(scope, streamName, latency);
+        } else if (status.equals(RemoveSubscriberStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().removeSubscriberFailed(scope, streamName);
+        }
+    }
+
     private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().truncateStream(scope, streamName, latency);
@@ -686,7 +707,7 @@ public class ControllerService {
                         return response.build();
                 });
     }
- 
+
     public CompletableFuture<Controller.RemoveWriterResponse> removeWriter(String scope, String stream, String writer) {
         return streamStore.shutdownWriter(scope, stream, writer, null, executor)
                 .handle((r, e) -> {
