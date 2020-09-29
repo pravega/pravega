@@ -61,6 +61,28 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
         this.length = length;
     }
+    
+    /**
+     * Creates a new instance of the {@link CompositeBufferView} class. It is recommended to use {@link BufferView#wrap}
+     * instead.
+     *
+     * @param components The components to wrap.
+     */
+    CompositeBufferView(BufferView... components) {
+        this.components = new ArrayList<>();
+        int length = 0;
+        for (BufferView c : components) {
+            if (c instanceof CompositeBufferView) {
+                for (BufferView b : ((CompositeBufferView) c).components) {
+                    this.components.add(b.slice());
+                }
+            } else {
+                this.components.add(c.slice());
+            }
+            length += c.getLength();
+        }
+        this.length = length;
+    }
 
     //endregion
 

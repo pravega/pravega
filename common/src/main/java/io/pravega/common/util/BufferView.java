@@ -168,6 +168,25 @@ public interface BufferView {
     }
 
     /**
+     * Wraps the given {@link BufferView} into a single instance.
+     *
+     * @param components The components to wrap. These components will be added by reference, without making any data
+     *                   copies. Any modifications made to these components will be reflected in the returned
+     *                   {@link BufferView} and vice-versa.
+     * @return An empty {@link BufferView} (if the component list is empty), the first item in the list (if the component
+     * list has 1 element) or a {@link CompositeBufferView} wrapping all the given instances otherwise.
+     */
+    static BufferView wrap(BufferView... components) {
+        if (components.length == 0) {
+            return empty();
+        } else if (components.length == 1) {
+            return components[0].slice();
+        } else {
+            return new CompositeBufferView(components);
+        }
+    }
+    
+    /**
      * Creates a new {@link BufferViewBuilder} that can be used to construct composite {@link BufferView} instances.
      *
      * @return A new {@link BufferViewBuilder} with default initial component count.

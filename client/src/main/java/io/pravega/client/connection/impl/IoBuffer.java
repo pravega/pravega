@@ -10,14 +10,13 @@
 package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.protocol.WireCommands;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -34,13 +33,16 @@ class IoBuffer {
     private final int maxBufferSize = WireCommands.MAX_WIRECOMMAND_SIZE;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private ByteBuffer buffer = null;
+    private ByteArraySegment buffer = null;
     
-    private ByteBuf sliceOut(int size) {
-        ByteBuf result = Unpooled.wrappedBuffer(buffer.array(), buffer.arrayOffset() + buffer.position(), size);
-        buffer.position(buffer.position() + size);
-        if (!buffer.hasRemaining()) {
+    private ByteArraySegment sliceOut(int size) {
+        ByteArraySegment result = buffer.slice(0, size);
+        if (buffer.getLength() > size) {
+            buffer = new ByteArraySegment(buffer.array(), buffer.arrayOffset() + size, buffer.getLength());            
+        } else if (buffer.getLength() == size) {
             buffer = null;
+        } else {
+            throw new IllegalStateException("Attempted to read more from the buffer than was available.");
         }
         return result;
     }
@@ -48,12 +50,12 @@ class IoBuffer {
     /**
      * Obtain a ByteBuff of size `size` by reading data from the provided input stream or from this buffer if the data is already available.
      */
-    public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
+    public BufferView getBuffOfSize(InputStream in, int size) throws IOException {
         checkArgument(size <= maxBufferSize, "Requested buffer size {} is larger than max allowd {}", size, maxBufferSize);
         if (size == 0) {
             // Technically this should not need to be special cased per the Javadoc of InputStrem, 
             // but ByteArrayInputStream has a bug that makes this needed.
-            return Unpooled.EMPTY_BUFFER;
+            return BufferView.empty();
         }
         if (buffer == null) {
             int bufferSize = MathHelpers.minMax(in.available(), size, maxBufferSize);
@@ -62,14 +64,14 @@ class IoBuffer {
             if (read <= -1) {
                 throw new EOFException();
             }
-            buffer = ByteBuffer.wrap(newBuffer, 0, read); 
+            buffer = new ByteArraySegment(newBuffer, 0, read); 
         } 
 
-        if (buffer.remaining() >= size) {
+        if (buffer.getLength() >= size) {
             return sliceOut(size);
         } else {
-            int firstSize = buffer.remaining();
-            ByteBuf first = sliceOut(firstSize);
+            int firstSize = buffer.getLength();
+            ByteArraySegment first = sliceOut(firstSize);
             assert buffer == null; //Should have been fully sliced out
             byte[] remaining = new byte[size - firstSize];
             for (int offset = 0; offset < remaining.length;) {
@@ -79,7 +81,7 @@ class IoBuffer {
                 }
                 offset += read;
             }
-            return Unpooled.wrappedBuffer(first, Unpooled.wrappedBuffer(remaining));
+            return BufferView.wrap(first, new ByteArraySegment(remaining));
         }
     }
     
