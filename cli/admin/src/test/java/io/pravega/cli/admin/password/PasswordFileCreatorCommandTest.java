@@ -24,6 +24,9 @@ public class PasswordFileCreatorCommandTest {
         final String fileName = "passwordFileTest";
         TestUtils.executeCommand("password create-password-file " + fileName + " user:password:acl", new AdminCommandState());
         Assert.assertTrue(Files.exists(Paths.get(fileName)));
+        // Test wrong input arguments.
+        TestUtils.executeCommand("password create-password-file " + fileName + " wrong", new AdminCommandState());
+        TestUtils.executeCommand("password create-password-file wrong", new AdminCommandState());
         // Remove generated file by command.
         Files.delete(Paths.get(fileName));
     }

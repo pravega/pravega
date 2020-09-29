@@ -39,6 +39,7 @@ import org.apache.curator.retry.RetryOneTime;
 import org.junit.Assert;
 import org.junit.Test;
 
+import javax.ws.rs.core.Response;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -139,6 +141,30 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
                 new RetryOneTime(5000));
         curatorFramework.start();
         Assert.assertNotNull(command.instantiateSegmentHelper(curatorFramework));
+    }
+
+    @Test
+    public void testAuthConfig() throws Exception {
+        SETUP_UTILS.createTestStream("testListScopesCommand", 2);
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.security.auth.enable", "true");
+        pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
+        pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
+        // Check that both the new scope and the system one exist.
+        Assert.assertTrue(commandResult.contains("_system"));
+        Assert.assertTrue(commandResult.contains(SETUP_UTILS.getScope()));
+        Assert.assertNotNull(ControllerListScopesCommand.descriptor());
+        // Restore config
+        pravegaProperties.setProperty("cli.security.auth.enable", "false");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Exercise response codes for REST requests.
+        CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), new AdminCommandState());
+        ControllerListScopesCommand command = new ControllerListScopesCommand(commandArgs);
+        command.printResponseInfo(Response.status(Response.Status.UNAUTHORIZED).build());
+        command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
     }
 
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {

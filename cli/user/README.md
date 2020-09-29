@@ -53,8 +53,7 @@ You can run the Pravega User CLI as follows:
 ```
 ./bin/pravega-cli
 ```
-You will se an output related to the default configuration parameters available at `conf/config.properties`
-(you may want to change this file according to your setting):
+You will se an output related to the default configuration parameters:
 ```
 Pravega User CLI Tool.
 	Usage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool

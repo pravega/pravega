@@ -9,6 +9,7 @@
  */
 package io.pravega.cli.admin.controller;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
@@ -76,7 +77,8 @@ public abstract class ControllerCommand extends AdminCommand {
         return response.readEntity(String.class);
     }
 
-    private void printResponseInfo(Response response) {
+    @VisibleForTesting
+    void printResponseInfo(Response response) {
         if (OK.getStatusCode() == response.getStatus()) {
             output("Successful REST request.");
         } else if (UNAUTHORIZED.getStatusCode() == response.getStatus()) {
