@@ -14,6 +14,7 @@ import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
+import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
@@ -134,6 +135,7 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         Assert.assertTrue(commandResult.contains("truncation_record"));
         Assert.assertTrue(commandResult.contains("scaling_info"));
 
+        // Exercise actual instantiateSegmentHelper
         CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
         ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
         @Cleanup
@@ -141,6 +143,15 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
                 new RetryOneTime(5000));
         curatorFramework.start();
         Assert.assertNotNull(command.instantiateSegmentHelper(curatorFramework));
+
+        // Try the Zookeeper backend, which is expected to fail and be handled by the command.
+        Properties properties = new Properties();
+        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.ZOOKEEPER.name());
+        STATE.get().getConfigBuilder().include(properties);
+        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        new ControllerDescribeStreamCommand(commandArgs).execute();
+        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.SEGMENTSTORE.name());
+        STATE.get().getConfigBuilder().include(properties);
     }
 
     @Test

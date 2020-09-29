@@ -132,6 +132,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(1L), context);
         Assert.assertTrue(outContent.toString().contains("Deleted Ledger 0"));
         command.deleteCandidates(Collections.singletonList(-1L), Collections.singletonList(0L), context);
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(1L), null);
     }
 
     @Test

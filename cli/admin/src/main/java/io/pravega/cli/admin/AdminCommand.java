@@ -9,7 +9,6 @@
  */
 package io.pravega.cli.admin;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -47,11 +46,13 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -313,13 +314,9 @@ public abstract class AdminCommand {
         private final Object value;
     }
 
+    @SneakyThrows
     private String objectToJSON(Object object) {
-        try {
-            return new ObjectMapper().writeValueAsString(object);
-        } catch (JsonProcessingException e) {
-            System.err.println("Exception parsing object: " + e.getMessage());
-        }
-        return "";
+        return new ObjectMapper().writeValueAsString(object);
     }
 
     //endregion
