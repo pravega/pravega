@@ -13,6 +13,8 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.logs.DataFrameRecord;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -31,8 +33,10 @@ import org.junit.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -146,6 +150,19 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
     }
 
+    @Test
+    public void testRecoveryState() {
+        CommandArgs args = new CommandArgs(Collections.singletonList("0"), STATE.get());
+        ContainerRecoverCommand.RecoveryState state = new ContainerRecoverCommand(args).new RecoveryState();
+        Operation op = new TestOperation();
+        List<DataFrameRecord.EntryInfo> entries = new ArrayList<>();
+        entries.add(new TestEntryInfo());
+        // Exercise RecoveryState logic.
+        state.operationComplete(op, new DataCorruptionException("Test exception"));
+        state.newOperation(op, entries);
+        state.operationComplete(op, null);
+    }
+
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
         BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder().with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
@@ -159,5 +176,15 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         @Cleanup
         DurableDataLog log = bookKeeperLogFactory.createDurableDataLog(logId);
         log.initialize(Duration.ofSeconds(5));
+    }
+
+    private static class TestOperation extends Operation {
+
+    }
+
+    private static class TestEntryInfo extends DataFrameRecord.EntryInfo {
+        TestEntryInfo() {
+            super(null, 0, 0, true);
+        }
     }
 }

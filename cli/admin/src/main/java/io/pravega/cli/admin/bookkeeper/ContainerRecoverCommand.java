@@ -120,13 +120,15 @@ public class ContainerRecoverCommand extends ContainerCommand {
 
     //region RecoveryState
 
-    private class RecoveryState {
+    @VisibleForTesting
+    class RecoveryState {
         private Operation currentOperation;
         private int dataFrameCount = 0;
         private int operationCount = 0;
         private int currentFrameUsedLength = 0;
 
-        private void newOperation(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
+        @VisibleForTesting
+        void newOperation(Operation op, List<DataFrameRecord.EntryInfo> frameEntries) {
             for (int i = 0; i < frameEntries.size(); i++) {
                 DataFrameRecord.EntryInfo e = frameEntries.get(i);
                 if (this.currentFrameUsedLength == 0) {
@@ -149,7 +151,8 @@ public class ContainerRecoverCommand extends ContainerCommand {
             this.operationCount++;
         }
 
-        private void operationComplete(Operation op, Throwable failure) {
+        @VisibleForTesting
+        void operationComplete(Operation op, Throwable failure) {
             if (this.currentOperation == null || this.currentOperation.getSequenceNumber() != op.getSequenceNumber()) {
                 output("Operation completion mismatch. Expected '%s', found '%s'.", this.currentOperation, op);
             }

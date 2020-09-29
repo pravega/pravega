@@ -10,6 +10,7 @@
 
 package io.pravega.cli.admin.utils;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import org.apache.curator.framework.CuratorFramework;
@@ -121,7 +122,8 @@ public class ZKHelper implements AutoCloseable {
      * @param path The path of the target zookeeper node.
      * @return The list of its child nodes' name.
      */
-    private List<String> getChild(String path) {
+    @VisibleForTesting
+    List<String> getChild(String path) {
         List<String> ret = null;
         try {
             ret = zkClient.getChildren().forPath(path);
@@ -136,7 +138,8 @@ public class ZKHelper implements AutoCloseable {
      * @param path The path of the target zookeeper node.
      * @return The data as byte array stored in the target zookeeper node.
      */
-    private byte[] getData(String path) {
+    @VisibleForTesting
+    byte[] getData(String path) {
         byte[] ret = null;
         try {
             ret = zkClient.getData().forPath(path);
@@ -170,12 +173,11 @@ public class ZKHelper implements AutoCloseable {
     private void startZKClient() throws ZKConnectionFailedException {
         zkClient.start();
         try {
-            if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            if (!zkClient.blockUntilConnected(5, TimeUnit.SECONDS)) {
                 throw new ZKConnectionFailedException();
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
-            System.exit(-1);
         }
     }
 
