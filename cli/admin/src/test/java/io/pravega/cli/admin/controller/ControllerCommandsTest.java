@@ -143,6 +143,7 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
 
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {
         Parser.Command pc = Parser.parse(inputCommand);
+        Assert.assertNotNull(pc.toString());
         CommandArgs args = new CommandArgs(pc.getArgs(), state);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         TestingDescribeStreamCommand cmd = new TestingDescribeStreamCommand(args);

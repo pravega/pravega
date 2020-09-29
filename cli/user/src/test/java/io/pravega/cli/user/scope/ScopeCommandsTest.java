@@ -31,6 +31,7 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
     public void testDeleteScope() throws Exception {
         String scopeToDelete = "toDelete";
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), CONFIG.get());
+        Assert.assertNotNull(commandArgs.toString());
         new ScopeCommand.Create(commandArgs).execute();
         String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, CONFIG.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));

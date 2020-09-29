@@ -55,7 +55,6 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
 
     @Override
     public void execute() {
-        //TODO: The logic in this command should be eventually replaced by a server-side call (https://github.com/pravega/pravega/issues/3821)
         ensureArgCount(2);
         final String scope = getCommandArgs().getArgs().get(0);
         final String stream = getCommandArgs().getArgs().get(1);

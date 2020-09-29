@@ -9,8 +9,6 @@
  */
 package io.pravega.cli.user;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -344,21 +342,6 @@ public abstract class Command {
         @FunctionalInterface
         private interface CommandCreator extends Function<CommandArgs, Command> {
         }
-    }
-
-    @Data
-    private static class Tuple {
-        private final String key;
-        private final Object value;
-    }
-
-    private String objectToJSON(Object object) {
-        try {
-            return new ObjectMapper().writeValueAsString(object);
-        } catch (JsonProcessingException e) {
-            System.err.println("Exception parsing object: " + e.getMessage());
-        }
-        return "";
     }
 
     //endregion

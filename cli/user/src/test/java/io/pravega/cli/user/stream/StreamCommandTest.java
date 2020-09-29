@@ -85,6 +85,11 @@ public class StreamCommandTest extends AbstractUserCommandTest {
         // Need to use a timeout for readers, otherwise the test never completes.
         commandResult = TestUtils.executeCommand("stream read " + stream + " true 5", CONFIG.get());
         Assert.assertTrue(commandResult.contains("Done"));
+
+        commandResult = TestUtils.executeCommand("stream append " + stream + " key 100", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Done"));
+        commandResult = TestUtils.executeCommand("stream read " + stream + " 5", CONFIG.get());
+        Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Read.descriptor());
     }
 }
