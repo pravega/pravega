@@ -21,7 +21,7 @@ import lombok.Getter;
 /**
  * Base class for any StreamSegmentStore Integration Test that uses BookKeeper.
  */
-abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase {
+public abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 1;
     @Getter(AccessLevel.PROTECTED)
     private File baseDir = null;
@@ -33,6 +33,7 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
      *
      * NOTE: this (and tearDown()) cannot be annotated with @Before and @After since JUnit doesn't pick these up from
      * super classes, at least not in the order in which we expect it to)
+     * @throws Exception if an error occurred.
      */
     protected void setUp() throws Exception {
         bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
@@ -43,6 +44,7 @@ abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase 
 
     /**
      * Shuts down BookKeeper and cleans up file system directory.
+     * @throws Exception if an error occurred.
      */
     protected void tearDown() throws Exception {
         bookkeeper.close();

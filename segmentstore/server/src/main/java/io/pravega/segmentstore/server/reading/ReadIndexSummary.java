@@ -93,9 +93,11 @@ class ReadIndexSummary {
      * @return The value of the current generation.
      */
     synchronized int touchOne(int generation) {
+        if (generation == this.currentGeneration) {
+            return this.currentGeneration;
+        }
         removeOne(generation);
-        addOne();
-        return this.currentGeneration;
+        return addOne();
     }
 
     /**

@@ -580,8 +580,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             synchronized (this.lock) {
                 ReadIndexEntry previous = this.indexEntries.put(newEntry);
                 assert previous == null;
+                newEntry.setGeneration(this.summary.addOne());
             }
-            newEntry.setGeneration(this.summary.addOne());
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
                 // Clean up the data we inserted if we were unable to add it to the index.
@@ -611,7 +611,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 if (existingEntry != null && existingEntry.getLastStreamSegmentOffset() >= segmentOffset) {
                     // First offset exists already. We need to skip over to the end of this entry.
                     overlapLength = existingEntry.getStreamSegmentOffset() + existingEntry.getLength() - segmentOffset;
-                    segmentOffset += overlapLength;
                 } else {
                     // First offset does not exist. Let's find out how much we can insert.
                     existingEntry = this.indexEntries.getCeiling(segmentOffset);
@@ -638,6 +637,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // Slice the remainder of the buffer, or set it to null if we processed everything.
                 assert overlapLength != 0 : "unable to make any progress";
                 data = overlapLength >= data.getLength() ? null : data.slice((int) overlapLength, data.getLength() - (int) overlapLength);
+                segmentOffset += overlapLength;
             }
         }
 
@@ -655,8 +655,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 this.summary.addOne(entry.getGeneration());
             } else {
                 // Update the Stats with the entry's length, and set the entry's generation as well.
-                int generation = this.summary.addOne();
-                entry.setGeneration(generation);
+                entry.setGeneration(this.summary.addOne());
             }
         }
 
@@ -1113,8 +1112,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (updateStats) {
             // Update its generation before returning it.
-            int generation = this.summary.touchOne(entry.getGeneration());
-            entry.setGeneration(generation);
+            entry.setGeneration(this.summary.touchOne(entry.getGeneration()));
         }
 
         data = data.slice(entryOffset, length);

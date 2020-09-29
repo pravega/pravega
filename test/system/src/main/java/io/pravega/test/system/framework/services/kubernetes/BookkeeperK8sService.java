@@ -36,73 +36,65 @@ public class BookkeeperK8sService extends AbstractService {
 
     @Override
     public void start(boolean wait) {
-        Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT, properties),
-                                       t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
+        Futures.getAndHandleExceptions(deployBookkeeperCluster(zkUri, DEFAULT_BOOKIE_COUNT, properties),
+                t -> new TestFrameworkException(RequestFailed, "Failed to deploy bookkeeper operator/pravega services", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, DEFAULT_BOOKIE_COUNT),
-                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy bookkeeper service, check the operator logs", t));
+                    t -> new TestFrameworkException(RequestFailed, "Failed to deploy bookkeeper service, check the operator logs", t));
         }
     }
 
     @Override
     public void stop() {
-        Futures.getAndHandleExceptions(k8sClient.deleteCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA,
-                                                                    CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                                                                    NAMESPACE,
-                                                                    CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                                                                    PRAVEGA_ID),
-                                       t -> new TestFrameworkException(RequestFailed, "Failed to stop pravega", t));
+        Futures.getAndHandleExceptions(k8sClient.deleteCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER,
+                CUSTOM_RESOURCE_VERSION_BOOKKEEPER,
+                NAMESPACE,
+                CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
+                BOOKKEEPER_ID),
+                t -> new TestFrameworkException(RequestFailed, "Failed to stop bookkeeper", t));
 
     }
 
     @Override
     public boolean isRunning() {
         return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
-                        .thenApply(statuses -> statuses.stream()
-                                                       .filter(podStatus -> podStatus.getContainerStatuses()
-                                                                                     .stream()
-                                                                                     .allMatch(st -> st.getState().getRunning() != null))
-                                                       .count())
-                        .thenApply(runCount -> runCount >= DEFAULT_BOOKIE_COUNT)
-                        .exceptionally(t -> {
-                            log.warn("Exception observed while checking status of pods {}. Details: {}", BOOKKEEPER_LABEL, t.getMessage());
-                            return false;
-                        }).join();
+                .thenApply(statuses -> statuses.stream()
+                        .filter(podStatus -> podStatus.getContainerStatuses()
+                                .stream()
+                                .allMatch(st -> st.getState().getRunning() != null))
+                        .count())
+                .thenApply(runCount -> runCount >= DEFAULT_BOOKIE_COUNT)
+                .exceptionally(t -> {
+                    log.warn("Exception observed while checking status of pods {}. Details: {}", BOOKKEEPER_LABEL, t.getMessage());
+                    return false;
+                }).join();
     }
 
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
         return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
-                                                       .thenApply(statuses -> statuses.stream()
-                                                                                     .map(s -> URI.create(TCP + s.getPodIP() + ":" + BOOKKEEPER_PORT))
-                                                                                     .collect(Collectors.toList())),
-                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for bookkeeper", t));
+                        .thenApply(statuses -> statuses.stream()
+                                .map(s -> URI.create(TCP + s.getPodIP() + ":" + BOOKKEEPER_PORT))
+                                .collect(Collectors.toList())),
+                t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for bookkeeper", t));
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
-        log.info("Scaling Bookkeeper service to {} instances.", newInstanceCount);
-        return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
-                        .thenCompose(o -> {
-                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
-                            Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
-                            Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
-
-                            int currentControllerCount = ((Double) pravegaSpec.get("controllerReplicas")).intValue();
-                            int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
-                            int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
-                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
-                                      currentControllerCount, currentSegmentStoreCount);
-                            if (currentBookkeeperCount != newInstanceCount) {
-                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("replicas", newInstanceCount, "bookkeeper");
-                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
-                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
-                            } else {
-                                return CompletableFuture.completedFuture(null);
-                            }
-                        });
+        return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER, NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER, BOOKKEEPER_ID)
+                .thenCompose(o -> {
+                    Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
+                    int currentBookkeeperCount = ((Double) spec.get("replicas")).intValue();
+                    log.debug("Current instance counts : Bookkeeper {} .", currentBookkeeperCount);
+                    if (currentBookkeeperCount != newInstanceCount) {
+                        final Map<String, Object> patchedSpec = buildPatchedBookkeeperClusterSpec("replicas", newInstanceCount);
+                        return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER, NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER, patchedSpec)
+                                .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
     }
-
 }

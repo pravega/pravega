@@ -10,7 +10,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -193,7 +193,7 @@ public class ClusterWrapper implements AutoCloseable {
         StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
         try {
             String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
-            return Entry.of("admin", encryptedPassword, "*,READ_UPDATE");
+            return Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE");
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }

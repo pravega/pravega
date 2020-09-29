@@ -20,10 +20,9 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
-import io.pravega.auth.AuthHandler;
-import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
@@ -43,6 +42,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
@@ -196,8 +199,8 @@ public class ControllerGrpcAuthFocusedTest {
                 true,
                 2);
 
-        AuthHandler authHandler = new PasswordAuthHandler();
-        ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+        authHandler.initialize(AUTH_FILE.getAbsolutePath());
 
         String uniqueServerName = String.format("Test server name: %s", getClass());
 
@@ -697,20 +700,20 @@ public class ControllerGrpcAuthFocusedTest {
 
             try (FileWriter writer = new FileWriter(result.getAbsolutePath())) {
                 String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
-                writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_READ, defaultPassword, "/,READ;scope1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_3_READ, defaultPassword, "/,READ;scope1,READ;scope3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "scope2,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ;scope1/stream3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "scope1,READ;scope1/_kvtable/table1,READ;scope1/_kvtable/table3,READ"));
-                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "prn::*,READ_UPDATE;"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "prn::/,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_READ, defaultPassword, "prn::/,READ;prn::/scope:scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER1_3_READ, defaultPassword, "prn::/,READ;prn::/scope:scope1,READ;prn::/scope:scope3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "prn::/scope:scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "prn::/scope:scope2,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "prn::/scope:scope1/stream:stream1,READ_UPDATE"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "prn::/scope:scope1/stream:stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "prn::/scope:scope1/stream:stream2,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ;prn::/scope:scope1/stream:stream3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_TABLE1_3_LIST_READ, defaultPassword, "prn::/scope:scope1,READ;prn::/scope:scope1/key-value-table:table1,READ;prn::/scope:scope1/key-value-table:table3,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "prn::/scope:scope1,READ"));
             }
             return result;
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {

@@ -11,40 +11,52 @@ package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
-import org.junit.Before;
-
 import java.io.File;
 import java.io.FileWriter;
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Before;
+
+import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
 
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
+
     @Override
     @Before
     public void setup() throws Exception {
-        File file = File.createTempFile("passwd", ".txt");
-
+        File file = File.createTempFile("SecureStreamMetaDataTests", ".txt");
         StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
 
             // Admin has READ_WRITE permission to everything
-            writer.write("admin:" + passwd + ":*,READ_UPDATE\n");
+            addAuthFileEntry(writer, "admin", passwd, Collections.singletonList("prn::*,READ_UPDATE"));
 
             // User "user1" can:
             //    - list, create and delete scopes
             //    - Create and delete streams within scopes "scope1" and "scope2". Also if "user1" lists scopes,
             //      she'll see those scopes, but not "scope3".
-            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope1/*,READ_UPDATE;scope2,READ_UPDATE;scope2/*,READ_UPDATE;\n");
+            addAuthFileEntry(writer, "user1", passwd, Arrays.asList(
+                    "prn::/,READ_UPDATE",
+                    "prn::/scope:scope1,READ_UPDATE",
+                    "prn::/scope:scope1/*,READ_UPDATE",
+                    "prn::/scope:scope2,READ_UPDATE",
+                    "prn::/scope:scope2/*,READ_UPDATE\n"
+            ));
 
-            writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
+            addAuthFileEntry(writer, "user2", passwd, Arrays.asList(
+                    "prn::/,READ",
+                    "prn::/scope:scope3,READ_UPDATE"));
         }
 
         this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
