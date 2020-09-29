@@ -27,8 +27,6 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.AddSubscriberEvent;
-import io.pravega.shared.controller.event.RemoveSubscriberEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -113,16 +111,6 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     @Override
     public CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
-    }
-
-    @Override
-    public CompletableFuture<Void> processAddSubscriberStream(AddSubscriberEvent addSubscriberEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
-    }
-
-    @Override
-    public CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent removeSubscriberEvent) {
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 

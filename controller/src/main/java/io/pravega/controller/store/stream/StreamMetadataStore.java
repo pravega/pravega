@@ -297,34 +297,32 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param name          stream name.
      * @param newSubscriber new stream subscriber.
      * @param newSubscriberConfig new subscriber configuration.
-     * @param removeSubscriber a flag to indicate if this update is for removing a subscriber or otherwise.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
      */
-    CompletableFuture<Void> startUpdateSubscribers(final String scope,
+    CompletableFuture<Void> updateSubscribers(final String scope,
                                                      final String name,
                                                      final String newSubscriber,
                                                      final SubscriberConfiguration newSubscriberConfig,
-                                                     final boolean removeSubscriber,
                                                      final OperationContext context,
                                                      final Executor executor);
 
     /**
-     * Complete an ongoing update of stream subscribers' configuration.
+     * Updates the subscribers metadata for an existing stream.
      *
      * @param scope         stream scope
      * @param name          stream name.
-     * @param existing      versioned StreamSubscribersRecord
+     * @param newSubscriber new stream subscriber.
      * @param context       operation context
      * @param executor      callers executor
-     * @return future of operation
+     * @return Future of operation
      */
-    CompletableFuture<Void> completeUpdateSubscribers(final String scope,
-                                                        final String name,
-                                                        final VersionedMetadata<StreamSubscribersRecord> existing,
-                                                        final OperationContext context,
-                                                        final Executor executor);
+    CompletableFuture<Void> removeSubscriber(final String scope,
+                                              final String name,
+                                              final String newSubscriber,
+                                              final OperationContext context,
+                                              final Executor executor);
 
     /**
      * Fetches the current stream subscribers record.

@@ -47,8 +47,6 @@ import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AddSubscriberTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.RemoveSubscriberTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
@@ -180,8 +178,6 @@ public class ControllerGrpcAuthFocusedTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, EXECUTOR),
-                new AddSubscriberTask(streamMetadataTasks, streamStore, EXECUTOR),
-                new RemoveSubscriberTask(streamMetadataTasks, streamStore, EXECUTOR),
                 streamStore,
                 EXECUTOR);
 

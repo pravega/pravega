@@ -43,8 +43,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AddSubscriberTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.RemoveSubscriberTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
@@ -158,8 +156,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
-                new AddSubscriberTask(streamMetadataTasks, streamMetadataStore, executor),
-                new RemoveSubscriberTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);

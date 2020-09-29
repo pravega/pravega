@@ -22,7 +22,6 @@ public enum State {
     CREATING,
     ACTIVE,
     UPDATING,
-    UPDATING_SUBSCRIBERS,
     SCALING,
     COMMITTING_TXN,
     TRUNCATING,
@@ -32,12 +31,11 @@ public enum State {
     private enum StateTransitions {
         UNKNOWN(State.UNKNOWN, State.CREATING),
         CREATING(State.CREATING, State.ACTIVE),
-        ACTIVE(State.ACTIVE, State.SCALING, State.TRUNCATING, State.COMMITTING_TXN, State.SEALING, State.SEALED, State.UPDATING, State.UPDATING_SUBSCRIBERS),
+        ACTIVE(State.ACTIVE, State.SCALING, State.TRUNCATING, State.COMMITTING_TXN, State.SEALING, State.SEALED, State.UPDATING),
         SCALING(State.SCALING, State.ACTIVE),
         COMMITTING_TXN(State.COMMITTING_TXN, State.ACTIVE),
         TRUNCATING(State.TRUNCATING, State.ACTIVE),
         UPDATING(State.UPDATING, State.ACTIVE),
-        UPDATING_SUBSCRIBERS(State.UPDATING_SUBSCRIBERS, State.ACTIVE),
         SEALING(State.SEALING, State.SEALED),
         SEALED(State.SEALED);
 

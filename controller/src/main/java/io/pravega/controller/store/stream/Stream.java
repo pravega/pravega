@@ -121,26 +121,19 @@ interface Stream {
 
     /**
      * Starts updating the subscribers configuration for an existing stream.
-     *
      * @param newSubscriber new subscriber for the Stream.
+     * @param config new subscriber configuration.
      * @return void
      */
-    CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber, final SubscriberConfiguration config);
+    CompletableFuture<Void> updateSubscribers(final String newSubscriber, final SubscriberConfiguration config);
 
-    /**
-     * Completes an ongoing update subscribers for an existing stream.
-     * @param subscribers - existing collection of subscribers with their truncation Stream-Cuts.
-     * @return future of new StreamConfigWithVersion.
-     */
-    CompletableFuture<Void> completeUpdateSubscribers(VersionedMetadata<StreamSubscribersRecord> subscribers);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
-     *
      * @param subscriber  subscriber to be reomved.
      * @return future of operation.
      */
-    CompletableFuture<Void> startRemoveSubscriber(final String subscriber);
+    CompletableFuture<Void> removeSubscriber(final String subscriber);
 
     /**
      * Starts truncating an existing stream.

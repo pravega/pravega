@@ -18,8 +18,6 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.controller.event.AddSubscriberEvent;
-import io.pravega.shared.controller.event.RemoveSubscriberEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,8 +31,6 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     private final SealStreamTask sealStreamTask;
     private final DeleteStreamTask deleteStreamTask;
     private final TruncateStreamTask truncateStreamTask;
-    private final AddSubscriberTask addSubscriberTask;
-    private final RemoveSubscriberTask removeSubscriberTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
@@ -42,8 +38,6 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
                                 TruncateStreamTask truncateStreamTask,
-                                AddSubscriberTask addSubscriberTask,
-                                RemoveSubscriberTask removeSubscriberTask,
                                 StreamMetadataStore streamMetadataStore,
                                 ScheduledExecutorService executor) {
         super(streamMetadataStore, executor);
@@ -53,8 +47,6 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
         this.truncateStreamTask = truncateStreamTask;
-        this.addSubscriberTask = addSubscriberTask;
-        this.removeSubscriberTask = removeSubscriberTask;
     }
     
     @Override
@@ -79,28 +71,6 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                 OPERATION_NOT_ALLOWED_PREDICATE)
                 .thenAccept(v -> {
                     log.info("Processing update request {} for stream {}/{} complete", updateStreamEvent.getRequestId(), updateStreamEvent.getScope(), updateStreamEvent.getStream());
-                });
-    }
-
-    @Override
-    public CompletableFuture<Void> processAddSubscriberStream(AddSubscriberEvent addSubscriberEvent) {
-        log.info("Processing update request {} for stream {}/{}", addSubscriberEvent.getRequestId(), addSubscriberEvent.getScope(), addSubscriberEvent.getStream());
-        return withCompletion(addSubscriberTask, addSubscriberEvent, addSubscriberEvent.getScope(), addSubscriberEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
-                .thenAccept(v -> {
-                    log.info("Processing add subscriber request {} for stream {}/{} complete", addSubscriberEvent.getRequestId(),
-                                                                    addSubscriberEvent.getScope(), addSubscriberEvent.getStream());
-                });
-    }
-
-    @Override
-    public CompletableFuture<Void> processRemoveSubscriberStream(RemoveSubscriberEvent removeSubscriberEvent) {
-        log.info("Processing update request {} for stream {}/{}", removeSubscriberEvent.getRequestId(), removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream());
-        return withCompletion(removeSubscriberTask, removeSubscriberEvent, removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
-                .thenAccept(v -> {
-                    log.info("Processing add subscriber request {} for stream {}/{} complete", removeSubscriberEvent.getRequestId(),
-                            removeSubscriberEvent.getScope(), removeSubscriberEvent.getStream());
                 });
     }
 

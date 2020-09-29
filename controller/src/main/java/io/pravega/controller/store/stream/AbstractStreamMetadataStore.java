@@ -524,24 +524,24 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> startUpdateSubscribers(final String scope,
+    public CompletableFuture<Void> updateSubscribers(final String scope,
                                                             final String name,
                                                             final String subscriber,
                                                             final SubscriberConfiguration subConfig,
-                                                            final boolean removeSubscriber,
+
                                                             final OperationContext context,
                                                             final Executor executor) {
-        if (removeSubscriber) {
-            return Futures.completeOn(getStream(scope, name, context).startRemoveSubscriber(subscriber), executor);
-        }
-        return Futures.completeOn(getStream(scope, name, context).startUpdateSubscribers(subscriber, subConfig), executor);
+        return Futures.completeOn(getStream(scope, name, context).updateSubscribers(subscriber, subConfig), executor);
     }
 
     @Override
-    public CompletableFuture<Void> completeUpdateSubscribers(final String scope, final String name,
-                                                               final VersionedMetadata<StreamSubscribersRecord> existing,
-                                                               final OperationContext context, final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).completeUpdateSubscribers(existing), executor);
+    public CompletableFuture<Void> removeSubscriber(final String scope,
+                                                     final String name,
+                                                     final String subscriber,
+
+                                                     final OperationContext context,
+                                                     final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).removeSubscriber(subscriber), executor);
     }
 
     @Override

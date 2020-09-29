@@ -40,8 +40,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TaskException
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.AddSubscriberTask;
-import io.pravega.controller.server.eventProcessor.requesthandlers.RemoveSubscriberTask;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -189,8 +187,6 @@ public abstract class StreamMetadataTasksTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new AddSubscriberTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new RemoveSubscriberTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,

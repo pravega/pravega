@@ -35,16 +35,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StreamSubscribersRecord {
     public static final SubscribersRecordSerializer SERIALIZER = new SubscribersRecordSerializer();
-
-    public static final StreamSubscribersRecord EMPTY = new StreamSubscribersRecord(ImmutableMap.of(), false);
+    public static final StreamSubscribersRecord EMPTY = new StreamSubscribersRecord(ImmutableMap.of());
 
     private final ImmutableMap<String, SubscriberConfiguration> subscribersWithConfiguration;
-    private final boolean updating;
 
     @Builder
-    public StreamSubscribersRecord(@NonNull ImmutableMap<String, SubscriberConfiguration> streamSubcribers, boolean updating) {
+    public StreamSubscribersRecord(@NonNull ImmutableMap<String, SubscriberConfiguration> streamSubcribers) {
         this.subscribersWithConfiguration = streamSubcribers;
-        this.updating = updating;
     }
 
     public boolean contains(String subscriber) {
@@ -57,7 +54,7 @@ public class StreamSubscribersRecord {
         Map<String, SubscriberConfiguration> streamSubscribers = new HashMap<String, SubscriberConfiguration>();
         streamSubscribers.putAll(existingSubscribers);
         streamSubscribers.put(newSubscriber, config);
-        return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers), true);
+        return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers));
     }
 
     public static StreamSubscribersRecord remove(ImmutableMap<String, SubscriberConfiguration> existingSubscribers,
@@ -65,12 +62,10 @@ public class StreamSubscribersRecord {
         Map<String, SubscriberConfiguration> streamSubscribers = existingSubscribers.entrySet().stream()
                                                                 .filter(e -> !e.getKey().equals(subscriber))
                                                                 .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
-        return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers), true);
+        return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers));
     }
 
-    public static StreamSubscribersRecord complete(ImmutableMap<String, SubscriberConfiguration> subscribers) {
-        return StreamSubscribersRecord.builder().streamSubcribers(subscribers).updating(false).build();
-    }
+
 
     private static class StreamSubscribersRecordBuilder implements ObjectBuilder<StreamSubscribersRecord> {
 

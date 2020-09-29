@@ -165,10 +165,9 @@ public abstract class PersistentStreamBase implements Stream {
      * @return future of operation.
      */
     @Override
-    public CompletableFuture<Void> startUpdateSubscribers(final String newSubscriber, final SubscriberConfiguration subConfig) {
+    public CompletableFuture<Void> updateSubscribers(final String newSubscriber, final SubscriberConfiguration subConfig) {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
-                    Preconditions.checkArgument(!subscribersRecord.getObject().isUpdating());
                     StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.update(
                             subscribersRecord.getObject().getSubscribersWithConfiguration(), newSubscriber, subConfig);
                     return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
@@ -177,37 +176,17 @@ public abstract class PersistentStreamBase implements Stream {
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
-     *
      * @param subscriber  subscriber to be removed.
      * @return future of operation.
      */
     @Override
-    public CompletableFuture<Void> startRemoveSubscriber(final String subscriber) {
+    public CompletableFuture<Void> removeSubscriber(final String subscriber) {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
-                    Preconditions.checkArgument(!subscribersRecord.getObject().isUpdating());
                     StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.remove(
                             subscribersRecord.getObject().getSubscribersWithConfiguration(), subscriber);
                     return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
                 });
-    }
-
-    /**
-     * Complete subscriber update.
-     * @return future of operation
-     */
-    @Override
-    public CompletableFuture<Void> completeUpdateSubscribers(VersionedMetadata<StreamSubscribersRecord> subscribers) {
-        StreamSubscribersRecord current = subscribers.getObject();
-        Preconditions.checkNotNull(current);
-        if (current.isUpdating()) {
-            StreamSubscribersRecord newSubscribersRecord = StreamSubscribersRecord.complete(current.getSubscribersWithConfiguration());
-            log.debug("Completing update subscribers for stream {}/{}", scope, name);
-            return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(newSubscribersRecord, subscribers.getVersion())));
-        } else {
-            // idempotent
-            return CompletableFuture.completedFuture(null);
-        }
     }
 
     @Override
