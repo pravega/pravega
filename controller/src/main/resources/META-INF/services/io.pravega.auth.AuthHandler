@@ -7,4 +7,4 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-io.pravega.controller.server.rpc.auth.PasswordAuthHandler
+io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler

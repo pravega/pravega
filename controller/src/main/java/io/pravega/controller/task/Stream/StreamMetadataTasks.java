@@ -30,7 +30,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
@@ -329,8 +329,8 @@ public class StreamMetadataTasks extends TaskBase {
             log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
             return CompletableFuture.completedFuture(null);
         }
-        log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
-                                                                                newRecord.getRecordingTime(), newRecord.getRecordingSize());
+        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
+                truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
         return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
                    .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
                    .thenCompose(started -> {

@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -95,16 +96,24 @@ public class RawClient implements AutoCloseable {
 
     }
 
-    public RawClient(PravegaNodeUri uri, ConnectionPool connectonPool) {
+    public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {
         this.segmentId = null;
-        this.connection = connectonPool.getClientConnection(flow, uri, responseProcessor);
+        this.connection = connectionPool.getClientConnection(flow, uri, responseProcessor)
+        .exceptionally(e -> {
+            log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
+            throw new CompletionException(new ConnectionFailedException(e));
+        });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
-    public RawClient(Controller controller, ConnectionPool connectonPool, Segment segmentId) {
+    public RawClient(Controller controller, ConnectionPool connectionPool, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectonPool.getClientConnection(flow, uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor))
+                                    .exceptionally(e -> {
+                                        log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
+                                        throw new CompletionException(new ConnectionFailedException(e));
+                                    });
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -119,6 +128,7 @@ public class RawClient implements AutoCloseable {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
+
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
             log.debug("Closing connection as requested");
         } else {
