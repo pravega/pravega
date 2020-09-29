@@ -830,11 +830,6 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> data) {
-        return null;
-    }
-
-    @Override
     CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
         return null;
     }

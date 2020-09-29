@@ -159,17 +159,24 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     /**
-     * Update subscribers for the Stream.
-     *
-     * @param newSubscriber new subscriber for this stream .
+     * Create a subscribersRecord with provided subscriber for this Stream.
      * @return future of operation.
      */
     @Override
-    public CompletableFuture<Void> updateSubscribers(final String newSubscriber, final SubscriberConfiguration subConfig) {
+    public CompletableFuture<Void> createSubscribersRecord(String subscriber) {
+        ImmutableMap<String, SubscriberConfiguration> subscribers
+                = new ImmutableMap.Builder<String, SubscriberConfiguration>()
+                .put(subscriber, SubscriberConfiguration.EMPTY).build();
+        return createSubscribersDataIfAbsent(new StreamSubscribersRecord(subscribers));
+    }
+
+    public CompletableFuture<Void> updateSubscribers(final String subscriber,
+                                                     SubscriberConfiguration subscriberConfiguration) {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
                     StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.update(
-                            subscribersRecord.getObject().getSubscribersWithConfiguration(), newSubscriber, subConfig);
+                            subscribersRecord.getObject().getSubscribersWithConfiguration(),
+                            subscriber, subscriberConfiguration);
                     return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
                 });
     }
@@ -2036,11 +2043,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data);
 
-    abstract CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> data);
-
     abstract CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached);
 
-    abstract CompletableFuture<Version> setSubscribersData(final VersionedMetadata<StreamSubscribersRecord> configuration);
+    abstract CompletableFuture<Version> setSubscribersData(final VersionedMetadata<StreamSubscribersRecord> subscribers);
 
     // endregion
 

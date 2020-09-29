@@ -251,12 +251,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data) {
-        return null;
-    }
-
-    @Override
-    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> data) {
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

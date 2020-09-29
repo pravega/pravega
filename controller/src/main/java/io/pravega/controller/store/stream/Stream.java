@@ -110,8 +110,6 @@ interface Stream {
      */
     CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getVersionedConfigurationRecord();
 
-
-
     /**
      * Fetches the current subscribers record
      *
@@ -120,17 +118,24 @@ interface Stream {
     CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getVersionedSubscribersRecord();
 
     /**
-     * Starts updating the subscribers configuration for an existing stream.
-     * @param newSubscriber new subscriber for the Stream.
-     * @param config new subscriber configuration.
-     * @return void
+     * Create subscribers record for storing metadata about Stream Subscribers.
+     * Also add this new Subscriber to the Record.
+     * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
+     * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscribers(final String newSubscriber, final SubscriberConfiguration config);
+    CompletableFuture<Void> createSubscribersRecord(String subscriber);
 
+    /**
+     * Update subscribers record for the Stream.
+     * @param subscriber  subscriber to be added/updated.
+     * @param subscriberConfiguration  subscriber config to be added/updated.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> updateSubscribers(final String subscriber, final SubscriberConfiguration subscriberConfiguration);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
-     * @param subscriber  subscriber to be reomved.
+     * @param subscriber  subscriber to be removed.
      * @return future of operation.
      */
     CompletableFuture<Void> removeSubscriber(final String subscriber);

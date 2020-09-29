@@ -293,6 +293,19 @@ public interface StreamMetadataStore extends AutoCloseable {
     /**
      * Updates the subscribers metadata for an existing stream.
      *
+     * @param scopeName         stream scope name.
+     * @param streamName        stream name.
+     * @param subscriber        new stream subscriber.
+     * @param context           operation context
+     * @param executor          callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> createSubscribersRecord(final String scopeName, final String streamName, String subscriber,
+                                                           final OperationContext context, final Executor executor);
+
+    /**
+     * Updates the subscribers metadata for an existing stream.
+     *
      * @param scope         stream scope
      * @param name          stream name.
      * @param newSubscriber new stream subscriber.

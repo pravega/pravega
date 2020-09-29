@@ -191,7 +191,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
                                                                                        long createTimestamp, int numOfRetries) {
-        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
+        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp),
                 e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
@@ -301,32 +301,39 @@ public class StreamMetadataTasks extends TaskBase {
             // 1. check Stream exists
             if (!exists) {
                 return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
-            }
-            // 2. get subscribers data
-            return streamMetadataStore.getSubscribersRecord(scope, stream, context, executor)
+            } else {
+                // 2. get subscribers data
+                return Futures.exceptionallyExpecting(streamMetadataStore.getSubscribersRecord(scope, stream, context, executor),
+                     e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                     .thenCompose(subscribersData -> {
-                        //3. check if subscriber by this name/Id already exists
-                        if (subscribersData.getObject().contains(newSubscriber)) {
-                            return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
-                        }
-                        //4. add subscriber to the list of Stream Subscribers
-                        streamMetadataStore.updateSubscribers(scope, stream, newSubscriber,
-                                                            SubscriberConfiguration.EMPTY, context, executor);
+                    //4. if SubscribersRecord does not exist create one...
+                    if (subscribersData == null) {
+                        streamMetadataStore.createSubscribersRecord(scope, stream, newSubscriber, context, executor);
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
+                    }
+                    //5. check if subscriber by this name/Id already exists
+                    if (subscribersData.getObject().contains(newSubscriber)) {
+                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
+                    }
+                    //6. add subscriber to the list of Stream Subscribers
+                    streamMetadataStore.updateSubscribers(scope, stream, newSubscriber,
+                                    SubscriberConfiguration.EMPTY, context, executor);
+                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
                     })
                     .exceptionally(ex -> {
                         log.warn(requestId, "Exception thrown in trying to update stream subscriber configuration {}",
-                                ex.getMessage());
+                                    ex.getMessage());
                         Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
-                            return AddSubscriberStatus.Status.STREAM_NOT_FOUND;
+                           return AddSubscriberStatus.Status.STREAM_NOT_FOUND;
                         } else if (cause instanceof TimeoutException) {
-                            throw new CompletionException(cause);
+                           throw new CompletionException(cause);
                         } else {
-                            log.warn(requestId, "Add subscriber {} failed due to {}", newSubscriber, cause);
-                            return AddSubscriberStatus.Status.FAILURE;
+                           log.warn(requestId, "Add subscriber {} failed due to {}", newSubscriber, cause);
+                           return AddSubscriberStatus.Status.FAILURE;
                         }
                     });
+            }
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 

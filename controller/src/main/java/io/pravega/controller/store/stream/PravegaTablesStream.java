@@ -279,16 +279,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateSubscribersData(VersionedMetadata<StreamSubscribersRecord> subscribers) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY, subscribers.getObject().toBytes(), subscribers.getVersion())
-                        .thenApply(v -> {
-                            storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY);
-                            return v;
-                        }));
-    }
-
-    @Override
     CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
