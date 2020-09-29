@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +46,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
-import static io.pravega.shared.NameUtils.segmentTags;
 
 /**
  * Utility methods for container recovery.
@@ -197,7 +197,7 @@ public class ContainerRecoveryUtils {
                     val segmentInfo = MetadataStore.SegmentInfo.deserialize(entry.getValue());
                     val properties = segmentInfo.getProperties();
                     List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
-                            .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.ReplaceIfGreater, e.getValue()))
+                            .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                             .collect(Collectors.toList());
                     log.info("Updating attributes = {} for segment '{}'", attributeUpdates, properties.getName());
                     container.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT)
@@ -206,7 +206,7 @@ public class ContainerRecoveryUtils {
                                     log.info("Update attributes failed. Segment '{}' doesn't exist.", properties.getName());
                                     return null;
                                 }
-                                return null;
+                                throw new CompletionException(e);
                             }).join();
                 }
             }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);;
@@ -260,20 +260,16 @@ public class ContainerRecoveryUtils {
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            try {
-                val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                        containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+                    containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-                // Store the segments in a set
-                Set<String> metadataSegments = new HashSet<>();
-                keyIterator.forEachRemaining(k ->
-                        metadataSegments.addAll(k.getEntries().stream()
-                                .map(entry -> entry.getKey().toString())
-                                .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
-            } catch (Exception e) {
-                continue;
-            }
+            // Store the segments in a set
+            Set<String> metadataSegments = new HashSet<>();
+            keyIterator.forEachRemaining(k ->
+                    metadataSegments.addAll(k.getEntries().stream()
+                            .map(entry -> entry.getKey().toString())
+                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
     }

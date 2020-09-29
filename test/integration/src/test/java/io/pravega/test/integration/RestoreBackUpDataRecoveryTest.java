@@ -93,6 +93,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Thread.sleep;
+
 /**
  * Integration test to verify data recovery.
  * Recovery scenario: when data written to Pravega is already flushed to the long term storage.
@@ -336,7 +338,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  8. Reads all 600 events again.
      * @throws Exception    In case of an exception occurred while execution.
      */
-    @Test(timeout = 180000)
+    @Test(timeout = 880000)
     public void testDurableDataLogFailRecoverySingleContainer() throws Exception {
         testRecovery(1, 1, false);
     }
@@ -422,7 +424,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Get names of all the segments created.
         ConcurrentHashMap<String, Boolean> allSegments = segmentStoreRunner.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
+        log.info("Number of segments created = {}", allSegments.size());
 
         // Get the long term storage from the running pravega instance
         @Cleanup
@@ -432,6 +434,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // wait for all segments to be flushed to the long term storage.
         waitForSegmentsInStorage(allSegments.keySet(), segmentStoreRunner.segmentsTracker, storage)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        sleep(600000);
 
         segmentStoreRunner.close(); // Shutdown SegmentStore
         log.info("Segment Store Shutdown");
