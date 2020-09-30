@@ -1238,10 +1238,13 @@ public class ControllerImpl implements Controller {
 
     private void closeChannel() {
         this.channel.shutdownNow(); // Initiates a shutdown of channel. Although forceful, the shutdown is not instantaneous.
-        Exceptions.handleInterrupted(() -> {
+        try {
             boolean shutdownStatus = channel.awaitTermination(20, TimeUnit.SECONDS);
             log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
-        });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("Channel shutdown has been initiated. InterruptedException observed while awaiting termination of channel. Current termination status is {}", channel.isTerminated());
+        };
     }
 
     @Override
