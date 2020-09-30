@@ -257,9 +257,9 @@ public class ContainerRecoveryUtils {
      */
     protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
         byte[] buffer = new byte[BUFFER_SIZE];
-        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
-            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
-                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
+        return storage.create(targetSegment, TIMEOUT).thenComposeAsync(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenComposeAsync(info -> {
+                return storage.openRead(sourceSegment).thenComposeAsync(sourceHandle -> {
                     AtomicInteger offset = new AtomicInteger(0);
                     AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
                     return Futures.loop(
@@ -274,8 +274,8 @@ public class ContainerRecoveryUtils {
                                             }, executor) : null;
                                         }, executor);
                             }, executor);
-                });
-            });
-        });
+                }, executor);
+            }, executor);
+        }, executor);
     }
 }
