@@ -26,12 +26,10 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -137,9 +135,14 @@ public class Main {
     @VisibleForTesting
     static void onShutdown(ControllerServiceMain controllerServiceMain) {
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        boolean previousVerbose = memoryMXBean.isVerbose();
         memoryMXBean.setVerbose(true);
-        log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
-                memoryMXBean.getNonHeapMemoryUsage());
+        try {
+            log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                    memoryMXBean.getNonHeapMemoryUsage());
+        } finally {
+            memoryMXBean.setVerbose(previousVerbose);
+        }
 
         log.info("Controller service shutting down");
         try {
