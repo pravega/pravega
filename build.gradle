@@ -778,7 +778,6 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
