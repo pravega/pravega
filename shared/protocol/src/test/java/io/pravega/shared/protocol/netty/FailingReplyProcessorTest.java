@@ -90,17 +90,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableRead(new TableRead(0, "", null)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
+        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
     }
 
-    @Test
-    public void testErrorMessageThrows() {
-        for (ErrorMessage.ErrorCode code : ErrorMessage.ErrorCode.values()) {
-            ErrorMessage msg = new ErrorMessage(0, "", "", code);
-            assertThrows(code.getExceptionType(), () -> {
-                rp.errorMessage(msg);
-            });
-        }
-    }
-
-    
 }
