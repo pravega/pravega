@@ -1243,8 +1243,9 @@ public class ControllerImpl implements Controller {
             log.debug("Controller client shutdown has been initiated. Channel status: channel.isTerminated():{}", shutdownStatus);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.info("Channel shutdown has been initiated. InterruptedException observed while awaiting termination of channel. Current termination status is {}", channel.isTerminated());
-        };
+            log.info("Channel shutdown has been initiated. InterruptedException observed while awaiting termination of channel, retrying. Current termination status is {}", channel.isTerminated());
+            Exceptions.handleInterrupted(() -> channel.awaitTermination(20, TimeUnit.SECONDS));
+        }
     }
 
     @Override
