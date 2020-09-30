@@ -989,7 +989,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private boolean errorCodeExists(Throwable e) {
         val errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
-        return errorCode == WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
+        return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
     }
 
     private void logError(long requestId, String segment, String operation, Throwable u) {
