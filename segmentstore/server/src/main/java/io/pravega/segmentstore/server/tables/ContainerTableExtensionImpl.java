@@ -580,8 +580,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         @Override
-        public void notifyIndexOffsetChanged(long lastIndexedOffset) {
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
+        public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset, processedSizeBytes);
         }
 
         @Override
@@ -592,7 +592,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         @Override
         public void close() {
             // Tell the KeyIndex that it's ok to clear any tail-end cache.
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L);
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L, 0);
         }
     }
 

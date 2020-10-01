@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -162,7 +161,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
                                 .thenComposeAsync(flushResult -> {
-                                    flushComplete(flushResult.lastIndexedOffset);
+                                    flushComplete(flushResult);
                                     return compactIfNeeded(segment, flushResult.highestCopiedOffset, timer)
                                             .thenApply(v -> flushResult);
                                 }, this.executor),
@@ -259,13 +258,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Updates the internal state post flush and notifies the {@link TableWriterConnector} of the fact.
      *
-     * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
+     * @param flushResult The {@link TableWriterFlushResult} that indicates what has been updated.
      */
-    private void flushComplete(long lastIndexedOffset) {
+    private void flushComplete(TableWriterFlushResult flushResult) {
         log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
         this.aggregator.reset();
-        this.aggregator.setLastIndexedOffset(lastIndexedOffset);
-        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+        this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset(), flushResult.processedBytes);
     }
 
     /**
@@ -295,13 +294,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                     logBucketUpdates(bucketUpdates);
                                     return this.connector.getSortedKeyIndex().persistUpdate(bucketUpdates, timer.getRemaining())
                                             .thenComposeAsync(v2 ->
-                                                    this.indexWriter.updateBuckets(segment, bucketUpdates,
-                                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
+                                                            this.indexWriter.updateBuckets(segment, bucketUpdates,
+                                                                    this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                                                    keyUpdates.getTotalUpdateCount(), timer.getRemaining()),
                                                     this.executor);
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
+                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -343,7 +342,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     @SneakyThrows(SerializationException.class)
     private KeyUpdateCollection readKeysFromSegment(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
-        KeyUpdateCollection keyUpdates = new KeyUpdateCollection();
+        KeyUpdateCollection keyUpdates = new KeyUpdateCollection((int) (lastOffset - firstOffset));
         val memoryRead = readFromInMemorySegment(segment, firstOffset, lastOffset, timer).getBufferViewReader();
         long segmentOffset = firstOffset;
         while (segmentOffset < lastOffset) {
@@ -384,18 +383,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private BufferView readFromInMemorySegment(DirectSegmentAccess segment, long startOffset, long endOffset, TimeoutTimer timer) {
         long readOffset = startOffset;
         long remainingLength = endOffset - startOffset;
-        ArrayList<BufferView> inputs = new ArrayList<>();
+        val builder = BufferView.builder();
         while (remainingLength > 0) {
             int readLength = (int) Math.min(remainingLength, Integer.MAX_VALUE);
             try (ReadResult readResult = segment.read(readOffset, readLength, timer.getRemaining())) {
-                inputs.addAll(readResult.readRemaining(readLength, timer.getRemaining()));
+                readResult.readRemaining(readLength, timer.getRemaining()).forEach(builder::add);
                 assert readResult.getConsumedLength() == readLength : "Expecting a full read (from memory).";
                 remainingLength -= readResult.getConsumedLength();
                 readOffset += readResult.getConsumedLength();
             }
         }
 
-        return BufferView.wrap(inputs);
+        return builder.build();
     }
 
     /**
@@ -542,10 +541,16 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
     }
 
-    @RequiredArgsConstructor
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
         final long highestCopiedOffset;
+        final int processedBytes;
+
+        TableWriterFlushResult(KeyUpdateCollection keyUpdates) {
+            this.lastIndexedOffset = keyUpdates.getLastIndexedOffset();
+            this.highestCopiedOffset = keyUpdates.getHighestCopiedOffset();
+            this.processedBytes = keyUpdates.getLength();
+        }
     }
 
     //endregion

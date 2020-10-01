@@ -201,6 +201,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         // 3. INDEX_OFFSET changes after the first append, but before the second one.
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, append2.getStreamSegmentOffset()));
+        context.connector.refreshLastIndexedOffset();
         attributeCountBefore = context.segmentMock.getAttributeCount();
         context.processor.flush(TIMEOUT).join();
         attributeCountAfter = context.segmentMock.getAttributeCount();
@@ -215,6 +216,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         context.segmentMock.append(append3.getData(), null, TIMEOUT).join();
         context.processor.add(new CachedStreamSegmentAppendOperation(append3));
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, append3.getLastStreamSegmentOffset() + 1));
+        context.connector.refreshLastIndexedOffset();
 
         attributeCountBefore = context.segmentMock.getAttributeCount();
         context.processor.flush(TIMEOUT).join();
@@ -529,9 +531,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
+            this.indexReader = new IndexReader(executorService());
             this.connector = new TableWriterConnectorImpl();
             this.processor = new WriterTableProcessor(connector, executorService());
-            this.indexReader = new IndexReader(executorService());
             val ds = new SortedKeyIndexDataSource(this.tableStoreMock::put, this.tableStoreMock::remove, this.tableStoreMock::get);
             this.sortedKeyIndex = new SegmentSortedKeyIndexImpl(SEGMENT_NAME, ds, executorService());
         }
@@ -571,6 +573,15 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         private class TableWriterConnectorImpl implements TableWriterConnector {
             private final AtomicInteger notifyCount = new AtomicInteger(0);
             private final AtomicBoolean closed = new AtomicBoolean();
+            private final AtomicLong previousLastIndexedOffset = new AtomicLong(-1);
+
+            TableWriterConnectorImpl() {
+                refreshLastIndexedOffset();
+            }
+
+            void refreshLastIndexedOffset() {
+                this.previousLastIndexedOffset.set(indexReader.getLastIndexedOffset(segmentMock.getInfo()));
+            }
 
             @Override
             public SegmentMetadata getMetadata() {
@@ -598,9 +609,14 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             @Override
-            public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+            public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
                 Assert.assertEquals("Unexpected value for lastIndexedOffset.",
                         indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
+
+                AssertExtensions.assertGreaterThanOrEqual("Expecting processedSizeBytes to be positive", 0, processedSizeBytes);
+                long expectedProcessedSize = Math.max(0, lastIndexedOffset - this.previousLastIndexedOffset.get());
+                Assert.assertEquals("Unexpected processedSizeBytes.", expectedProcessedSize, processedSizeBytes);
+                refreshLastIndexedOffset();
                 this.notifyCount.incrementAndGet();
             }
 
