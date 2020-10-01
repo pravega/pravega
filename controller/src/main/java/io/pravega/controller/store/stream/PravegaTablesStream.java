@@ -274,7 +274,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord subscribers) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, SUBSCRIBER_SET_KEY, subscribers.toBytes())
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable,
+                                SUBSCRIBER_SET_KEY, subscribers.toBytes())
                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY)));
     }
 

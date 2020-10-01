@@ -322,7 +322,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
                     })
                     .exceptionally(ex -> {
-                        log.warn(requestId, "Exception thrown in trying to update stream subscriber configuration {}",
+                        log.warn(requestId, "Exception thrown in trying to add subscriber {}",
                                     ex.getMessage());
                         Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
@@ -396,6 +396,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
         final List<String> emptySubscribersList = Collections.emptyList();
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
@@ -411,10 +412,20 @@ public class StreamMetadataTasks extends TaskBase {
                         if (subscribersData == null) {
                             return CompletableFuture.completedFuture(emptySubscribersList);
                         }
-                        List<String> subscribersList = subscribersData.getObject().getSubscribersWithConfiguration()
+                        List<String> subscribersList = subscribersData.getObject().getStreamSubscribers()
                                 .keySet().stream().collect(Collectors.toList());
                         return CompletableFuture.completedFuture(subscribersList);
-                    });
+                    }).exceptionally(ex -> {
+                              log.warn(requestId, "Exception thrown in trying to get list of Stream subscribers. {}",
+                                      ex.getMessage());
+                              Throwable cause = Exceptions.unwrap(ex);
+                              if (cause instanceof TimeoutException) {
+                                  throw new CompletionException(cause);
+                              } else {
+                                  log.warn(requestId, "getSubscribersForStream failed due to {}", cause);
+                                  return emptySubscribersList;
+                              }
+                          });
                   }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 

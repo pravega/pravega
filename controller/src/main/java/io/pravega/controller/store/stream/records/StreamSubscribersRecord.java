@@ -37,16 +37,16 @@ public class StreamSubscribersRecord {
     public static final SubscribersRecordSerializer SERIALIZER = new SubscribersRecordSerializer();
     public static final StreamSubscribersRecord EMPTY = new StreamSubscribersRecord(ImmutableMap.of());
 
-    private final ImmutableMap<String, SubscriberConfiguration> subscribersWithConfiguration;
+    private final ImmutableMap<String, SubscriberConfiguration> streamSubscribers;
 
     @Builder
     public StreamSubscribersRecord(@NonNull ImmutableMap<String, SubscriberConfiguration> streamSubcribers) {
-        this.subscribersWithConfiguration = streamSubcribers;
+        this.streamSubscribers = streamSubcribers;
     }
 
     public boolean contains(String subscriber) {
-        Preconditions.checkArgument(subscribersWithConfiguration != null, "Null subscribers for Stream");
-        return subscribersWithConfiguration.containsKey(subscriber);
+        Preconditions.checkArgument(streamSubscribers != null, "Null subscribers for Stream");
+        return streamSubscribers.containsKey(subscriber);
     }
 
     public static StreamSubscribersRecord update(ImmutableMap<String, SubscriberConfiguration> existingSubscribers,
@@ -94,14 +94,14 @@ public class StreamSubscribersRecord {
         private void read00(RevisionDataInput revisionDataInput,
                             StreamSubscribersRecordBuilder recordBuilder)
                 throws IOException {
-            ImmutableMap.Builder<String, SubscriberConfiguration> subscriberStreamCutBuilder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readUTF, SubscriberConfiguration.SERIALIZER::deserialize,
-                                                                           subscriberStreamCutBuilder);
+            ImmutableMap.Builder<String, SubscriberConfiguration> mapBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readUTF, SubscriberConfiguration.SERIALIZER::deserialize, mapBuilder);
+            recordBuilder.streamSubcribers(mapBuilder.build());
         }
 
         private void write00(StreamSubscribersRecord streamSubscribersRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
-            revisionDataOutput.writeMap(streamSubscribersRecord.getSubscribersWithConfiguration(),
+            revisionDataOutput.writeMap(streamSubscribersRecord.getStreamSubscribers(),
                                          DataOutput::writeUTF,
                                          SubscriberConfiguration.SERIALIZER::serialize);
 

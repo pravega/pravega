@@ -69,17 +69,17 @@ public class SubscriberConfiguration implements Serializable {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, SubscriberConfigurationBuilder streamCutRecordBuilder)
+        private void read00(RevisionDataInput revisionDataInput, SubscriberConfigurationBuilder configBuilder)
                 throws IOException {
-            streamCutRecordBuilder.updateTime(revisionDataInput.readLong());
+            configBuilder.updateTime(revisionDataInput.readLong());
             ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
-            streamCutRecordBuilder.streamCut(streamCutBuilder.build());
+            configBuilder.streamCut(streamCutBuilder.build());
         }
 
-        private void write00(SubscriberConfiguration streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(streamCutRecord.getUpdateTime());
-            revisionDataOutput.writeMap(streamCutRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
+        private void write00(SubscriberConfiguration subscriberConfig, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(subscriberConfig.getUpdateTime());
+            revisionDataOutput.writeMap(subscriberConfig.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
         }
 
         @Override

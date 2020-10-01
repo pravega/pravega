@@ -175,7 +175,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
                     StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.update(
-                            subscribersRecord.getObject().getSubscribersWithConfiguration(),
+                            subscribersRecord.getObject().getStreamSubscribers(),
                             subscriber, subscriberConfiguration);
                     return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
                 });
@@ -191,7 +191,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getVersionedSubscribersRecord()
                 .thenCompose(subscribersRecord -> {
                     StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.remove(
-                            subscribersRecord.getObject().getSubscribersWithConfiguration(), subscriber);
+                            subscribersRecord.getObject().getStreamSubscribers(), subscriber);
                     return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
                 });
     }

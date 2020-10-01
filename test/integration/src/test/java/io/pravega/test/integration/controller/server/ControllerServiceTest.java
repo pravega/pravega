@@ -30,6 +30,7 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -308,10 +309,20 @@ public class ControllerServiceTest {
         final String subscriber1 = "subscriber1";
         assertTrue(controller.addSubscriber(scope, stream, subscriber1).get());
 
-        // add a new subscriber
-        //final String subscriber2 = "subscriber2";
-        //assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
-        //assertFalse(controller.addSubscriber(scope, stream, subscriber1).get());
+        // add one more new subscriber
+        final String subscriber2 = "subscriber2";
+        assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
+
+        List<String> subscribers = controller.getSubscribersForStream(scope, stream).get();
+        assertTrue(subscribers.size()==2);
+        assertTrue(subscribers.contains(subscriber1));
+        assertTrue(subscribers.contains(subscriber2));
+
+        assertTrue(controller.removeSubscriber(scope, stream, subscriber2).get());
+        List<String> subscribersNow = controller.getSubscribersForStream(scope, stream).get();
+        assertTrue(subscribersNow.size()==1);
+        assertTrue(subscribersNow.contains(subscriber1));
+        assertFalse(subscribersNow.contains(subscriber2));
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
