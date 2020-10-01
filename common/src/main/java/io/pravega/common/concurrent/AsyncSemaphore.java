@@ -155,7 +155,7 @@ public class AsyncSemaphore implements AutoCloseable {
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
             this.usedCredits = Math.max(0, this.usedCredits - credits);
-            log.trace("AsyncSemaphore[{}]: Task end. Credits={}, TotalUsedCredits={}.", this.logId, credits, this.usedCredits);
+            log.trace("AsyncSemaphore[{}]: Release. Credits={}, TotalUsedCredits={}.", this.logId, credits, this.usedCredits);
         }
 
         ArrayList<PendingTask<?>> toExecute = new ArrayList<>();
@@ -165,7 +165,7 @@ public class AsyncSemaphore implements AutoCloseable {
                 this.usedCredits += qi.credits;
                 toExecute.add(qi);
                 log.debug("AsyncSemaphore[{}]: Task unblocked. Credits={}, TotalUsedCredits={}, QueueSize={}.",
-                        this.logId, credits, this.usedCredits, this.queue.size());
+                        this.logId, qi.credits, this.usedCredits, this.queue.size());
             }
         }
 

@@ -83,7 +83,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * The maximum allowed unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}})
      * for a Segment. As long as a Segment's unindexed length is below this value, any new update that would not cause
      * its unindexed length to exceed it will be allowed. Any updates that do not meet this criteria will be blocked until
-     * {@link #notifyIndexOffsetChanged(long, long, long)} indicates that this value has been reduced sufficiently in order
+     * {@link #notifyIndexOffsetChanged} indicates that this value has been reduced sufficiently in order
      * to allow it to proceed.
      */
     private static final int MAX_UNINDEXED_LENGTH = MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
@@ -416,7 +416,8 @@ class ContainerKeyIndex implements AutoCloseable {
             update = () -> persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
 
-        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
+        return update.get();
+        //return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
     }
 
     private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
