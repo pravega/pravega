@@ -337,7 +337,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         }
 
         // verify if segments are flushed and closed.
-        Mockito.verify(outputStream, Mockito.times(2)).close();
+        Mockito.verify(outputStream, Mockito.times(1)).close();
         Mockito.verify(controller, Mockito.times(2)).commitTransaction(eq(stream), anyString(), isNull(), eq(txid));
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
