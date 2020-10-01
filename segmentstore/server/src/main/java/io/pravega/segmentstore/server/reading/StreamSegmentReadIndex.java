@@ -580,8 +580,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             synchronized (this.lock) {
                 ReadIndexEntry previous = this.indexEntries.put(newEntry);
                 assert previous == null;
+                newEntry.setGeneration(this.summary.addOne());
             }
-            newEntry.setGeneration(this.summary.addOne());
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
                 // Clean up the data we inserted if we were unable to add it to the index.
@@ -611,7 +611,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 if (existingEntry != null && existingEntry.getLastStreamSegmentOffset() >= segmentOffset) {
                     // First offset exists already. We need to skip over to the end of this entry.
                     overlapLength = existingEntry.getStreamSegmentOffset() + existingEntry.getLength() - segmentOffset;
-                    segmentOffset += overlapLength;
                 } else {
                     // First offset does not exist. Let's find out how much we can insert.
                     existingEntry = this.indexEntries.getCeiling(segmentOffset);
@@ -638,6 +637,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // Slice the remainder of the buffer, or set it to null if we processed everything.
                 assert overlapLength != 0 : "unable to make any progress";
                 data = overlapLength >= data.getLength() ? null : data.slice((int) overlapLength, data.getLength() - (int) overlapLength);
+                segmentOffset += overlapLength;
             }
         }
 
@@ -655,8 +655,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 this.summary.addOne(entry.getGeneration());
             } else {
                 // Update the Stats with the entry's length, and set the entry's generation as well.
-                int generation = this.summary.addOne();
-                entry.setGeneration(generation);
+                entry.setGeneration(this.summary.addOne());
             }
         }
 
@@ -715,8 +714,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     private void triggerFutureReads(Collection<FutureReadResultEntry> futureReads) {
         for (FutureReadResultEntry r : futureReads) {
-            ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
-            assert entry != null : "Serving a StorageReadResultEntry with a null result";
+            ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength(), false);
+            assert entry != null : "Serving a FutureReadResultEntry with a null result";
             assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
 
             log.trace("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
@@ -776,7 +775,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 return null;
             } else {
                 // Fetch data from the cache for the first entry, but do not update the cache hit stats.
-                nextEntry = createMemoryRead(indexEntry, startOffset, length, false);
+                nextEntry = createMemoryRead(indexEntry, startOffset, length, false, false);
             }
         }
 
@@ -878,9 +877,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
      * @param maxLength         The maximum number of bytes to return.
+     * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      * @return A ReadResultEntry representing the data to return.
      */
-    private CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength) {
+    private CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -912,11 +912,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         result = createDataNotAvailableRead(resultStartOffset, maxLength);
                     } else if (indexEntry.isDataEntry()) {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
-                        result = createMemoryRead(indexEntry, resultStartOffset, maxLength, true);
+                        result = createMemoryRead(indexEntry, resultStartOffset, maxLength, true, makeCopy);
                     } else if (indexEntry instanceof RedirectIndexEntry) {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry, but this
                         // is a Redirect; reissue the request to the appropriate index.
-                        result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry);
+                        result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry, makeCopy);
                     }
                 }
             }
@@ -939,12 +939,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
      * @param maxLength         The maximum number of bytes to return.
+     * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      * @return A ReadResultEntry representing the data to return.
      */
-    private CompletableReadResultEntry getMultiReadResultEntry(long resultStartOffset, int maxLength) {
+    private CompletableReadResultEntry getMultiReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
         int readLength = 0;
 
-        CompletableReadResultEntry nextEntry = getSingleReadResultEntry(resultStartOffset, maxLength);
+        CompletableReadResultEntry nextEntry = getSingleReadResultEntry(resultStartOffset, maxLength, makeCopy);
         if (nextEntry == null || !(nextEntry instanceof CacheReadResultEntry)) {
             // We can only coalesce CacheReadResultEntries.
             return nextEntry;
@@ -961,7 +962,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 break;
             }
 
-            nextEntry = getSingleMemoryReadResultEntry(resultStartOffset + readLength, maxLength - readLength);
+            nextEntry = getSingleMemoryReadResultEntry(resultStartOffset + readLength, maxLength - readLength, makeCopy);
         } while (nextEntry != null);
 
         // Coalesce the results into a single InputStream and return the result.
@@ -975,9 +976,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param resultStartOffset The Offset within the StreamSegment where to start returning data from.
      * @param maxLength         The maximum number of bytes to return.
+     * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      * @return A CacheReadResultEntry representing the data to return.
      */
-    private CacheReadResultEntry getSingleMemoryReadResultEntry(long resultStartOffset, int maxLength) {
+    private CacheReadResultEntry getSingleMemoryReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength > 0 && checkReadAvailability(resultStartOffset, false) == ReadAvailability.Available) {
@@ -986,7 +988,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 ReadIndexEntry indexEntry = this.indexEntries.get(resultStartOffset);
                 if (indexEntry != null && indexEntry.isDataEntry()) {
                     // We found an entry; return a result for it.
-                    return createMemoryRead(indexEntry, resultStartOffset, maxLength, true);
+                    return createMemoryRead(indexEntry, resultStartOffset, maxLength, true, makeCopy);
                 }
             }
         }
@@ -995,7 +997,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return null;
     }
 
-    private CompletableReadResultEntry createRedirectedRead(long streamSegmentOffset, int maxLength, RedirectIndexEntry entry) {
+    private CompletableReadResultEntry createRedirectedRead(long streamSegmentOffset, int maxLength, RedirectIndexEntry entry, boolean makeCopy) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         long entryLength = entry.getLength();
@@ -1011,7 +1013,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             maxLength = (int) entryLength;
         }
 
-        CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength);
+        CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
         if (result != null) {
             // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
             // invokes the requestContent() on the entry the Transaction may be fully merged (in Tier2). If that's the
@@ -1020,14 +1022,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getOrRegisterRedirectedRead, redirectedIndex.metadata.getId());
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(),
+                    (rso, ml, sourceSegmentId) -> getOrRegisterRedirectedRead(rso, ml, sourceSegmentId, makeCopy), redirectedIndex.metadata.getId());
         }
 
         return result;
     }
 
-    private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId) {
-        CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength);
+    private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId, boolean makeCopy) {
+        CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength, makeCopy);
         if (result instanceof RedirectedReadResultEntry) {
             // The merger isn't completed yet. Register the read so that it is completed when the merger is done.
             PendingMerge pendingMerge;
@@ -1051,7 +1054,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     log.debug("{}: Pending Merge for id {} was sealed for {}; re-issuing.", this.traceObjectId, sourceSegmentId, result);
                 }
 
-                result = getSingleReadResultEntry(resultStartOffset, maxLength);
+                result = getSingleReadResultEntry(resultStartOffset, maxLength, makeCopy);
             }
         }
 
@@ -1094,9 +1097,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
      * @param updateStats         If true, the entry's cache generation is updated as a result of this call.
+     * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      */
     @GuardedBy("lock")
-    private CacheReadResultEntry createMemoryRead(ReadIndexEntry entry, long streamSegmentOffset, int maxLength, boolean updateStats) {
+    private CacheReadResultEntry createMemoryRead(ReadIndexEntry entry, long streamSegmentOffset, int maxLength, boolean updateStats, boolean makeCopy) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
 
         int entryOffset = (int) (streamSegmentOffset - entry.getStreamSegmentOffset());
@@ -1108,11 +1112,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (updateStats) {
             // Update its generation before returning it.
-            int generation = this.summary.touchOne(entry.getGeneration());
-            entry.setGeneration(generation);
+            entry.setGeneration(this.summary.touchOne(entry.getGeneration()));
         }
 
-        return new CacheReadResultEntry(entry.getStreamSegmentOffset() + entryOffset, data.slice(entryOffset, length));
+        data = data.slice(entryOffset, length);
+        if (makeCopy) {
+            data = new ByteArraySegment(data.getCopy());
+        }
+        return new CacheReadResultEntry(entry.getStreamSegmentOffset() + entryOffset, data);
     }
 
     /**

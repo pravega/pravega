@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
+import io.pravega.segmentstore.server.reading.StreamSegmentReadResult;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -60,9 +61,11 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -102,13 +105,16 @@ public class PravegaRequestProcessorTest {
 
     //region Stream Segments
 
-    @Data
-    private static class TestReadResult implements ReadResult {
-        final long streamSegmentStartOffset;
-        final int maxResultLength;
-        boolean closed = false;
+    @Getter
+    @Setter
+    private static class TestReadResult extends StreamSegmentReadResult implements ReadResult {
         final List<ReadResultEntry> results;
         long currentOffset = 0;
+
+        TestReadResult(long streamSegmentStartOffset, int maxResultLength, List<ReadResultEntry> results) {
+            super(streamSegmentStartOffset, maxResultLength, (l, r, i) -> null, "");
+            this.results = results;
+        }
 
         @Override
         public boolean hasNext() {
@@ -117,19 +123,15 @@ public class PravegaRequestProcessorTest {
 
         @Override
         public ReadResultEntry next() {
+            Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", isCopyOnRead());
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
             return result;
         }
 
         @Override
-        public void close() {
-            closed = true;
-        }
-
-        @Override
         public int getConsumedLength() {
-            return (int) (currentOffset - streamSegmentStartOffset);
+            return (int) (currentOffset - getStreamSegmentStartOffset());
         }
     }
 

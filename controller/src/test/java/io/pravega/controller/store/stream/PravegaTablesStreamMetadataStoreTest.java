@@ -19,7 +19,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.VersionedMetadata;
@@ -483,7 +483,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     private void createAndCommitTransaction(String scope, String stream, UUID txnId, PravegaTablesStreamMetadataStore testStore) {
         testStore.createTransaction(scope, stream, txnId, 10000L, 10000L, null, executor).join();
         testStore.sealTransaction(scope, stream, txnId, true, Optional.empty(), "", 0L, null, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = testStore.startCommitTransactions(scope, stream, 100, null, executor).join();
         testStore.completeCommitTransactions(scope, stream, record, null, executor).join();
     }
 

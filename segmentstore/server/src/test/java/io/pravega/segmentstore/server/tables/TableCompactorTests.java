@@ -212,6 +212,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         final long entryCount = context.indexWriter.getEntryCount(context.segmentMetadata);
 
         // Perform compaction, step-by-step, until there is nothing left to compact.
+        int expectedCopyOnReadCount = 0;
         while (compactionOffset < lastIndexedOffset) {
             // Collect the entries that we expect to be compacted in this iteration.
             val candidates = collect(sortedEntries, readLength);
@@ -263,6 +264,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
             compactionOffset = newCompactionOffset;
             totalEntryCount = newTotalEntryCount;
+            expectedCopyOnReadCount++;
         }
 
         Assert.assertFalse("Not expecting any more entries to be compacted.", sortedEntries.hasNext());
