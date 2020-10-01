@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -41,6 +42,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +79,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
+    private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -245,6 +248,60 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
             debugStreamSegmentContainerMap.get(containerId).close();
         }
+    }
+
+    /**
+     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
+     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
+     * contents from the first one.
+     */
+    @Test
+    public void testCopySegment() {
+        int dataSize = 10 * 1024 * 1024;
+        // Create a storage.
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
+        @Cleanup
+        Storage s = storageFactory.createStorageAdapter();
+        s.initialize(1);
+        log.info("Created a storage instance");
+
+        String sourceSegmentName = "segment-" + RANDOM.nextInt();
+        String targetSegmentName = "segment-" + RANDOM.nextInt();
+
+        // Create source segment
+        s.create(sourceSegmentName, TIMEOUT).join();
+        val handle = s.openWrite(sourceSegmentName).join();
+
+        // do some writing
+        byte[] writeData = populate(dataSize);
+        val dataStream = new ByteArrayInputStream(writeData);
+        s.write(handle, 0, dataStream, writeData.length, TIMEOUT).join();
+
+        // copy segment
+        ContainerRecoveryUtils.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
+
+        // source segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
+        // target segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(targetSegmentName, null).join());
+
+        // Do reading on target segment to verify if the copy was successful or not
+        val readHandle = s.openRead(targetSegmentName).join();
+        int length = writeData.length;
+        byte[] readBuffer = new byte[length];
+        int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals(String.format("Unexpected number of bytes read."), length, bytesRead);
+        AssertExtensions.assertArrayEquals(String.format("Unexpected read result."), writeData, 0, readBuffer, 0, bytesRead);
+    }
+
+    private void populate(byte[] data) {
+        RANDOM.nextBytes(data);
+    }
+
+    private byte[] populate(int size) {
+        byte[] bytes = new byte[size];
+        populate(bytes);
+        return bytes;
     }
 
     public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
