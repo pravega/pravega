@@ -110,26 +110,26 @@ public class Event implements ProducerUpdate {
     @SneakyThrows(IOException.class)
     public Event(ArrayView source, int sourceOffset) {
         // Extract prefix and validate.
-        int prefix = BitConverter.readInt(source, sourceOffset);
+        int prefix = readInt(source, sourceOffset);
         sourceOffset += PREFIX_LENGTH;
         Preconditions.checkArgument(prefix == PREFIX, "Prefix mismatch.");
 
         // Extract ownerId.
-        this.ownerId = BitConverter.readInt(source, sourceOffset);
+        this.ownerId = readInt(source, sourceOffset);
         sourceOffset += OWNER_ID_LENGTH;
 
-        this.routingKey = BitConverter.readInt(source, sourceOffset);
+        this.routingKey = readInt(source, sourceOffset);
         sourceOffset += ROUTING_KEY_LENGTH;
 
-        this.sequence = BitConverter.readInt(source, sourceOffset);
+        this.sequence = readInt(source, sourceOffset);
         sourceOffset += SEQUENCE_LENGTH;
 
         // Extract start time.
-        this.startTime = BitConverter.readLong(source, sourceOffset);
+        this.startTime = readLong(source, sourceOffset);
         sourceOffset += START_TIME_LENGTH;
 
         // Extract length.
-        this.contentLength = BitConverter.readInt(source, sourceOffset);
+        this.contentLength = readInt(source, sourceOffset);
         sourceOffset += LENGTH_LENGTH;
         Preconditions.checkArgument(this.contentLength >= 0, "Payload length must be a positive integer.");
         Preconditions.checkElementIndex(sourceOffset + contentLength, source.getLength() + 1, "Insufficient data in given source.");
@@ -143,6 +143,26 @@ public class Event implements ProducerUpdate {
             this.serialization = source;
         }
         this.writeBuffer = Unpooled.wrappedBuffer(this.serialization.array(), this.serialization.arrayOffset(), this.serialization.getLength());
+    }
+
+    private int readInt(ArrayView truncateableArray, int offset) {
+        // TruncateableArray does not support a BufferView.Reader, so we need to read our own numbers.
+        return BitConverter.makeInt(truncateableArray.get(offset),
+                truncateableArray.get(offset + 1),
+                truncateableArray.get(offset + 2),
+                truncateableArray.get(offset + 3));
+    }
+
+    private long readLong(ArrayView truncateableArray, int offset) {
+        // TruncateableArray does not support a BufferView.Reader, so we need to read our own numbers.
+        return BitConverter.makeLong(truncateableArray.get(offset),
+                truncateableArray.get(offset + 1),
+                truncateableArray.get(offset + 2),
+                truncateableArray.get(offset + 3),
+                truncateableArray.get(offset + 4),
+                truncateableArray.get(offset + 5),
+                truncateableArray.get(offset + 6),
+                truncateableArray.get(offset + 7));
     }
 
     //endregion
