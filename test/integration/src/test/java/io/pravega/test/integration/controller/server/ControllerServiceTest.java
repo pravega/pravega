@@ -323,6 +323,13 @@ public class ControllerServiceTest {
         assertTrue(subscribersNow.size()==1);
         assertTrue(subscribersNow.contains(subscriber1));
         assertFalse(subscribersNow.contains(subscriber2));
+
+        // and now add again...
+        assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
+        List<String> subscribersAgain = controller.getSubscribersForStream(scope, stream).get();
+        assertTrue(subscribersAgain.size()==2);
+        assertTrue(subscribersAgain.contains(subscriber1));
+        assertTrue(subscribersAgain.contains(subscriber2));
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
