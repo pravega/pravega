@@ -172,6 +172,13 @@ public class ControllerService {
                 }, executor);
     }
 
+    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream) {
+        Preconditions.checkNotNull(scope, "scopeName is null");
+        Preconditions.checkNotNull(stream, "streamName is null");
+
+        return streamMetadataTasks.getSubscribersForStream(scope, stream, null);
+    }
+
     public CompletableFuture<RemoveSubscriberStatus> removeSubscriber(String scope, String stream, final String subscriber) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");

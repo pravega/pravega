@@ -84,6 +84,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -382,6 +383,39 @@ public class StreamMetadataTasks extends TaskBase {
                      }
                   });
            }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+
+
+    /**
+     * Get list of  subscribers for Stream.
+     * Needed only for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final List<String> emptySubscribersList = Collections.emptyList();
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+                .thenCompose(exists -> {
+                  if (!exists) {
+                    // 1. if Stream does not exist return empty list
+                    return CompletableFuture.completedFuture(emptySubscribersList);
+                  }
+                  // 2. get subscribers data
+                  return Futures.exceptionallyExpecting(streamMetadataStore.getSubscribersRecord(scope, stream, context, executor),
+                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                    .thenCompose(subscribersData -> {
+                        //3. if SubscribersRecord does not exist return empty list
+                        if (subscribersData == null) {
+                            return CompletableFuture.completedFuture(emptySubscribersList);
+                        }
+                        List<String> subscribersList = subscribersData.getObject().getSubscribersWithConfiguration()
+                                .keySet().stream().collect(Collectors.toList());
+                        return CompletableFuture.completedFuture(subscribersList);
+                    });
+                  }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
     /**

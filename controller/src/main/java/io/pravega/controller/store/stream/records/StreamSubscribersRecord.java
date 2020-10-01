@@ -65,15 +65,13 @@ public class StreamSubscribersRecord {
         return new StreamSubscribersRecord(ImmutableMap.copyOf(streamSubscribers));
     }
 
-
-
     private static class StreamSubscribersRecordBuilder implements ObjectBuilder<StreamSubscribersRecord> {
-
     }
 
     @SneakyThrows(IOException.class)
-    public static StreamSubscribersRecord fromBytes(final byte[] data) {
-        return SERIALIZER.deserialize(data);
+    public static StreamSubscribersRecord fromBytes(final byte[] record) {
+        //InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
+        return SERIALIZER.deserialize(record);
     }
 
     @SneakyThrows(IOException.class)

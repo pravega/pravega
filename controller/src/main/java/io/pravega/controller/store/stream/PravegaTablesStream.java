@@ -285,7 +285,6 @@ class PravegaTablesStream extends PersistentStreamBase {
                     if (ignoreCached) {
                         return storeHelper.getEntry(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
                     }
-
                     return storeHelper.getCachedData(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
                 });
     }

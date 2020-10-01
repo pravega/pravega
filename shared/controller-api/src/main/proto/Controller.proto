@@ -54,6 +54,7 @@ service ControllerService {
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
     rpc removeSubscriber(StreamSubscriberInfo) returns (RemoveSubscriberStatus);
+    rpc getSubscribersForStream(StreamInfo) returns (StreamSubscribers);
 }
 
 message ServerRequest {
@@ -252,6 +253,10 @@ message StreamSubscriberInfo {
     string scope = 1;
     string stream = 2;
     string subscriber = 3;
+}
+
+message StreamSubscribers {
+    repeated string subscriber = 1;
 }
 
 message ScalingPolicy {

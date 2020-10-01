@@ -186,15 +186,16 @@ public class LocalController implements Controller {
         return this.controller.addSubscriber(scope, streamName, subscriber).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + subscriber);
+                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
+                                                                              scope + "/" + streamName);
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + subscriber);
+                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Scope does not exist: " + scope);
                 case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
+                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status updating subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber + "on stream " + scope + "/" + streamName
                             + " " + x.getStatus());
             }
         });
@@ -205,13 +206,13 @@ public class LocalController implements Controller {
         return this.controller.removeSubscriber(scope, streamName, subscriber).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + subscriber);
+                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + subscriber);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + subscriber);
+                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
                 case SUCCESS:
                     return true;
                 default:
@@ -221,6 +222,10 @@ public class LocalController implements Controller {
         });
     }
 
+    @Override
+    public CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName) {
+        return this.controller.getSubscribersForStream(scope, streamName);
+    }
 
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {

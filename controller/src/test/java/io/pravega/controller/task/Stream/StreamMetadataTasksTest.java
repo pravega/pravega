@@ -57,6 +57,7 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -316,6 +317,37 @@ public abstract class StreamMetadataTasksTest {
         // execute the event again. It should complete without doing anything. 
         updateStreamTask.execute(event).join();
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
+    }
+
+    @Test(timeout = 30000)
+    public void addRemoveSubscriberTest() throws InterruptedException, ExecutionException {
+
+        // add a new subscriber - positive case
+        String subscriber1 = "subscriber1";
+        Controller.AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        StreamSubscribersRecord record = streamStorePartialMock.getSubscribersRecord(SCOPE, stream1, null, executor).get().getObject();
+        assertTrue(record.contains(subscriber1));
+
+        /*
+        //seal stream.
+        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream, null);
+
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream, null, executor).get());
+        Futures.await(sealOperationResult);
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
+
+        // delete after seal
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
+
+        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream).join());
+        */
     }
 
     @Test(timeout = 30000)

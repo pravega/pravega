@@ -36,6 +36,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscribers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.List;
@@ -263,6 +264,17 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper to convert StreamSubscribers into List<String> of subscribers for this Stream.
+     *
+     * @param subscribers The collection of subscribers for this Stream.
+     * @return New instance of List<String> with subscriber names.
+     */
+    public static final List<String> encode(final StreamSubscribers subscribers) {
+        Preconditions.checkNotNull(subscribers, "subscribers");
+        return null;
+    }
+
+    /**
      * Decodes segment and returns an instance of SegmentId.
      *
      * @param segment The segment.
@@ -338,6 +350,21 @@ public final class ModelHelper {
         final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
                 .setScope(scope).setStream(streamName).setSubscriber(subscriberId);
         return builder.build();
+    }
+
+    /**
+     * Converts List<String> of subscribers into StreamSubscriber object.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriberList List of subscribers for this stream.
+     * @return StreamSubscribers instance.
+     */
+    public static final StreamSubscribers decode(final String scope, final String streamName, final List<String> subscriberList) {
+        Preconditions.checkNotNull(subscriberList, "subscriberList");
+
+
+        return null;
     }
 
     /**

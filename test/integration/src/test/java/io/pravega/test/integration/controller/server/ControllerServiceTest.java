@@ -210,6 +210,8 @@ public class ControllerServiceTest {
         getSegmentsBeforeCreation(controller, scope1, streamName1);
 
         getSegmentsAfterCreation(controller, scope1, streamName1);
+
+        addSubscribersToStream(controller, scope1, streamName2);
     }
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
@@ -299,6 +301,17 @@ public class ControllerServiceTest {
         assertFalse(Futures.await(controller.updateStream(scope, "stream4", StreamConfiguration.builder()
                                                                              .scalingPolicy(scalingPolicy)
                                                                              .build())));
+    }
+
+    private static void addSubscribersToStream(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
+        // add the first subscriber
+        final String subscriber1 = "subscriber1";
+        assertTrue(controller.addSubscriber(scope, stream, subscriber1).get());
+
+        // add a new subscriber
+        //final String subscriber2 = "subscriber2";
+        //assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
+        //assertFalse(controller.addSubscriber(scope, stream, subscriber1).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,

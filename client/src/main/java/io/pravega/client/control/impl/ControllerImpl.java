@@ -612,6 +612,31 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scopeName");
+        Preconditions.checkNotNull(streamName, "stream");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getSubscribersForStream", streamName);
+        final CompletableFuture<StreamSubscribers> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamSubscribers> callback = new RPCAsyncCallback<>(requestId, "getSubscribersForStream", scope, streamName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getSubscribersForStream", scope, streamName)
+                    .getSubscribersForStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(subscribers -> {
+            log.debug("Received the following data from the controller {}", subscribers.getSubscriberList());
+            return subscribers.getSubscriberList().stream()
+                    .collect(Collectors.toList());
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("get Subscribers for Stream {}/{}  failed: ", scope, streamName,  e);
+            }
+            LoggerHelpers.traceLeave(log, "getSubscribersForStream", traceId);
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         return truncateStream(scope, stream, getStreamCutMap(streamCut));
     }
@@ -1645,15 +1670,22 @@ public class ControllerImpl implements Controller {
                       .deleteStream(streamInfo, callback);
         }
 
-        public void addSubscriber(StreamSubscriberInfo subscriberInfo, RPCAsyncCallback<AddSubscriberStatus> callback) {
+        public void addSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<AddSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .addSubscriber(subscriberInfo, callback);
+                    .addSubscriber(streamSubscriberInfo, callback);
         }
 
-        public void removeSubscriber(StreamSubscriberInfo subscriberInfo, RPCAsyncCallback<RemoveSubscriberStatus> callback) {
+        public void removeSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<RemoveSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .removeSubscriber(subscriberInfo, callback);
+                    .removeSubscriber(streamSubscriberInfo, callback);
         }
+
+
+        public void getSubscribersForStream(StreamInfo streamInfo, RPCAsyncCallback<StreamSubscribers> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                .getSubscribersForStream(streamInfo, callback);
+        }
+
 
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)

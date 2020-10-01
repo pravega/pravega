@@ -138,6 +138,13 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Boolean> removeSubscriber(final String scope, final String streamName, final String subscriber);
 
+    /**
+     * Get list of Subscribers for the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @return List of StreamSubscribers
+     */
+    CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
