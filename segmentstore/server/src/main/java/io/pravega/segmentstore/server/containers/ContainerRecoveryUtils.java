@@ -21,6 +21,7 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
@@ -41,6 +43,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 @Slf4j
 public class ContainerRecoveryUtils {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
 
     /**
      * Recovers Segments from the given Storage instance. This is done by:
@@ -241,5 +244,38 @@ public class ContainerRecoveryUtils {
         return Futures.exceptionallyExpecting(
                 storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
                 ex -> ex instanceof StreamSegmentNotExistsException, null);
+    }
+
+    /**
+     * Creates a target segment with the given name and copies the contents of the source segment to the target segment.
+     * @param storage                   A storage instance to create the segment.
+     * @param sourceSegment             The name of the source segment to copy the contents from.
+     * @param targetSegment             The name of the segment to write the contents to.
+     * @param executor                  A thread pool for execution.
+     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
+     * completed. If the operation failed, the future will be failed with the causing exception.
+     */
+    protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        return storage.create(targetSegment, TIMEOUT).thenComposeAsync(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenComposeAsync(info -> {
+                return storage.openRead(sourceSegment).thenComposeAsync(sourceHandle -> {
+                    AtomicInteger offset = new AtomicInteger(0);
+                    AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
+                    return Futures.loop(
+                            () -> bytesToRead.get() > 0,
+                            () -> {
+                                return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
+                                        .thenComposeAsync(size -> {
+                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
+                                                    .thenAcceptAsync(r -> {
+                                                        bytesToRead.addAndGet(-size);
+                                                        offset.addAndGet(size);
+                                            }, executor) : null;
+                                        }, executor);
+                            }, executor);
+                }, executor);
+            }, executor);
+        }, executor);
     }
 }
