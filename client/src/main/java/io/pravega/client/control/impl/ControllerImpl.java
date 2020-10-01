@@ -620,8 +620,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "getSubscribersForStream", streamName);
         final CompletableFuture<StreamSubscribers> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<StreamSubscribers> callback = new RPCAsyncCallback<>(requestId, "getSubscribersForStream", scope, streamName);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getSubscribersForStream", scope, streamName)
-                    .getSubscribersForStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getSubscribersForStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(subscribers -> {
@@ -1679,13 +1678,6 @@ public class ControllerImpl implements Controller {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .removeSubscriber(streamSubscriberInfo, callback);
         }
-
-
-        public void getSubscribersForStream(StreamInfo streamInfo, RPCAsyncCallback<StreamSubscribers> callback) {
-            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                .getSubscribersForStream(streamInfo, callback);
-        }
-
 
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
