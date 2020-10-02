@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
+import io.pravega.segmentstore.server.host.handler.TrackedConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -214,8 +215,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
             this.producerCount = producerCount;
             this.appendProcessor = AppendProcessor.defaultBuilder()
                                                   .store(segmentStore)
-                                                  .connection(this)
-                                                  .connectionTracker(connectionTracker)
+                                                  .connection(new TrackedConnection(this, connectionTracker))
                                                   .build();
             this.nextSequence = 1;
             this.resultFutures = new HashMap<>();
