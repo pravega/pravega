@@ -883,17 +883,18 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testErrorMessage() throws IOException {
-        Class exceptionType = IllegalArgumentException.class;
-        WireCommands.ErrorMessage.ErrorCode code = WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION;
-        WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
-        testCommand(cmd);
-        assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
-        assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+        for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
+            Class exceptionType = code.getExceptionType();
+            WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
+            testCommand(cmd);
+            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
+            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
 
-        RuntimeException exception = cmd.getThrowableException();
-        AssertExtensions.assertThrows(exceptionType, () -> {
-            throw exception;
-        });
+            RuntimeException exception = cmd.getThrowableException();
+            AssertExtensions.assertThrows(exceptionType, () -> {
+                throw exception;
+            });
+        }
     }
 
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
