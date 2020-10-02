@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
@@ -154,33 +155,33 @@ public class ContainerRecoveryUtils {
                 ex -> ex instanceof StreamSegmentNotExistsException, null);
     }
 
-    public static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
-        return storage.create(targetSegment, TIMEOUT).thenCompose(targetHandle -> {
-            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenCompose(info -> {
-                return storage.openRead(sourceSegment).thenCompose(sourceHandle -> {
-                    offset = 0;
-                    bytesToRead = (int) info.getLength();
+    protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        return storage.create(targetSegment, TIMEOUT).thenComposeAsync(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenComposeAsync(info -> {
+                return storage.openRead(sourceSegment).thenComposeAsync(sourceHandle -> {
+                    AtomicInteger offset = new AtomicInteger(0);
+                    AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
                     return Futures.loop(
-                            () -> bytesToRead > 0,
+                            () -> bytesToRead.get() > 0,
                             () -> {
-                                byte[] buffer = new byte[Math.min(BUFFER_SIZE, bytesToRead)];
-                                return storage.read(sourceHandle, offset, buffer, 0, buffer.length, TIMEOUT)
+                                return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
                                         .thenComposeAsync(size -> {
-                                            bytesToRead -= size;
-                                            return (size > 0) ? storage.write(targetHandle, offset, new
-                                                    ByteArrayInputStream(buffer, 0, size), size, TIMEOUT).thenAcceptAsync(r -> {
-                                                offset += size;
-                                            }, executor) : null;
+                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
+                                                    .thenAcceptAsync(r -> {
+                                                        bytesToRead.addAndGet(-size);
+                                                        offset.addAndGet(size);
+                                                    }, executor) : null;
                                         }, executor);
                             }, executor);
-                });
-            });
-        });
+                }, executor);
+            }, executor);
+        }, executor);
     }
 
     public static void updateCoreAttributes(Map<Integer, String> metadataSegments,
-                                                               Map<Integer, DebugStreamSegmentContainer> containersMap,
-                                                               ExecutorService executorService)
+                                            Map<Integer, DebugStreamSegmentContainer> containersMap,
+                                            ExecutorService executorService)
             throws Exception {
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
@@ -206,6 +207,7 @@ public class ContainerRecoveryUtils {
                                     log.info("Update attributes failed. Segment '{}' doesn't exist.", properties.getName());
                                     return null;
                                 }
+                                log.error("Update attributes failed due to the error: ", e);
                                 throw new CompletionException(e);
                             }).join();
                 }

@@ -49,10 +49,12 @@ import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainerTest
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
@@ -109,7 +111,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Write 300 events to different segments.
      */
-    private static final long TOTAL_NUM_EVENTS = 300;
+    private static final long TOTAL_NUM_EVENTS = 0;
 
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
@@ -125,19 +127,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final String EVENT = "12345";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 60)
             .build();
     // Configurations for DebugSegmentContainer
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
     private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
             .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 1)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024L)
             .build();
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
@@ -250,8 +251,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 throws DurableDataLogException {
             ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                     .builder()
-                    .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, containerCount));
+                    .include(ServiceConfig
+                            .builder()
+                            .with(ServiceConfig.CONTAINER_COUNT, containerCount))
+                    .include(ContainerConfig
+                            .builder()
+                            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS))
+                    .include(WriterConfig
+                            .builder()
+                            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+                            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+                            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 1));
+
             if (storageFactory != null) {
                 if (dataLogFactory != null) {
                     this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
@@ -431,24 +442,23 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
+//        ContainerRecoveryUtils.printAttributesInMetadataSegment(NameUtils.getMetadataSegmentName(0),
+//                segmentStoreRunner.segmentsTracker, executorService());
+
         // wait for all segments to be flushed to the long term storage.
         waitForSegmentsInStorage(allSegments.keySet(), segmentStoreRunner.segmentsTracker, storage)
                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        sleep(600000);
+        sleep(300000);
+
+//        ContainerRecoveryUtils.printAttributesInMetadataSegment(NameUtils.getMetadataSegmentName(0),
+//                segmentStoreRunner.segmentsTracker, executorService());
 
         segmentStoreRunner.close(); // Shutdown SegmentStore
         log.info("Segment Store Shutdown");
 
         this.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
         log.info("BookKeeper & ZooKeeper shutdown");
-
-        // start a new BookKeeper and ZooKeeper.
-        this.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperRunner.bkConfig.get(), this.bookKeeperRunner.zkClient.get(),
-                executorService());
-        this.dataLogFactory.initialize();
-        log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
@@ -463,6 +473,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
+        log.info("Number of metadata segments: {}", backUpMetadataSegments.size());
+
+        // start a new BookKeeper and ZooKeeper.
+        this.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
+        this.dataLogFactory = new BookKeeperLogFactory(this.bookKeeperRunner.bkConfig.get(), this.bookKeeperRunner.zkClient.get(),
+                executorService());
+        this.dataLogFactory.initialize();
+        log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Create the environment for DebugSegmentContainer.
         @Cleanup
@@ -471,9 +489,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // create debug segment container instances using new new dataLog and old storage.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context,
                 containerCount, this.dataLogFactory, this.storageFactory);
+        log.info("Number of containers started: {}", debugStreamSegmentContainerMap.size());
 
-
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+//        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
 //        for (int containerId = 0; containerId < containerCount; containerId++) {
 //            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + "_1234";
@@ -512,6 +530,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         controllerRunner.close();
     }
+
 
     // Creates debug segment container instances, puts them in a map and returns it.
     private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(DebugStreamSegmentContainerTests.TestContext
