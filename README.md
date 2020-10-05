@@ -15,7 +15,9 @@ To learn more about Pravega, visit https://pravega.io
 
 ## Prerequisites
 
-- Java 8+
+- Java 11+
+
+ In spite of the requirements of using JDK 11+ to build this project, `client` artifacts (and its dependencies) must be compatible with a Java 8 runtime. All other components are built and ran using JDK11+.
 
 ## Building Pravega
 
@@ -56,6 +58,8 @@ To import the source into IntelliJ:
 4. Pravega should now compile properly.
 
 For eclipse, you can generate eclipse project files by running `./gradlew eclipse`.
+
+<sup> Note: Some unit tests will create (and delete) a significant amount of files. For improved performance on Windows machines, be sure to add the appropriate 'Microsoft Defender' exclusion.</sup>
 
 ## Releases
 
