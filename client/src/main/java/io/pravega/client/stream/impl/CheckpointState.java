@@ -64,16 +64,18 @@ public class CheckpointState {
      */
     private final Map<String, Map<Segment, Long>> checkpointPositions;
 
+    private Map<Segment, Long> lastStreamCutPosition;
+
     private Map<Segment, Long> lastCheckpointPosition;
 
 
     public CheckpointState() {
-        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null);
+        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, null);
     }
     
     @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
-            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition) {
+            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, Map<Segment, Long> lastStreamCutPosition) {
         Preconditions.checkNotNull(checkpoints);
         Preconditions.checkNotNull(uncheckpointedHosts);
         Preconditions.checkNotNull(checkpointPositions);
@@ -81,6 +83,7 @@ public class CheckpointState {
         this.uncheckpointedHosts = uncheckpointedHosts;
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
+        this.lastStreamCutPosition = lastStreamCutPosition;
         recomputeCheckpointIndex();
     }
 
@@ -138,8 +141,13 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
-                //checkpoint operation completed for all readers, update the last checkpoint position.
-                lastCheckpointPosition = checkpointPositions.get(checkpointId);
+
+                if (isCheckpointSilent(checkpointId)) {
+                    lastStreamCutPosition = checkpointPositions.get(checkpointId);
+                } else {
+                    //checkpoint operation completed for all readers, update the last checkpoint position.
+                    lastCheckpointPosition = checkpointPositions.get(checkpointId);
+                }
             }
         }
     }
@@ -202,7 +210,8 @@ public class CheckpointState {
         Map<String, Map<Segment, Long>> cpps = new HashMap<>();
         checkpointPositions.forEach((cp, pos) -> cpps.put(cp, new HashMap<>(pos)));
         Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
-        return new CheckpointState(cps, ucph, cpps, lcp);
+        Map<Segment, Long> lsp = lastStreamCutPosition == null ? null : new HashMap<>(lastStreamCutPosition);
+        return new CheckpointState(cps, ucph, cpps, lcp, lsp);
     }
     
     @Override
@@ -246,6 +255,7 @@ public class CheckpointState {
             builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
             builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
+            builder.lastStreamCutPosition(input.readMap(segmentDeserializer, longDeserializer));
         }
 
         private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
@@ -256,6 +266,7 @@ public class CheckpointState {
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
             output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
             output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
+            output.writeMap(object.lastStreamCutPosition, segmentSerializer, longSerializer);
         }
     }
 
