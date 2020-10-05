@@ -334,6 +334,8 @@ public final class ModelHelper {
      * @return StreamSubscriberInfo instance.
      */
     public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriberId) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriberId, "subscriber");
         final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
                 .setScope(scope).setStream(streamName).setSubscriber(subscriberId);

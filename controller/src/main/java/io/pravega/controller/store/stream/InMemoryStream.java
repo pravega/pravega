@@ -84,6 +84,8 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("lock")
     private VersionedMetadata<CommittingTransactionsRecord> committingTxnRecord;
     @GuardedBy("lock")
+    private VersionedMetadata<StreamSubscribersRecord> subscribers;
+    @GuardedBy("lock")
     private String waitingRequestNode;
 
     private final Object txnsLock = new Object();
@@ -826,17 +828,41 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data) {
-        return null;
+        subscribers = new VersionedMetadata<>(data, new Version.IntVersion(0));
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
-        return null;
+        CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.subscribers == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscribers not found"));
+            } else {
+                result.complete(this.subscribers);
+            }
+        }
+        return result;
     }
 
     @Override
-    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> configuration) {
-        return null;
+    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> subscribersRecord) {
+        Preconditions.checkNotNull(subscribersRecord);
+
+        CompletableFuture<Version> result = new CompletableFuture<>();
+        VersionedMetadata<StreamSubscribersRecord> updatedCopy = updatedCopy(subscribersRecord);
+        synchronized (lock) {
+            if (this.subscribers == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscribers record not found"));
+            } else if (Objects.equals(this.subscribers.getVersion(), subscribers.getVersion())) {
+                this.subscribers = updatedCopy;
+                result.complete(updatedCopy.getVersion());
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, getName()));
+            }
+        }
+        return result;
     }
 
     @Override

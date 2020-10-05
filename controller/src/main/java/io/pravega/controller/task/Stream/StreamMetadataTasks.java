@@ -396,7 +396,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("getSubscribersForStream", scope, stream);
         final List<String> emptySubscribersList = Collections.emptyList();
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
