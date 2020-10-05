@@ -36,6 +36,7 @@ public class PravegaControllerService extends MarathonBasedService {
 
     public static final int CONTROLLER_PORT = 9092;
     public static final int REST_PORT = 10080;
+    private static final String COMPONENT_CODE = "controller";
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;
@@ -119,20 +120,17 @@ public class PravegaControllerService extends MarathonBasedService {
         healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
 
-        String componentCode = "controller";
-
-        // These properties are defined in "io.pravega.controller.util.Config".
         String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty(String.format("%s.%s", componentCode, "zk.connect.uri"), zk) +
-                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.published.host.nameOrIp"), this.id + ".marathon.mesos") +
-                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.published.port"), String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty(String.format("%s.%s", componentCode, "service.rpc.listener.port"), String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty(String.format("%s.%s", componentCode, "service.rest.listener.port"), String.valueOf(REST_PORT)) +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty(String.format("%s.%s", componentCode, "transaction.lease.count.max"), String.valueOf(120 * 1000)) +
-                setSystemProperty(String.format("%s.%s", componentCode, "retention.frequency.minutes"), String.valueOf(2));
+                buildSystemProperty(propertyName("zk.connect.uri"), zk) +
+                buildSystemProperty(propertyName("service.rpc.published.host.nameOrIp"), this.id + ".marathon.mesos") +
+                buildSystemProperty(propertyName("service.rpc.published.port"), String.valueOf(CONTROLLER_PORT)) +
+                buildSystemProperty(propertyName("service.rpc.listener.port"), String.valueOf(CONTROLLER_PORT)) +
+                buildSystemProperty(propertyName("service.rest.listener.port"), String.valueOf(REST_PORT)) +
+                buildSystemProperty("log.level", "DEBUG") +
+                buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
+                buildSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
+                buildSystemProperty(propertyName("transaction.lease.count.max"), String.valueOf(120 * 1000)) +
+                buildSystemProperty(propertyName("retention.frequency.minutes"), String.valueOf(2));
 
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
@@ -140,5 +138,9 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setArgs(Arrays.asList("controller"));
 
         return app;
+    }
+
+    private String propertyName(String str) {
+        return String.format("%s.%s", COMPONENT_CODE, str);
     }
 }
