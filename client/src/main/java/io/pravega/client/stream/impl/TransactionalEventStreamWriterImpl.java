@@ -128,6 +128,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
+            inner.clear(); // clear all references to SegmentTransaction to enable garbage collection.
             Futures.getThrowingException(controller.commitTransaction(stream, writerId, timestamp, txId));
             pinger.stopPing(txId);
             closed.set(true);
@@ -145,6 +146,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
+                inner.clear(); // clear all references to SegmentTransaction to enable garbage collection.
                 Futures.getThrowingException(controller.abortTransaction(stream, txId));
                 closed.set(true);
             }
