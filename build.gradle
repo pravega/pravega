@@ -182,6 +182,11 @@ project('shared:security') {
         testCompile project(':test:testcommon')
     }
 
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
+    }
+
     javadoc {
         exclude 'io/pravega/shared/*'
         dependsOn delombok
