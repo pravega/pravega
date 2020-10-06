@@ -53,15 +53,17 @@ public class ZKHostStore implements HostControllerStore {
 
     private final AtomicReference<HostContainerMap> hostContainerMap;
     /**
-     * The tests can add listeners to get notification when the update has happed in the store.
+     * The tests can add listeners to get notification when the update has happened in the store.
      */
     private final AtomicReference<Listener> listenerRef;
     /**
      * Zookeeper based host store implementation.
      *
      * @param client                    The curator client instance.
+     * @param containerCount            Number of containers in the system.
      */
-    ZKHostStore(CuratorFramework client, int containerCount) {
+    @VisibleForTesting
+    public ZKHostStore(CuratorFramework client, int containerCount) {
         Preconditions.checkNotNull(client, "client");
 
         zkClient = client;
