@@ -340,7 +340,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
-        assertEquals(allSubscribers.size(), 3);
+        assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
         assertTrue(allSubscribers.contains(subscriber3));
@@ -370,7 +370,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
-        assertEquals(allSubscribers.size(), 3);
+        assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
         assertTrue(allSubscribers.contains(subscriber3));

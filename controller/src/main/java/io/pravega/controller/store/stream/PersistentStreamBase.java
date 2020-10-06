@@ -170,6 +170,12 @@ public abstract class PersistentStreamBase implements Stream {
         return createSubscribersDataIfAbsent(new StreamSubscribersRecord(subscribers));
     }
 
+    /**
+     * Update subscribers record for the Stream.
+     * @param subscriber  subscriber to be added/updated.
+     * @param subscriberConfiguration  subscriber config to be added/updated.
+     * @return future of operation.
+     */
     public CompletableFuture<Void> updateSubscribers(final String subscriber,
                                                      SubscriberConfiguration subscriberConfiguration) {
         return getVersionedSubscribersRecord()

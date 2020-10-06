@@ -70,7 +70,6 @@ public class StreamSubscribersRecord {
 
     @SneakyThrows(IOException.class)
     public static StreamSubscribersRecord fromBytes(final byte[] record) {
-        //InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(record);
     }
 

@@ -72,6 +72,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
     private static final String TRUNCATION_PATH = STREAM_PATH + "/truncation";
+    private static final String SUBSCRIBERS_PATH = STREAM_PATH + "/subscribers";
     private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String EPOCH_TRANSITION_PATH = STREAM_PATH + "/epochTransition";
     private static final String RETENTION_SET_PATH = STREAM_PATH + "/retention";
@@ -95,6 +96,7 @@ class ZKStream extends PersistentStreamBase {
     private final String creationPath;
     private final String configurationPath;
     private final String truncationPath;
+    private final String subscribersPath;
     private final String statePath;
     private final String epochTransitionPath;
     private final String committingTxnsPath;
@@ -145,6 +147,7 @@ class ZKStream extends PersistentStreamBase {
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
         truncationPath = String.format(TRUNCATION_PATH, scopeName, streamName);
+        subscribersPath = String.format(SUBSCRIBERS_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
         retentionSetPath = String.format(RETENTION_SET_PATH, scopeName, streamName);
         retentionStreamCutRecordPathFormat = String.format(RETENTION_STREAM_CUT_RECORD_PATH, scopeName, streamName) + "/%d";
@@ -250,18 +253,27 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data) {
-        return CompletableFuture.completedFuture(null);
+    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord subscribersRecord) {
+        return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersRecord.toBytes()));
     }
 
     @Override
     CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
-        return null;
+        return getId().thenCompose(id -> {
+            if (ignoreCached) {
+                return store.getData(subscribersPath, StreamSubscribersRecord::fromBytes);
+            }
+            return store.getCachedData(subscribersPath, id, StreamSubscribersRecord::fromBytes);
+        });
     }
 
     @Override
-    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> configuration) {
-        return null;
+    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> subscribersRecord) {
+        return getId().thenCompose(id -> store.setData(subscribersPath, subscribersRecord.getObject().toBytes(), subscribersRecord.getVersion())
+                .thenApply(r -> {
+                    store.invalidateCache(subscribersPath, id);
+                    return new Version.IntVersion(r);
+                }));
     }
 
     @Override
