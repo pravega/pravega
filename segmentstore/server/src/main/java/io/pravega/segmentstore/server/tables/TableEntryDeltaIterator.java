@@ -55,7 +55,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     // The offset to being iteration at.
     private final long startOffset;
     // Maximum length of the TableSegment we want to read until.
-    private final int maxLength;
+    private final int maxBytesToRead;
     private final boolean shouldClear;
     private final Duration fetchTimeout;
     private final EntrySerializer entrySerializer;
@@ -85,7 +85,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
     }
 
     public synchronized boolean endOfSegment() {
-        return this.currentBatchOffset >= (this.startOffset + this.maxLength);
+        return this.currentBatchOffset >= (this.startOffset + this.maxBytesToRead);
     }
 
     private synchronized CompletableFuture<Map.Entry<DeltaIteratorState, TableEntry>> getNextEntry() {
@@ -122,7 +122,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
 
     private CompletableFuture<List<Map.Entry<DeltaIteratorState, TableEntry>>> toEntries(long startOffset) {
         TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
-        int length = Math.min(maxLength, MAX_READ_SIZE);
+        int length = Math.min(maxBytesToRead, MAX_READ_SIZE);
 
         if (endOfSegment()) {
             return CompletableFuture.completedFuture(Collections.emptyList());
@@ -143,7 +143,7 @@ class TableEntryDeltaIterator<T> implements AsyncIterator<T> {
         try {
             while (currentOffset < maxOffset) {
                 val entry = AsyncTableEntryReader.readEntryComponents(input, currentOffset, this.entrySerializer);
-                boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxLength + startOffset;
+                boolean reachedEnd = currentOffset + entry.getHeader().getTotalLength() >= this.maxBytesToRead + startOffset;
                 // We must preserve deletions to accurately construct a delta.
                 BufferView value = entry.getValue() == null ? BufferView.empty() : entry.getValue();
                 currentOffset += entry.getHeader().getTotalLength();

@@ -1020,6 +1020,73 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
+    public void testReadTableEntriesDeltaEmpty() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String tableSegmentName = "testReadTableEntriesDelta";
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        val recorderMock = mock(TableSegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+                recorderMock, new PassingTokenVerifier(), false);
+
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
+        verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
+
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", 0, 3));
+        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
+        verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(0), any());
+    }
+
+    @Test
+    public  void testReadTableEntriesDeltaOutOfBounds() throws  Exception {
+
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String tableSegmentName = "testReadTableEntriesDelta";
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        val recorderMock = mock(TableSegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+                recorderMock, new PassingTokenVerifier(), false);
+
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
+        verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
+
+        // Generate keys.
+        ArrayList<ArrayView> keys = generateKeys(3, rnd);
+        ArrayView testValue = generateValue(rnd);
+        TableEntry e1 = TableEntry.unversioned(keys.get(0), testValue);
+        TableEntry e2 = TableEntry.unversioned(keys.get(1), testValue);
+        TableEntry e3 = TableEntry.unversioned(keys.get(2), testValue);
+
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "",
+                getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
+        verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
+        long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length + 1, 3));
+        order.verify(connection).send(new WireCommands.ErrorMessage(1,
+                tableSegmentName,
+                "fromPosition can not exceed the length of the TableSegment.",
+                WireCommands.ErrorMessage.ErrorCode.valueOf(IllegalArgumentException.class)));
+        verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
+    }
+
+    @Test
     public void testReadTableEntriesDelta() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
