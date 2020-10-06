@@ -62,7 +62,17 @@ public class DeltaIteratorState implements IteratorState {
         this.deletionRecord = deletionRecord;
     }
 
-    boolean isValid(long position) {
+    /**
+     * Creates a new instance of the DeltaIteratorState that reflects an empty TableSegment.
+     */
+    public DeltaIteratorState() {
+        this.fromPosition = 0;
+        this.reachedEnd = true;
+        this.shouldClear = false;
+        this.deletionRecord = false;
+    }
+
+    static boolean isValid(long position) {
         return position >= 0;
     }
 
