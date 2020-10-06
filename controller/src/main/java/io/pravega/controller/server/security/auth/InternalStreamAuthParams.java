@@ -11,16 +11,20 @@ package io.pravega.controller.server.security.auth;
 
 import io.pravega.auth.AuthHandler;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A helper class used for process auth params for internal/state synchronizer streams
  * (like, `testScope/_RGtestReaderGroup`).
  */
+@Slf4j
 public class InternalStreamAuthParams {
 
     private final String scope;
     private final String stream;
     private final boolean isInternalWritesWithReadPermEnabled;
+
+    private final AuthorizationResource authresource = new AuthorizationResourceImpl();
 
     public InternalStreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isInternalWritesWithReadPermEnabled) {
         if (!stream.startsWith("_")) {
@@ -40,6 +44,6 @@ public class InternalStreamAuthParams {
     }
 
     public String streamResource() {
-        return null;
+        return this.authresource.ofInternalStream(scope, stream);
     }
 }

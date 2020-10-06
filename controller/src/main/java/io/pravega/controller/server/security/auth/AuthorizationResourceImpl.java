@@ -10,6 +10,7 @@
 package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
+import lombok.NonNull;
 
 /**
  * The main implementation of the {@link AuthorizationResource} class.
@@ -71,5 +72,18 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");
         return String.format("%s/%s:%s", ofScope(scopeName), TAG_KEYVALUETABLE, keyValueTableName);
+    }
+
+    @Override
+    public String ofInternalStream(String scopeName, @NonNull String streamName) {
+        // Internal stream names start with either `_RG` (reader groups) or `_MARK` (watermarks).
+        if (streamName.startsWith("_RG")) {
+            return ofReaderGroupInScope(scopeName, streamName.replace("_RG", ""));
+        } else if (streamName.startsWith("_MARK")) {
+            return ofWatermarkInScope(scopeName, streamName.replace("_MARK", ""));
+        } else {
+            throw new IllegalArgumentException("Either stream {} is not an internal stream, or it can't be " +
+                    "resolved to a valid auth resource");
+        }
     }
 }

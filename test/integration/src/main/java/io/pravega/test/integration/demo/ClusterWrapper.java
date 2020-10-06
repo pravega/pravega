@@ -70,6 +70,7 @@ public class ClusterWrapper implements AutoCloseable {
     // Configuration
     private boolean isAuthEnabled;
     private String tokenSigningKeyBasis;
+    private boolean isInternalWritesWithReadPermEnabled;
     private int tokenTtlInSeconds;
     private List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries;
     private int containerCount = 4; // default container count
@@ -84,6 +85,13 @@ public class ClusterWrapper implements AutoCloseable {
 
     public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
                           List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries, int containerCount) {
+        this(isAuthEnabled, tokenSigningKeyBasis, tokenTtlInSeconds, true,
+                passwordAuthHandlerEntries, containerCount);
+    }
+
+    public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
+                          boolean isInternalWritesWithReadPermEnabled,
+                          List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries, int containerCount) {
         executor = Executors.newSingleThreadScheduledExecutor();
 
         this.isAuthEnabled = isAuthEnabled;
@@ -97,6 +105,7 @@ public class ClusterWrapper implements AutoCloseable {
                 this.passwordAuthHandlerEntries = passwordAuthHandlerEntries;
             }
         }
+        this.isInternalWritesWithReadPermEnabled = isInternalWritesWithReadPermEnabled;
         this.containerCount = containerCount;
     }
 

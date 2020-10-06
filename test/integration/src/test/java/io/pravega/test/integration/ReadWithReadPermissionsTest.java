@@ -68,7 +68,8 @@ public class ReadWithReadPermissionsTest {
 
         @Cleanup
         final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
-                600, this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
+                600, true,
+                this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
         cluster.initialize();
         log.debug("Cluster initialized successfully");
 

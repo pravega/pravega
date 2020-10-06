@@ -232,8 +232,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             requiredPermission = AuthHandler.Permissions.READ_UPDATE;
         }
-        log.info("requiredPermission: {}", requiredPermission);
-
+        log.debug("requiredPermission is [{}], for scope [{}] and stream [{}]", requiredPermission, scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.createStream(scope, stream,
@@ -241,8 +240,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         System.currentTimeMillis()),
                 responseObserver, requestTag);
     }
-
-
 
     @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
@@ -253,18 +250,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
 
         Supplier<String> authorizationSupplier = () -> {
+            final String resource;
             if (stream.startsWith("_")) {
-                if (stream.startsWith("_RG")) {
-                    return this.grpcAuthHelper.checkAuthorization(authorizationResource.ofReaderGroupInScope(scope, stream),
-                            AuthHandler.Permissions.READ_UPDATE);
-                } else {
-                    return this.grpcAuthHelper.checkAuthorization(authorizationResource.ofWatermarkInScope(scope, stream),
-                            AuthHandler.Permissions.READ_UPDATE);
-                }
+                resource = this.authorizationResource.ofInternalStream(scope, stream);
             } else {
-                return this.grpcAuthHelper.checkAuthorization(
-                        authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE);
+                resource = this.authorizationResource.ofStreamInScope(scope, stream);
             }
+            return this.grpcAuthHelper.checkAuthorization(resource, AuthHandler.Permissions.READ_UPDATE);
         };
         authenticateExecuteAndProcessResults(authorizationSupplier,
                 authorizationResult -> controllerService.updateStream(scope, stream, ModelHelper.encode(request)),

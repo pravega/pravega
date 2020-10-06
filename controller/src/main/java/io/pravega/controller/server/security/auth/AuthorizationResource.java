@@ -113,4 +113,13 @@ public interface AuthorizationResource {
      * @throws IllegalArgumentException if {@code scopeName} or {@code kvtName} are empty
      */
     String ofKeyValueTableInScope(String scopeName, String kvtName);
+
+    /**
+     * Creates a resource representation for use in authorization of actions related to the specified internal stream.
+     *
+     * @param scopeName the name of the scope
+     * @param streamName the name of the internal stream
+     * @return a string representing the resource
+     */
+    String ofInternalStream(String scopeName, String streamName);
 }
