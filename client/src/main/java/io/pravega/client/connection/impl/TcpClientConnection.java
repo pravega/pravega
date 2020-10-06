@@ -60,6 +60,7 @@ public class TcpClientConnection implements ClientConnection {
 
     static final int CONNECTION_TIMEOUT = 5000;
     static final int TCP_BUFFER_SIZE = 256 * 1024;
+    static final int SOCKET_TIMEOUT_MS = 3 * 60 * 1000;
     
     private final Socket socket;
     private final CommandEncoder encoder;
@@ -258,6 +259,7 @@ public class TcpClientConnection implements ClientConnection {
             result.setReceiveBufferSize(TCP_BUFFER_SIZE);
             result.setTcpNoDelay(true);
             result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()), CONNECTION_TIMEOUT);
+            result.setSoTimeout(SOCKET_TIMEOUT_MS);
             return result;
         } catch (Exception e) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(e));
