@@ -836,7 +836,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableEntriesDelta.getFromPosition());
 
         val timer = new Timer();
-        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>, DeltaIteratorState>(
+        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(
                 segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
@@ -973,6 +973,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof BadKeyVersionException) {
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (errorCodeExists(u)) {
+            log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
+            invokeSafely(connection::send,
+                    new WireCommands.ErrorMessage(requestId, segment, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
+                    failureHandler);
         } else {
             logError(requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
@@ -980,6 +985,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         return null;
+    }
+
+    private boolean errorCodeExists(Throwable e) {
+        val errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
+        return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
     }
 
     private void logError(long requestId, String segment, String operation, Throwable u) {
@@ -1064,11 +1074,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private static class DeltaIteratorResult<K, V, S> {
+    private static class DeltaIteratorResult<K, V> {
         @Getter
         @Setter
         @GuardedBy("this")
-        private S state;
+        private DeltaIteratorState state = new DeltaIteratorState();
         @GuardedBy("this")
         private final Map<K, V> items = new HashMap<>();
         @Getter
