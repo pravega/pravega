@@ -44,7 +44,7 @@ public class UserCLIRunner {
         context.getLoggerList().get(0).setLevel(Level.ERROR);
 
         System.out.println("Pravega User CLI Tool.");
-        System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool\n");
+        System.out.println("\tUsage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI\n");
         val config = InteractiveConfig.getDefault();
 
         // Output loaded config.

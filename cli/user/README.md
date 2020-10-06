@@ -9,12 +9,11 @@ You may obtain a copy of the License at
 -->
 # Pravega User CLI
 
-Pravega User CLI is a tool for testing Pravega deployments (it is based on the 
-former [Interactive Demo Tool](https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool)).
+Pravega User CLI is a tool for testing Pravega deployments.
 
 ## Prerequisites
 
-- Java 8+
+- Java 11+
 
 ## Building Pravega User CLI
 
@@ -56,7 +55,7 @@ You can run the Pravega User CLI as follows:
 You will se an output related to the default configuration parameters:
 ```
 Pravega User CLI Tool.
-	Usage instructions: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool
+	Usage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI
 
 Initial configuration:
 	controller-uri=tcp://localhost:9090
@@ -95,7 +94,7 @@ All available commands:
 	stream read scoped-stream-name [group-similar] [timeout-in-seconds]: Reads all Events from a Stream and then tails the Stream.
 ```
 
-For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool).
+For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Pravega-User-CLI).
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

@@ -13,7 +13,7 @@ Pravega Admin CLI is a tool for inspecting and exploring Pravega deployments.
 
 ## Prerequisites
 
-- Java 8+
+- Java 11+
 
 ## Building Pravega Admin CLI
 

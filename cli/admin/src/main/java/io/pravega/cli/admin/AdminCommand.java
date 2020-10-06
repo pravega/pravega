@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -141,6 +142,13 @@ public abstract class AdminCommand {
     protected void prettyJSONOutput(String key, Object value) {
         JsonElement je = new JsonParser().parse(objectToJSON(new Tuple(key, value)));
         output(new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(je));
+    }
+
+    protected boolean confirmContinue() {
+        output("Do you want to continue?[yes|no]");
+        Scanner s = new Scanner(System.in);
+        String input = s.nextLine();
+        return input.equals("yes");
     }
 
     //endregion

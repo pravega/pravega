@@ -30,7 +30,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
     private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
     private final PrintStream originalOut = System.out;
+    private final InputStream originalIn = System.in;
 
     public BookkeeperCommandsTest() {
         super(3);
@@ -73,8 +76,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     }
 
     @After
-    public void tierDown() {
+    public void tearDown() {
         System.setOut(originalOut);
+        System.setIn(originalIn);
         STATE.get().close();
     }
 
@@ -97,15 +101,21 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     @Test
     public void testBookKeeperDisableAndEnableCommands() throws Exception {
         createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": false"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": true"));
         // Enable an already enabled log.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": true"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 100", STATE.get());
         Assert.assertTrue(commandResult.contains("log_no_metadata"));
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk enable 100", STATE.get());
         // Execute closing Zookeeper server.
         this.zkUtil.killCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("bk enable 0", STATE.get()));
@@ -114,6 +124,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     @Test
     public void testBookKeeperCleanupCommand() throws Exception {
         createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk cleanup", STATE.get());
         Assert.assertTrue(commandResult.contains("no Ledgers eligible for deletion"));
 

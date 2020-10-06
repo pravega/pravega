@@ -79,6 +79,10 @@ public class BookKeeperCleanupCommand extends BookKeeperCommand {
 
         output("\nDeletion candidates:");
         listCandidates(deletionCandidates, context);
+        if (!confirmContinue()) {
+            output("Not deleting anything at this time.");
+            return;
+        }
 
         // Search again for referenced ledger ids, in case any new ones were just referenced.
         collectAllReferencedLedgerIds(referencedLedgerIds, context);
