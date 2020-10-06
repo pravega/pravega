@@ -450,13 +450,6 @@ project('segmentstore:server:host') {
         outputDir = startScripts.outputDir
     }
 
-    task admin(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.admin.AdminRunner"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-        systemProperties System.getProperties()
-    }
-
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
@@ -571,7 +564,7 @@ project('test:integration') {
     }
 
     /**
-     * See: https://github.com/pravega/pravega/wiki/Interactive-Demo-Tool.
+     * See: https://github.com/pravega/pravega/wiki/Pravega-User-CLI.
      * This will only work well from the console if all Gradle output is suppressed: -q --console=plain
      */
     task startInteractiveDemo(type: JavaExec) {
@@ -696,6 +689,79 @@ project('controller') {
         from(createAppWithGCLogging)
     }
 }
+
+project('cli:admin') {
+    apply plugin: 'application'
+    applicationName = "pravega-admin"
+    mainClassName = "io.pravega.cli.admin.AdminCLIRunner"
+
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':controller')
+        compile project(':segmentstore:server')
+        compile project(':segmentstore:storage')
+        compile project(':segmentstore:storage:impl')
+        compile project(':shared:cluster')
+        compile project(':test:testcommon')
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:integration')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
+        testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion, classifier: 'tests'
+        testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
+        testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
+    }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
+project('cli:user') {
+    apply plugin: 'application'
+    applicationName = "pravega-cli"
+    mainClassName = "io.pravega.cli.user.UserCLIRunner"
+
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':client')
+        compile project(':shared:protocol')
+        compile project(':test:testcommon')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:integration')
+        testCompile group: 'junit', name: 'junit', version: '4.12'
+    }
+
+    javadoc {
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 
 project('standalone') {
     apply plugin: 'application'
@@ -1061,6 +1127,8 @@ task publishAllJars() {
     dependsOn ':shared:controller-api:publish'
     dependsOn ':controller:publish'
     dependsOn ':standalone:publish'
+    dependsOn ':cli:admin'
+    dependsOn ':cli:user'
     dependsOn ':test:system:publish'
 }
 
@@ -1115,6 +1183,8 @@ distributions {
             from (project(":segmentstore:server:host").installDist) {
                 exclude "logback.xml"
             }
+            from (project(":cli:admin").installDist)
+            from (project(":cli:user").installDist)
             from (project(":standalone").installDist)
             from 'LICENSE'
             from 'NOTICE'
