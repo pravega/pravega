@@ -107,7 +107,7 @@ public abstract class ControllerServiceImplTest {
     public void setUp() throws Exception {
         controllerSpied = spy(getControllerService());
         this.controllerService = new ControllerServiceImpl(controllerSpied, 
-                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+                GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, true, 2);
     }
     
     @Test

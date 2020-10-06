@@ -27,6 +27,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.InternalStreamAuthParams;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.shared.security.auth.PermissionsHelper;
 import io.pravega.controller.store.stream.StoreException;
@@ -103,14 +104,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
 
+    private final boolean isInternalWritesWithReadPermEnabled;
+
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
     private final int pageLimit;
 
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
-    public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, PAGE_LIMIT);
+    public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper,
+                                 RequestTracker requestTracker, boolean replyWithStackTraceOnError,
+                                 boolean isInternalWritesWithReadPermEnabled) {
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError,
+                isInternalWritesWithReadPermEnabled, PAGE_LIMIT);
     }
 
     @Override
@@ -219,22 +225,24 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                             scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
 
+        final AuthHandler.Permissions requiredPermission;
         if (stream.startsWith("_RG")) {
-            authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                    authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ),
-                    delegationToken -> controllerService.createStream(scope, stream,
-                            ModelHelper.encode(request),
-                            System.currentTimeMillis()),
-                    responseObserver, requestTag);
+            requiredPermission = new InternalStreamAuthParams(scope, stream, this.isInternalWritesWithReadPermEnabled)
+                    .requiredPermissionForWrites();
         } else {
-            authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                    authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
-                    delegationToken -> controllerService.createStream(scope, stream,
-                            ModelHelper.encode(request),
-                            System.currentTimeMillis()),
-                    responseObserver, requestTag);
+            requiredPermission = AuthHandler.Permissions.READ_UPDATE;
         }
+        log.info("requiredPermission: {}", requiredPermission);
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofStreamsInScope(scope), requiredPermission),
+                delegationToken -> controllerService.createStream(scope, stream,
+                        ModelHelper.encode(request),
+                        System.currentTimeMillis()),
+                responseObserver, requestTag);
     }
+
+
 
     @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {

@@ -95,6 +95,8 @@ public interface GRPCServerConfig extends ServerConfig {
      */
     Integer getAccessTokenTTLInSeconds();
 
+    boolean isInternalWritesWithReadPermEnabled();
+
     /**
      * Returns whether the controller should send back to the client a full stack trace describing an error upon a
      * failed request or not. This may ease debugging tasks just inspecting client logs at the cost of exposing server-

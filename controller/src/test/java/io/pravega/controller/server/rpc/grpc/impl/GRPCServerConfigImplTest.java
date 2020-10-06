@@ -36,6 +36,7 @@ public class GRPCServerConfigImplTest {
                 .accessTokenTTLInSeconds(200)
                 .tlsTrustStore("/cert.pem")
                 .replyWithStackTraceOnError(true)
+                .internalWritesWithReadPermEnabled(true)
                 .requestTracingEnabled(true)
                 .build();
         assertNotNull(config.toString());
@@ -53,6 +54,7 @@ public class GRPCServerConfigImplTest {
                 .tlsKeyFile("")
                 .tokenSigningKey("secret")
                 .accessTokenTTLInSeconds(300)
+                .internalWritesWithReadPermEnabled(false)
                 .tlsTrustStore("/cert.pem")
                 .replyWithStackTraceOnError(false)
                 .requestTracingEnabled(true)
@@ -72,6 +74,7 @@ public class GRPCServerConfigImplTest {
                 .tlsKeyFile("./key.pem")
                 .tokenSigningKey("secret")
                 .accessTokenTTLInSeconds(null)
+                .internalWritesWithReadPermEnabled(true)
                 .tlsTrustStore("/cert.pem")
                 .replyWithStackTraceOnError(true)
                 .requestTracingEnabled(true)
