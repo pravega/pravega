@@ -101,21 +101,28 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     @Test
     public void testBookKeeperDisableAndEnableCommands() throws Exception {
         createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": false"));
+        // Disable an already disabled log.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("already disabled"));
+
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": true"));
         // Enable an already enabled log.
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk enable 0", STATE.get());
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
         Assert.assertTrue(commandResult.contains("enabled\": true"));
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         commandResult = TestUtils.executeCommand("bk enable 100", STATE.get());
         Assert.assertTrue(commandResult.contains("log_no_metadata"));
-        System.setIn(new ByteArrayInputStream("no".getBytes()));
-        TestUtils.executeCommand("bk enable 100", STATE.get());
         // Execute closing Zookeeper server.
         this.zkUtil.killCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("bk enable 0", STATE.get()));
@@ -127,6 +134,8 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk cleanup", STATE.get());
         Assert.assertTrue(commandResult.contains("no Ledgers eligible for deletion"));
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk cleanup", STATE.get());
 
         CommandArgs args = new CommandArgs(Collections.singletonList(""), STATE.get());
         BookKeeperCleanupCommand command = new BookKeeperCleanupCommand(args);
