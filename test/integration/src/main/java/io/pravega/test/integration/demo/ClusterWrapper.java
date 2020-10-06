@@ -191,7 +191,7 @@ public class ClusterWrapper implements AutoCloseable {
                 false, true,
                 controllerPort, serviceHost, segmentStorePort, containerCount, -1,
                 isAuthEnabled, passwordInputFilePath,
-                tokenSigningKeyBasis, tokenTtlInSeconds);
+                tokenSigningKeyBasis, this.isInternalWritesWithReadPermEnabled, tokenTtlInSeconds);
     }
 
     public String controllerUri() {

@@ -49,7 +49,7 @@ import static org.junit.Assert.assertTrue;
 public class ReadWithReadPermissionsTest {
 
     @Test
-    public void readUsingUserAccountsWithReadPermission() throws ExecutionException, InterruptedException {
+    public void readUsingAccountsWithReadOnlyPermissions() throws ExecutionException, InterruptedException {
         // Writing data so that we can check the read flow
         final String scopeName = "MarketData";
         final String streamName = "StockPriceUpdates";
@@ -114,6 +114,76 @@ public class ReadWithReadPermissionsTest {
 
         assertEquals(message, readMessage);
     }
+
+    @Test
+    public void readUsingAccountsWithReadWritePermissions() throws ExecutionException, InterruptedException {
+        // Writing data so that we can check the read flow
+        final String scopeName = "MarketData";
+        final String streamName = "StockPriceUpdates";
+        final String readerGroupName = "PriceChangeCalculator";
+        final String message = "SCRIP:DELL,EXCHANGE:NYSE,PRICE=100";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put("reader", String.join(";",
+                // READ_UPDATE on scope needed for creating internal streams since we configure "internal writes with
+                // read permissions" to false later (during instantiation of the ClusterWarpper object).
+                "prn::/scope:MarketData,READ_UPDATE",
+                "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
+                "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ_UPDATE",
+                "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ_UPDATE"
+        ));
+        log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
+
+        @Cleanup
+        final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
+                600, false,
+                this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
+        cluster.initialize();
+        log.debug("Cluster initialized successfully");
+
+        final ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials("1111_aaaa", "creator"))
+                .build();
+        this.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        log.debug("Streams created");
+
+        writeDataToStream(scopeName, streamName, message, writerClientConfig);
+
+        // Reading data now
+
+        ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials("1111_aaaa", "reader"))
+                .build();
+        @Cleanup
+        EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scopeName, readerClientConfig);
+        log.debug("Created the readerClientFactory");
+
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scopeName, streamName))
+                .disableAutomaticCheckpoints()
+                .build();
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
+        readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
+        log.debug("Created reader group with name {}", readerGroupName);
+
+        @Cleanup
+        EventStreamReader<String> reader = readerClientFactory.createReader(
+                "readerId", readerGroupName,
+                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
+        log.debug("Created an event reader");
+
+        // Keeping the read timeout large so that there is ample time for reading the event even in
+        // case of abnormal delays in test environments.
+        String readMessage = reader.readNextEvent(10000).getEvent();
+        log.info("Done reading event [{}]", readMessage);
+
+        assertEquals(message, readMessage);
+    }
+
 
     @SneakyThrows
     @Test
