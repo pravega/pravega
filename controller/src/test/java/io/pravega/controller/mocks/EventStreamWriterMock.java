@@ -38,6 +38,11 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     @Override
+    public CompletableFuture<Void> writeEvents(String routingKey, List<T> events) {
+        throw new NotImplementedException("mock doesnt require this");
+    }
+
+    @Override
     public EventWriterConfig getConfig() {
         throw new NotImplementedException("getClientConfig");
     }

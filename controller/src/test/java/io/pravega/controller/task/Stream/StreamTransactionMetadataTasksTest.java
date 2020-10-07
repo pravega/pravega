@@ -87,6 +87,7 @@ import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
@@ -755,6 +756,11 @@ public class StreamTransactionMetadataTasksTest {
         public CompletableFuture<Void> writeEvent(String routingKey, T event) {
             requestsReceived.offer(new ImmutablePair<>(routingKey, event));
             return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> writeEvents(String routingKey, List<T> events) {
+            throw new NotImplementedException("mock doesnt require this");
         }
 
         @Override
