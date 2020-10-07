@@ -23,6 +23,7 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -60,6 +61,12 @@ public class RawClient implements AutoCloseable {
                 }
             } else if (reply instanceof WireCommands.WrongHost) {
                 closeConnection(new ConnectionFailedException(reply.toString()));
+            } else if (reply instanceof WireCommands.ErrorMessage) {
+                ErrorMessage errorMessage = (ErrorMessage) reply;
+                log.info("Received an errorMessage containing an unhandled {} on segment {}",
+                        errorMessage.getErrorCode().getExceptionType().getSimpleName(),
+                        errorMessage.getSegment());
+                closeConnection(errorMessage.getThrowableException());
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
@@ -86,6 +93,7 @@ public class RawClient implements AutoCloseable {
                 closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         }
+
     }
 
     public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {

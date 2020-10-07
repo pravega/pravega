@@ -356,6 +356,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         @Override
+        public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+            log.info("Received an errorMessage containing an unhandled {} on segment {}",
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
+                    errorMessage.getSegment());
+            state.failConnection(errorMessage.getThrowableException());
+        }
+
+        @Override
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
