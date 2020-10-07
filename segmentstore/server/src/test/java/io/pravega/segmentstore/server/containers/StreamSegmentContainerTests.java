@@ -2403,7 +2403,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+        public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
             return CompletableFuture.completedFuture(new WriterFlushResult());
         }
     }
@@ -2467,6 +2467,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             @Override
             public void close() {
 
+            }
+
+            @Override
+            public CompletableFuture<Boolean> forceFlush(long upToSequenceNumber, Duration timeout) {
+                throw new UnsupportedOperationException();
             }
         }
     }
