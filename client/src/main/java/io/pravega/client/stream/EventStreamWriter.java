@@ -10,6 +10,8 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.EventWriterConfig.EventWriterConfigBuilder;
+
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -38,7 +40,6 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      */
     CompletableFuture<Void> writeEvent(Type event);
     
-    
     /**
      * Write an event to the stream. Similar to {@link #writeEvent(Object)} but provides a routingKey which is
      * used to specify ordering. Events written with the same routing key will be read by readers in exactly
@@ -60,7 +61,29 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
     CompletableFuture<Void> writeEvent(String routingKey, Type event);
-    
+
+    /**
+     * Write an ordered list of events to the stream atomically for a given routing key. 
+     * Events written with the same routing key will be read by readers in exactly the same order they were written. 
+     * The maximum size of the serialized event individually should be {@link Serializer#MAX_EVENT_SIZE} and the 
+     * collective batch should be less than twice the {@link Serializer#MAX_EVENT_SIZE}. 
+     *
+     * Note that the implementation provides retry logic to handle connection failures and service
+     * host failures. Internal retries will not violate the exactly once semantic so it is better to
+     * rely on this than to wrap this method with custom retry logic.
+     *
+     * @param routingKey A free form string that is used to route messages to readers. Two events written with
+     *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
+     *        may be read in parallel. 
+     * @param events The batch of events to be written to the stream (Null is disallowed)
+     * @return A completableFuture that will complete when the event has been durably stored on the configured
+     *         number of replicas, and is available for readers to see. This future may complete exceptionally
+     *         if this cannot happen, however these exceptions are not transient failures. Failures that occur 
+     *         as a result of connection drops or host death are handled internally with multiple retires and
+     *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
+     */
+    CompletableFuture<Void> writeEvents(String routingKey, List<Type> events);
+
     /**
      * Notes a time that can be seen by readers which read from this stream by
      * {@link EventStreamReader#getCurrentTimeWindow(Stream)}. The semantics or meaning of the timestamp
