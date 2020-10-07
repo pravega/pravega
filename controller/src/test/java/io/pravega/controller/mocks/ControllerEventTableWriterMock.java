@@ -16,6 +16,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.Table
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -37,6 +38,11 @@ public class ControllerEventTableWriterMock implements EventStreamWriter<Control
     @Override
     public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
         return writeEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Void> writeEvents(String routingKey, List<ControllerEvent> events) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
