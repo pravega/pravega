@@ -22,6 +22,7 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import lombok.NonNull;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.junit.Test;
 
@@ -305,6 +307,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             public CompletableFuture<Void> writeEvent(String routingKey, AutoScaleEvent event) {
                 consumer.accept(event);
                 return CompletableFuture.<Void>completedFuture(null);
+            }
+
+            @Override
+            public CompletableFuture<Void> writeEvents(String routingKey, List<AutoScaleEvent> events) {
+                throw new NotImplementedException("mock doesnt require this");
             }
 
             @Override
