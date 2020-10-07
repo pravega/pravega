@@ -367,4 +367,26 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         verifyNoMoreInteractions(c);
     }
 
+    @Test
+    public void testRecvErrorMessage() throws ExecutionException, InterruptedException {
+        int requestId = 0;
+        Segment segment = new Segment("scope", "testWrongOffsetReturned", requestId);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        Semaphore dataAvailable = new Semaphore(requestId);
+        @Cleanup
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment,
+                DelegationTokenProviderFactory.createWithEmptyToken(), dataAvailable);
+        ClientConnection c = mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, c);
+
+        in.getConnection().get();
+
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, segment.getScopedName(), "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        processor.process(reply);
+        verify(c).close();
+    }
+
 }
