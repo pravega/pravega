@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -150,6 +151,7 @@ class WriterState {
         val ffc = this.forceFlushContext.get();
         if (ffc != null && ffc.flushComplete(result)) {
             this.forceFlushContext.set(null);
+            ffc.getCompletion().complete(ffc.isAnythingFlushed());
         }
     }
 
@@ -192,8 +194,10 @@ class WriterState {
     @RequiredArgsConstructor
     private static class ForceFlushContext {
         private final long upToSequenceNumber;
-        private final AtomicLong lastReadSequenceNumber = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
-        private final AtomicBoolean anythingFlushed = new AtomicBoolean(false);
+        @GuardedBy("this")
+        private long lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+        @GuardedBy("this")
+        private boolean anythingFlushed = false;
         @Getter
         private final CompletableFuture<Boolean> completion = new CompletableFuture<>();
 
@@ -202,8 +206,15 @@ class WriterState {
          *
          * @param lastReadSequenceNumber The last read sequence number.
          */
-        void setLastReadSequenceNumber(long lastReadSequenceNumber) {
-            this.lastReadSequenceNumber.set(lastReadSequenceNumber);
+        synchronized void setLastReadSequenceNumber(long lastReadSequenceNumber) {
+            this.lastReadSequenceNumber = lastReadSequenceNumber;
+        }
+
+        /**
+         * Gets a value indicating whether anything got flushed.
+         */
+        synchronized boolean isAnythingFlushed() {
+            return this.anythingFlushed;
         }
 
         /**
@@ -212,17 +223,12 @@ class WriterState {
          * @param result The {@link WriterFlushResult} summarizing the flush stage.
          * @return True if a Force Flush has been completed as a result (irrespective of outcome), false otherwise.
          */
-        boolean flushComplete(WriterFlushResult result) {
-            if (this.lastReadSequenceNumber.get() != Operation.NO_SEQUENCE_NUMBER && result.isAnythingFlushed()) {
-                this.anythingFlushed.set(true);
+        synchronized boolean flushComplete(WriterFlushResult result) {
+            if (this.lastReadSequenceNumber != Operation.NO_SEQUENCE_NUMBER && result.isAnythingFlushed()) {
+                this.anythingFlushed = true;
             }
 
-            if (this.lastReadSequenceNumber.get() >= this.upToSequenceNumber) {
-                this.completion.complete(this.anythingFlushed.get());
-                return true;
-            }
-
-            return false;
+            return this.lastReadSequenceNumber >= this.upToSequenceNumber;
         }
     }
 
