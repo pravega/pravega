@@ -624,6 +624,5 @@ class TableSegmentImpl implements TableSegment {
             }
         }
     }
-
     //endregion
 }
