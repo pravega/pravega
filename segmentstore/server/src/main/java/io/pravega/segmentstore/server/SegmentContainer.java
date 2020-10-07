@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
@@ -104,5 +106,7 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * @return A CompletableFuture that, when completed, will indicate that the operation completed successfully. If the
      * operation failed, it will be completed with the appropriate exception.
      */
+    @VisibleForTesting
+    @Beta
     CompletableFuture<Void> flushToStorage(Duration timeout);
 }
