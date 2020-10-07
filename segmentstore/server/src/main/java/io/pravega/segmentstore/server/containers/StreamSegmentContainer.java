@@ -673,7 +673,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     /**
      * Processes the given {@link StreamSegmentAppendOperation} and ensures that the {@link StreamSegmentAppendOperation#close()}
      * is invoked in case the operation failed to process (for whatever reason). If the operation completed successfully,
-     * the {@link OperationLog} will close it internall when it finished any async processing with it.
+     * the {@link OperationLog} will close it internally when it finished any async processing with it.
      *
      * @param appendOperation The Operation to process.
      * @param timer           Timer for the operation.

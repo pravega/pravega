@@ -9,13 +9,14 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.Writer;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,10 +25,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+/**
+ * Utility class that helps the {@link StreamSegmentContainer} to force-flush all the data to the underlying Storage.
+ */
 @RequiredArgsConstructor
 @Slf4j
 class LogFlusher {
-    private static final int MAX_FLUSH_ATTEMPTS = 10;
+    /**
+     * Maximum number of {@link Writer} flushes to attempt until no more flush progress is expected to be made.
+     */
+    @VisibleForTesting
+    static final int MAX_FLUSH_ATTEMPTS = 10;
     private final int containerId;
     @NonNull
     private final OperationLog durableLog;
@@ -38,6 +46,18 @@ class LogFlusher {
     @NonNull
     private final ScheduledExecutorService executor;
 
+    /**
+     * Flushes every outstanding Operation in the Container's {@link OperationLog} to Storage. When this method completes:
+     * - Every Operation that has been initiated in the {@link OperationLog} prior to the invocation of this method
+     * will be flushed to the Storage via the {@link Writer}.
+     * - The effects of such Operations on the Container's Metadata will be persisted to the Container's Metadata Store.
+     * - The Container's Metadata Store will be persisted (and fully indexed) in Storage (it will contain all changes
+     * from the previous step).
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed successfully. If the
+     * operation failed, it will be failed with the appropriate exception.
+     */
     public CompletableFuture<Void> flushToStorage(Duration timeout) {
         // 1. Flush everything we have so far.
         // 2. Flush all in-memory Segment metadata to the Metadata Store.
@@ -60,15 +80,15 @@ class LogFlusher {
         // 2. Tell StorageWriter to flush all (new API, with seqNo). Includes: segment data and table segment indexing.
         // 3. Repeat 1+2 until StorageWriter claims there is nothing more to flush.
         val flushAgain = new AtomicBoolean(true);
-        val attemptNo = new AtomicInteger(1);
+        val attemptNo = new AtomicInteger(0);
         return Futures.loop(
-                flushAgain::get,
+                () -> flushAgain.get() && attemptNo.getAndIncrement() < MAX_FLUSH_ATTEMPTS,
                 () -> flushOnce(attemptNo.get(), timer),
-                anythingFlushed -> flushAgain.set(anythingFlushed && attemptNo.incrementAndGet() < MAX_FLUSH_ATTEMPTS),
+                flushAgain::set,
                 this.executor)
                 .thenRun(() -> {
                     if (flushAgain.get()) {
-                        throw new CompletionException(new Exception(String.format("Unable to force-flush after %s attempts.", MAX_FLUSH_ATTEMPTS)));
+                        throw new RetriesExhaustedException(new Exception(String.format("Unable to force-flush after %s attempts.", MAX_FLUSH_ATTEMPTS)));
                     }
                 });
     }
