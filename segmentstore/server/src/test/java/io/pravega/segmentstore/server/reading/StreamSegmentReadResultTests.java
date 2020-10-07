@@ -38,7 +38,7 @@ public class StreamSegmentReadResultTests {
      */
     @Test
     public void testCopyOnRead() {
-        AtomicBoolean expectedMakeCopy = new AtomicBoolean(false);
+        AtomicBoolean expectedMakeCopy = new AtomicBoolean(true);
         StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> {
             Assert.assertEquals(expectedMakeCopy.get(), makeCopy);
             return TestReadResultEntry.endOfSegment(offset, length);
@@ -49,8 +49,8 @@ public class StreamSegmentReadResultTests {
 
         @Cleanup
         StreamSegmentReadResult r2 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
-        r2.setCopyOnRead(true);
-        expectedMakeCopy.set(true);
+        r2.setCopyOnRead(false);
+        expectedMakeCopy.set(false);
         r2.next();
     }
 

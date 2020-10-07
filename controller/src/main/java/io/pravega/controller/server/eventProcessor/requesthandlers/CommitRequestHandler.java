@@ -45,6 +45,8 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
+    private static final int MAX_TRANSACTION_COMMIT_BATCH_SIZE = 100;
+
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final BucketStore bucketStore;
@@ -146,7 +148,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
 
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
-                            streamMetadataStore.startCommitTransactions(scope, stream, context, executor)
+                            streamMetadataStore.startCommitTransactions(scope, stream, MAX_TRANSACTION_COMMIT_BATCH_SIZE, context, executor)
                             .thenComposeAsync(versionedMetadata -> {
                                 if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.

@@ -13,7 +13,7 @@ import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
+import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import java.util.Arrays;
