@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -69,20 +68,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * Default value used for when no offset is provided for a remove or put call.
      */
     private static final int NO_OFFSET = -1;
-    private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
-    /**
-     * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
-     * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
-     * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
-     */
-    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH; // Approx 4MB.
-    /**
-     * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
-     * defaults from {@link TableAttributes#DEFAULT_VALUES}.
-     */
-    @VisibleForTesting
-    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
-            Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
 
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -92,6 +77,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final EntrySerializer serializer;
     private final AtomicBoolean closed;
     private final String traceObjectId;
+    @Getter
+    private final TableExtensionConfig config;
 
     //endregion
 
@@ -105,7 +92,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * @param executor         An Executor to use for async tasks.
      */
     public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(segmentContainer, cacheManager, KeyHasher.sha256(), executor);
+        this(TableExtensionConfig.builder().build(), segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
@@ -117,13 +104,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * @param executor         An Executor to use for async tasks.
      */
     @VisibleForTesting
-    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheManager cacheManager,
-                                @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+    ContainerTableExtensionImpl(@NonNull TableExtensionConfig config, @NonNull SegmentContainer segmentContainer,
+                                @NonNull CacheManager cacheManager, @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+        this.config = config;
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
         this.sortedKeyIndex = createSortedIndex();
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), this.config, cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
@@ -172,7 +160,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
-        attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
+        attributes.putAll(this.config.getDefaultCompactionAttributes());
         if (sorted) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
@@ -399,17 +387,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region Helpers
 
-    /**
-     * When overridden in a derived class, this will indicate how much to compact at each step. By default this returns
-     * {@link #DEFAULT_MAX_COMPACTION_SIZE}.
-     *
-     * @return The maximum length to compact at each step.
-     */
-    @VisibleForTesting
-    protected int getMaxCompactionSize() {
-        return DEFAULT_MAX_COMPACTION_SIZE;
-    }
-
     private <T> TableKeyBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength, TableKeyBatch batch) {
         for (T item : toBatch) {
             val length = getLength.apply(item);
@@ -417,8 +394,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             batch.add(key, this.hasher.hash(key.getKey()), length);
         }
 
-        Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE,
-                "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+        Preconditions.checkArgument(batch.getLength() <= EntrySerializer.MAX_BATCH_SIZE,
+                "Update Batch length (%s) exceeds the maximum limit.", EntrySerializer.MAX_BATCH_SIZE);
         return batch;
     }
 
@@ -588,7 +565,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         @Override
         public int getMaxCompactionSize() {
-            return ContainerTableExtensionImpl.this.getMaxCompactionSize();
+            return ContainerTableExtensionImpl.this.config.getMaxCompactionSize();
         }
 
         @Override

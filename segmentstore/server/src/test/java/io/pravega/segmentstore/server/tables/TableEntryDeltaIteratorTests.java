@@ -20,16 +20,6 @@ import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendO
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.Builder;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
-import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,6 +33,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Builder;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the {@link TableEntryDeltaIterator} class. It tests various scenarios, without consideration of compaction.
@@ -57,7 +56,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     private static final int NUM_ENTRIES = 10;
     private static final int MAX_UPDATE_COUNT = 10000;
-    private static final int COMPACTION_SIZE = 50000;
+    private static final TableExtensionConfig CONFIG = TableExtensionConfig.builder().maxCompactionSize(50000).build();
 
     private static final TableEntry NON_EXISTING_ENTRY = TableEntry.notExists(
             new ByteArraySegment("NULL".getBytes()),
@@ -77,8 +76,8 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testUsingInvalidArgs() {
-        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        TableContext context = new TableContext(CONFIG, executorService());
+        context.ext.createSegment(SEGMENT_NAME, false, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
@@ -87,8 +86,8 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
     @Test
     public void testSortedTableSegment() {
-        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        TableContext context = new TableContext(CONFIG, executorService());
+        context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
@@ -158,13 +157,9 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
                 (t1, t2) -> compareKeys(t1, t2) &&  t1.getValue().equals(t2.getValue()));
     }
 
-    private static boolean isDeletion(TableEntry entry) {
-        return entry.getValue().getContents().isEmpty();
-    }
-
     private TestData createTestData(int numEntriesToGenerate) {
         TestData data = TestData.builder()
-                .context(new TableContext(COMPACTION_SIZE, executorService()))
+                .context(new TableContext(CONFIG, executorService()))
                 .executorService(executorService())
                 .reader(new IndexReader(executorService()))
                 .expected(TestData.generateEntries(numEntriesToGenerate, 0))
@@ -179,29 +174,27 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     }
 
     private boolean compareKeys(TableEntry t1, TableEntry t2) {
-        return  t1.getKey().getKey().equals(t2.getKey().getKey());
+        return t1.getKey().getKey().equals(t2.getKey().getKey());
     }
-
-
 
     @Builder
     @NotThreadSafe
     private static class TestData {
 
         private static final String KEY_PREFIX = "KEY";
-        private static final Random RANDOM = new Random();
+        private static final Random RANDOM = new Random(0);
 
         private final IndexReader reader;
         private final TableContext context;
         private final ScheduledExecutorService executorService;
 
         @Getter
-        private List<TableEntry> expected;
+        private final List<TableEntry> expected;
         private List<TableEntry> actual;
         // Flag used to indicate we can be doing various concurrent operations on our TableSegment.
-        private AtomicReference<Boolean> iterating;
+        private final AtomicReference<Boolean> iterating;
 
-        private AtomicInteger entriesCreated;
+        private final AtomicInteger entriesCreated;
 
         // Continually update a particular key until some compaction occurs.Then end result should be a set of unique
         // TableKeys (after iteration), and the update Key maps to it's most recent value.
@@ -267,11 +260,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
                     entries.add(generateEntry(i + keyLowerBound));
             }
             return entries;
-        }
-
-        public static TableEntry deleteRandomEntry(List<TableEntry> entries) {
-            int i = RANDOM.nextInt(entries.size());
-            return TableEntry.notExists(entries.get(i).getKey().getKey(), new ByteArraySegment(new byte[0]));
         }
 
         public static TableEntry generateEntry(int i) {
@@ -341,10 +329,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
 
         public boolean hasCompacted() {
             return reader.getCompactionOffset(context.segment().getInfo()) > 0;
-        }
-
-        SegmentMock getSegment() {
-            return context.segment();
         }
 
         public void createSegment() {

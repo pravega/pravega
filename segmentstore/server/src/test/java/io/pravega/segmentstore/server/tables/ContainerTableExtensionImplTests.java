@@ -54,7 +54,6 @@ import org.junit.rules.Timeout;
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
-    private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
     private static final String SEGMENT_NAME = "TableSegment";
     private static final int MAX_KEY_LENGTH = 128;
@@ -65,7 +64,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_BATCH_UPDATE_COUNT = 1000; // Iterators are slower to check, so we reduce our test size.
     private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
-    private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     @Rule
@@ -82,15 +80,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testCreateDelete() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         Assert.assertNotNull("Segment not created", context.segment());
 
-        val attributes = context.segment().getAttributes(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES.keySet(), false, TIMEOUT).join();
-        AssertExtensions.assertMapEquals("Unexpected compaction attributes.", ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES, attributes);
+        val expectedAttributes = context.ext.getConfig().getDefaultCompactionAttributes();
+        val attributes = context.segment().getAttributes(expectedAttributes.keySet(), false, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected compaction attributes.", expectedAttributes, attributes);
 
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
         Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
@@ -129,7 +128,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testDeleteIfEmpty() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
@@ -175,7 +174,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testUnimplementedMethods() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         AssertExtensions.assertThrows(
                 "merge() is implemented.",
                 () -> context.ext.merge(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT),
@@ -364,9 +363,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
-        final int maxCompactionLength = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE;
+        val config = TableExtensionConfig.builder()
+                .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
+                .build();
         @Cleanup
-        val context = new TableContext(keyHasher, maxCompactionLength, executorService());
+        val context = new TableContext(config, keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor.
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
@@ -505,7 +506,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
-        val context = new TableContext(hasher, DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(hasher, executorService());
 
         // Generate the keys.
         val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
@@ -564,7 +565,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void testBatchUpdates(int updateCount, int maxBatchSize, boolean sortedTableSegment, KeyHasher keyHasher,
                                   EntryGenerator generateToUpdate, KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor. We make `sortedTableSegment` configurable because some tests
         // explicitly test the offsets that are written to the segment, which would be very hard to do in the presence of

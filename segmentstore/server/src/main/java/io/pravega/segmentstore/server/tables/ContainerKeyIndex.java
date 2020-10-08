@@ -66,27 +66,6 @@ import lombok.val;
 @Slf4j
 class ContainerKeyIndex implements AutoCloseable {
     //region Members
-
-    /**
-     * The maximum amount of time to wait for a Table Segment Recovery. If any recovery takes more than this amount of time,
-     * all registered calls will be failed with a {@link TimeoutException}.
-     */
-    @VisibleForTesting
-    static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(60);
-    /**
-     * The maximum unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}}) of a
-     * Segment for which {@link #triggerCacheTailIndex} can be invoked.
-     */
-    @VisibleForTesting
-    static final int MAX_TAIL_CACHE_PRE_INDEX_LENGTH = EntrySerializer.MAX_BATCH_SIZE * 4; // Currently 128MB.
-    /**
-     * The maximum allowed unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}})
-     * for a Segment. As long as a Segment's unindexed length is below this value, any new update that would not cause
-     * its unindexed length to exceed it will be allowed. Any updates that do not meet this criteria will be blocked until
-     * {@link #notifyIndexOffsetChanged} indicates that this value has been reduced sufficiently in order
-     * to allow it to proceed.
-     */
-    private static final int MAX_UNINDEXED_LENGTH = MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
     @Getter
     private final IndexReader indexReader;
     private final ScheduledExecutorService executor;
@@ -99,6 +78,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final KeyHasher keyHasher;
     private final String traceObjectId;
     private final int containerId;
+    private final TableExtensionConfig config;
 
     //endregion
 
@@ -108,12 +88,13 @@ class ContainerKeyIndex implements AutoCloseable {
      * Creates a new instance of the ContainerKeyIndex class.
      *
      * @param containerId    Id of the SegmentContainer this instance is associated with.
+     * @param config         Configuration.
      * @param cacheManager   A {@link CacheManager} that can be used to manage Cache instances.
      * @param sortedKeyIndex A {@link ContainerSortedKeyIndex} that can be used to manage {@link SegmentSortedKeyIndex}es.
      * @param keyHasher      A {@link KeyHasher} that can be used to hash keys.
      * @param executor       Executor for async operations.
      */
-    ContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
+    ContainerKeyIndex(int containerId, @NonNull TableExtensionConfig config, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
                       @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
         this.cache = new ContainerKeyCache(cacheManager.getCacheStorage());
         this.cacheManager = cacheManager;
@@ -127,6 +108,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("KeyIndex[%d]", containerId);
         this.containerId = containerId;
+        this.config = config;
     }
 
     //endregion
@@ -583,7 +565,7 @@ class ContainerKeyIndex implements AutoCloseable {
      *
      * The operation will not execute if any of the following is true:
      * - The tail section has a length of 0.
-     * - The tail section has a length exceeding {@link #getMaxTailCachePreIndexLength()}.
+     * - The tail section has a length exceeding {@link TableExtensionConfig#getMaxTailCachePreIndexLength()}.
      *
      * This method triggers this operation asynchronously and does not wait for it to complete. Its completion status and
      * any errors will be logged.
@@ -591,7 +573,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * NOTE: this does not peform a proper recovery nor does it update the durable index - it simply caches the values.
      * The {@link WriterTableProcessor} must be used to update the index.
      *
-     * @param segment       A {@link DirectSegmentAccess} representing the Segment for which to cache the tail index.
+     * @param segment A {@link DirectSegmentAccess} representing the Segment for which to cache the tail index.
      */
     private void triggerCacheTailIndex(DirectSegmentAccess segment, long lastIndexedOffset, long segmentLength) {
         long tailIndexLength = segmentLength - lastIndexedOffset;
@@ -599,7 +581,7 @@ class ContainerKeyIndex implements AutoCloseable {
             // Fully caught up. Nothing else to do.
             log.debug("{}: Table Segment {} fully indexed.", this.traceObjectId, segment.getSegmentId());
             return;
-        } else if (tailIndexLength > getMaxTailCachePreIndexLength()) {
+        } else if (tailIndexLength > this.config.getMaxTailCachePreIndexLength()) {
             log.debug("{}: Table Segment {} cannot perform tail-caching because tail index too long ({}).", this.traceObjectId,
                     segment.getSegmentId(), tailIndexLength);
             return;
@@ -611,9 +593,9 @@ class ContainerKeyIndex implements AutoCloseable {
         boolean sorted = ContainerSortedKeyIndex.isSortedTableSegment(segmentInfo);
         log.debug("{}: Tail-caching started for Table Segment {}. Sorted={}, LastIndexedOffset={}, SegmentLength={}.",
                 this.traceObjectId, segment.getSegmentId(), sorted, lastIndexedOffset, segmentLength);
-        ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, getRecoveryTimeout());
+        ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, this.config.getRecoveryTimeout());
         AsyncReadResultProcessor
-                .processAll(rr, this.executor, getRecoveryTimeout())
+                .processAll(rr, this.executor, this.config.getRecoveryTimeout())
                 .thenAcceptAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     val updates = new TailUpdates(sorted);
@@ -650,21 +632,6 @@ class ContainerKeyIndex implements AutoCloseable {
             result.add(e.getKey(), hash, nextOffset, e.getHeader().isDeletion());
             nextOffset += e.getHeader().getTotalLength();
         }
-    }
-
-    @VisibleForTesting
-    protected long getMaxTailCachePreIndexLength() {
-        return MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
-    }
-
-    @VisibleForTesting
-    protected long getMaxUnindexedLength() {
-        return MAX_UNINDEXED_LENGTH;
-    }
-
-    @VisibleForTesting
-    protected Duration getRecoveryTimeout() {
-        return RECOVERY_TIMEOUT;
     }
 
     @VisibleForTesting
@@ -798,7 +765,7 @@ class ContainerKeyIndex implements AutoCloseable {
 
         /**
          * Determines if the given task can be executed immediately or must be delayed until more items are indexed.
-         * Each Segment can have a maximum number of unindexed bytes (defined by {@link #getMaxUnindexedLength});
+         * Each Segment can have a maximum number of unindexed bytes (defined by {@link TableExtensionConfig#getMaxUnindexedLength});
          * if this limit is reached then the {@link IndexWriter} has fallen too far behind and we need to slow down the
          * ingestion of new updates (otherwise we risk lengthy delays upon a subsequent recovery).
          *
@@ -817,7 +784,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 if (throttler == null) {
                     val si = segment.getInfo();
                     long initialDelta = Math.max(0, si.getLength() - ContainerKeyIndex.this.indexReader.getLastIndexedOffset(si));
-                    throttler = new AsyncSemaphore(getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
+                    throttler = new AsyncSemaphore(config.getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
@@ -900,7 +867,7 @@ class ContainerKeyIndex implements AutoCloseable {
             // again (and trigger another pre-cache).
             ScheduledFuture<Boolean> sf = executor.schedule(
                     () -> task.task.completeExceptionally(new TimeoutException(String.format("Table Segment %d recovery timed out.", task.segmentId))),
-                    getRecoveryTimeout().toMillis(),
+                    config.getRecoveryTimeout().toMillis(),
                     TimeUnit.MILLISECONDS);
 
             // Cleanup whenever the task is done.

@@ -43,7 +43,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,7 +50,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
@@ -654,7 +652,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability to throttle calls to {@link ContainerKeyIndex#update} based on the size of the update batch
-     * and the maximum value of {@link ContainerKeyIndex#getMaxUnindexedLength()} ()}.
+     * and the maximum value of {@link TableExtensionConfig#getMaxUnindexedLength()}.
      */
     @Test
     public void testThrottling() throws Exception {
@@ -923,10 +921,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         TestContext() {
             // This is for most tests. Due to variability in test environments, we do not want to set a very small value
             // for most tests; we will customize this only for those tests that we want to test this feature on.
-            this(ContainerKeyIndex.MAX_TAIL_CACHE_PRE_INDEX_LENGTH);
+            this(TableExtensionConfig.builder().build().getMaxUnindexedLength());
         }
 
-        TestContext(long maxUnindexedSize) {
+        TestContext(int maxUnindexedSize) {
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
@@ -938,7 +936,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), TIMEOUT).join();
             val ds = new SortedKeyIndexDataSource(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
             this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
-            this.index = new TestContainerKeyIndex(CONTAINER_ID, maxUnindexedSize, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());
+            val indexConfig = TableExtensionConfig.builder()
+                    .maxTailCachePreIndexLength(TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
+                    .maxUnindexedLength(maxUnindexedSize)
+                    .recoveryTimeout(ContainerKeyIndexTests.RECOVERY_TIMEOUT)
+                    .build();
+            this.index = new ContainerKeyIndex(CONTAINER_ID, indexConfig, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
@@ -948,32 +951,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.index.close();
             this.cacheManager.close();
             this.cacheStorage.close();
-        }
-
-        private class TestContainerKeyIndex extends ContainerKeyIndex {
-            private final long maxUnindexedLength;
-
-            TestContainerKeyIndex(int containerId, long maxUnindexedLength, @NonNull CacheManager cacheManager,
-                                  @NonNull ContainerSortedKeyIndex sortedKeyIndex, @NonNull KeyHasher keyHasher,
-                                  @NonNull ScheduledExecutorService executor) {
-                super(containerId, cacheManager, sortedKeyIndex, keyHasher, executor);
-                this.maxUnindexedLength = maxUnindexedLength;
-            }
-
-            @Override
-            protected long getMaxTailCachePreIndexLength() {
-                return TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
-            }
-
-            @Override
-            protected long getMaxUnindexedLength() {
-                return this.maxUnindexedLength;
-            }
-
-            @Override
-            protected Duration getRecoveryTimeout() {
-                return ContainerKeyIndexTests.RECOVERY_TIMEOUT;
-            }
         }
     }
 
