@@ -390,8 +390,6 @@ public final class ModelHelper {
         return builder.build();
     }
 
-
-
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");

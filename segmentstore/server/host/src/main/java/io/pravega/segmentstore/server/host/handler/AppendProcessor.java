@@ -144,7 +144,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (this.tokenVerifier != null) {
             try {
-                // _RG and _MARK
                 JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
                         newSegment.contains("/_") ? AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE);
