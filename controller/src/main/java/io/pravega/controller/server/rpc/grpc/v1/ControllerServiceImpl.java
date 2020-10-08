@@ -323,20 +323,35 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     Supplier<String> createDelegationTokenSupplier(StreamInfo request) {
         return () -> {
             String resource = authorizationResource.ofStreamInScope(request.getScope(), request.getStream());
-            if (request.getRequestedPermission().equals("") && !request.getStream().startsWith("_")) {
-                // For backward compatibility
+            boolean isStreamInternal = request.getStream().startsWith("_");
+
+            // This is for backward compatibility. Older clients will not set the requested permission
+            if (request.getRequestedPermission().equals("") && !isStreamInternal) {
                 return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
                         AuthHandler.Permissions.READ);
+            }
+
+            // Internal streams
+            if (isStreamInternal) {
+                String internalResource = this.authorizationResource.ofInternalStream(request.getScope(),
+                        request.getStream());
+                AuthHandler.Permissions targetPermission = this.isInternalWritesWithReadPermEnabled ?
+                        AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
+                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(internalResource,
+                        targetPermission);
             } else {
+                // The operation requires the caller to possess read permissions.
                 AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
-                AuthHandler.Permissions requestedPermissions =
-                        PermissionsHelper.parse(request.getRequestedPermission(), AuthHandler.Permissions.READ);
+                AuthHandler.Permissions requestedPermissions = PermissionsHelper.parse(request.getRequestedPermission(),
+                        AuthHandler.Permissions.READ);
 
                 // Authorize the operation call
                 this.grpcAuthHelper.checkAuthorization(resource, minimumPermissions);
 
                 if (!minimumPermissions.equals(requestedPermissions)) {
-                    // Authorize that the user is authorized for the specified permission
+                    // Authorize that the user is authorized for the permission is has requested to be assigned on the
+                    // delegation token.
                     this.grpcAuthHelper.checkAuthorization(resource, requestedPermissions);
                 }
                 return this.grpcAuthHelper.createDelegationToken(resource, requestedPermissions);
