@@ -27,7 +27,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.InternalStreamAuthParams;
+import io.pravega.controller.server.security.auth.StreamAuthParams;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.shared.security.auth.PermissionsHelper;
 import io.pravega.controller.store.stream.StoreException;
@@ -225,13 +225,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                             scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
 
-        final AuthHandler.Permissions requiredPermission;
-        if (stream.startsWith("_RG")) {
-            requiredPermission = new InternalStreamAuthParams(scope, stream, this.isInternalWritesWithReadPermEnabled)
-                    .requiredPermissionForWrites();
-        } else {
-            requiredPermission = AuthHandler.Permissions.READ_UPDATE;
-        }
+        StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isInternalWritesWithReadPermEnabled);
+        AuthHandler.Permissions requiredPermission = streamAuthParams.requiredPermissionForWrites();
+
         log.debug("requiredPermission is [{}], for scope [{}] and stream [{}]", requiredPermission, scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamsInScope(scope), requiredPermission),
@@ -250,22 +246,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
 
         Supplier<String> authorizationSupplier = () -> this.grpcAuthHelper.checkAuthorization(
-                resourceFromStream(scope, stream), AuthHandler.Permissions.READ_UPDATE);
+                StreamAuthParams.toResourceString(scope, stream), AuthHandler.Permissions.READ_UPDATE);
 
         authenticateExecuteAndProcessResults(authorizationSupplier,
                 authorizationResult -> controllerService.updateStream(scope, stream, ModelHelper.encode(request)),
                 responseObserver, requestTag);
-    }
-
-    @VisibleForTesting
-    String resourceFromStream(String scope, String stream) {
-        final String resource;
-        if (stream.startsWith("_")) {
-            resource = this.authorizationResource.ofInternalStream(scope, stream);
-        } else {
-            resource = this.authorizationResource.ofStreamInScope(scope, stream);
-        }
-        return resource;
     }
 
     @Override
@@ -483,7 +468,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-                resourceFromStream(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                StreamAuthParams.toResourceString(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getURI(request),
                 responseObserver);

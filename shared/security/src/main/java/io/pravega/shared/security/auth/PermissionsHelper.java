@@ -12,8 +12,17 @@ package io.pravega.shared.security.auth;
 import io.pravega.auth.AuthHandler;
 import lombok.NonNull;
 
+/**
+ * Helper methods for permissions.
+ */
 public class PermissionsHelper {
 
+    /**
+     * Translates the specified {@code accessOperation} to an {@link AuthHandler.Permissions} object.
+     *
+     * @param accessOperation accessOperation to translate
+     * @return a {@link AuthHandler.Permissions} object that represents the specified {@code accessOperation}
+     */
     public static AuthHandler.Permissions toAuthHandlerPermissions(AccessOperation accessOperation) {
         if (accessOperation.equals(AccessOperation.READ)) {
             return AuthHandler.Permissions.READ;
@@ -25,12 +34,20 @@ public class PermissionsHelper {
         }
     }
 
-    public static AuthHandler.Permissions parse(@NonNull String accessOperation, AuthHandler.Permissions defaultPermissions) {
-        if (accessOperation.equals("")) {
+    /**
+     * Parse the specified {@code accessOperationStr} string and translate it to an {@link AuthHandler.Permissions} object.
+     *
+     * @param accessOperationStr a string value of an {@link AccessOperation} object
+     * @param defaultPermissions the default {@link AuthHandler.Permissions} object to return in case the
+     *                           {@code accessOperationStr} can't be parsed.
+     * @return the parsed or default {@link AuthHandler.Permissions} object,
+     */
+    public static AuthHandler.Permissions parse(@NonNull String accessOperationStr, AuthHandler.Permissions defaultPermissions) {
+        if (accessOperationStr.equals("")) {
             return defaultPermissions;
         }
         try {
-            return toAuthHandlerPermissions(AccessOperation.valueOf(accessOperation));
+            return toAuthHandlerPermissions(AccessOperation.valueOf(accessOperationStr));
         } catch (IllegalArgumentException e) {
             return defaultPermissions;
         }

@@ -15,32 +15,32 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class InternalStreamAuthParamsTest {
+public class StreamAuthParamsTest {
 
     @Test
     public void rejectsConstructionWhenInputIsInvalid() {
         AssertExtensions.assertThrows("Scope was null",
-                () -> new InternalStreamAuthParams(null, "_internalStream", true),
+                () -> new StreamAuthParams(null, "_internalStream", true),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Stream was null",
-                () -> new InternalStreamAuthParams("scope", null, true),
+                () -> new StreamAuthParams("scope", null, true),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Stream is not internal",
-                () -> new InternalStreamAuthParams("scope", "externalStream", false),
+                () -> new StreamAuthParams("scope", "externalStream", false),
                 e -> e instanceof IllegalArgumentException);
     }
 
     @Test
     public void returnsReadPermissionWhenConfigIsTrue() {
-        InternalStreamAuthParams params = new InternalStreamAuthParams("scope", "_internalStream", true);
+        StreamAuthParams params = new StreamAuthParams("scope", "_internalStream", true);
         assertEquals(AuthHandler.Permissions.READ, params.requiredPermissionForWrites());
     }
 
     @Test
     public void returnsReadUpdatePermissionWhenConfigIsTrue() {
-        InternalStreamAuthParams params = new InternalStreamAuthParams("scope", "_internalStream", false);
+        StreamAuthParams params = new StreamAuthParams("scope", "_internalStream", false);
         assertEquals(AuthHandler.Permissions.READ_UPDATE, params.requiredPermissionForWrites());
     }
 }
