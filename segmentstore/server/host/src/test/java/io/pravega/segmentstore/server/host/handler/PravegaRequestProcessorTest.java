@@ -1033,7 +1033,6 @@ public class PravegaRequestProcessorTest {
     @Test
     public void testReadTableEntriesDeltaEmpty() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
-        val rnd = new Random(0);
         String tableSegmentName = "testReadTableEntriesDelta";
 
         @Cleanup
@@ -1044,7 +1043,7 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection), SegmentStatsRecorder.noOp(),
                 recorderMock, new PassingTokenVerifier(), false);
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
@@ -1057,8 +1056,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
-    public  void testReadTableEntriesDeltaOutOfBounds() throws  Exception {
-
+    public void testReadTableEntriesDeltaOutOfBounds() throws  Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
         String tableSegmentName = "testReadTableEntriesDelta";
@@ -1071,7 +1069,7 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, new TrackedConnection(connection), SegmentStatsRecorder.noOp(),
                 recorderMock, new PassingTokenVerifier(), false);
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));

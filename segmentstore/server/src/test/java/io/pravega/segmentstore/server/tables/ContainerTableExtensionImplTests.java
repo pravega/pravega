@@ -214,7 +214,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
         //// Make sure its been removed.
         val entries = context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join();
-        Assert.assertTrue(entries.size() == 1);
+        Assert.assertEquals(1, entries.size());
     }
 
     /**
@@ -366,7 +366,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         final int maxCompactionLength = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE;
         @Cleanup
-        val context = new TableContext(maxCompactionLength, executorService());
+        val context = new TableContext(keyHasher, maxCompactionLength, executorService());
 
         // Create the segment and the Table Writer Processor.
         context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
@@ -505,7 +505,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(hasher, DEFAULT_COMPACTION_SIZE, executorService());
 
         // Generate the keys.
         val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
@@ -697,7 +697,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Check that invalid serializer state is handled properly.
         val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, emptyIteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);
-        Assert.assertTrue("Unexpected entries returned.", actualEmptyEntries.size() == 0);
+        Assert.assertEquals("Unexpected entries returned.", 0, actualEmptyEntries.size());
 
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         // Collect and verify all Table Entries.

@@ -416,8 +416,7 @@ class ContainerKeyIndex implements AutoCloseable {
             update = () -> persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
 
-        return update.get();
-        //return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
+        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
     }
 
     private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
