@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -25,8 +26,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.SubscriberConfiguration;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -111,27 +111,32 @@ interface Stream {
     CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getVersionedConfigurationRecord();
 
     /**
-     * Fetches the current subscribers record
-     *
-     * @return record holding subscribers for the Stream with their stream-cuts.
-     */
-    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getVersionedSubscribersRecord();
-
-    /**
      * Create subscribers record for storing metadata about Stream Subscribers.
      * Also add this new Subscriber to the Record.
      * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
      * @return future of operation.
      */
-    CompletableFuture<Void> createSubscribersRecord(String subscriber);
+    CompletableFuture<Void> createSubscriber(String subscriber);
+
+    /**
+     * Fetches the record corresponding to the subscriber
+     * @return record holding information about this subscriber for the Stream.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber);
+
+    /**
+     * Fetches the record corresponding to the subscriber
+     * @return record holding information about this subscriber for the Stream.
+     */
+    CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers();
 
     /**
      * Update subscribers record for the Stream.
      * @param subscriber  subscriber to be added/updated.
-     * @param subscriberConfiguration  subscriber config to be added/updated.
+     * @param streamCut  truncation streamcut for subscriber to be added/updated.
      * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscribers(final String subscriber, final SubscriberConfiguration subscriberConfiguration);
+    CompletableFuture<Void> updateSubscriber(final String subscriber, final ImmutableMap<Long, Long> streamCut);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.

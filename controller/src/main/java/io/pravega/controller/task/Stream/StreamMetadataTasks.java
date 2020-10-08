@@ -49,7 +49,6 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.SubscriberConfiguration;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -304,22 +303,16 @@ public class StreamMetadataTasks extends TaskBase {
                 return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
             } else {
                 // 2. get subscribers data
-                return Futures.exceptionallyExpecting(streamMetadataStore.getSubscribersRecord(scope, stream, context, executor),
+                return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, newSubscriber, context, executor),
                      e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                     .thenCompose(subscribersData -> {
                     //4. if SubscribersRecord does not exist create one...
                     if (subscribersData == null) {
-                        streamMetadataStore.createSubscribersRecord(scope, stream, newSubscriber, context, executor);
+                        streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor);
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
-                    }
-                    //5. check if subscriber by this name/Id already exists
-                    if (subscribersData.getObject().contains(newSubscriber)) {
+                    } else {
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
                     }
-                    //6. add subscriber to the list of Stream Subscribers
-                    streamMetadataStore.updateSubscribers(scope, stream, newSubscriber,
-                                    SubscriberConfiguration.EMPTY, context, executor);
-                    return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
                     })
                     .exceptionally(ex -> {
                         log.warn(requestId, "Exception thrown in trying to add subscriber {}",
@@ -357,31 +350,23 @@ public class StreamMetadataTasks extends TaskBase {
            .thenCompose(exists -> {
                // 1. check Stream exists
                if (!exists) {
-                  return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND);
+                   return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND);
                }
-               // 2. get subscriber data
-               return streamMetadataStore.getSubscribersRecord(scope, stream, context, executor)
-                  .thenCompose(subscribersData -> {
-                  // 3. check if subscriber exists
-                  if (!subscribersData.getObject().contains(subscriber)) {
-                         return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
-                  }
-                  // 4. remove subscriber from SubscribersRecord
-                  streamMetadataStore.removeSubscriber(scope, stream, subscriber, context, executor);
-                  return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.SUCCESS);
-                  })
-                  .exceptionally(ex -> {
-                     log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
-                     Throwable cause = Exceptions.unwrap(ex);
-                     if (cause instanceof StoreException.DataNotFoundException) {
-                         return RemoveSubscriberStatus.Status.STREAM_NOT_FOUND;
-                     } else if (cause instanceof TimeoutException) {
-                         throw new CompletionException(cause);
-                     } else {
-                         log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
-                         return RemoveSubscriberStatus.Status.FAILURE;
-                     }
-                  });
+               // 2. remove subscriber
+               return streamMetadataStore.removeSubscriber(scope, stream, subscriber, context, executor)
+                       .thenApply(x -> RemoveSubscriberStatus.Status.SUCCESS)
+                       .exceptionally(ex -> {
+                           log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
+                           Throwable cause = Exceptions.unwrap(ex);
+                           if (cause instanceof StoreException.DataNotFoundException) {
+                               return RemoveSubscriberStatus.Status.STREAM_NOT_FOUND;
+                           } else if (cause instanceof TimeoutException) {
+                               throw new CompletionException(cause);
+                           } else {
+                               log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
+                               return RemoveSubscriberStatus.Status.FAILURE;
+                           }
+                       });
            }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
@@ -405,16 +390,14 @@ public class StreamMetadataTasks extends TaskBase {
                     return CompletableFuture.completedFuture(emptySubscribersList);
                   }
                   // 2. get subscribers data
-                  return Futures.exceptionallyExpecting(streamMetadataStore.getSubscribersRecord(scope, stream, context, executor),
+                  return Futures.exceptionallyExpecting(streamMetadataStore.getAllSubscribers(scope, stream, context, executor),
                     e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                     .thenCompose(subscribersData -> {
                         //3. if SubscribersRecord does not exist return empty list
                         if (subscribersData == null) {
                             return CompletableFuture.completedFuture(emptySubscribersList);
                         }
-                        List<String> subscribersList = subscribersData.getObject().getStreamSubscribers()
-                                .keySet().stream().collect(Collectors.toList());
-                        return CompletableFuture.completedFuture(subscribersList);
+                        return CompletableFuture.completedFuture(subscribersData.keySet().stream().collect(Collectors.toList()));
                     }).exceptionally(ex -> {
                               log.warn(requestId, "Exception thrown in trying to get list of Stream subscribers. {}",
                                       ex.getMessage());

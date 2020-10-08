@@ -57,7 +57,7 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -328,8 +328,8 @@ public abstract class StreamMetadataTasksTest {
         Controller.AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        StreamSubscribersRecord record = streamStorePartialMock.getSubscribersRecord(SCOPE, stream1, null, executor).get().getObject();
-        assertTrue(record.contains(subscriber1));
+        StreamSubscriber record = streamStorePartialMock.getSubscriber(SCOPE, stream1, subscriber1, null, executor).get().getObject();
+        assertTrue(record.getSubscriber().equals(subscriber1));
 
         String subscriber2 = "subscriber2";
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, null).get();

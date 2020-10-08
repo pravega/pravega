@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -25,8 +26,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
-import io.pravega.controller.store.stream.records.SubscriberConfiguration;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -291,7 +291,7 @@ public interface StreamMetadataStore extends AutoCloseable {
 
 
     /**
-     * Updates the subscribers metadata for an existing stream.
+     * Creates a new subscribers record in metadata for an existing stream.
      *
      * @param scopeName         stream scope name.
      * @param streamName        stream name.
@@ -300,7 +300,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor          callers executor
      * @return Future of operation
      */
-    CompletableFuture<Void> createSubscribersRecord(final String scopeName, final String streamName, String subscriber,
+    CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
                                                            final OperationContext context, final Executor executor);
 
     /**
@@ -308,16 +308,16 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope         stream scope
      * @param name          stream name.
-     * @param newSubscriber new stream subscriber.
-     * @param newSubscriberConfig new subscriber configuration.
+     * @param subscriber new stream subscriber.
+     * @param streamCut     new truncation streamcut for subscriber.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
      */
-    CompletableFuture<Void> updateSubscribers(final String scope,
+    CompletableFuture<Void> updateSubscriber(final String scope,
                                                      final String name,
-                                                     final String newSubscriber,
-                                                     final SubscriberConfiguration newSubscriberConfig,
+                                                     final String subscriber,
+                                                     final ImmutableMap<Long, Long> streamCut,
                                                      final OperationContext context,
                                                      final Executor executor);
 
@@ -326,16 +326,31 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope         stream scope
      * @param name          stream name.
-     * @param newSubscriber new stream subscriber.
+     * @param subscriber    subscriber to be removed.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
      */
     CompletableFuture<Void> removeSubscriber(final String scope,
                                               final String name,
-                                              final String newSubscriber,
+                                              final String subscriber,
                                               final OperationContext context,
                                               final Executor executor);
+
+    /**
+     * Fetches the current stream subscribers record.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param subscriber   subscriber name.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope, final String name,
+                                                                                       final String subscriber,
+                                                                                       final OperationContext context,
+                                                                                       final Executor executor);
 
     /**
      * Fetches the current stream subscribers record.
@@ -346,9 +361,10 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor     callers executor
      * @return current stream configuration.
      */
-    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersRecord(final String scope, final String name,
-                                                                                       final OperationContext context,
-                                                                                       final Executor executor);
+    CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers(final String scope, final String name,
+                                                                         final OperationContext context,
+                                                                         final Executor executor);
+
 
     /**
      * Start new stream truncation.

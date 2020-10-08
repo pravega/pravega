@@ -32,7 +32,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -241,7 +241,32 @@ class ZKStream extends PersistentStreamBase {
         return getId().thenCompose(id -> store.getCachedData(creationPath, id, x -> BitConverter.readLong(x, 0))
                 .thenApply(VersionedMetadata::getObject));
     }
-    
+
+    @Override
+    public CompletableFuture<Void> createSubscriber(String subscriber) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> updateSubscriber(String subscriber, ImmutableMap<Long, Long> streamCut) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> removeSubscriber(String subscriber) {
+        return null;
+    }
+
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet data) {
         return Futures.toVoid(store.createZNodeIfNotExist(retentionSetPath, data.toBytes()));
@@ -252,29 +277,6 @@ class ZKStream extends PersistentStreamBase {
         return store.getData(retentionSetPath, RetentionSet::fromBytes);
     }
 
-    @Override
-    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord subscribersRecord) {
-        return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersRecord.toBytes()));
-    }
-
-    @Override
-    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
-        return getId().thenCompose(id -> {
-            if (ignoreCached) {
-                return store.getData(subscribersPath, StreamSubscribersRecord::fromBytes);
-            }
-            return store.getCachedData(subscribersPath, id, StreamSubscribersRecord::fromBytes);
-        });
-    }
-
-    @Override
-    CompletableFuture<Version> setSubscribersData(VersionedMetadata<StreamSubscribersRecord> subscribersRecord) {
-        return getId().thenCompose(id -> store.setData(subscribersPath, subscribersRecord.getObject().toBytes(), subscribersRecord.getVersion())
-                .thenApply(r -> {
-                    store.invalidateCache(subscribersPath, id);
-                    return new Version.IntVersion(r);
-                }));
-    }
 
     @Override
     CompletableFuture<Version> updateRetentionSetData(VersionedMetadata<RetentionSet> retention) {

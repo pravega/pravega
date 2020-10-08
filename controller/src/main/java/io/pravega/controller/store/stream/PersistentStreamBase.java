@@ -41,8 +41,6 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
-import io.pravega.controller.store.stream.records.SubscriberConfiguration;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -156,56 +154,6 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Void> delete() {
         return deleteStream();
-    }
-
-    /**
-     * Create a subscribersRecord with provided subscriber for this Stream.
-     * @return future of operation.
-     */
-    @Override
-    public CompletableFuture<Void> createSubscribersRecord(String subscriber) {
-        ImmutableMap<String, SubscriberConfiguration> subscribers
-                = new ImmutableMap.Builder<String, SubscriberConfiguration>()
-                .put(subscriber, SubscriberConfiguration.EMPTY).build();
-        return createSubscribersDataIfAbsent(new StreamSubscribersRecord(subscribers));
-    }
-
-    /**
-     * Update subscribers record for the Stream.
-     * @param subscriber  subscriber to be added/updated.
-     * @param subscriberConfiguration  subscriber config to be added/updated.
-     * @return future of operation.
-     */
-    public CompletableFuture<Void> updateSubscribers(final String subscriber,
-                                                     SubscriberConfiguration subscriberConfiguration) {
-        return getVersionedSubscribersRecord()
-                .thenCompose(subscribersRecord -> {
-                    StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.update(
-                            subscribersRecord.getObject().getStreamSubscribers(),
-                            subscriber, subscriberConfiguration);
-                    return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
-                });
-    }
-
-    /**
-     * Remove subscriber from list of Subscribers for the Stream.
-     * @param subscriber  subscriber to be removed.
-     * @return future of operation.
-     */
-    @Override
-    public CompletableFuture<Void> removeSubscriber(final String subscriber) {
-        return getVersionedSubscribersRecord()
-                .thenCompose(subscribersRecord -> {
-                    StreamSubscribersRecord updatedSubscribers = StreamSubscribersRecord.remove(
-                            subscribersRecord.getObject().getStreamSubscribers(), subscriber);
-                    return Futures.toVoid(setSubscribersData(new VersionedMetadata<>(updatedSubscribers, subscribersRecord.getVersion())));
-                });
-    }
-
-    @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getVersionedSubscribersRecord() {
-        return getSubscribersData(true)
-                .thenApply(data -> new VersionedMetadata<>(data.getObject(), data.getVersion()));
     }
 
     @Override
@@ -2046,13 +1994,6 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Version> updateRetentionSetData(VersionedMetadata<RetentionSet> tData);
 
     abstract CompletableFuture<VersionedMetadata<RetentionSet>> getRetentionSetData();
-
-    abstract CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord data);
-
-    abstract CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached);
-
-    abstract CompletableFuture<Version> setSubscribersData(final VersionedMetadata<StreamSubscribersRecord> subscribers);
-
     // endregion
 
     // region history

@@ -31,7 +31,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -76,6 +76,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
     private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
+    private static final String SUBSCRIBERS_TABLE = "subscribers" + SEPARATOR + "%s";
     private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
 
     // metadata keys
@@ -85,7 +86,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String STATE_KEY = "state";
     private static final String EPOCH_TRANSITION_KEY = "epochTransition";
     private static final String RETENTION_SET_KEY = "retention";
-    private static final String SUBSCRIBER_SET_KEY = "subscribers";
+    private static final String SUBSCRIBER_KEY = "subscriber-";
     private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
     private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
@@ -181,6 +182,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     private String getWritersTableName(String id) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(WRITERS_POSITIONS_TABLE, id));
     }
+
+    private CompletableFuture<String> getSubscribersTable() {
+        return getId().thenApply(this::getSubscribersTableName);
+    }
+
+    private String getSubscribersTableName(String id) {
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(SUBSCRIBERS_TABLE, id));
+    }
     // region overrides
 
     @Override
@@ -272,33 +281,42 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSubscribersDataIfAbsent(StreamSubscribersRecord subscribers) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable,
-                                SUBSCRIBER_SET_KEY, subscribers.toBytes())
-                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY)));
+    public CompletableFuture<Void> createSubscriber(String subscriber) {
+        StreamSubscriber subscriberRecord = new StreamSubscriber(subscriber, ImmutableMap.of(), System.currentTimeMillis());
+        return Futures.toVoid(getSubscribersTable()
+                .thenCompose(table -> storeHelper.addNewEntry(table, subscriber, subscriberRecord.toBytes())));
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersData(boolean ignoreCached) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
-                    }
-                    return storeHelper.getCachedData(metadataTable, SUBSCRIBER_SET_KEY, StreamSubscribersRecord::fromBytes);
-                });
+    public CompletableFuture<Void> updateSubscriber(String subscriber, ImmutableMap<Long, Long> streamCut) {
+        StreamSubscriber sub = new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis());
+        return Futures.toVoid(getSubscriber(subscriber)
+                .thenCompose(subWithVersion -> getSubscribersTable()
+                        .thenCompose(table -> storeHelper.updateEntry(table, subscriber, sub.toBytes(), subWithVersion.getVersion()))));
     }
 
     @Override
-    CompletableFuture<Version> setSubscribersData(final VersionedMetadata<StreamSubscribersRecord> subscribers) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY,
-                        subscribers.getObject().toBytes(), subscribers.getVersion())
-                        .thenApply(r -> {
-                            storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY);
-                            return r;
-                        }));
+    public CompletableFuture<Void> removeSubscriber(String subscriber) {
+        return getSubscriber(subscriber)
+                .thenCompose(subWithVersion -> getSubscribersTable()
+                    .thenCompose(table -> storeHelper.removeEntry(table, subscriber, subWithVersion.getVersion())));
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber) {
+        return getSubscribersTable()
+                .thenCompose(table -> storeHelper.getEntry(table, subscriber, StreamSubscriber::fromBytes));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
+        Map<String, StreamSubscriber> subscribers = new ConcurrentHashMap<>();
+        return getSubscribersTable()
+                .thenCompose(table -> storeHelper.getAllEntries(table, StreamSubscriber::fromBytes)
+                        .collectRemaining(x -> {
+                            subscribers.put(x.getKey(), x.getValue().getObject());
+                            return true;
+                        })).thenApply(v -> subscribers);
     }
 
     @Override

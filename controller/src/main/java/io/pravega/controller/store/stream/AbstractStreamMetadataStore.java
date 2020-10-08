@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -37,8 +38,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscribersRecord;
-import io.pravega.controller.store.stream.records.SubscriberConfiguration;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -524,38 +524,46 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> createSubscribersRecord(final String scopeName, final String streamName, String subscriber,
+    public CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
                                                            final OperationContext context, final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createSubscribersRecord(subscriber), executor);
+        return Futures.completeOn(stream.createSubscriber(subscriber), executor);
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscribers(final String scope,
+    public CompletableFuture<Void> updateSubscriber(final String scope,
                                                             final String name,
                                                             final String subscriber,
-                                                            final SubscriberConfiguration subConfig,
+                                                            final ImmutableMap<Long, Long> streamCut,
                                                             final OperationContext context,
                                                             final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).updateSubscribers(subscriber, subConfig), executor);
+        return Futures.completeOn(getStream(scope, name, context).updateSubscriber(subscriber, streamCut), executor);
     }
 
     @Override
     public CompletableFuture<Void> removeSubscriber(final String scope,
                                                      final String name,
                                                      final String subscriber,
-
                                                      final OperationContext context,
                                                      final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context).removeSubscriber(subscriber), executor);
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscribersRecord>> getSubscribersRecord(final String scope,
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope,
                                                                                               final String name,
+                                                                                              final String subscriber,
                                                                                               final OperationContext context,
                                                                                               final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).getVersionedSubscribersRecord(), executor);
+        return Futures.completeOn(getStream(scope, name, context).getSubscriber(subscriber), executor);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers(final String scope,
+                                                                                final String name,
+                                                                                final OperationContext context,
+                                                                                final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).getAllSubscribers(), executor);
     }
 
     @Override
