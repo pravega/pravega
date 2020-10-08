@@ -252,6 +252,7 @@ public class SerializationTest {
         builder.assignedSegments(createMap(this::createString, this::createSegmentRangeMap));
         builder.checkpointState(new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
                                                                             .lastCheckpointPosition(createSegmentToLongMap())
+                                                                            .lastStreamCutPosition(createSegmentToLongMap())
                                                                             .checkpointPositions(createMap(this::createString,
                                                                                                            this::createSegmentToLongMap))
                                                                             .uncheckpointedHosts(createMap(this::createString,
