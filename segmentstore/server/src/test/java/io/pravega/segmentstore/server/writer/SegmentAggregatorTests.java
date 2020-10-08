@@ -1304,7 +1304,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             // Initialize the Aggregator and add the DeleteSegmentOperation.
             a.initialize(TIMEOUT).join();
             if (a == withMergers) {
-                // Add a merged segment to this one.
+                // Add a merged segment to this one, but not before adding an arbitrary operation.
+                withMergers.add(generateAppendAndUpdateMetadata(1, withMergers.getMetadata().getId(), context));
                 a.add(generateMergeTransactionAndUpdateMetadata(withMergers.getMetadata().getId(), withMergerSource.getMetadata().getId(), context));
             }
 
