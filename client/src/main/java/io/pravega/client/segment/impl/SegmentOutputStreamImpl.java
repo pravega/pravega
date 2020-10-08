@@ -237,7 +237,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private long addToInflight(PendingEvent event) {
             synchronized (lock) {
-                eventNumber++;
+                eventNumber += event.getEventCount();
                 log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
                 inflight.addLast(new SimpleImmutableEntry<>(eventNumber, event));
                 if (!needSuccessors.get()) {
@@ -356,6 +356,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         @Override
+        public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+            log.info("Received an errorMessage containing an unhandled {} on segment {}",
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
+                    errorMessage.getSegment());
+            state.failConnection(errorMessage.getThrowableException());
+        }
+
+        @Override
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
@@ -377,7 +385,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             List<Append> toRetransmit = state.getAllInflight()
                                              .stream()
                                              .map(entry -> new Append(segmentName, writerId, entry.getKey(),
-                                                                      1,
+                                                                      entry.getValue().getEventCount(),
                                                                       entry.getValue().getData(),
                                                                       null,
                                                                       requestId
@@ -482,7 +490,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             long eventNumber = state.addToInflight(event);
             try {
-                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
+                Append append = new Append(segmentName, writerId, eventNumber, event.getEventCount(), event.getData(), null, requestId);
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {

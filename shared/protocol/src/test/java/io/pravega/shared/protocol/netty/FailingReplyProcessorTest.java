@@ -40,24 +40,25 @@ import io.pravega.shared.protocol.netty.WireCommands.TableKeysRemoved;
 import io.pravega.shared.protocol.netty.WireCommands.TableRead;
 import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class FailingReplyProcessorTest {
 
+    private ReplyProcessor rp = new FailingReplyProcessor() {
+        @Override
+        public void connectionDropped() {
+        }
+
+        @Override
+        public void processingFailure(Exception error) {
+        }
+    };
+
     @Test
     public void testEverythingThrows() {
-        ReplyProcessor rp = new FailingReplyProcessor() {
-            @Override
-            public void connectionDropped() {
-            }
-
-            @Override
-            public void processingFailure(Exception error) {
-            }
-            
-        };
         assertThrows(IllegalStateException.class, () -> rp.appendSetup(new AppendSetup(0, "", null, 1)));
         assertThrows(IllegalStateException.class, () -> rp.authTokenCheckFailed(new AuthTokenCheckFailed(0, "")));
         assertThrows(IllegalStateException.class, () -> rp.conditionalCheckFailed(new ConditionalCheckFailed(null, 1, 2)));
@@ -89,6 +90,7 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.tableRead(new TableRead(0, "", null)));
         assertThrows(IllegalStateException.class, () -> rp.tableSegmentNotEmpty(new TableSegmentNotEmpty(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.wrongHost(new WrongHost(0, "", "", "")));
-    }       
-    
+        assertThrows(IllegalStateException.class, () -> rp.errorMessage(new ErrorMessage(0, "", "", ErrorMessage.ErrorCode.UNSPECIFIED)));
+    }
+
 }
