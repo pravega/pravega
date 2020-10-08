@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
@@ -223,10 +224,12 @@ class PravegaTablesStream extends PersistentStreamBase {
             String metadataTable = getMetadataTableName(id);
             String epochWithTxnTable = getEpochsWithTransactionsTableName(id);
             String writersPositionsTable = getWritersTableName(id);
+            String subscribersTable = getSubscribersTableName(id);
             return CompletableFuture.allOf(storeHelper.createTable(metadataTable),
-                    storeHelper.createTable(epochWithTxnTable), storeHelper.createTable(writersPositionsTable))
-                                    .thenAccept(v -> log.debug("stream {}/{} metadata tables {}, {} & {} created", getScope(), getName(), metadataTable,
-                                            epochWithTxnTable, writersPositionsTable));
+                    storeHelper.createTable(epochWithTxnTable), storeHelper.createTable(writersPositionsTable),
+                    storeHelper.createTable(subscribersTable))
+                                    .thenAccept(v -> log.debug("stream {}/{} metadata tables {}, {} {} & {} created", getScope(), getName(), metadataTable,
+                                            epochWithTxnTable, writersPositionsTable, subscribersTable));
         });
     }
 
@@ -284,7 +287,19 @@ class PravegaTablesStream extends PersistentStreamBase {
     public CompletableFuture<Void> createSubscriber(String subscriber) {
         StreamSubscriber subscriberRecord = new StreamSubscriber(subscriber, ImmutableMap.of(), System.currentTimeMillis());
         return Futures.toVoid(getSubscribersTable()
-                .thenCompose(table -> storeHelper.addNewEntry(table, subscriber, subscriberRecord.toBytes())));
+                .thenCompose(table -> storeHelper.addNewEntry(table, subscriber, subscriberRecord.toBytes())
+                .exceptionally( ex -> {
+                    Throwable cause = Exceptions.unwrap(ex);
+                    if (cause instanceof StoreException.DataNotFoundException) {
+                         getId().thenCompose(id -> storeHelper.createTable(getSubscribersTableName(id))
+                          .thenCompose( x -> storeHelper.addNewEntry(getSubscribersTableName(id),
+                                  subscriber, subscriberRecord.toBytes())));
+
+                    } else {
+                        throw new CompletionException(cause);
+                    }
+                    return null;
+                })));
     }
 
     @Override
