@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
+import java.io.DataOutput;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,7 @@ import java.util.Objects;
 import javax.annotation.concurrent.NotThreadSafe;
 
 @NotThreadSafe
-public class BufferViewOutputStream extends OutputStream {
+public final class BufferViewOutputStream extends OutputStream implements DataOutput {
     
     @VisibleForTesting
     static final int CHUNK_SIZE = 1024;
@@ -53,13 +54,13 @@ public class BufferViewOutputStream extends OutputStream {
 
     private final void allocateNewChunkIfNeeded(int i) {
         if (bytesWrittenInChunk + i > currentChunk.length) {
-            completeChunk();
+            completeChunk(i);
         }
     }
 
-    private final void completeChunk() {
+    private final void completeChunk(int minSize) {
         completed.add(new ByteArraySegment(currentChunk, 0, bytesWrittenInChunk));
-        currentChunk = new byte[CHUNK_SIZE];
+        currentChunk = new byte[Math.max(minSize, CHUNK_SIZE)];
         bytesWrittenInChunk = 0;
     }
 
@@ -134,8 +135,146 @@ public class BufferViewOutputStream extends OutputStream {
     
     public BufferView getView() {
         if (bytesWrittenInChunk > 0) {
-            completeChunk();
+            completeChunk(0);
         }
         return new CompositeBufferView(completed);
+    }
+
+    @Override
+    public void writeBoolean(boolean v) {
+        write(v ? 1 : 0);
+    }
+
+    @Override
+    public void writeByte(int v) {
+        write(v);
+    }
+
+    @Override
+    public void writeShort(int v) {
+        Exceptions.checkNotClosed(isClosed(), this);
+        allocateNewChunkIfNeeded(2);
+        currentChunk[bytesWrittenInChunk] = (byte) ((v >>> 8) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 1] = (byte) ((v >>> 0) & 0xFF);
+        bytesWrittenInChunk += 2;
+    }
+
+    @Override
+    public void writeChar(int v) {
+        writeShort(v);
+    }
+
+    @Override
+    public void writeInt(int v) {
+        Exceptions.checkNotClosed(isClosed(), this);
+        allocateNewChunkIfNeeded(4);
+        currentChunk[bytesWrittenInChunk] = (byte) ((v >>> 24) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 1] = (byte) ((v >>> 16) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 2] = (byte) ((v >>> 8) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 3] = (byte) ((v >>> 0) & 0xFF);
+        bytesWrittenInChunk += 4;
+    }
+
+    @Override
+    public void writeLong(long v) {
+        Exceptions.checkNotClosed(isClosed(), this);
+        allocateNewChunkIfNeeded(8);
+        currentChunk[bytesWrittenInChunk] = (byte) ((v >>> 56) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 1] = (byte) ((v >>> 48) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 2] = (byte) ((v >>> 40) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 3] = (byte) ((v >>> 32) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 4] = (byte) ((v >>> 24) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 5] = (byte) ((v >>> 16) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 6] = (byte) ((v >>> 8) & 0xFF);
+        currentChunk[bytesWrittenInChunk + 7] = (byte) ((v >>> 0) & 0xFF);
+        bytesWrittenInChunk += 8;
+    }
+
+    @Override
+    public void writeFloat(float v) {
+        writeInt(Float.floatToIntBits(v));
+    }
+
+    @Override
+    public void writeDouble(double v) {
+        writeLong(Double.doubleToLongBits(v));
+    }
+
+    @Override
+    public void writeBytes(String s) {
+        int len = s.length();
+        allocateNewChunkIfNeeded(len);
+        for (int i = 0 ; i < len ; i++) {
+            currentChunk[bytesWrittenInChunk] = (byte)s.charAt(i);
+            bytesWrittenInChunk++;
+        }
+    }
+
+    @Override
+    public void writeChars(String s) {
+        int len = s.length();
+        allocateNewChunkIfNeeded(2 * len);
+        for (int i = 0 ; i < len ; i++) {
+            int v = s.charAt(i);
+            currentChunk[bytesWrittenInChunk] = (byte) ((v >>> 8) & 0xFF);
+            currentChunk[bytesWrittenInChunk + 1] = (byte) ((v >>> 0) & 0xFF);
+            bytesWrittenInChunk += 2;
+        }
+    }
+
+    /**
+     * Copied from DataOutputStream.
+     */
+    @Override
+    public void writeUTF(String s) {
+        int strlen = s.length();
+        int utflen = 0;
+        int c = 0;
+
+        /* use charAt instead of copying String to char array */
+        for (int i = 0; i < strlen; i++) {
+            c = s.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F)) {
+                utflen++;
+            } else if (c > 0x07FF) {
+                utflen += 3;
+            } else {
+                utflen += 2;
+            }
+        }
+
+        if (utflen > 65535)
+            throw new IllegalArgumentException(
+                "encoded string too long: " + utflen + " bytes");
+
+        allocateNewChunkIfNeeded((utflen*2) + 2);
+        byte[] bytearr = currentChunk; //Aliasing
+        int index = bytesWrittenInChunk;
+
+        bytearr[index++] = (byte) ((utflen >>> 8) & 0xFF);
+        bytearr[index++] = (byte) ((utflen >>> 0) & 0xFF);
+
+        int i=0;
+        for (i=0; i<strlen; i++) {
+           c = s.charAt(i);
+           if (!((c >= 0x0001) && (c <= 0x007F))) break;
+           bytearr[index++] = (byte) c;
+        }
+
+        for (;i < strlen; i++){
+            c = s.charAt(i);
+            if ((c >= 0x0001) && (c <= 0x007F)) {
+                bytearr[index++] = (byte) c;
+
+            } else if (c > 0x07FF) {
+                bytearr[index++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
+                bytearr[index++] = (byte) (0x80 | ((c >>  6) & 0x3F));
+                bytearr[index++] = (byte) (0x80 | ((c >>  0) & 0x3F));
+            } else {
+                bytearr[index++] = (byte) (0xC0 | ((c >>  6) & 0x1F));
+                bytearr[index++] = (byte) (0x80 | ((c >>  0) & 0x3F));
+            }
+        }
+        bytesWrittenInChunk = index;
     }
 }

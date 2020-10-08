@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import org.junit.Test;
@@ -107,6 +108,84 @@ public class BufferViewOutputStreamTest {
         view = out.getView();
         assertEquals(5, view.getContents().size());
         assertEquals(5 * BufferViewOutputStream.CHUNK_SIZE + 50, view.getLength());
+    }
+    
+    @Test
+    public void testWritePrimitives() throws IOException {
+        BufferViewOutputStream out = new BufferViewOutputStream();
+        out.writeBoolean(true);
+        out.writeBoolean(false);
+        out.writeByte(1);
+        out.writeShort(2);
+        out.writeChar('a');
+        out.writeInt(4);
+        out.writeLong(8);
+        out.writeFloat(4.0f);
+        out.writeDouble(8.0d);
+        BufferView view = out.getView();
+        assertEquals(1, view.getContents().size());
+        assertEquals(31, view.getLength());
+        DataInputStream reader = new DataInputStream(view.getReader());
+        assertEquals(true, reader.readBoolean());
+        assertEquals(false, reader.readBoolean());
+        assertEquals(1, reader.readByte());
+        assertEquals(2, reader.readShort());
+        assertEquals('a', reader.readChar());
+        assertEquals(4, reader.readInt());
+        assertEquals(8, reader.readLong());
+        assertEquals(4.0f, reader.readFloat(), 0);
+        assertEquals(8.0d, reader.readDouble(), 0);
+        assertEquals(0, reader.available());
+    }
+    
+    @Test
+    public void testWriteBytes() {
+        BufferViewOutputStream out = new BufferViewOutputStream();
+        out.writeBytes("Foo");
+        out.writeBytes("Bar");
+        BufferView view = out.getView();
+        assertEquals(1, view.getContents().size());
+        assertEquals(6, view.getLength());
+    }
+    
+    @Test
+    public void testWriteChars() {
+        BufferViewOutputStream out = new BufferViewOutputStream();
+        out.writeChars("Foo");
+        out.writeChars("Bar");
+        BufferView view = out.getView();
+        assertEquals(1, view.getContents().size());
+        assertEquals(12, view.getLength());
+    }
+    
+    @Test
+    public void testString() throws IOException {
+        BufferViewOutputStream out = new BufferViewOutputStream();
+        out.writeUTF("Foo");
+        out.writeUTF("Bar");
+        BufferView view = out.getView();
+        assertEquals(1, view.getContents().size());
+        assertEquals(10, view.getLength());
+        DataInputStream reader = new DataInputStream(view.getReader());
+        assertEquals("Foo", reader.readUTF());
+        assertEquals("Bar", reader.readUTF());
+        assertEquals(0, reader.available());
+    }
+    
+    @Test
+    public void testUtf() throws IOException {
+        BufferViewOutputStream out = new BufferViewOutputStream();
+        out.writeUTF("Föo");
+        out.writeUTF("Baŕ");
+        out.writeUTF("𠂇");
+        BufferView view = out.getView();
+        assertEquals(1, view.getContents().size());
+        assertEquals(20, view.getLength());
+        DataInputStream reader = new DataInputStream(view.getReader());
+        assertEquals("Föo", reader.readUTF());
+        assertEquals("Baŕ", reader.readUTF());
+        assertEquals("𠂇", reader.readUTF());
+        assertEquals(0, reader.available());
     }
     
 }
