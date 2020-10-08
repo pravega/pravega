@@ -249,18 +249,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 scope, stream);
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
 
-        Supplier<String> authorizationSupplier = () -> {
-            final String resource;
-            if (stream.startsWith("_")) {
-                resource = this.authorizationResource.ofInternalStream(scope, stream);
-            } else {
-                resource = this.authorizationResource.ofStreamInScope(scope, stream);
-            }
-            return this.grpcAuthHelper.checkAuthorization(resource, AuthHandler.Permissions.READ_UPDATE);
-        };
+        Supplier<String> authorizationSupplier = () -> this.grpcAuthHelper.checkAuthorization(
+                resourceFromStream(scope, stream), AuthHandler.Permissions.READ_UPDATE);
+
         authenticateExecuteAndProcessResults(authorizationSupplier,
                 authorizationResult -> controllerService.updateStream(scope, stream, ModelHelper.encode(request)),
                 responseObserver, requestTag);
+    }
+
+    @VisibleForTesting
+    String resourceFromStream(String scope, String stream) {
+        final String resource;
+        if (stream.startsWith("_")) {
+            resource = this.authorizationResource.ofInternalStream(scope, stream);
+        } else {
+            resource = this.authorizationResource.ofStreamInScope(scope, stream);
+        }
+        return resource;
     }
 
     @Override
@@ -333,13 +338,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
             // Internal streams
             if (isStreamInternal) {
-                String internalResource = this.authorizationResource.ofInternalStream(request.getScope(),
-                        request.getStream());
                 AuthHandler.Permissions targetPermission = this.isInternalWritesWithReadPermEnabled ?
                         AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+                this.grpcAuthHelper.checkAuthorization(this.authorizationResource.ofInternalStream(request.getScope(),
+                        request.getStream()), targetPermission);
 
-                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(internalResource,
-                        targetPermission);
+                // Using the resource name as-is in the delegation token is intentional, so that the token contains
+                // internal streams in resource strings in a format that it understands.
+                return this.grpcAuthHelper.createDelegationToken(resource, targetPermission);
             } else {
                 // The operation requires the caller to possess read permissions.
                 AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
@@ -477,7 +483,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-                authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                resourceFromStream(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getURI(request),
                 responseObserver);

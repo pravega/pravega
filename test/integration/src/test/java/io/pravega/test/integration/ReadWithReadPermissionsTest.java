@@ -132,8 +132,8 @@ public class ReadWithReadPermissionsTest {
                 // read permissions" to false later (during instantiation of the ClusterWarpper object).
                 "prn::/scope:MarketData,READ_UPDATE",
                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
-                "prn::/scope:MarketData/stream:_RGPriceChangeCalculator,READ_UPDATE",
-                "prn::/scope:MarketData/stream:_MARKStockPriceUpdates,READ_UPDATE"
+                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ_UPDATE",
+                "prn::/scope:MarketData/watermark:StockPriceUpdates,READ_UPDATE"
         ));
         log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
 

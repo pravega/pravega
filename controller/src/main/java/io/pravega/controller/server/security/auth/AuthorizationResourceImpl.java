@@ -45,11 +45,7 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     public String ofStreamInScope(String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-        if (streamName.startsWith("_")) {
-            return this.ofInternalStream(scopeName, streamName);
-        } else {
-            return String.format("%s/%s:%s", ofScope(scopeName), TAG_STREAM, streamName);
-        }
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_STREAM, streamName);
     }
 
     @Override
