@@ -118,7 +118,7 @@ public class DataFrameRecord<T extends SequencedItemList.Element> {
     /**
      * Metadata about a particular DataFrame Entry. A DataFrameRecord is made up of one or more DataFrame Entries.
      */
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
     @Getter
     public static class EntryInfo {
         /**

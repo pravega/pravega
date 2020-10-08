@@ -474,14 +474,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
                         throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
                     }
+                    if (fromPosition > properties.getLength()) {
+                        throw new IllegalArgumentException("fromPosition can not exceed the length of the TableSegment.");
+                    }
                     long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
                     // All of the most recent keys will exist beyond the compactionOffset.
                     long startOffset = Math.max(fromPosition, compactionOffset);
                     // We should clear if the starting position may have been truncated out due to compaction.
                     boolean shouldClear = fromPosition < compactionOffset;
                     // Maximum length of the TableSegment we want to read until.
-                    int maxLength = (int) (properties.getLength() - startOffset);
-
+                    int maxBytesToRead = (int) (properties.getLength() - startOffset);
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
                         return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
                                 item.getKey().serialize(),
@@ -491,9 +493,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             .segment(segment)
                             .entrySerializer(serializer)
                             .executor(executor)
-                            .maxLength(maxLength)
+                            .maxBytesToRead(maxBytesToRead)
                             .startOffset(startOffset)
-                            .currentBatchOffset(startOffset)
+                            .currentBatchOffset(fromPosition)
                             .fetchTimeout(fetchTimeout)
                             .resultConverter(converter)
                             .shouldClear(shouldClear)
