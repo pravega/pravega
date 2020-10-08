@@ -104,6 +104,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -1699,6 +1700,11 @@ public abstract class StreamMetadataTasksTest {
         @Override
         public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
             return writeEvent(event);
+        }
+
+        @Override
+        public CompletableFuture<Void> writeEvents(String routingKey, List<ControllerEvent> events) {
+            throw new NotImplementedException("mock doesnt require this");
         }
 
         @Override
