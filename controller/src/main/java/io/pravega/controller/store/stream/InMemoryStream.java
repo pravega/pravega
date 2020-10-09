@@ -850,8 +850,8 @@ public class InMemoryStream extends PersistentStreamBase {
     public CompletableFuture<Void> removeSubscriber(String subscriber) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (subscribersLock) {
-            Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = subscribers.stream()
-                    .filter(s -> s.getObject().getSubscriber().equals(subscriber)).findFirst();
+            Optional<StreamSubscriber> existingSubscriber = subscribers.stream().map(sub -> sub.getObject())
+                    .filter(s -> s.getSubscriber().equals(subscriber)).findFirst();
             if (existingSubscriber.isEmpty()) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
             } else {
@@ -867,7 +867,7 @@ public class InMemoryStream extends PersistentStreamBase {
         CompletableFuture<VersionedMetadata<StreamSubscriber>> result = new CompletableFuture<>();
         synchronized (subscribersLock) {
             Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = subscribers.stream()
-                    .filter(s2 -> s2.getObject().equals(subscriber)).findFirst();
+                    .filter(s2 -> s2.equals(subscriber)).findFirst();
             if (existingSubscriber.isEmpty()) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
             } else {

@@ -329,9 +329,6 @@ public abstract class StreamMetadataTasksTest {
         Controller.AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        StreamSubscriber record = streamStorePartialMock.getSubscriber(SCOPE, stream1, subscriber1, null, executor).get().getObject();
-        assertTrue(record.getSubscriber().equals(subscriber1));
-
         String subscriber2 = "subscriber2";
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
