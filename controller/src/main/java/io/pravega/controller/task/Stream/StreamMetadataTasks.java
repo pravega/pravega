@@ -359,7 +359,7 @@ public class StreamMetadataTasks extends TaskBase {
                            log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
                            Throwable cause = Exceptions.unwrap(ex);
                            if (cause instanceof StoreException.DataNotFoundException) {
-                               return RemoveSubscriberStatus.Status.STREAM_NOT_FOUND;
+                               return RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
                            } else if (cause instanceof TimeoutException) {
                                throw new CompletionException(cause);
                            } else {
