@@ -16,6 +16,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 /**
  * Represents a collection of Items (relating to {@link TableKey}s) that will either all be applied at once or none at all.
@@ -42,6 +43,12 @@ class TableKeyBatch {
      * The length of this TableKeyBatch, in bytes.
      */
     private int length;
+
+    /**
+     * Indicates whether this {@link TableKeyBatch} refers to externally-supplied updates or internal ones.
+     */
+    @Setter
+    private boolean external = true;
 
     /**
      * Creates a new instance of the TableKeyBatch class which will insert or update keys.

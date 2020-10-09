@@ -398,7 +398,9 @@ class ContainerKeyIndex implements AutoCloseable {
             update = () -> persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
 
-        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
+        // Throttle any requests, if needed. Note that Internal requests (which are made by the WriterTableProcessor)
+        // must not be throttled, otherwise we risk blocking ourselves and never release the throttle.
+        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength(), !batch.isExternal());
     }
 
     private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
@@ -773,11 +775,13 @@ class ContainerKeyIndex implements AutoCloseable {
          * @param toExecute  A Supplier that, when invoked, will execute a task and return a CompletableFuture which will
          *                   complete when the task is done.
          * @param updateSize The number of bytes that this task requires.
+         * @param force      If true, will set the {@code force} flag on the underlying throttler, which will cause this
+         *                   task to execute right away even if there is no capacity for it (its credits will still be recorded).
          * @param <T>        Return type.
          * @return A CompletableFuture that will be completed when the task is done. If executing immediately, this is the
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
-        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
+        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize, boolean force) {
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
@@ -789,7 +793,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 }
             }
 
-            return throttler.run(toExecute, updateSize);
+            return throttler.run(toExecute, updateSize, force);
         }
 
         /**

@@ -11,10 +11,15 @@ package io.pravega.common.concurrent;
 
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -59,12 +64,12 @@ public class AsyncSemaphoreTests {
 
         AssertExtensions.assertThrows(
                 "run: credits < 0",
-                () -> s.run(CompletableFuture::new, -1),
+                () -> s.run(CompletableFuture::new, -1, false),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "run: credits > totalCredits",
-                () -> s.run(CompletableFuture::new, credits + 1),
+                () -> s.run(CompletableFuture::new, credits + 1, false),
                 ex -> ex instanceof IllegalArgumentException);
         Assert.assertEquals("Not expecting any queued tasks.", 0, s.getQueueSize());
         Assert.assertEquals("Not expecting used credits.", 0, s.getUsedCredits());
@@ -90,7 +95,7 @@ public class AsyncSemaphoreTests {
         // 1. We add a number of tasks that should not be queued (i.e., executed immediately).
         for (int i = 0; i < immediateTaskCount; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.run(() -> task, 1);
+            val result = s.run(() -> task, 1, false);
             tasks.put(task, result);
             Assert.assertEquals("For immediate execution, expecting the same Future to be returned.", task, result);
         }
@@ -103,7 +108,7 @@ public class AsyncSemaphoreTests {
         Assert.assertEquals("Unexpected used credits.", credits - toRelease, s.getUsedCredits());
         for (int i = 0; i < toRelease; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.run(() -> task, 1);
+            val result = s.run(() -> task, 1, false);
             tasks.put(task, result);
             Assert.assertEquals("For immediate execution, expecting the same Future to be returned.", task, result);
         }
@@ -118,7 +123,7 @@ public class AsyncSemaphoreTests {
         // 2. Add a number of tasks that should be queued.
         for (int i = 0; i < queuedTaskCount; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.run(() -> task, 1);
+            val result = s.run(() -> task, 1, false);
             tasks.put(task, result);
             Assert.assertNotEquals("For delayed execution, expecting the different Future to be returned.", task, result);
         }
@@ -139,7 +144,7 @@ public class AsyncSemaphoreTests {
             if (unreleasedTaskCount > 0) {
                 // Add one more. Depending on circumstance, this may or may not be immediately executed.
                 CompletableFuture<Integer> task = new CompletableFuture<>();
-                val result = s.run(() -> task, 1);
+                val result = s.run(() -> task, 1, false);
                 tasks.put(task, result);
                 unreleasedTaskCount++;
             }
@@ -158,6 +163,105 @@ public class AsyncSemaphoreTests {
         }
 
         Assert.assertEquals("Unexpected final used credits.", credits, s.getUsedCredits());
+    }
+
+    /**
+     * Tests the {@link AsyncSemaphore#run} and {@link AsyncSemaphore#release} methods when the {@code force} flag is
+     * set.
+     */
+    @Test
+    public void testAcquireReleaseForce() {
+        final int maxCredits = 100;
+        final int immediateTaskCount = maxCredits;
+        final int forcedTaskCount = maxCredits / 2;
+        final int queuedTaskCount = maxCredits;
+
+        @Cleanup
+        val s = new AsyncSemaphore(maxCredits, 0, "");
+        val tasks = new ArrayList<Map.Entry<CompletableFuture<Integer>, CompletableFuture<Integer>>>();
+
+        // We will collect the actual execution order of these tasks to verify they are invoked in the proper order.
+        val nextTaskId = new AtomicInteger(0);
+        val executionOrder = Collections.synchronizedList(new ArrayList<Integer>());
+
+        BiConsumer<Boolean, Boolean> addNewTask = (force, expectQueued) -> {
+            CompletableFuture<Integer> task = new CompletableFuture<>();
+            val taskId = nextTaskId.getAndIncrement();
+            val result = s.run(() -> {
+                executionOrder.add(taskId);
+                return task;
+            }, 1, force);
+            tasks.add(new AbstractMap.SimpleImmutableEntry<>(task, result));
+            if (expectQueued) {
+                Assert.assertNotEquals("For delayed execution, expecting the different Future to be returned.", task, result);
+            } else {
+                Assert.assertEquals("For immediate execution, expecting the same Future to be returned.", task, result);
+            }
+        };
+
+        // 1. Add a number of tasks that should not be queued (i.e., executed immediately).
+        for (int i = 0; i < immediateTaskCount; i++) {
+            addNewTask.accept(i % 2 == 0, false);
+        }
+
+        // 1.1. Add a number of forced tasks. These should also be executed immediately.
+        Assert.assertEquals("Unexpected used credits before forcing.", maxCredits, s.getUsedCredits());
+        for (int i = 0; i < forcedTaskCount; i++) {
+            addNewTask.accept(true, false);
+        }
+
+        // 1.2. Add queued tasks.
+        int expectedCredits = maxCredits + forcedTaskCount;
+        Assert.assertEquals("Unexpected used credits before queuing.", maxCredits + forcedTaskCount, s.getUsedCredits());
+        for (int i = 0; i < queuedTaskCount; i++) {
+            addNewTask.accept(false, true);
+        }
+
+        Assert.assertEquals("Unexpected number of items queued.", queuedTaskCount, s.getQueueSize());
+
+        // Complete immediate tasks.
+        val taskIterator = tasks.iterator();
+        for (int i = 0; i < immediateTaskCount; i++) {
+            taskIterator.next().getKey().complete(-1);
+            s.release(1);
+
+            // The number of used credits should gradually decrease (as it currently overflows due to the forced tasks),
+            // but it should not drop below the max allowed credits since we have a big queue of pending tasks.
+            expectedCredits = Math.max(maxCredits, expectedCredits - 1);
+            Assert.assertEquals("Unexpected used credits after releasing initial task " + i, expectedCredits, s.getUsedCredits());
+        }
+
+        val expectedQueuedTaskCount = queuedTaskCount - forcedTaskCount;
+        Assert.assertEquals("Expected items queued up before releasing forced tasks.", expectedQueuedTaskCount, s.getQueueSize());
+
+        // Complete forced tasks.
+        for (int i = 0; i < forcedTaskCount; i++) {
+            taskIterator.next().getKey().complete(-1);
+            s.release(1);
+
+            expectedCredits = Math.max(maxCredits, expectedCredits - 1);
+            Assert.assertEquals("Unexpected used credits after releasing forced task " + i, expectedCredits, s.getUsedCredits());
+        }
+
+        Assert.assertEquals("Not expecting any more items queued after releasing all forced tasks.", 0, s.getQueueSize());
+
+        // Complete remaining tasks.
+        for (int i = 0; i < queuedTaskCount; i++) {
+            taskIterator.next().getKey().complete(-1);
+            s.release(1);
+
+            expectedCredits--;
+            Assert.assertEquals("Unexpected used credits after releasing queued task " + i, expectedCredits, s.getUsedCredits());
+        }
+
+        Assert.assertFalse("Not expecting any more tasks to process.", taskIterator.hasNext());
+
+        // Check execution order.
+        int totalTaskCount = immediateTaskCount + forcedTaskCount + queuedTaskCount;
+        Assert.assertEquals("Unexpected number of tasks executed.", totalTaskCount, executionOrder.size());
+        for (int i = 0; i < totalTaskCount; i++) {
+            Assert.assertEquals("Tasks not executed in proper order at index " + i, i, (int) executionOrder.get(i));
+        }
     }
 
     /**
@@ -194,7 +298,7 @@ public class AsyncSemaphoreTests {
                 } else {
                     return task;
                 }
-            }, 1);
+            }, 1, i % 2 == 0);
             if (!failSync) {
                 tasks.put(task, result);
                 expectedUsedCredits = Math.min(credits, expectedUsedCredits + 1);
@@ -223,7 +327,7 @@ public class AsyncSemaphoreTests {
         val tasks = new HashMap<CompletableFuture<Integer>, CompletableFuture<Integer>>();
         for (int i = 0; i < 5; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.run(() -> task, 1);
+            val result = s.run(() -> task, 1, false);
             tasks.put(task, result);
         }
 

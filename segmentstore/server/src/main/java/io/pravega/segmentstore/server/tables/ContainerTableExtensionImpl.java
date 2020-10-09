@@ -231,6 +231,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
                     // offsets in the batch itself).
                     val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
+                    updateBatch.setExternal(external);
                     logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), tableSegmentOffset, updateBatch.isRemoval(),
                             toUpdate.size(), updateBatch.getLength());
                     return this.keyIndex.update(segment, updateBatch,

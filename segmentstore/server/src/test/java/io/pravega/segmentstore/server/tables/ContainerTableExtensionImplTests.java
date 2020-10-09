@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -65,6 +66,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration THROTTLE_CHECK_TIMEOUT = Duration.ofMillis(500);
     private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -501,6 +503,100 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val ext2 = context.createExtension();
         check(data.get(data.size() - 1).expectedEntries, Collections.emptyList(), ext2);
         checkIteratorsSorted(data.get(data.size() - 1).expectedEntries, ext2);
+    }
+
+    /**
+     * Tests throttling for unsorted Table Segments.
+     */
+    @Test
+    public void testThrottlingNonSorted() throws Exception {
+        testThrottling(false);
+    }
+
+    /**
+     * Tests throttling for sorted Table Segments.
+     */
+    @Test
+    public void testThrottlingSorted() throws Exception {
+        testThrottling(true);
+    }
+
+    private void testThrottling(boolean sorted) throws Exception {
+        final int keyLength = 256;
+        final int valueLength = 1024 - keyLength;
+        final int unthrottledCount = 9;
+
+        // Sorted Table Segments have a KeyTranslator that adds a 1-byte prefix to keys. Account for that here.
+        Function<Integer, Integer> adjustSerializedLength = entryLength -> entryLength + (sorted ? 1 : 0);
+
+        // We set up throttling such that we allow 'unthrottledCount' through, but block (throttle) on the next one.
+        val config = TableExtensionConfig.builder()
+                .maxUnindexedLength(unthrottledCount * adjustSerializedLength.apply(keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
+                .build();
+
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TableContext(config, executorService());
+
+        // Create the Segment and set up the WriterTableProcessor.
+        context.ext.createSegment(SEGMENT_NAME, sorted, TIMEOUT).join();
+        @Cleanup
+        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+        Assert.assertNotNull(processor);
+
+        // Update. We expect all these keys to go through.
+        val expectedEntries = new HashMap<BufferView, BufferView>();
+        val allEntries = new ArrayList<TableEntry>();
+        for (int i = 0; i < unthrottledCount; i++) {
+            val toUpdate = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+            context.ext.put(SEGMENT_NAME, Collections.singletonList(toUpdate), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedEntries.put(toUpdate.getKey().getKey(), toUpdate.getValue());
+            allEntries.add(toUpdate);
+        }
+
+        // Make sure everything we have so far checks out.
+        check(expectedEntries, Collections.emptyList(), context.ext);
+
+        // Attempt to add one more entry. This one should be blocked.
+        val throttledEntry = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+        val throttledUpdate = context.ext.put(SEGMENT_NAME, Collections.singletonList(throttledEntry), TIMEOUT);
+        expectedEntries.put(throttledEntry.getKey().getKey(), throttledEntry.getValue());
+        allEntries.add(throttledEntry);
+        AssertExtensions.assertThrows(
+                "Not expected throttled update to have been accepted.",
+                () -> throttledUpdate.get(THROTTLE_CHECK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof TimeoutException);
+
+        // Simulate moving the first update through the pipeline. Add it to the WriterTableProcessor and flush it down.
+        int firstEntryLength = adjustSerializedLength.apply(s.getUpdateLength(allEntries.get(0)));
+        addToProcessor(0, firstEntryLength, processor);
+        processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        if (sorted) {
+            // This shouldn't be unblocked yet. The WriterTableProcessor flush should have just added a non-throttled
+            // SortedIndex TableEntry which should have acquired enough credits to prevent the new entry from being unblocked.
+            AssertExtensions.assertThrows(
+                    "Not expected throttled update to have been accepted.",
+                    () -> throttledUpdate.get(THROTTLE_CHECK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                    ex -> ex instanceof TimeoutException);
+
+            // Process the second entry.
+            addToProcessor(firstEntryLength, adjustSerializedLength.apply(s.getUpdateLength(allEntries.get(1))), processor);
+            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        // The throttled update should now be unblocked.
+        throttledUpdate.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Final check and delete.
+        check(expectedEntries, Collections.emptyList(), context.ext);
+        if (sorted) {
+            checkIteratorsSorted(expectedEntries, context.ext);
+        } else {
+            checkIterators(expectedEntries, context.ext);
+        }
+
+        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @SneakyThrows

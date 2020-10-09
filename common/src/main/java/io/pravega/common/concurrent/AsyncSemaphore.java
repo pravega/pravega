@@ -104,27 +104,33 @@ public class AsyncSemaphore implements AutoCloseable {
      * become available. There is no prioritization of queued tasks - they are triggered in the order in which they
      * are queued up.
      *
+     * If the {@code force} flag is set, then the task will be invoked synchronously, even if there are insufficient
+     * credits. In this case, the {@link #getUsedCredits()} will exceed the max allowed credits and no other (non-forced)
+     * task will be allowed to execute until {@link #getUsedCredits()} falls below the max allowed.
+     *
      * A task will allocate the requested credits when it is triggered. If the task fails (synchronously or asynchronously),
      * then the requested credits are automatically released back into the pool. If the task succeeds, the credits will
      * remain.
      *
      * @param task    A {@link Supplier} that, when invoked, will execute the task.
      * @param credits The number of credits this task requires.
+     * @param force   If true, the task will be executed synchronously regardless of how many credits are available. The
+     *                task's credits are still recorded in this case.
      * @param <T>     Return type.
      * @return A CompletableFuture that, when completed, will contain the result of the executed task. If the task failed
      * or was rejected (i.e., due to {@link AsyncSemaphore} closing), it will be failed with the appropriate exception.
      */
-    public <T> CompletableFuture<T> run(@NonNull Supplier<CompletableFuture<T>> task, long credits) {
+    public <T> CompletableFuture<T> run(@NonNull Supplier<CompletableFuture<T>> task, long credits, boolean force) {
         Preconditions.checkArgument(credits >= 0 && credits <= this.totalCredits,
                 "credits must be a non-negative number smaller than or equal to %s.", this.totalCredits);
 
         PendingTask<T> pt;
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
-            if (canExecute(credits)) {
+            if (force || canExecute(credits)) {
                 pt = null;
                 this.usedCredits += credits;
-                log.trace("AsyncSemaphore[{}]: Task run. Credits={}, TotalUsedCredits={}.", this.logId, credits, this.usedCredits);
+                log.trace("AsyncSemaphore[{}]: Task run. Credits={}, TotalUsedCredits={}, Forced={}.", this.logId, credits, this.usedCredits, force);
             } else {
                 // Insufficient credits; need to queue up and execute when more becomes available.
                 pt = new PendingTask<>(credits, task);
