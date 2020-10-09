@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
@@ -207,8 +208,6 @@ public class LocalController implements Controller {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
-                case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
@@ -228,6 +227,27 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> updateTruncationStreamCut(final String scope, final String streamName, final String subscriber,
+                                                                final StreamCut streamCut) {
+
+        return this.controller.updateTruncationStreamCut(scope, streamName, subscriber, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_NOT_FOUND:
+                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status removing subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+        @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
                                                                .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
@@ -500,6 +520,11 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
+    private ImmutableMap<Long, Long> getStreamCutAsImmutableMap(StreamCut streamCut) {
+        return ImmutableMap.copyOf(streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
     @Override

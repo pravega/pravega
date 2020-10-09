@@ -10,6 +10,7 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
@@ -50,6 +51,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -189,6 +191,21 @@ public class ControllerService {
                     reportRemoveSubscriberMetrics(scope, stream, status, timer.getElapsed());
                     return RemoveSubscriberStatus.newBuilder().setStatus(status).build();
                 }, executor);
+    }
+
+    public CompletableFuture<UpdateSubscriberStatus> updateTruncationStreamCut(String scope, String stream,
+                                                                                 final String subscriber,
+                                                                                 final ImmutableMap<Long, Long> truncationStreamCut) {
+        Preconditions.checkNotNull(scope, "scopeName is null");
+        Preconditions.checkNotNull(stream, "streamName is null");
+        Preconditions.checkNotNull(subscriber, "subscriber is null");
+        Preconditions.checkNotNull(truncationStreamCut, "Truncation StreamCut is null");
+        Timer timer = new Timer();
+        return streamMetadataTasks.updateTruncationStreamCut(scope, stream, subscriber, truncationStreamCut, null)
+                            .thenApplyAsync(status -> {
+                                reportUpdateTruncationSCMetrics(scope, stream, status, timer.getElapsed());
+                                return UpdateSubscriberStatus.newBuilder().setStatus(status).build();
+                            }, executor);
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
@@ -657,6 +674,14 @@ public class ControllerService {
             StreamMetrics.getInstance().removeSubscriber(scope, streamName, latency);
         } else if (status.equals(RemoveSubscriberStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().removeSubscriberFailed(scope, streamName);
+        }
+    }
+
+    private void reportUpdateTruncationSCMetrics(String scope, String streamName, UpdateSubscriberStatus.Status status, Duration latency) {
+        if (status.equals(UpdateSubscriberStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().updateTruncationSC(scope, streamName, latency);
+        } else if (status.equals(UpdateSubscriberStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().updateTruncationSCFailed(scope, streamName);
         }
     }
 

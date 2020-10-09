@@ -36,6 +36,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.List;
@@ -339,6 +340,26 @@ public final class ModelHelper {
         Preconditions.checkNotNull(subscriberId, "subscriber");
         final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
                 .setScope(scope).setStream(streamName).setSubscriber(subscriberId);
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriber subscriber for this stream.
+     * @param streamCut truncationStreamCut for this subscriber for this stream.
+     * @return SubscriberStreamCut instance.
+     */
+    public static final SubscriberStreamCut decode(String scope, String streamName,
+                                                   final String subscriber, Map<Long,Long> streamCut) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
+                .setSubscriber(subscriber).setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 

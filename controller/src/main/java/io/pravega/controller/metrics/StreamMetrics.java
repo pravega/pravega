@@ -361,6 +361,31 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method increments the global and Stream-specific counters for updateTruncationSC operation on a Stream
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the updateTruncationStreamCut operation.
+     */
+    public void updateTruncationSC(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER), 1);
+        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER, 1, streamTags(scope, streamName));
+        removeSubscriberLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     *
+     * @param scope         Scope Name.
+     * @param streamName    Stream Name.
+     */
+    public void updateTruncationSCFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
      * This method increments the global and Stream-specific counters of Stream truncations and reports the latency of
      * the operation.
      *

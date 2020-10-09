@@ -61,6 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
@@ -412,6 +413,46 @@ public class StreamMetadataTasks extends TaskBase {
                   }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
+    /**
+     * Remove a subscriber from subscribers' metadata.
+     * Needed for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param subscriber  Stream Subscriber publishing the StreamCut.
+     * @param truncationStreamCut  Truncation StreamCut.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<UpdateSubscriberStatus.Status> updateTruncationStreamCut(String scope, String stream,
+                                                                             String subscriber, ImmutableMap<Long, Long> truncationStreamCut,
+                                                                             OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("updateTruncationStreamCut", scope, stream);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+                .thenCompose(exists -> {
+                    // 1. check Stream exists
+                    if (!exists) {
+                        return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
+                    }
+                    // 2. update the StreamCut
+                    return streamMetadataStore.updateSubscriber(scope, stream, subscriber, truncationStreamCut, context, executor)
+                            .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
+                            .exceptionally(ex -> {
+                                log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
+                                Throwable cause = Exceptions.unwrap(ex);
+                                if (cause instanceof StoreException.DataNotFoundException) {
+                                    return UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
+                                } else if (cause instanceof TimeoutException) {
+                                    throw new CompletionException(cause);
+                                } else {
+                                    log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
+                                    return UpdateSubscriberStatus.Status.FAILURE;
+                                }
+                            });
+                }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+    
     /**
      * Method to check retention policy and generate new periodic cuts and/or truncate stream at an existing stream cut.
      * 

@@ -129,7 +129,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber);
 
     /**
-     * API to add a Subscriber to the Stream.
+     * API to remove a Subscriber from list of Subscribers for the Stream.
      * @param scope Scope name
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
@@ -145,6 +145,18 @@ public interface Controller extends AutoCloseable {
      * @return List of StreamSubscribers
      */
     CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName);
+
+    /**
+     * API to update the truncation StreamCut for a particular Subscriber on Controller.
+     * Used when Stream has Consumption Based Retention Policy configured.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> updateTruncationStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
