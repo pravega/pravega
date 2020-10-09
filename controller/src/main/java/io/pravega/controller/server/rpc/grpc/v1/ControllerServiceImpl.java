@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
@@ -309,44 +308,63 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-    @VisibleForTesting
-    Supplier<String> createDelegationTokenSupplier(StreamInfo request) {
+    private Supplier<String> createDelegationTokenSupplier(StreamInfo request) {
         return () -> {
-            String resource = authorizationResource.ofStreamInScope(request.getScope(), request.getStream());
-            boolean isStreamInternal = request.getStream().startsWith("_");
+            StreamAuthParams authParams = new StreamAuthParams(request.getScope(), request.getStream(),
+                    this.isInternalWritesWithReadPermEnabled);
 
-            // This is for backward compatibility. Older clients will not set the requested permission
-            if (request.getRequestedPermission().equals("") && !isStreamInternal) {
-                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
+            // StreamResource will take on values containing `_RG` (ex: "prn:://scope:myScope/stream:_RGmyApp")
+            // and `_MARK` for internal streams. We use the same strings in delegation tokens sent to Segment Store,
+            // while we use resource tags lie "reader-group" (ex: "prn:://scope:myScope/reader-group:myApp)
+            // and "watermark" for authorization in Controller.
+            String streamResource = authParams.streamResourceString();
+
+            // This is for backward compatibility.
+            if (request.getRequestedPermission().equals("") && authParams.isStreamUserDefined()) {
+                return this.grpcAuthHelper.checkAuthorizationAndCreateToken(streamResource,
                         AuthHandler.Permissions.READ);
             }
 
-            // Internal streams
-            if (isStreamInternal) {
-                AuthHandler.Permissions targetPermission = this.isInternalWritesWithReadPermEnabled ?
-                        AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
-                this.grpcAuthHelper.checkAuthorization(this.authorizationResource.ofInternalStream(request.getScope(),
-                        request.getStream()), targetPermission);
+            // The resource string that'll be used in the delegation token for use of the segment store
+            final String tokenResource;
 
-                // Using the resource name as-is in the delegation token is intentional, so that the token contains
-                // internal streams in resource strings in a format that it understands.
-                return this.grpcAuthHelper.createDelegationToken(resource, targetPermission);
-            } else {
-                // The operation requires the caller to possess read permissions.
+            // The operation that'll be specified as granted for the resource in the token. The bearer of the token
+            // will be allowed to perform the specified operation.
+            final AuthHandler.Permissions tokenPermission;
+
+            if (authParams.isStreamUserDefined()) {
+                // The operation itself requires the caller to possess read permissions.
                 AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
+
+                // This is the permission that the client is requesting to be assigned on the delegation token.
                 AuthHandler.Permissions requestedPermissions = PermissionsHelper.parse(request.getRequestedPermission(),
                         AuthHandler.Permissions.READ);
 
-                // Authorize the operation call
-                this.grpcAuthHelper.checkAuthorization(resource, minimumPermissions);
+                if (requestedPermissions.equals(AuthHandler.Permissions.READ_UPDATE) ||
+                        requestedPermissions.equals(minimumPermissions)) {
+                    this.grpcAuthHelper.checkAuthorization(streamResource, requestedPermissions);
+                    tokenResource = streamResource;
+                    tokenPermission = requestedPermissions;
+                } else {
+                    // The minimum permission that the user must have to be able to invoke this call. This
+                    // authorizes the operation.
+                    this.grpcAuthHelper.checkAuthorization(streamResource, minimumPermissions);
 
-                if (!minimumPermissions.equals(requestedPermissions)) {
-                    // Authorize that the user is authorized for the permission is has requested to be assigned on the
-                    // delegation token.
-                    this.grpcAuthHelper.checkAuthorization(resource, requestedPermissions);
+                    // Here, we check whether the user is authorized for the requested access.
+                    this.grpcAuthHelper.checkAuthorization(streamResource, requestedPermissions);
+                    tokenResource = streamResource;
+                    tokenPermission = requestedPermissions;
                 }
-                return this.grpcAuthHelper.createDelegationToken(resource, requestedPermissions);
+            } else {
+                AuthHandler.Permissions targetPermission = authParams.requiredPermissionForWrites();
+
+                // Internal streams will be qualified as non-stream resources. For example
+                // "prn:://scope:myScope/reader-group:myApp" and "prn:://scope:myScope/watermark:myStream".
+                this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), targetPermission);
+                tokenResource = streamResource;
+                tokenPermission = targetPermission;
             }
+            return this.grpcAuthHelper.createDelegationToken(tokenResource, tokenPermission);
         };
     }
 

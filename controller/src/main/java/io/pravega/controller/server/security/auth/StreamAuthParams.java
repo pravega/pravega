@@ -53,13 +53,24 @@ public class StreamAuthParams {
         }
     }
 
+    public String resourceString() {
+        return toResourceString(this.scope, this.stream);
+    }
+
+    public String streamResourceString() {
+        return AUTH_RESOURCE.ofStreamInScope(scope, stream);
+    }
+
+    private static String toResourceString(String scope, String stream, boolean isStreamInternal) {
+        return isStreamInternal ? AUTH_RESOURCE.ofInternalStream(scope, stream) :
+                AUTH_RESOURCE.ofStreamInScope(scope, stream);
+    }
+
     public static String toResourceString(String scope, String stream) {
-        final String resource;
-        if (stream.startsWith("_")) {
-            resource = AUTH_RESOURCE.ofInternalStream(scope, stream);
-        } else {
-            resource = AUTH_RESOURCE.ofStreamInScope(scope, stream);
-        }
-        return resource;
+        return toResourceString(scope, stream, stream.startsWith("_"));
+    }
+
+    public boolean isStreamUserDefined() {
+        return !isInternalStream;
     }
 }

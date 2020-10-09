@@ -26,10 +26,6 @@ public class StreamAuthParamsTest {
         AssertExtensions.assertThrows("Stream was null",
                 () -> new StreamAuthParams("scope", null, true),
                 e -> e instanceof NullPointerException);
-
-        AssertExtensions.assertThrows("Stream is not internal",
-                () -> new StreamAuthParams("scope", "externalStream", false),
-                e -> e instanceof IllegalArgumentException);
     }
 
     @Test
