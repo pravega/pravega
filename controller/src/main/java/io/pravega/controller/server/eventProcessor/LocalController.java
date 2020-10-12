@@ -441,17 +441,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         String retVal = "";
         if (authorizationEnabled) {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
-    }
-
-    @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
-        return getOrRefreshDelegationTokenFor(scope, streamName);
     }
 
     private Map<Long, Long> getStreamCutMap(StreamCut streamCut) {

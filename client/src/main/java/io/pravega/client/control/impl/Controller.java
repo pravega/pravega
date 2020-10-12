@@ -373,15 +373,6 @@ public interface Controller extends AutoCloseable {
     /**
      * Obtains a delegation token from the server.
      *
-     * @param scope      Scope of the stream.
-     * @param streamName Name of the stream.
-     * @return The delegation token for the given stream.
-     */
-    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
-
-    /**
-     * Obtains a delegation token from the server.
-     *
      * @param scope Scope of the stream.
      * @param streamName Name of the stream.
      * @param accessOperation The requested permission.

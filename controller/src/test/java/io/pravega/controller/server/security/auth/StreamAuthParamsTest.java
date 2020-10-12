@@ -14,18 +14,37 @@ import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class StreamAuthParamsTest {
 
     @Test
     public void rejectsConstructionWhenInputIsInvalid() {
         AssertExtensions.assertThrows("Scope was null",
-                () -> new StreamAuthParams(null, "_internalStream", true),
+                () -> new StreamAuthParams(null, "_internalStream"),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Stream was null",
-                () -> new StreamAuthParams("scope", null, true),
+                () -> new StreamAuthParams("scope", null),
                 e -> e instanceof NullPointerException);
+    }
+
+    @Test
+    public void recognizesInternalStreams() {
+        assertTrue(new StreamAuthParams("testscope", "_internalStream").isInternalStream());
+        assertTrue(new StreamAuthParams("testscope", "_MARKteststream").isInternalStream());
+
+        StreamAuthParams readerGroupStreamAuthParams = new StreamAuthParams("testscope", "_RGtestApp");
+        assertTrue(readerGroupStreamAuthParams.isInternalStream());
+        assertFalse(readerGroupStreamAuthParams.isStreamUserDefined());
+    }
+
+    @Test
+    public void recognizesExternalStreams() {
+        StreamAuthParams streamAuthParams = new StreamAuthParams("testscope", "teststream");
+        assertFalse(streamAuthParams.isInternalStream());
+        assertTrue(streamAuthParams.isStreamUserDefined());
     }
 
     @Test
@@ -35,8 +54,36 @@ public class StreamAuthParamsTest {
     }
 
     @Test
-    public void returnsReadUpdatePermissionWhenConfigIsTrue() {
+    public void returnsReadUpdatePermissionWhenConfigIsFalse() {
         StreamAuthParams params = new StreamAuthParams("scope", "_internalStream", false);
         assertEquals(AuthHandler.Permissions.READ_UPDATE, params.requiredPermissionForWrites());
+    }
+
+    @Test
+    public void returnsReadUpdatePermissionForExternalStreams() {
+        assertEquals(AuthHandler.Permissions.READ_UPDATE,
+                new StreamAuthParams("scope", "externalStream", true).requiredPermissionForWrites());
+        assertEquals(AuthHandler.Permissions.READ_UPDATE,
+                new StreamAuthParams("scope", "externalStream", false).requiredPermissionForWrites());
+    }
+
+    @Test
+    public void resourceStringReturnsAppropriateRepresentation() {
+        assertEquals("prn::/scope:testScope/stream:testExternalStream",
+                new StreamAuthParams("testScope", "testExternalStream").resourceString());
+        assertEquals("prn::/scope:testScope/stream:_requeststream",
+                new StreamAuthParams("testScope", "_requeststream").resourceString());
+        assertEquals("prn::/scope:testScope/reader-group:testRg",
+                new StreamAuthParams("testScope", "_RGtestRg").resourceString());
+    }
+
+    @Test
+    public void streamResourceStringReturnsStreamRepresentation() {
+        assertEquals("prn::/scope:testScope/stream:testExternalStream",
+                new StreamAuthParams("testScope", "testExternalStream").streamResourceString());
+        assertEquals("prn::/scope:testScope/stream:_requeststream",
+                new StreamAuthParams("testScope", "_requeststream").streamResourceString());
+        assertEquals("prn::/scope:testScope/stream:_RGtestRg",
+                new StreamAuthParams("testScope", "_RGtestRg").streamResourceString());
     }
 }

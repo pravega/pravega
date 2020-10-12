@@ -144,7 +144,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.reconnect();
 
         signal.join();
-        verify(controller, times(1)).getOrRefreshDelegationTokenFor("scope", "stream");
+        verify(controller, times(1)).getOrRefreshDelegationTokenFor("scope", "stream",
+                AccessOperation.ANY);
     }
 
     @Test(timeout = 10000)
@@ -1217,7 +1218,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         }
 
         @Override
-        public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
+                                                                        AccessOperation accessOperation) {
             return CompletableFuture.supplyAsync(() -> {
                 signal.complete(null);
                 return "my-test-token";

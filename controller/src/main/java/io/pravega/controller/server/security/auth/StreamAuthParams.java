@@ -9,7 +9,9 @@
  */
 package io.pravega.controller.server.security.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +26,15 @@ public class StreamAuthParams {
     private final String scope;
     private final String stream;
     private final boolean isInternalWritesWithReadPermEnabled;
+
+    @VisibleForTesting
+    @Getter
     private final boolean isInternalStream;
+
+    @VisibleForTesting
+    StreamAuthParams(@NonNull String scope, @NonNull String stream) {
+        this(scope, stream, true);
+    }
 
     public StreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isInternalWritesWithReadPermEnabled) {
         this.scope = scope;
@@ -35,10 +45,6 @@ public class StreamAuthParams {
         } else {
             this.isInternalStream = false;
         }
-    }
-
-    public AuthHandler.Permissions requiredPermissionsForReads() {
-        return AuthHandler.Permissions.READ;
     }
 
     public AuthHandler.Permissions requiredPermissionForWrites() {

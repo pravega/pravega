@@ -1245,11 +1245,6 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
-        return this.getOrRefreshDelegationTokenFor(scope, streamName, null);
-    }
-
-    @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
@@ -1264,12 +1259,12 @@ public class ControllerImpl implements Controller {
         }, this.executor);
 
         return result.thenApply( token -> token.getDelegationToken())
-                .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("getOrRefreshDelegationTokenFor {}/{} failed: ", scope, streamName, e);
-                    }
-                    LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
-                });
+        .whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getOrRefreshDelegationTokenFor {}/{} failed: ", scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
+        });
     }
 
     //region KeyValueTables
