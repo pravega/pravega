@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
@@ -878,6 +879,22 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
                 l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
+    }
+
+    @Test
+    public void testErrorMessage() throws IOException {
+        for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
+            Class exceptionType = code.getExceptionType();
+            WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
+            testCommand(cmd);
+            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
+            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+
+            RuntimeException exception = cmd.getThrowableException();
+            AssertExtensions.assertThrows(exceptionType, () -> {
+                throw exception;
+            });
+        }
     }
 
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(

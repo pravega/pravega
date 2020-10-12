@@ -43,7 +43,7 @@ import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -51,7 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -1086,27 +1088,23 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Identify all MergeSegmentOperations, pick up their names and delete them.
-        ArrayList<CompletableFuture<Void>> toDelete = new ArrayList<>();
-        StorageOperation op;
-        while ((op = this.operations.getFirst()) != null && !(isDeleteOperation(op))) {
-            if (op instanceof MergeSegmentOperation) {
-                // Found such a merge; get the source Segment's name and attempt to delete it. It's OK if it has already
-                // been deleted.
-                UpdateableSegmentMetadata m = this.dataSource.getStreamSegmentMetadata(((MergeSegmentOperation) op).getSourceSegmentId());
-                toDelete.add(Futures
-                        .exceptionallyExpecting(
-                                this.storage.openWrite(m.getName())
+        // Identify all MergeSegmentOperations, pick up their names and delete them. There is no need to filter out these
+        // operations or otherwise update the state of the Aggregator as this is part of a Delete operation, so resetting
+        // the state is the next thing that will happen.
+        List<CompletableFuture<Void>> toDelete = this.operations.filter(op -> op instanceof MergeSegmentOperation).stream()
+                .map(op -> {
+                    // Found such a merge; get the source Segment's name and attempt to delete it. It's OK if it has already
+                    // been deleted.
+                    UpdateableSegmentMetadata m = this.dataSource.getStreamSegmentMetadata(((MergeSegmentOperation) op).getSourceSegmentId());
+                    return Futures
+                            .exceptionallyExpecting(
+                                    this.storage.openWrite(m.getName())
                                             .thenCompose(handle -> deleteSegmentAndAttributes(handle, m, timer))
                                             .thenAcceptAsync(v -> updateMetadataPostDeletion(m), this.executor),
-                                ex -> ex instanceof StreamSegmentNotExistsException,
-                                null));
-                this.operations.removeFirst();
-                this.mergeTransactionCount.decrementAndGet();
-                assert this.mergeTransactionCount.get() >= 0;
-            }
-        }
-
+                                    ex -> ex instanceof StreamSegmentNotExistsException,
+                                    null);
+                })
+                .collect(Collectors.toList());
         return Futures.allOf(toDelete);
     }
 
@@ -1790,6 +1788,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         synchronized void clear() {
             this.queue.clear();
+        }
+
+        synchronized List<StorageOperation> filter(Predicate<StorageOperation> test) {
+            return this.queue.stream().filter(test).collect(Collectors.toList());
         }
     }
 
