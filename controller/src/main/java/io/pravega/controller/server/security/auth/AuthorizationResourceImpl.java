@@ -82,8 +82,7 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
         } else if (streamName.startsWith("_MARK")) {
             return ofWatermarkInScope(scopeName, streamName.replace("_MARK", ""));
         } else {
-            throw new IllegalArgumentException("Either stream {} is not an internal stream, or it can't be " +
-                    "resolved to a valid auth resource");
+            return ofStreamInScope(scopeName, streamName);
         }
     }
 }

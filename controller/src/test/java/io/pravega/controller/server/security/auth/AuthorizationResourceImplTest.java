@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.security.auth;
 
-import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -83,8 +82,7 @@ public class AuthorizationResourceImplTest {
         assertEquals("prn::/scope:testScopeName/watermark:targetStream",
                 objectUnderTest.ofInternalStream("testScopeName", "_MARKtargetStream"));
 
-        AssertExtensions.assertThrows("Stream is not internal",
-                () -> objectUnderTest.ofInternalStream("testScope", "testExternalStream"),
-                e -> e instanceof IllegalArgumentException);
+        assertEquals("prn::/scope:_system/stream:_requeststream",
+                objectUnderTest.ofInternalStream("_system", "_requeststream"));
     }
 }
