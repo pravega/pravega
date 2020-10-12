@@ -373,6 +373,10 @@ class SegmentStoreAdapter extends StoreAdapter {
         return this.streamSegmentStore;
     }
 
+    TableStore getTableStore() {
+        return this.tableStore;
+    }
+
     //endregion
 
     //region SingletonStorageFactory

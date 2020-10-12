@@ -47,10 +47,11 @@ import org.apache.commons.lang3.NotImplementedException;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
-
+    @Getter
     private final String scope;
     @Getter
     private final ConnectionPool connectionPool;
+    @Getter
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
