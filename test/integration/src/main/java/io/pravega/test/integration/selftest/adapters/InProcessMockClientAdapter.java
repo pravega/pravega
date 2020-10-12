@@ -41,6 +41,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -370,13 +371,15 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
                     }
                 }
 
+                // Note: this doesn't do conditional checks. We don't need them here.
                 val result = new ArrayList<Long>(entries.size());
+                val copies = new ArrayList<Map.Entry<BufferView, BufferView>>(entries.size());
+                entries.forEach(e -> {
+                    copies.add(new AbstractMap.SimpleImmutableEntry<>(new ByteArraySegment(e.getKey().getKey().getCopy()), new ByteArraySegment(e.getValue().getCopy())));
+                    result.add(this.nextVersion.getAndIncrement());
+                });
                 synchronized (segmentData) {
-                    // Note: this doesn't do conditional checks. We don't need them here.
-                    entries.forEach(e -> {
-                        segmentData.put(new ByteArraySegment(e.getKey().getKey().getCopy()), new ByteArraySegment(e.getValue().getCopy()));
-                        result.add(this.nextVersion.getAndIncrement());
-                    });
+                    copies.forEach(e -> segmentData.put(e.getKey(), e.getValue()));
                 }
                 return result;
             }, executor);
@@ -420,13 +423,16 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
                     }
                 }
 
-                val result = new ArrayList<TableEntry>(keys.size());
+                val values = new ArrayList<BufferView>(keys.size());
                 synchronized (segmentData) {
                     // Note: this doesn't do conditional checks. We don't need them here.
-                    keys.forEach(k -> {
-                        BufferView data = segmentData.getOrDefault(k, null);
-                        result.add(data == null ? null : TableEntry.unversioned(new ByteArraySegment(k.getCopy()), new ByteArraySegment(data.getCopy())));
-                    });
+                    keys.forEach(k -> values.add(segmentData.getOrDefault(k, null)));
+                }
+
+                val result = new ArrayList<TableEntry>(keys.size());
+                for (int i = 0; i < keys.size(); i++) {
+                    val v = values.get(i);
+                    result.add(v == null ? null : TableEntry.unversioned(new ByteArraySegment(keys.get(i).getCopy()), new ByteArraySegment(v.getCopy())));
                 }
                 return result;
             }, executor);
