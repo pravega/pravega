@@ -599,6 +599,56 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Tests the {@link ContainerTableExtensionImpl#putInternalNonAtomic} method.
+     */
+    @Test
+    public void testPutNonAtomic() throws Exception {
+        final int keyLength = 256;
+        final int valueLength = 1024;
+        final int maxBatchSize = (keyLength + valueLength) * 10; // About 10 entries per batch.
+        final int maxSize = 10 * maxBatchSize; // We expect about 10 splits.
+
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TableContext(TableExtensionConfig.builder().maxBatchSize(maxBatchSize).build(), executorService());
+
+        // Create the Segment
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+
+        // Generate Table Entries as long as we are under the total max size limit.
+        val allEntries = new ArrayList<TableEntry>();
+        val keys = new ArrayList<BufferView>();
+        int totalSize = 0;
+        while (totalSize < maxSize) {
+            val toUpdate = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+            allEntries.add(toUpdate);
+            keys.add(toUpdate.getKey().getKey());
+            totalSize += s.getUpdateLength(toUpdate);
+        }
+
+        // Apply the update.
+        val updateResult = context.ext.putInternalNonAtomic(SEGMENT_NAME, allEntries, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Validate the result.
+        val getResult = context.ext.get(SEGMENT_NAME, keys, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of versions returned.", allEntries.size(), updateResult.size());
+        for (int i = 0; i < updateResult.size(); i++) {
+            Assert.assertEquals("Unexpected update version at index " + i, getResult.get(i).getKey().getVersion(), (long) updateResult.get(i));
+            Assert.assertEquals("Unexpected value at index " + i, allEntries.get(i).getValue(), getResult.get(i).getValue());
+        }
+
+        // Validate the (impossible) case when a single update exceeds the maximum batch. There should be other guards
+        // in the system to prevent this, but we should check it here nonetheless.
+        val largeEntry = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(maxBatchSize, context));
+        AssertExtensions.assertSuppliedFutureThrows(
+                "putInternalNonAtomic accepted a single update exceeding the max batch size limit.",
+                () -> context.ext.putInternalNonAtomic(SEGMENT_NAME, Collections.singletonList(largeEntry), TIMEOUT),
+                ex -> ex instanceof ContainerTableExtensionImpl.UpdateBatchTooLargeException);
+    }
+
     @SneakyThrows
     private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup

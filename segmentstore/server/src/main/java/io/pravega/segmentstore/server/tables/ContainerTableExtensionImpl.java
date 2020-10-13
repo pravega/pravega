@@ -119,8 +119,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private ContainerSortedKeyIndex createSortedIndex() {
         val ds = new SortedKeyIndexDataSource(
-                (s, entries, timeout) -> put(s, entries, false, timeout),
-                (s, keys, timeout) -> remove(s, keys, false, timeout),
+                this::putInternalNonAtomic,
+                (s, keys, timeout) -> remove(s, keys, false, NO_OFFSET, timeout),
                 (s, keys, timeout) -> get(s, keys, false, timeout));
         return new ContainerSortedKeyIndex(ds, this.executor);
     }
@@ -215,10 +215,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return put(segmentName, entries, true, tableSegmentOffset, timeout);
     }
 
-    public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, boolean external, Duration timeout) {
-        return put(segmentName, entries, external, NO_OFFSET, timeout);
-    }
-
     private CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, boolean external, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -230,8 +226,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
                     // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
                     // offsets in the batch itself).
-                    val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
-                    updateBatch.setExternal(external);
+                    val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update(external));
                     logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), tableSegmentOffset, updateBatch.isRemoval(),
                             toUpdate.size(), updateBatch.getLength());
                     return this.keyIndex.update(segment, updateBatch,
@@ -239,17 +234,49 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 }, this.executor);
     }
 
+    /**
+     * Same as {@link #put(String, List, Duration)}, but if the given {@code entries} cannot be atomically updated due to
+     * their total size exceeding {@link EntrySerializer#MAX_BATCH_SIZE}, this will progressively split the list in halves,
+     * and reattempting the update, successively, on each.
+     * <p>
+     * Note that it is possible that, upon an unsuccessful execution of this method, not all the requested {@code entries}
+     * could be updated. In such case, the method does guarantee that, should the update be interrupted at an index
+     * {@code i} within {@code entries}, then all {@link TableEntry} updates prior to {@code i} will have applied.
+     *
+     * @param segmentName Segment to update.
+     * @param entries     Entries to update.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that will contain the resulting entries versions. See {@link #put} for more details.
+     */
+    @VisibleForTesting
+    CompletableFuture<List<Long>> putInternalNonAtomic(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
+        return Futures.exceptionallyComposeExpecting(
+                put(segmentName, entries, false, NO_OFFSET, timeout),
+                ex -> ex instanceof UpdateBatchTooLargeException && entries.size() > 1,
+                () -> {
+                    val midIndex = entries.size() / 2;
+                    val e1 = entries.subList(0, midIndex);
+                    val e2 = entries.subList(midIndex, entries.size());
+                    log.debug("{}: Internal update too big for '{}'. Splitting {} entries into {} and {}.",
+                            this.traceObjectId, segmentName, entries.size(), e1.size(), e2.size());
+                    return putInternalNonAtomic(segmentName, e1, timeout)
+                            .thenCompose(v1 -> putInternalNonAtomic(segmentName, e2, timeout)
+                                    .thenApply(v2 -> {
+                                        val result = new ArrayList<>(v1);
+                                        result.addAll(v2);
+                                        return result;
+                                    }));
+                });
+    }
+
     @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
         return remove(segmentName, keys, true, NO_OFFSET, timeout);
     }
 
+    @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         return remove(segmentName, keys, true, tableSegmentOffset, timeout);
-    }
-
-    private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, boolean external, Duration timeout) {
-        return remove(segmentName, keys, external, NO_OFFSET, timeout);
     }
 
     private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, boolean external, long tableSegmentOffset, Duration timeout) {
@@ -260,7 +287,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toRemove = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
-                    val removeBatch = batch(toRemove, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
+                    val removeBatch = batch(toRemove, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal(external));
                     logRequest("remove", segmentInfo.getName(), removeBatch.isConditional(), removeBatch.isRemoval(),
                             toRemove.size(), removeBatch.getLength());
                     return this.keyIndex.update(segment, removeBatch,
@@ -395,19 +422,20 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             batch.add(key, this.hasher.hash(key.getKey()), length);
         }
 
-        Preconditions.checkArgument(batch.getLength() <= EntrySerializer.MAX_BATCH_SIZE,
-                "Update Batch length (%s) exceeds the maximum limit.", EntrySerializer.MAX_BATCH_SIZE);
+        if (batch.getLength() > this.config.getMaxBatchSize()) {
+            throw new UpdateBatchTooLargeException(batch.getLength(), this.config.getMaxBatchSize());
+        }
         return batch;
     }
 
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
                                                DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
-            BufferView s = serializer.apply(toCommit);
-            if (tableSegmentOffset == NO_OFFSET) {
-                return segment.append(s, null, timeout);
-            } else {
-                return segment.append(s, null, tableSegmentOffset, timeout);
-            }
+        BufferView s = serializer.apply(toCommit);
+        if (tableSegmentOffset == NO_OFFSET) {
+            return segment.append(s, null, timeout);
+        } else {
+            return segment.append(s, null, tableSegmentOffset, timeout);
+        }
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
@@ -628,6 +656,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @FunctionalInterface
     private interface GetBucketReader<T> {
         TableBucketReader<T> apply(DirectSegmentAccess segment, TableBucketReader.GetBackpointer getBackpointer, ScheduledExecutorService executor);
+    }
+
+    //endregion
+
+    //region UpdateBatchTooLargeException
+
+    @VisibleForTesting
+    static class UpdateBatchTooLargeException extends IllegalArgumentException {
+        UpdateBatchTooLargeException(int length, int maxLength) {
+            super(String.format("Update Batch length %s exceeds the maximum limit %s.", length, maxLength));
+        }
     }
 
     //endregion

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -62,6 +63,13 @@ class TableExtensionConfig {
      */
     @Builder.Default
     private final long defaultRolloverSize = EntrySerializer.MAX_SERIALIZATION_LENGTH * 4 * 4;
+
+    /**
+     * The maximum size of a single update batch. For unit test purposes only. Do not tinker with in production code.
+     */
+    @Builder.Default
+    @VisibleForTesting
+    private final int maxBatchSize = EntrySerializer.MAX_BATCH_SIZE;
 
     /**
      * The maximum amount of time to wait for a Table Segment Recovery. If any recovery takes more than this amount of time,

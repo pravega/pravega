@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,6 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 
 /**
  * Represents a collection of Items (relating to {@link TableKey}s) that will either all be applied at once or none at all.
@@ -47,21 +47,40 @@ class TableKeyBatch {
     /**
      * Indicates whether this {@link TableKeyBatch} refers to externally-supplied updates or internal ones.
      */
-    @Setter
-    private boolean external = true;
+    private final boolean external;
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true which will insert or update keys.
+     */
+    @VisibleForTesting
+    static TableKeyBatch update() {
+        return update(true);
+    }
 
     /**
      * Creates a new instance of the TableKeyBatch class which will insert or update keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
      */
-    static TableKeyBatch update() {
-        return new TableKeyBatch(false);
+    static TableKeyBatch update(boolean external) {
+        return new TableKeyBatch(false, external);
+    }
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true that will remove keys.
+     */
+    @VisibleForTesting
+    static TableKeyBatch removal() {
+        return removal(true);
     }
 
     /**
      * Creates a new instance of the TableKeyBatch class that will remove keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
      */
-    static TableKeyBatch removal() {
-        return new TableKeyBatch(true);
+    static TableKeyBatch removal(boolean external) {
+        return new TableKeyBatch(true, external);
     }
 
     /**
