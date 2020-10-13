@@ -185,6 +185,51 @@ public class SerializationTest {
         }
     }
 
+    // Serializer to simulate version 0 of CheckpointState serializer
+    private static class CheckpointSerializerV0 extends VersionedSerializer.Direct<CheckpointState> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        // serialize a CheckpointState using the format used in Version 0.
+        private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
+            RevisionDataOutput.ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
+            RevisionDataOutput.ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
+            RevisionDataOutput.ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+            output.writeCollection(object.getCheckpoints(), stringSerializer);
+            output.writeMap(object.getUncheckpointedHosts(), stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
+            output.writeMap(object.getCheckpointPositions(), stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
+            output.writeMap(object.getLastCheckpointPosition(), segmentSerializer, longSerializer);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, CheckpointState target) throws IOException {
+            // NOP.
+        }
+    }
+
+    @Test
+    public void testCheckpointStateSerializerCompatibilityV0() throws Exception {
+        CheckpointState cs = new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
+                .lastCheckpointPosition(createSegmentToLongMap())
+                .lastStreamCutPosition(null)
+                .checkpointPositions(createMap(this::createString,
+                        this::createSegmentToLongMap))
+                .uncheckpointedHosts(createMap(this::createString,
+                        this::createStringList))
+                .build();
+
+        final byte[] bufV0 = new CheckpointSerializerV0().serialize(cs).array();
+        assertEquals(cs, new CheckpointState.CheckpointStateSerializer().deserialize(bufV0));
+
+    }
+
     @Test
     public void testStreamCut() {
         StreamCutImpl cut = new StreamCutImpl(Stream.of("Foo/Bar"), ImmutableMap.of(Segment.fromScopedName("Foo/Bar/1"), 3L));
