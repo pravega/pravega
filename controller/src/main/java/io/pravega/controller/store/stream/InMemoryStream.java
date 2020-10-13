@@ -113,8 +113,8 @@ public class InMemoryStream extends PersistentStreamBase {
 
     private final Object subscribersLock = new Object();
 
-    @GuardedBy("writersLock")
-    private final List<VersionedMetadata<StreamSubscriber>> subscribers = new ArrayList<>();
+    @GuardedBy("subscribersLock")
+    private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -834,13 +834,13 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> createSubscriber(String subscriber) {
         synchronized (subscribersLock) {
-            Optional<StreamSubscriber> existingSubscriber = subscribers.stream().map(s1 -> s1.getObject())
+            Optional<StreamSubscriber> existingSubscriber = streamSubscribers.stream().map(s1 -> s1.getObject())
                     .filter(s2 -> s2.getSubscriber().equals(subscriber)).findFirst();
             if (existingSubscriber.isPresent()) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_EXISTS, "subscriber exists"));
             } else {
                 StreamSubscriber streamSubscriber = new StreamSubscriber(subscriber, ImmutableMap.of(), System.currentTimeMillis() );
-                subscribers.add(new VersionedMetadata<>(streamSubscriber, new Version.IntVersion(0)));
+                streamSubscribers.add(new VersionedMetadata<>(streamSubscriber, new Version.IntVersion(0)));
                 return CompletableFuture.completedFuture(null);
             }
         }
@@ -850,12 +850,12 @@ public class InMemoryStream extends PersistentStreamBase {
     public CompletableFuture<Void> removeSubscriber(String subscriber) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (subscribersLock) {
-            Optional<StreamSubscriber> existingSubscriber = subscribers.stream().map(sub -> sub.getObject())
+            Optional<StreamSubscriber> existingSubscriber = streamSubscribers.stream().map(sub -> sub.getObject())
                     .filter(s -> s.getSubscriber().equals(subscriber)).findFirst();
             if (existingSubscriber.isEmpty()) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
             } else {
-                subscribers.remove(existingSubscriber);
+                streamSubscribers.remove(existingSubscriber);
                 result.complete(null);
             }
         }
@@ -866,8 +866,8 @@ public class InMemoryStream extends PersistentStreamBase {
     public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber) {
         CompletableFuture<VersionedMetadata<StreamSubscriber>> result = new CompletableFuture<>();
         synchronized (subscribersLock) {
-            Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = subscribers.stream()
-                    .filter(s2 -> s2.equals(subscriber)).findFirst();
+            Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = streamSubscribers.stream()
+                    .filter(s2 -> s2.getObject().getSubscriber().equals(subscriber)).findFirst();
             if (existingSubscriber.isEmpty()) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
             } else {
@@ -881,7 +881,7 @@ public class InMemoryStream extends PersistentStreamBase {
     public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
         Map<String, StreamSubscriber> result;
         synchronized (subscribersLock) {
-            result = subscribers.stream().map(s -> s.getObject())
+            result = streamSubscribers.stream().map(s -> s.getObject())
                     .collect(Collectors.toMap(StreamSubscriber::getSubscriber, s1 -> s1));
         }
         return CompletableFuture.completedFuture(result);

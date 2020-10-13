@@ -452,7 +452,7 @@ public class StreamMetadataTasks extends TaskBase {
                             });
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
-    
+
     /**
      * Method to check retention policy and generate new periodic cuts and/or truncate stream at an existing stream cut.
      * 

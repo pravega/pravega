@@ -385,7 +385,6 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
     }
 
-
     @Test(timeout = 30000)
     public void truncateStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
