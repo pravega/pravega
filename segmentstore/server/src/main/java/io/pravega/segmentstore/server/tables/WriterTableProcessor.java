@@ -154,7 +154,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.connector
@@ -300,7 +300,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                                     this.executor);
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates));
+                .thenApply(updateCount -> new TableWriterFlushResult(keyUpdates, updateCount));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -546,10 +546,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         final long highestCopiedOffset;
         final int processedBytes;
 
-        TableWriterFlushResult(KeyUpdateCollection keyUpdates) {
+        TableWriterFlushResult(KeyUpdateCollection keyUpdates, int attributeUpdateCount) {
             this.lastIndexedOffset = keyUpdates.getLastIndexedOffset();
             this.highestCopiedOffset = keyUpdates.getHighestCopiedOffset();
             this.processedBytes = keyUpdates.getLength();
+            withFlushedAttributes(attributeUpdateCount);
         }
     }
 

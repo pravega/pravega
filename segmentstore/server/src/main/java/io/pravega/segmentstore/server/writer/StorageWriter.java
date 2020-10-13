@@ -230,6 +230,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
+            this.state.recordReadComplete();
             this.metrics.readComplete(0);
             logStageEvent("InputRead", result);
             LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
@@ -300,6 +301,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
     //region Stage Execution
 
+    @Override
+    public CompletableFuture<Boolean> forceFlush(long upToSequenceNumber, Duration timeout) {
+        // Wait for current iteration to complete; next iteration will be a force flush. (Set a flag or something).
+        return this.state.setForceFlush(upToSequenceNumber);
+    }
+
     /**
      * Flushes eligible operations to Storage, if necessary. Does not perform any mergers.
      */
@@ -309,10 +316,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         // Flush everything we can flush.
         val timer = new Timer();
+        val forceFlush = this.state.isForceFlush();
         val flushFutures = this.processors.values().stream()
-                                          .filter(ProcessorCollection::mustFlush)
-                                          .map(a -> a.flush(this.config.getFlushTimeout()))
-                                          .collect(Collectors.toList());
+                .filter(pc -> forceFlush || pc.mustFlush())
+                .map(a -> a.flush(forceFlush, this.config.getFlushTimeout()))
+                .collect(Collectors.toList());
 
         return Futures
                 .allOfWithResults(flushFutures)
@@ -324,6 +332,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     }
 
                     this.metrics.flushComplete(result.getFlushedBytes(), result.getMergedBytes(), result.getFlushedAttributes(), timer.getElapsed());
+                    this.state.recordFlushComplete(result);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
                 }, this.executor);
     }
@@ -642,8 +651,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         }
 
         @Override
-        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
-            return Futures.allOfWithResults(this.processors.stream().map(wsp -> wsp.flush(timeout)).collect(Collectors.toList()))
+        public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
+            return Futures.allOfWithResults(this.processors.stream().map(wsp -> wsp.flush(force, timeout)).collect(Collectors.toList()))
                           .thenApply(results -> {
                               WriterFlushResult r = results.get(0);
                               for (int i = 1; i < results.size(); i++) {
