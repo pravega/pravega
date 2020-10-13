@@ -321,7 +321,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
 
     @Override
     public CompletableFuture<Long> updateTableEntry(String tableName, BufferView key, BufferView value, Long compareVersion, Duration timeout) {
-        // TODO: we do not support conditional updates (these are converted to unconditional updates).
+        // NOTE: we do not support conditional updates (these are converted to unconditional updates).
         ensureRunning();
         return getKvt(tableName)
                 .put(null, key, value)
@@ -330,7 +330,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
 
     @Override
     public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
-        // TODO: we do not support conditional removals (these are converted to unconditional removals).
+        // NOTE: we do not support conditional removals (these are converted to unconditional removals).
         ensureRunning();
         return getKvt(tableName)
                 .remove(null, key);
