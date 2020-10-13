@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UTFDataFormatException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -227,6 +228,20 @@ public interface BufferView {
         int available();
 
         /**
+         * Reads one input byte and returns
+         * {@code true} if that byte is nonzero,
+         * {@code false} if that byte is zero.
+         * This method is suitable for reading
+         * the byte written by the {@code writeBoolean}
+         * method of interface {@code DataOutput}.
+         *
+         * @return     the {@code boolean} value read.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        boolean readBoolean();
+        
+        /**
          * Reads a number of bytes into the given {@link ByteArraySegment} using the most efficient method for the
          * implementation of this {@link BufferView}.
          *
@@ -246,6 +261,45 @@ public interface BufferView {
         byte readByte();
 
         /**
+         * Reads two input bytes and returns
+         * a {@code short} value. Let {@code a}
+         * be the first byte read and {@code b}
+         * be the second byte. The value
+         * returned
+         * is:
+         * <pre>{@code (short)((a << 8) | (b & 0xff))
+         * }</pre>
+         * This method
+         * is suitable for reading the bytes written
+         * by the {@code writeShort} method of
+         * interface {@code DataOutput}.
+         *
+         * @return     the 16-bit value read.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        short readShort();
+        
+        /**
+         * Reads two input bytes and returns a {@code char} value.
+         * Let {@code a}
+         * be the first byte read and {@code b}
+         * be the second byte. The value
+         * returned is:
+         * <pre>{@code (char)((a << 8) | (b & 0xff))
+         * }</pre>
+         * This method
+         * is suitable for reading bytes written by
+         * the {@code writeChar} method of interface
+         * {@code DataOutput}.
+         *
+         * @return     the {@code char} value read.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        char readChar();
+
+        /**
          * Reads 4 bytes (and advances the reader position by 4) and composes a 32-bit Integer (Big-Endian).
          *
          * @return The read int.
@@ -253,6 +307,7 @@ public interface BufferView {
          */
         int readInt();
 
+        
         /**
          * Reads 8 bytes (and advances the reader position by 4) and composes a 64-bit Long (Big-Endian).
          *
@@ -260,6 +315,44 @@ public interface BufferView {
          * @throws OutOfBoundsException If {@link #available()} is less than {@link Long#BYTES}.
          */
         long readLong();
+        
+        /**
+         * Reads four input bytes and returns
+         * a {@code float} value. It does this
+         * by first constructing an {@code int}
+         * value in exactly the manner
+         * of the {@code readInt}
+         * method, then converting this {@code int}
+         * value to a {@code float} in
+         * exactly the manner of the method {@code Float.intBitsToFloat}.
+         * This method is suitable for reading
+         * bytes written by the {@code writeFloat}
+         * method of interface {@code DataOutput}.
+         *
+         * @return     the {@code float} value read.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        float readFloat();
+
+        /**
+         * Reads eight input bytes and returns
+         * a {@code double} value. It does this
+         * by first constructing a {@code long}
+         * value in exactly the manner
+         * of the {@code readLong}
+         * method, then converting this {@code long}
+         * value to a {@code double} in exactly
+         * the manner of the method {@code Double.longBitsToDouble}.
+         * This method is suitable for reading
+         * bytes written by the {@code writeDouble}
+         * method of interface {@code DataOutput}.
+         *
+         * @return     the {@code double} value read.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        double readDouble();
 
         /**
          * Returns a {@link BufferView} that is a representation of the next bytes starting at the given position. The
@@ -282,6 +375,92 @@ public interface BufferView {
          */
         @VisibleForTesting
         ArrayView readFully(int bufferSize);
+        
+        /**
+         * Reads in a string that has been encoded using a
+         * <a href="#modified-utf-8">modified UTF-8</a>
+         * format.
+         * The general contract of {@code readUTF}
+         * is that it reads a representation of a Unicode
+         * character string encoded in modified
+         * UTF-8 format; this string of characters
+         * is then returned as a {@code String}.
+         * <p>
+         * First, two bytes are read and used to
+         * construct an unsigned 16-bit integer in
+         * exactly the manner of the {@code readUnsignedShort}
+         * method . This integer value is called the
+         * <i>UTF length</i> and specifies the number
+         * of additional bytes to be read. These bytes
+         * are then converted to characters by considering
+         * them in groups. The length of each group
+         * is computed from the value of the first
+         * byte of the group. The byte following a
+         * group, if any, is the first byte of the
+         * next group.
+         * <p>
+         * If the first byte of a group
+         * matches the bit pattern {@code 0xxxxxxx}
+         * (where {@code x} means "may be {@code 0}
+         * or {@code 1}"), then the group consists
+         * of just that byte. The byte is zero-extended
+         * to form a character.
+         * <p>
+         * If the first byte
+         * of a group matches the bit pattern {@code 110xxxxx},
+         * then the group consists of that byte {@code a}
+         * and a second byte {@code b}. If there
+         * is no byte {@code b} (because byte
+         * {@code a} was the last of the bytes
+         * to be read), or if byte {@code b} does
+         * not match the bit pattern {@code 10xxxxxx},
+         * then a {@code UTFDataFormatException}
+         * is thrown. Otherwise, the group is converted
+         * to the character:
+         * <pre>{@code (char)(((a & 0x1F) << 6) | (b & 0x3F))
+         * }</pre>
+         * If the first byte of a group
+         * matches the bit pattern {@code 1110xxxx},
+         * then the group consists of that byte {@code a}
+         * and two more bytes {@code b} and {@code c}.
+         * If there is no byte {@code c} (because
+         * byte {@code a} was one of the last
+         * two of the bytes to be read), or either
+         * byte {@code b} or byte {@code c}
+         * does not match the bit pattern {@code 10xxxxxx},
+         * then a {@code UTFDataFormatException}
+         * is thrown. Otherwise, the group is converted
+         * to the character:
+         * <pre>{@code
+         * (char)(((a & 0x0F) << 12) | ((b & 0x3F) << 6) | (c & 0x3F))
+         * }</pre>
+         * If the first byte of a group matches the
+         * pattern {@code 1111xxxx} or the pattern
+         * {@code 10xxxxxx}, then a {@code UTFDataFormatException}
+         * is thrown.
+         * <p>
+         * If end of file is encountered
+         * at any time during this entire process,
+         * then an {@code EOFException} is thrown.
+         * <p>
+         * After every group has been converted to
+         * a character by this process, the characters
+         * are gathered, in the same order in which
+         * their corresponding groups were read from
+         * the input stream, to form a {@code String},
+         * which is returned.
+         * <p>
+         * The {@code writeUTF}
+         * method of interface {@code DataOutput}
+         * may be used to write data that is suitable
+         * for reading by this method.
+         * @return     a Unicode string.
+         * @exception  OutOfBoundsException            if this stream reaches the end
+         *               before reading all the bytes.
+         * @exception  UTFDataFormatException  if the bytes do not represent a
+         *               valid modified UTF-8 encoding of a string.
+         */
+        String readUTF() throws UTFDataFormatException;
 
         /**
          * Exception that is thrown whenever an attempt is made to read beyond the bounds of a {@link BufferView}.

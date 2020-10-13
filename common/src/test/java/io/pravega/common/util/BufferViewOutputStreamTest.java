@@ -9,10 +9,10 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.util.BufferView.Reader;
 import io.pravega.test.common.AssertExtensions;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -28,8 +28,9 @@ public class BufferViewOutputStreamTest {
         BufferView view = out.getView();
         assertEquals(4, view.getContents().size());
         assertEquals(3 * BufferViewOutputStream.CHUNK_SIZE + 1, view.getLength());
-        InputStream reader = view.getReader();
-        assertEquals(3 * BufferViewOutputStream.CHUNK_SIZE + 1, reader.readAllBytes().length);
+        Reader reader = view.getBufferViewReader();
+        assertEquals(3 * BufferViewOutputStream.CHUNK_SIZE + 1, reader.available());
+        assertEquals(3 * BufferViewOutputStream.CHUNK_SIZE + 1, reader.readFully(Integer.MAX_VALUE).getLength());
         out.close();
         assertEquals(4, view.getContents().size());
         assertEquals(3 * BufferViewOutputStream.CHUNK_SIZE + 1, view.getLength());
@@ -136,6 +137,18 @@ public class BufferViewOutputStreamTest {
         assertEquals(4.0f, reader.readFloat(), 0);
         assertEquals(8.0d, reader.readDouble(), 0);
         assertEquals(0, reader.available());
+        
+        Reader reader2 = view.getBufferViewReader();
+        assertEquals(true, reader2.readBoolean());
+        assertEquals(false, reader2.readBoolean());
+        assertEquals(1, reader2.readByte());
+        assertEquals(2, reader2.readShort());
+        assertEquals('a', reader2.readChar());
+        assertEquals(4, reader2.readInt());
+        assertEquals(8, reader2.readLong());
+        assertEquals(4.0f, reader2.readFloat(), 0);
+        assertEquals(8.0d, reader2.readDouble(), 0);
+        assertEquals(0, reader2.available());
     }
     
     @Test

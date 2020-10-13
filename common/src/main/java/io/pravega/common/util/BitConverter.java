@@ -173,6 +173,17 @@ public final class BitConverter {
     }
 
     /**
+     * Composes a 16-bit integer from the given byte components (Big-Endian order).
+     *
+     * @param b1 Byte #1.
+     * @param b2 Byte #2.
+     * @return The composed number.
+     */
+    public static short makeShort(int b1, int b2) {
+        return (short) ((b1 & 0xFF) << 8 | (b2 & 0xFF));
+    }
+    
+    /**
      * Composes a 32-bit integer from the given byte components (Big-Endian order).
      *
      * @param b1 Byte #1.
@@ -321,14 +332,14 @@ public final class BitConverter {
      * @return The composed number.
      */
     public static long makeLong(int b1, int b2, int b3, int b4, int b5, int b6, int b7, int b8) {
-        return ((long) b1 << 56) +
+        return  ((long) b1 << 56) +
                 ((long) (b2 & 255) << 48) +
                 ((long) (b3 & 255) << 40) +
                 ((long) (b4 & 255) << 32) +
                 ((long) (b5 & 255) << 24) +
-                (long) ((b6 & 255) << 16) +
-                (long) ((b7 & 255) << 8) +
-                (long) ((b8 & 255));
+                ((long) (b6 & 255) << 16) +
+                ((long) (b7 & 255) << 8) +
+                ((long) (b8 & 255));
     }
 
     /**

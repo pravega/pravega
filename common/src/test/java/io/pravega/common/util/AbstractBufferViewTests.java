@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.test.common.AssertExtensions;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -105,6 +106,7 @@ public class AbstractBufferViewTests {
      */
     @Test
     public void testAbstractReader() throws Exception {
+        short shortValue = 1023;
         val intValue = 1234;
         val longValue = -123456789L;
         // ReadInt, ReadLong, ReadFully
@@ -113,20 +115,25 @@ public class AbstractBufferViewTests {
 
         // Write some data. Fill with garbage, then put some readable values at the beginning.
         rnd.nextBytes(buffer.array());
-        BitConverter.writeInt(buffer, 0, intValue);
-        BitConverter.writeLong(buffer, Integer.BYTES, longValue);
+        BitConverter.writeShort(buffer, 0, shortValue);
+        BitConverter.writeInt(buffer, Short.BYTES, intValue);
+        BitConverter.writeLong(buffer, Short.BYTES + Integer.BYTES, longValue);
 
         // Now read them back.
         BufferView.Reader reader = buffer.getBufferViewReader();
         Assert.assertEquals(buffer.getLength(), reader.available());
+        
+        val readShort = reader.readShort();
+        Assert.assertEquals("readShort", shortValue, readShort);
+        Assert.assertEquals(buffer.getLength() - Short.BYTES, reader.available());
 
         val readInt = reader.readInt();
         Assert.assertEquals("readInt", intValue, readInt);
-        Assert.assertEquals(buffer.getLength() - Integer.BYTES, reader.available());
+        Assert.assertEquals(buffer.getLength() - Integer.BYTES - Short.BYTES, reader.available());
 
         val readLong = reader.readLong();
         Assert.assertEquals("readLong", longValue, readLong);
-        val remainingDataPos = Integer.BYTES + Long.BYTES;
+        val remainingDataPos = Short.BYTES + Integer.BYTES + Long.BYTES;
         val remainingDataLength = buffer.getLength() - remainingDataPos;
         Assert.assertEquals(remainingDataLength, reader.available());
 
@@ -135,6 +142,34 @@ public class AbstractBufferViewTests {
         Assert.assertEquals("readFully", remainingData, buffer.slice(remainingDataPos, remainingDataLength));
     }
 
+    /**
+     * Tests reading utf strings
+     */
+    @Test
+    public void testAbstractReaderReadUtf() throws Exception {
+        String testString = "Test string: Föo, Baŕ, 𠂇";
+        val buffer = new ByteArraySegment(new byte[100], 5, 79);
+        val rnd = new Random(0);
+
+        // Write some data. Fill with garbage, then put a string at the beginning.
+        rnd.nextBytes(buffer.array());
+        new DataOutputStream(buffer.getWriter()).writeUTF(testString);
+        
+        // Now read it back.
+        BufferView.Reader reader = buffer.getBufferViewReader();
+        Assert.assertEquals(buffer.getLength(), reader.available());
+        
+        String readString = reader.readUTF();
+        Assert.assertEquals("readString", testString, readString);
+        
+        //now do the same with a composite
+        CompositeBufferView view = new CompositeBufferView(buffer);
+        reader = view.getBufferViewReader();
+        Assert.assertEquals(buffer.getLength(), reader.available());
+        readString = reader.readUTF();
+        Assert.assertEquals("readString", testString, readString);
+    }
+    
     /**
      * Tests {@link BufferView#builder()}.
      */
