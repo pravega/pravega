@@ -855,7 +855,7 @@ public class InMemoryStream extends PersistentStreamBase {
             if (existingSubscriber.isEmpty()) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
             } else {
-                streamSubscribers.remove(existingSubscriber);
+                streamSubscribers.remove(existingSubscriber.get());
                 result.complete(null);
             }
         }

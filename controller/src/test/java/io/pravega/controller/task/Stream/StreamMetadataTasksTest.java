@@ -66,6 +66,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
@@ -383,6 +384,38 @@ public abstract class StreamMetadataTasksTest {
         // Remove non-existing subscriber from stream
         removeStatus = streamMetadataTasks.removeSubscriber(SCOPE, stream1, "subscriber4", null).get();
         assertEquals(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
+    }
+
+    @Test(timeout = 30000)
+    public void updateTruncationStreamCutTest() throws InterruptedException, ExecutionException {
+        String subscriber1 = "subscriber1";
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        String subscriber2 = "subscriber2";
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        assertEquals(2, allSubscribers.size());
+        assertTrue(allSubscribers.contains(subscriber1));
+        assertTrue(allSubscribers.contains(subscriber2));
+
+        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L, 1L, 10L);
+        UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, subscriber1,
+                                                                                            streamCut1, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        // update non-existing stream
+        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
+
+        // update non-existing subscriber
+        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, "nosubscriber", streamCut1, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
 
     @Test(timeout = 30000)

@@ -611,7 +611,7 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<List<String>> getSubscribersForStream(String scope, String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(scope, "scopeName");
+        Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getSubscribersForStream", streamName);
@@ -635,6 +635,8 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Boolean> updateTruncationStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
         Preconditions.checkNotNull(subscriber, "subscriber");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateTruncationStreamCut", subscriber, requestId);
@@ -649,7 +651,8 @@ public class ControllerImpl implements Controller {
             switch (x.getStatus()) {
                 case FAILURE:
                     log.warn(requestId, "Failed to update stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber);
+                    throw new ControllerFailureException("Failed to updateTruncationStreamcut for Stream:" + scope + "/" + streamName
+                                                                                    + ": subscriber:" + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
@@ -657,21 +660,21 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
                     throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
                 case STREAMCUT_NOT_VALID:
-                    log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
-                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                    log.warn(requestId, "StreamCut not valid for stream {}/{} subscriber {}.", scope, streamName, subscriber);
+                    throw new IllegalArgumentException("StreamCut not valid for stream " + scope + "/" + streamName + ": subscriber:" + subscriber);
                 case SUCCESS:
-                    log.info(requestId, "Successfully removed subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} from stream: {}/{}", subscriber, scope, streamName);
                     return true;
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber
-                            + " " + x.getStatus());
+                    throw new ControllerFailureException("Unknown return status for updateTruncationStreamCut for Stream :"
+                            + scope + "/" + streamName + ": subscriber:" + subscriber + ": status=" + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "removeSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
+                log.warn(requestId, "updateTruncationStreamCut for Subscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
             }
-            LoggerHelpers.traceLeave(log, "removeSubscriber", traceId, subscriber, requestId);
+            LoggerHelpers.traceLeave(log, "updateTruncationStreamCut", traceId, subscriber, requestId);
         });
     }
 
