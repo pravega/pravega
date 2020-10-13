@@ -96,7 +96,7 @@ public class AbstractSecureAdminCommandTest {
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
 
                 // TLS-related
-                .trustStore("src/test/resources/ca-cert.crt")
+                .trustStore("../" + SecurityConfigDefaults.TLS_CA_CERT_PATH)
                 .validateHostName(false)
 
                 // Auth-related
