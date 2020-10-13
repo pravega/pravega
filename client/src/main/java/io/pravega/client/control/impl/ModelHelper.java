@@ -353,7 +353,7 @@ public final class ModelHelper {
      * @return SubscriberStreamCut instance.
      */
     public static final SubscriberStreamCut decode(String scope, String streamName,
-                                                   final String subscriber, Map<Long,Long> streamCut) {
+                                                   final String subscriber, Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
