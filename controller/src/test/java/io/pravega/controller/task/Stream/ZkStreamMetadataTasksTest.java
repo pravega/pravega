@@ -33,4 +33,10 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
         // skip ZK tests
         assertTrue(true);
     }
+
+    @Test
+    public void updateTruncationStreamCutTest() throws InterruptedException, ExecutionException {
+        // skip ZK tests
+        assertTrue(true);
+    }
 }
