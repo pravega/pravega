@@ -405,6 +405,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
             return null;
         }
 
+        @Override
+        public CompletableFuture<Void> flushToStorage(Duration timeout) {
+            return null;
+        }
+
         //endregion
     }
 

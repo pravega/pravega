@@ -503,12 +503,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Flushes the contents of the Aggregator to the Storage.
      *
+     * @param force   If true, force-flushes everything accumulated in the {@link SegmentAggregator}, regardless of
+     *                the value returned by {@link #mustFlush()}.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         ensureInitializedAndNotClosed();
         if (this.metadata.isDeletedInStorage()) {
             // Segment has been deleted; don't do anything else.
@@ -522,7 +524,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         try {
             switch (this.state.get()) {
                 case Writing:
-                    result = flushNormally(timer);
+                    result = flushNormally(force, timer);
                     break;
                 case ReconciliationNeeded:
                     result = beginReconciliation(timer)
@@ -552,18 +554,19 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Repeatedly flushes the contents of the Aggregator to the Storage as long as something immediate needs to be flushed,
      * such as a Seal or Merge operation.
      *
+     * @param force Whether to force everything out.
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
-    private CompletableFuture<WriterFlushResult> flushNormally(TimeoutTimer timer) {
+    private CompletableFuture<WriterFlushResult> flushNormally(boolean force, TimeoutTimer timer) {
         assert this.state.get() == AggregatorState.Writing : "flushNormally cannot be called if state == " + this.state;
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushNormally", this.operations.size());
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushNormally", force, this.operations.size());
         WriterFlushResult result = new WriterFlushResult();
         AtomicBoolean canContinue = new AtomicBoolean(true);
         return Futures
                 .loop(
                         canContinue::get,
-                        () -> flushOnce(timer),
+                        () -> flushOnce(force, timer),
                         partialResult -> {
                             canContinue.set(partialResult.getFlushedBytes() + partialResult.getMergedBytes() > 0);
                             result.withFlushResult(partialResult);
@@ -579,10 +582,11 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Flushes the contents of the Aggregator exactly once to the Storage in a 'normal' mode (where it does not need to
      * do any reconciliation).
      *
+     * @param force Whether to force everything out.
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
-    private CompletableFuture<WriterFlushResult> flushOnce(TimeoutTimer timer) {
+    private CompletableFuture<WriterFlushResult> flushOnce(boolean force, TimeoutTimer timer) {
         boolean hasDelete = this.hasDeletePending.get();
         boolean hasMerge = this.mergeTransactionCount.get() > 0;
         boolean hasSeal = this.hasSealPending.get();
@@ -607,8 +611,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 result = result.thenComposeAsync(flushResult -> sealIfNecessary(flushResult, timer), this.executor);
             }
         } else {
-            // Otherwise, just flush the excess as long as we have something to flush.
-            result = flushExcess(timer);
+            // Otherwise, either flush the excess as long as we have something to flush or flush everything out, depending
+            // on whether we were asked to force the flush.
+            result = force ? flushFully(timer) : flushExcess(timer);
         }
 
         if (log.isTraceEnabled()) {
