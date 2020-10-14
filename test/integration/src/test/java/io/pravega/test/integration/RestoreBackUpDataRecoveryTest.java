@@ -46,14 +46,11 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
-import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.SegmentStoreWithSegmentTracker;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
@@ -92,11 +89,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.URI;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -104,10 +102,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -265,8 +261,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static class SegmentStoreRunner implements AutoCloseable {
         private final int servicePort = TestUtils.getAvailableListenPort();
         private final ServiceBuilder serviceBuilder;
-        private final SegmentStoreWithSegmentTracker segmentsTracker;
         private final PravegaConnectionListener server;
+        private final StreamSegmentStore streamSegmentStore;
+        private final TableStore tableStore;
 
         SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount)
                 throws DurableDataLogException {
@@ -287,9 +284,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             }
             this.serviceBuilder.initialize();
-            this.segmentsTracker = new SegmentStoreWithSegmentTracker(serviceBuilder.createStreamSegmentService(),
-                    serviceBuilder.createTableStoreService());
-            this.server = new PravegaConnectionListener(false, servicePort, this.segmentsTracker, this.segmentsTracker,
+            this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
+            this.tableStore = this.serviceBuilder.createTableStoreService();
+            this.server = new PravegaConnectionListener(false, servicePort, this.streamSegmentStore, this.tableStore,
                     this.serviceBuilder.getLowPriorityExecutor());
             this.server.startListening();
         }
@@ -470,22 +467,22 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Get names of all the segments created.
-        ConcurrentHashMap<String, Boolean> allSegments = pravegaRunner.segmentStoreRunner.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
+        // Flush all Tier 1 to LTS
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+        }
+
+        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
+        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
+        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
 
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), pravegaRunner.segmentStoreRunner.segmentsTracker, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
-        pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
-        log.info("SegmentStore, BookKeeper & ZooKeeper shutdown");
+        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
@@ -493,7 +490,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
-        runRecovery(containerCount, storage);
+        runRecovery(containerCount, storage, backUpMetadataSegments);
 
         // Start a new segment store and controller
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
@@ -509,6 +506,30 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
             log.info("Read all events again to verify that segments were recovered.");
         }
+    }
+
+    // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
+    private Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount) throws Exception {
+        String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+
+        val futures = new ArrayList<CompletableFuture<Void>>();
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
+            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+
+            int finalContainerId = containerId;
+            futures.add(Futures.exceptionallyExpecting(
+                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                            backUpMetadataSegment, backUpAttributeSegment, executorService())
+                            .thenAccept(x -> {
+                                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
+                                        .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment)).join();
+                            }), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+        }
+        Futures.allOf(futures).join();
+        return backUpMetadataSegments;
     }
 
     private void createBookKeeperLogFactory(PravegaRunner pravegaRunner) throws DurableDataLogException {
@@ -542,16 +563,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     // Closes the debug segment container instances in the given map after waiting for the metadata segment to be flushed to
     // the given storage.
-    private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap,
-                                                     Storage storage) throws Exception {
+    private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
+            throws Exception {
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
-            waitForSegmentsInStorage(Collections.singleton(metadataSegmentName), debugStreamSegmentContainerMap.get(containerId),
-                    storage)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Long term storage has been update with a new container metadata segment.");
-
-            // Stop the debug segment container
+            debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).join();
             Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             debugStreamSegmentContainerMap.get(containerId).close();
         }
@@ -597,7 +612,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  9. Starts segment store and controller.
      *  10. Let readers read rest of the 300-N number of events.
      * @throws Exception    In case of an exception occurred while execution.
-     */
+    */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryReadersPaused() throws Exception {
         int instanceId = 0;
@@ -646,18 +661,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Get names of all the segments created.
-        ConcurrentHashMap<String, Boolean> allSegments = pravegaRunner.segmentStoreRunner.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
+        // Flush all Tier 1 to LTS
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+        }
 
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), pravegaRunner.segmentStoreRunner.segmentsTracker, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -669,7 +684,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
-        runRecovery(containerCount, storage);
+        runRecovery(containerCount, storage, backUpMetadataSegments);
 
         // Start a new segment store and controller
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
@@ -705,7 +720,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    private void runRecovery(int containerCount, Storage storage) throws Exception {
+    private void runRecovery(int containerCount, Storage storage, Map<Integer, String> backUpMetadataSegments) throws Exception {
         // Create the environment for DebugSegmentContainer.
         @Cleanup
         DebugStreamSegmentContainerTests.TestContext context = DebugStreamSegmentContainerTests.createContext(executorService());
@@ -714,16 +729,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context,
                 containerCount, this.dataLogFactory, this.storageFactory);
 
-        // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        }
-
         // List segments from storage and recover them using debug segment container instance.
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
+        // Update core attributes from the backUp Metadata segments
+        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
+
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
-        stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap, storage);
+        stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
         log.info("Segments have been recovered.");
 
         this.dataLogFactory.close();
@@ -742,7 +755,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
-     */
+    */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryWatermarking() throws Exception {
         int instanceId = 0;
@@ -790,18 +803,18 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Get names of all the segments created.
-        ConcurrentHashMap<String, Boolean> allSegments = pravegaRunner.segmentStoreRunner.segmentsTracker.getSegments();
-        log.info("No. of segments created = {}", allSegments.size());
+        // Flush all Tier 1 to LTS
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+        }
 
         // Get the long term storage from the running pravega instance
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        // wait for all segments to be flushed to the long term storage.
-        waitForSegmentsInStorage(allSegments.keySet(), pravegaRunner.segmentStoreRunner.segmentsTracker, storage)
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -813,7 +826,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
-        runRecovery(containerCount, storage);
+        runRecovery(containerCount, storage, backUpMetadataSegments);
 
         // Start a new segment store and controller
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
@@ -1071,86 +1084,5 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             q++;
         }
         reader.close();
-    }
-
-    // Waits for the segments to be flushed to the storage using the information from the given DebugStreamSegmentContainer instance.
-    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, DebugStreamSegmentContainer container,
-                                                             Storage storage) {
-        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
-        for (String segmentName : segmentNames) {
-            SegmentProperties sp = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-            log.info("Segment properties = {}", sp);
-            segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
-        }
-
-        return Futures.allOf(segmentsCompletion);
-    }
-
-    // Waits for the segments to be flushed to the storage using the information from the given StramSegmentStore instance.
-    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, StreamSegmentStore baseStore,
-                                                             Storage storage) {
-        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
-        SegmentProperties sp;
-        for (String segmentName : segmentNames) {
-            try {
-                sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-            } catch (Throwable e) {
-                if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                    log.info("Segment '{}' doesn't exist.", segmentName);
-                    continue;
-                } else {
-                    throw e;
-                }
-            }
-            log.info("Segment properties = {}", sp);
-            segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
-        }
-
-        return Futures.allOf(segmentsCompletion);
-    }
-
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
-        if (sp.getLength() == 0) {
-            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
-            return CompletableFuture.completedFuture(null);
-        }
-
-        // We want to make sure that both the main segment and its attribute segment have been sync-ed to Storage. In case
-        // of the attribute segment, the only thing we can easily do is verify that it has been sealed when the main segment
-        // it is associated with has also been sealed.
-        String attributeSegmentName = NameUtils.getAttributeSegmentName(sp.getName());
-        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
-        AtomicBoolean tryAgain = new AtomicBoolean(true);
-        return loop(
-                tryAgain::get,
-                () -> {
-                    val segInfo = getStorageSegmentInfo(sp.getName(), timer, storage);
-                    val attrInfo = getStorageSegmentInfo(attributeSegmentName, timer, storage);
-                    return CompletableFuture.allOf(segInfo, attrInfo)
-                            .thenCompose(v -> {
-                                SegmentProperties storageProps = segInfo.join();
-                                SegmentProperties attrProps = attrInfo.join();
-                                if (sp.isSealed()) {
-                                    tryAgain.set(!storageProps.isSealed() || !(attrProps.isSealed() || attrProps.isDeleted()));
-                                } else {
-                                    tryAgain.set(sp.getLength() != storageProps.getLength());
-                                }
-
-                                if (tryAgain.get() && !timer.hasRemaining()) {
-                                    return Futures.<Void>failedFuture(new TimeoutException(
-                                            String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                                } else {
-                                    return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                                }
-                            });
-                },
-                executorService());
-    }
-
-    private CompletableFuture<SegmentProperties> getStorageSegmentInfo(String segmentName, TimeoutTimer timer, Storage storage) {
-        return Futures
-                .exceptionallyExpecting(storage.getStreamSegmentInfo(segmentName, timer.getRemaining()),
-                        ex -> ex instanceof StreamSegmentNotExistsException,
-                        StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 }
