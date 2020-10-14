@@ -838,6 +838,8 @@ project('test:system') {
     // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
     compileJava {
         options.compilerArgs.remove("-Werror")
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
     }
 
     dependencies {
