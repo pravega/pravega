@@ -50,7 +50,10 @@ public class PasswordFileCreatorCommand extends AdminCommand {
 
     private String getUserDetails(List<String> userInput) {
         String userDetails = userInput.get(1);
-        if ((userDetails.split(":")).length == 3) {
+
+        // A sample object value comprises of  "userName:password:acl". We don't want the splits at the
+        // access control entries (like "prn::/scope:testScope") in the ACL, so we restrict the splits to 3.
+        if ((userDetails.split(":", 3)).length == 3) {
             return userDetails;
         } else {
             throw new IllegalArgumentException("The user detail entered is not of the format uname:pwd:acl");
