@@ -111,7 +111,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200)
+            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
     private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
@@ -228,8 +228,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
-                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
@@ -279,6 +279,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
                             .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
+                } else {
+                    throw ex;
                 }
             }
         }
