@@ -344,6 +344,7 @@ public class ContainerRecoveryUtils {
                     return Futures.loop(
                             () -> bytesToRead.get() > 0,
                             () -> {
+                                log.info("Reading");
                                 return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
                                         .thenComposeAsync(size -> {
                                             return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)

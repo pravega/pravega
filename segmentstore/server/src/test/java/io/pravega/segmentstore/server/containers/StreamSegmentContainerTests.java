@@ -2632,7 +2632,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static class RefCountByteArraySegment extends ByteArraySegment {
+    public static class RefCountByteArraySegment extends ByteArraySegment {
         private final AtomicInteger refCount = new AtomicInteger();
         private final AtomicBoolean retained = new AtomicBoolean();
 

@@ -9,21 +9,31 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
+import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperationTests;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
@@ -41,10 +51,12 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
@@ -53,18 +65,30 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
+import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -248,6 +272,191 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
             debugStreamSegmentContainerMap.get(containerId).close();
         }
+    }
+
+    /**
+     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
+     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
+     * contents from the first one.
+     */
+    @Test
+    public void testBackUpMetadataAndAttributeSegments() {
+        // Create a storage.
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
+        @Cleanup
+        Storage s = storageFactory.createStorageAdapter();
+        s.initialize(1);
+        log.info("Created a storage instance");
+
+        String metadataSegment = NameUtils.getMetadataSegmentName(CONTAINER_ID);
+        String attributeSegment = NameUtils.getAttributeSegmentName(metadataSegment);
+        String backUpMetadataSegment = "segment-" + RANDOM.nextInt();
+        String backUpAttributeSegment = "segment-" + RANDOM.nextInt();
+
+        s.create(metadataSegment, TIMEOUT).join();
+        s.create(attributeSegment, TIMEOUT).join();
+
+        ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(s, CONTAINER_ID, backUpMetadataSegment, backUpAttributeSegment,
+                executorService()).join();
+
+        // back up metadata segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, null).join());
+        // back up attribute segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpAttributeSegment, null).join());
+
+    }
+
+    /**
+     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
+     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
+     * contents from the first one.
+     */
+    @Test
+    public void testUpdateCoreAttributes() throws Exception {
+        int appendsPerSegment = 10;
+        int attributesUpdatesPerSegment = 50;
+        int segmentsCount = 10;
+        final UUID attributeReplace = UUID.randomUUID();
+        final long expectedAttributeValue = appendsPerSegment + attributesUpdatesPerSegment;
+        int containerId = 0;
+        int containerCount = 1;
+
+        @Cleanup
+        TestContext context = createContext(executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer container = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container.startAsync().awaitRunning();
+
+        val tableStore = container.getExtension(ContainerTableExtension.class);
+
+        // 1. Create the StreamSegments and Table Segments.
+        ArrayList<String> segmentNames = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (int i = 0; i < segmentsCount; i++) {
+            String segmentName = getSegmentName(i);
+            segmentNames.add(segmentName);
+            opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+        }
+
+        // 1.1 Wait for all segments to be created prior to using them.
+        Futures.allOf(opFutures).join();
+        opFutures.clear();
+
+        // 2. Add some appends and update some of the attributes.
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        for (String segmentName : segmentNames) {
+            for (int i = 0; i < appendsPerSegment; i++) {
+                val attributeUpdates = Collections.singletonList(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                val appendData = getAppendData(segmentName, i);
+                long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
+                val append = (i % 2 == 0) ? container.append(segmentName, appendData, attributeUpdates, TIMEOUT) :
+                        container.append(segmentName, lengths.get(segmentName), appendData, attributeUpdates, TIMEOUT);
+                opFutures.add(Futures.toVoid(append));
+                lengths.put(segmentName, expectedLength);
+                recordAppend(segmentName, appendData, segmentContents, null);
+            }
+
+            for (int i = 0; i < attributesUpdatesPerSegment; i++) {
+                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, appendsPerSegment + i + 1));
+                opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
+            }
+        }
+
+        // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
+        // operations have been applied to Storage.
+        val forceFlush = container.flushToStorage(TIMEOUT);
+        forceFlush.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        container.close();
+
+        // Get the storage instance
+        @Cleanup
+        Storage storage = context.storageFactory.createStorageAdapter();
+
+        // 4. Move container metadata and its attribute segment to back up segments.
+        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
+
+        OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
+                new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
+        // Starts a DebugSegmentContainer.
+        @Cleanup
+        MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container2.startAsync().awaitRunning();
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
+        debugStreamSegmentContainersMap.put(containerId, container2);
+
+        // 4. Recover all segments.
+        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService());
+
+        // 5. Update core attributes using back up segments.
+        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService());
+
+        // 6. Verify Segment Data.
+        for (val sc : segmentContents.entrySet()) {
+            // Contents.
+            byte[] expectedData = sc.getValue().toByteArray();
+            byte[] actualData = new byte[expectedData.length];
+            container2.read(sc.getKey(), 0, actualData.length, TIMEOUT).join().readRemaining(actualData, TIMEOUT);
+            Assert.assertArrayEquals("Unexpected contents for " + sc.getKey(), expectedData, actualData);
+
+            // Length.
+            val si = container2.getStreamSegmentInfo(sc.getKey(), TIMEOUT).join();
+            Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
+
+            // Attributes.
+            val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
+            Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
+        }
+    }
+
+    private void recordAppend(String segmentName, StreamSegmentContainerTests.RefCountByteArraySegment data, HashMap<String, ByteArrayOutputStream> segmentContents, ArrayList<StreamSegmentContainerTests.RefCountByteArraySegment> appends) throws Exception {
+        ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentName, null);
+        if (contents == null) {
+            contents = new ByteArrayOutputStream();
+            segmentContents.put(segmentName, contents);
+        }
+
+        data.copyTo(contents);
+        if (appends != null) {
+            appends.add(data);
+        }
+    }
+
+    // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
+    private Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount) throws Exception {
+        String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+
+        val futures = new ArrayList<CompletableFuture<Void>>();
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
+            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+
+            int finalContainerId = containerId;
+            futures.add(Futures.exceptionallyExpecting(
+                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                            backUpMetadataSegment, backUpAttributeSegment, executorService())
+                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
+                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
+                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+        }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        return backUpMetadataSegments;
+    }
+
+    private static String getSegmentName(int i) {
+        return "Segment_" + i;
+    }
+
+    private StreamSegmentContainerTests.RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
+        return new StreamSegmentContainerTests.RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
     }
 
     /**
