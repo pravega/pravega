@@ -290,6 +290,8 @@ public class ContainerRecoveryUtils {
                                             ExecutorService executorService) throws Exception {
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
+
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (val metadataEntry : metadataSegments.entrySet()) {
             val containerForSegmentsContained = containersMap.get(metadataEntry.getKey());
             val containerForBackUpMetadataSegment = containersMap.get(segToConMapper.getContainerId(metadataEntry.getValue()));
@@ -314,18 +316,13 @@ public class ContainerRecoveryUtils {
                             .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                             .collect(Collectors.toList());
                     log.info("Updating attributes = {} for segment '{}'", attributeUpdates, properties.getName());
-                    containerForSegmentsContained.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT)
-                            .exceptionally(e -> {
-                                if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
-                                    log.info("Update attributes failed. Segment '{}' doesn't exist.", properties.getName());
-                                    return null;
-                                }
-                                log.error("Update attributes failed due to the error: ", e);
-                                throw new CompletionException(e);
-                            }).join();
+                    futures.add(Futures.exceptionallyExpecting(
+                            containerForSegmentsContained.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT),
+                            ex -> ex instanceof StreamSegmentNotExistsException, null));
                 }
             }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**

@@ -523,12 +523,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             futures.add(Futures.exceptionallyExpecting(
                     ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
                             backUpMetadataSegment, backUpAttributeSegment, executorService())
-                            .thenAccept(x -> {
-                                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
-                                        .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment)).join();
-                            }), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
+                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
+                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }
-        Futures.allOf(futures).join();
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return backUpMetadataSegments;
     }
 

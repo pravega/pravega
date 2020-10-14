@@ -51,9 +51,11 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -109,7 +111,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
+            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 200)
             .build();
     private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
@@ -203,13 +205,19 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             log.info("Finished appending data.");
 
             // Wait for flushing the segments to tier2
-            waitForSegmentsInStorage(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Finished waiting for segments in Storage.");
+            // Flush all Tier 1 to LTS
+            ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(builder);
+            for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
+                componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+            }
+            log.info("Finished waiting for all Tier1 to be flushed to the storage.");
 
             // Get the persistent storage from readOnlySegmentStore.
             @Cleanup
             Storage storage = builder.createStorageFactory().createStorageAdapter();
             storage.initialize(DEFAULT_EPOCH);
+
+            Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, CONTAINER_COUNT);
 
             // Create the environment for DebugSegmentContainer using the given storageFactory.
             @Cleanup
@@ -220,8 +228,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Start a debug segment container corresponding to each container Id and put it in the Hashmap with the Id.
             Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
             for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-                // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId)
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
                 DebugStreamSegmentContainerTests.MetadataCleanupContainer localContainer = new
                         DebugStreamSegmentContainerTests.MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
@@ -234,6 +242,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // Restore all segments from the long term storage using debug segment container.
             ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
+
+            // Update core attributes from the backUp Metadata segments
+            ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
 
             // Verify that segment details match post restoration.
             SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
@@ -248,6 +259,30 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 debugStreamSegmentContainerMap.get(containerId).close();
             }
         }
+    }
+
+    // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
+    private Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount) throws Exception {
+        String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
+            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+
+            int finalContainerId = containerId;
+            try {
+                ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId, backUpMetadataSegment,
+                        backUpAttributeSegment, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (Exception ex) {
+                if (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) {
+                    ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
+                            .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
+                }
+            }
+        }
+        return backUpMetadataSegments;
     }
 
     /**
