@@ -164,7 +164,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      * the cache lookup for a CachedStreamSegmentAppendOperation returns null.
      */
     @Test
-    public void testWithDataSourceFatalErrors() throws Exception {
+    public void testWithDataSourceFatalErrors() {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -654,6 +654,47 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link StorageWriter#forceFlush} method.
+     */
+    @Test
+    public void testForceFlush() throws Exception {
+        // Special config that increases the flush thresholds and keeps the read timeout to something manageable (for empty reads).
+        val config = WriterConfig
+                .builder()
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1024 * 1024)
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 5000L)
+                .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
+                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+
+                .build();
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.writer.startAsync();
+
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+
+        // Do not queue up a checkpoint - make it impossible for the Writer to acknowledge anything on its own path.
+        // Instead, force-flush and verify the output when done.
+        val ff1 = context.writer.forceFlush(context.metadata.getOperationSequenceNumber(), TIMEOUT);
+        val result1 = ff1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected something to be flushed.", result1);
+
+        // Verify result.
+        verifyFinalOutput(segmentContents, Collections.emptyList(), context);
+
+        // Do a second force-flush. At this point there should be nothing left to flush, so ensure the StorageWriter
+        // cannot write to Storage or update attributes.
+        context.storage.close();
+        context.dataSource.setPersistAttributesErrorInjector(new ErrorInjector<>(i -> true, Exception::new));
+        val ff2 = context.writer.forceFlush(context.metadata.getOperationSequenceNumber(), TIMEOUT);
+        val result2 = ff2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expected anything to be flushed the second time.", result2);
+    }
+
+    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments
@@ -1030,7 +1071,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+        public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             this.firstUnAcked.set(this.operations.size());
             return CompletableFuture.completedFuture(new WriterFlushResult());

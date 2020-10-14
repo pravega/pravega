@@ -684,6 +684,55 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the flush() method with the force flag set.
+     * Verifies both length-based and time-based flush triggers, as well as flushing rather large operations.
+     */
+    @Test
+    public void testFlushForced() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        @Cleanup
+        ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+        AtomicLong outstandingSize = new AtomicLong(); // Number of bytes remaining to be flushed.
+        SequenceNumberCalculator sequenceNumbers = new SequenceNumberCalculator(context, outstandingSize);
+
+        // A single operation should be allow us to test this feature.
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(0, SEGMENT_ID, context);
+        outstandingSize.addAndGet(appendOp.getLength());
+        context.segmentAggregator.add(appendOp);
+        getAppendData(appendOp, writtenData, context);
+        sequenceNumbers.record(appendOp);
+
+        Assert.assertFalse("Unexpected value returned by mustFlush() (size threshold).", context.segmentAggregator.mustFlush());
+        Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush.",
+                sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
+
+        // Call flush() and inspect the result.
+        val flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertFalse("Not expecting a flush.", flushResult.isAnythingFlushed());
+        Assert.assertFalse("Unexpected value returned by mustFlush() after no-op flush.", context.segmentAggregator.mustFlush());
+
+        val forceFlushResult = context.segmentAggregator.flush(true, TIMEOUT).join();
+        Assert.assertEquals("Unexpected flush result.", appendOp.getLength(), forceFlushResult.getFlushedBytes());
+        Assert.assertFalse("Unexpected value returned by mustFlush() after force flush.", context.segmentAggregator.mustFlush());
+        outstandingSize.set(0);
+        Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after force flush",
+                sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
+
+        // Verify data.
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
+        Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
+        context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
      * Tests the flush() method with Append and StreamSegmentSealOperations.
      */
     @Test

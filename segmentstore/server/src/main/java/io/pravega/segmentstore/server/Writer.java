@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.util.concurrent.Service;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a component that pulls data from an OperationLog and writes it to a Storage. This is a background service that
@@ -18,4 +20,15 @@ import com.google.common.util.concurrent.Service;
 public interface Writer extends Service, AutoCloseable {
     @Override
     void close();
+
+    /**
+     * Forces a "flush" of all Segment Operations up to at least the given Sequence Number.
+     *
+     * @param upToSequenceNumber The Sequence Number up to which to flush. Note that a flush may include Operations
+     *                           with Sequence Numbers exceeding this one.
+     * @param timeout            Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If anything was flushed,
+     * it will be completed with {@link Boolean#TRUE}, otherwise it will be completed with {@link Boolean#FALSE}.
+     */
+    CompletableFuture<Boolean> forceFlush(long upToSequenceNumber, Duration timeout);
 }
