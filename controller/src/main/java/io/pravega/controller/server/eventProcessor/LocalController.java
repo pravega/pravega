@@ -233,7 +233,7 @@ public class LocalController implements Controller {
         return this.controller.updateTruncationStreamCut(scope, streamName, subscriber, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
+                    throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
@@ -241,8 +241,8 @@ public class LocalController implements Controller {
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status removing subscriber " + subscriber + "on stream " + scope + "/" + streamName
-                            + " " + x.getStatus());
+                    throw new ControllerFailureException("Unknown return status updating truncation streamcut for subscriber "
+                                                 + subscriber + ", on stream " + scope + "/" + streamName + " " + x.getStatus());
             }
         });
     }

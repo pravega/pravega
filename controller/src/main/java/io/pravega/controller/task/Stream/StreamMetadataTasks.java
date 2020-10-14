@@ -307,7 +307,7 @@ public class StreamMetadataTasks extends TaskBase {
                 return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, newSubscriber, context, executor),
                      e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                     .thenCompose(subscribersData -> {
-                    //4. if SubscribersRecord does not exist create one...
+                    //4. if SubscriberRecord does not exist create one...
                     if (subscribersData == null) {
                         streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor);
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);

@@ -139,6 +139,7 @@ public class CheckpointState {
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
                 //checkpoint operation completed for all readers, update the last checkpoint position.
+                // if checkpoint is silent
                 lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
         }

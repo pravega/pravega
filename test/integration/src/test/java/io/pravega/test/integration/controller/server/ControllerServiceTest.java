@@ -9,13 +9,16 @@
  */
 package io.pravega.test.integration.controller.server;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -128,7 +131,7 @@ public class ControllerServiceTest {
     }
     
     
-    @Test(timeout = 40000)
+    @Test(timeout = 80000)
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
@@ -212,7 +215,8 @@ public class ControllerServiceTest {
 
         getSegmentsAfterCreation(controller, scope1, streamName1);
 
-        addSubscribersToStream(controller, scope1, streamName2);
+        addRemoveSubscribersTest(controller, scope1, streamName2);
+        updateTruncationStreamCutTest(controller, scope1, streamName1);
     }
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
@@ -304,7 +308,7 @@ public class ControllerServiceTest {
                                                                              .build())));
     }
 
-    private static void addSubscribersToStream(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
+    private static void addRemoveSubscribersTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
         // add the first subscriber
         final String subscriber1 = "subscriber1";
         assertTrue(controller.addSubscriber(scope, stream, subscriber1).get());
@@ -330,6 +334,32 @@ public class ControllerServiceTest {
         assertTrue(subscribersAgain.size() == 2);
         assertTrue(subscribersAgain.contains(subscriber1));
         assertTrue(subscribersAgain.contains(subscriber2));
+
+        // add more new subscribers
+        final String subscriber3 = "subscriber3";
+        assertTrue(controller.addSubscriber(scope, stream, subscriber3).get());
+        List<String> subscribersMore = controller.getSubscribersForStream(scope, stream).get();
+        assertTrue(subscribersMore.size() == 3);
+        assertTrue(subscribersMore.contains(subscriber1));
+        assertTrue(subscribersMore.contains(subscriber2));
+        assertTrue(subscribersMore.contains(subscriber3));
+    }
+
+    private static void updateTruncationStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
+        // add the first subscriber
+        final String subscriber = "up_subscriber";
+        assertTrue(controller.addSubscriber(scope, stream, subscriber).get());
+
+        Stream streamToBeUpdated = Stream.of(scope, stream);
+        Segment seg1 = new Segment(scope, stream, 0L);
+        Segment seg2 = new Segment(scope, stream, 1L);
+        ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg1, 1L, seg2, 11L);
+        StreamCut streamCut = new StreamCutImpl(streamToBeUpdated, streamCutPositions);
+        assertTrue(controller.updateTruncationStreamCut(scope, stream, subscriber, streamCut).get());
+
+        ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg1, 2L, seg2, 22L);
+        StreamCut streamCutNew = new StreamCutImpl(streamToBeUpdated, streamCutPositionsNew);
+        assertTrue(controller.updateTruncationStreamCut(scope, stream, subscriber, streamCutNew).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
