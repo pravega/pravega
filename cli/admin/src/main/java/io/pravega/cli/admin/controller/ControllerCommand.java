@@ -14,6 +14,10 @@ import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.ControllerHostnameVerifier;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.ws.rs.client.Client;
@@ -21,14 +25,10 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -67,9 +67,13 @@ public abstract class ControllerCommand extends AdminCommand {
         // If tls parameters are configured, set them in client
         if (getCLIControllerConfig().isTlsEnabled()) {
             KeyStore ks = null;
+            InputStream trustStore = null;
             try {
+                trustStore = new FileInputStream(new File(getCLIControllerConfig().getTruststore()));
                 ks = KeyStore.getInstance("JKS");
-                ks.load(new FileInputStream(new File(getCLIControllerConfig().getTruststore())), null);
+                ks.load(trustStore, null);
+                trustStore.close();
+
             } catch (KeyStoreException e) {
                 output("The keystore file is invalid, the keystore type is not supported: " + e.toString());
             } catch (IOException e) {
