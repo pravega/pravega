@@ -11,7 +11,7 @@ package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Test;
 
 public class ClusterCommandsNoZKTests extends AbstractAdminCommandTest {
@@ -25,8 +25,8 @@ public class ClusterCommandsNoZKTests extends AbstractAdminCommandTest {
         TestUtils.executeCommand("cluster list-containers", STATE.get());
     }
 
-    @AfterClass
-    public static void tearDown() {
+    @After
+    public void tearDown() {
         STATE.get().close();
     }
 }

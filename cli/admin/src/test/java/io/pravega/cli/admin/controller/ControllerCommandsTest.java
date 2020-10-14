@@ -107,7 +107,7 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     public void testDescribeStreamCommand() throws Exception {
         String scope = "testScope";
         String testStream = "testStream";
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        ClientConfig clientConfig = SETUP_UTILS.generateValidClientConfig();
 
         // Generate the scope and stream required for testing.
         @Cleanup
