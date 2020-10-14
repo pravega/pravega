@@ -12,28 +12,22 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperationTests;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
@@ -56,7 +50,6 @@ import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
@@ -79,13 +72,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
@@ -200,7 +188,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * segment container. Once registered, segment's properties are matched to verify if the test was successful or not.
      */
     @Test
-    public void testEndToEnd() throws Exception {
+    public void testRestoreFromStorage() throws Exception {
         // Segments are mapped to four different containers.
         int containerCount = 4;
         int segmentsToCreateCount = 50;
@@ -312,7 +300,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * contents from the first one.
      */
     @Test
-    public void testUpdateCoreAttributes() throws Exception {
+    public void testRestoreFromContainer() throws Exception {
         int appendsPerSegment = 10;
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
@@ -357,7 +345,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         container.append(segmentName, lengths.get(segmentName), appendData, attributeUpdates, TIMEOUT);
                 opFutures.add(Futures.toVoid(append));
                 lengths.put(segmentName, expectedLength);
-                recordAppend(segmentName, appendData, segmentContents, null);
+                StreamSegmentContainerTests.recordAppend(segmentName, appendData, segmentContents, null);
             }
 
             for (int i = 0; i < attributesUpdatesPerSegment; i++) {
@@ -415,17 +403,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void recordAppend(String segmentName, StreamSegmentContainerTests.RefCountByteArraySegment data, HashMap<String, ByteArrayOutputStream> segmentContents, ArrayList<StreamSegmentContainerTests.RefCountByteArraySegment> appends) throws Exception {
-        ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentName, null);
-        if (contents == null) {
-            contents = new ByteArrayOutputStream();
-            segmentContents.put(segmentName, contents);
-        }
-
-        data.copyTo(contents);
-        if (appends != null) {
-            appends.add(data);
-        }
+    public static StreamSegmentContainerTests.RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
+        return new StreamSegmentContainerTests.RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
     }
 
     // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
@@ -453,10 +432,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static String getSegmentName(int i) {
         return "Segment_" + i;
-    }
-
-    private StreamSegmentContainerTests.RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
-        return new StreamSegmentContainerTests.RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
     }
 
     /**
