@@ -254,7 +254,7 @@ public class ContainerRecoveryUtils {
      * Copies the contents of container metadata segment and its attribute segment to new segments. The new names to the segments
      * are passed as parameters.
      * @param storage                    A {@link Storage} instance where segments are stored.
-     * @param containerId                A {@link DebugStreamSegmentContainer} instance to get the container Id and execute copy Segment.
+     * @param containerId                A Container Id to get the name of the metadata segment.
      * @param backUpMetadataSegmentName  A name to the back up metadata segment.
      * @param backUpAttributeSegmentName A name to the back attribute segment.
      * @param executorService            A thread pool for execution.

@@ -263,9 +263,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
-     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
-     * contents from the first one.
+     * The test create a dummy metadata segment and its attribute segment using a storage instance. The method under the
+     * test creates copies of the segments. After that, it is verified if the new segments exist.
      */
     @Test
     public void testBackUpMetadataAndAttributeSegments() {
@@ -295,9 +294,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
-     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
-     * contents from the first one.
+     * The test creates a container. Using it, some segments are created, data is written to them and their attributes are
+     * updated. After all Tier1 is flushed to the storage, the container is closed. From this storage, we recover the
+     * segments, update their attributes and then verify.
      */
     @Test
     public void testRestoreFromContainer() throws Exception {
@@ -318,9 +317,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 context.getDefaultExtensions(), executorService());
         container.startAsync().awaitRunning();
 
-        val tableStore = container.getExtension(ContainerTableExtension.class);
-
-        // 1. Create the StreamSegments and Table Segments.
+        // 1. Create segments.
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
         for (int i = 0; i < segmentsCount; i++) {
@@ -370,7 +367,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
                 new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
-        // Starts a DebugSegmentContainer.
+        // Starts a DebugSegmentContainer with new Durable Log
         @Cleanup
         MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
                 context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
