@@ -528,7 +528,9 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(subscriber, "subscriberId");
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        Preconditions.checkNotNull(subscriber, "subscriber");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriber, requestId);
 
@@ -543,12 +545,9 @@ public class ControllerImpl implements Controller {
                 case FAILURE:
                     log.warn(requestId, "Failed to update stream: {}", streamName);
                     throw new ControllerFailureException("Failed to add subscriber: " + subscriber);
-                case SCOPE_NOT_FOUND:
-                    log.warn(requestId, "Scope not found: {}", scope);
-                    throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case STREAM_NOT_FOUND:
-                    log.warn(requestId, "Stream does not exist: {}", streamName);
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                    log.warn(requestId, "Stream does not exist: {}/{}", scope, streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + scope + "/" + streamName);
                 case SUBSCRIBER_EXISTS:
                     log.warn(requestId, "Subscriber {} for stream {}/{} already exists {}.", subscriber, scope, streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
@@ -571,7 +570,9 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Boolean> removeSubscriber(String scope, String streamName, String subscriber) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(subscriber, "subscriberId");
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        Preconditions.checkNotNull(subscriber, "subscriber");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "removeSubscriber", subscriber, requestId);
 
@@ -584,8 +585,8 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to update stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber);
+                    log.warn(requestId, "Failed to remove subscriber: {} to stream {}/{}", subscriber, scope, streamName);
+                    throw new ControllerFailureException("Failed to remove subscriber: " + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
@@ -597,7 +598,7 @@ public class ControllerImpl implements Controller {
                     return true;
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber
+                    throw new ControllerFailureException("Unknown return status remove subscriber " + subscriber
                             + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
@@ -652,7 +653,7 @@ public class ControllerImpl implements Controller {
                 case FAILURE:
                     log.warn(requestId, "Failed to update stream: {}", streamName);
                     throw new ControllerFailureException("Failed to updateTruncationStreamcut for Stream:" + scope + "/" + streamName
-                                                                                    + ": subscriber:" + subscriber);
+                            + ": subscriber:" + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);

@@ -76,6 +76,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -306,6 +311,116 @@ public class ControllerImplTest {
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamInfo().getStream().equals("deadline")) {
+                    // dont send any response
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void addSubscriber(StreamSubscriberInfo request,
+                                     StreamObserver<AddSubscriberStatus> responseObserver) {
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
+                            .setStatus(AddSubscriberStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
+                            .setStatus(AddSubscriberStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
+                            .setStatus(AddSubscriberStatus.Status.STREAM_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream4")) {
+                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
+                            .setStatus(AddSubscriberStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream5")) {
+                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
+                            .setStatus(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("deadline")) {
+                    // dont send any response
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void removeSubscriber(StreamSubscriberInfo request,
+                                     StreamObserver<RemoveSubscriberStatus> responseObserver) {
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
+                            .setStatus(RemoveSubscriberStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
+                            .setStatus(RemoveSubscriberStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
+                            .setStatus(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream4")) {
+                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
+                            .setStatus(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream5")) {
+                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
+                            .setStatus(RemoveSubscriberStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("deadline")) {
+                    // dont send any response
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void updateTruncationStreamCut(SubscriberStreamCut request,
+                                     StreamObserver<UpdateSubscriberStatus> responseObserver) {
+                if (request.getStreamCut().getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().equals("stream2")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream3")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream4")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream5")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream6")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("deadline")) {
                     // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -1234,7 +1349,7 @@ public class ControllerImplTest {
         assertEquals(delegationTokenFuture.get(), "token");
     }
 
-        @Test
+    @Test
     public void testCreateStream() throws Exception {
         CompletableFuture<Boolean> createStreamStatus;
         createStreamStatus = controllerClient.createStream("scope1", "stream1", StreamConfiguration.builder()
@@ -1314,6 +1429,81 @@ public class ControllerImplTest {
                                                                   .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 updateStreamStatus, throwable -> true);
+    }
+
+
+    @Test
+    public void testAddSubscriber() throws Exception {
+        CompletableFuture<Boolean> addSubscriberStatus;
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream1", "subscriber1");
+        assertTrue(addSubscriberStatus.get());
+
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream2", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
+                addSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
+
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream3", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                addSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream4", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw RetriesExhaustedException exception",
+                addSubscriberStatus, throwable -> throwable instanceof RetriesExhaustedException);
+
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream5", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                addSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testRemoveSubscriber() throws Exception {
+        CompletableFuture<Boolean> removeSubscriberStatus;
+        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream1", "subscriber1");
+        assertTrue(removeSubscriberStatus.get());
+
+        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream2", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
+                removeSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
+
+        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream3", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream4", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream5", "subscriber1");
+        AssertExtensions.assertFutureThrows("Server should throw RetriesExhaustedException exception",
+                removeSubscriberStatus, throwable -> throwable instanceof RetriesExhaustedException);
+    }
+
+    @Test
+    public void testUpdateTruncationStreamcut() throws Exception {
+        CompletableFuture<Boolean> updateSubscriberStatus;
+        StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope1", "stream1"), Collections.emptyMap());
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream1", "subscriber1", streamCut);
+        assertTrue(updateSubscriberStatus.get());
+
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream2", "subscriber1", streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw RetriesExhaustedException exception",
+                updateSubscriberStatus, throwable -> throwable instanceof RetriesExhaustedException);
+
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream3", "subscriber1", streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream4", "subscriber1", streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw RetriesExhaustedException exception",
+                updateSubscriberStatus, throwable -> throwable instanceof RetriesExhaustedException);
+
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream5", "subscriber1", streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        updateSubscriberStatus = controllerClient.updateTruncationStreamCut("scope1", "stream6", "subscriber1", streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test

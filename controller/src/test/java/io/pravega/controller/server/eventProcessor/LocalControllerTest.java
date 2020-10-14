@@ -245,6 +245,43 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testAddSubscriber() throws ExecutionException, InterruptedException {
+        when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
+                        .setStatus(Controller.AddSubscriberStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.addSubscriber("scope", "stream", "subscriber").join());
+
+        when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
+                        .setStatus(Controller.AddSubscriberStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.addSubscriber("scope", "stream", "subscriber").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
+                        .setStatus(Controller.AddSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.addSubscriber("scope", "stream", "subscriber").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
+                        .setStatus(Controller.AddSubscriberStatus.Status.SUBSCRIBER_EXISTS).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.addSubscriber("scope", "stream", "subscriber").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.addSubscriber("scope", "stream", "subscriber").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+    }
+
+    @Test
     public void testSealStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.sealStream(any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
