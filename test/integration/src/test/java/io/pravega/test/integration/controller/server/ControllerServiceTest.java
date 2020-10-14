@@ -314,20 +314,20 @@ public class ControllerServiceTest {
         assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
 
         List<String> subscribers = controller.getSubscribersForStream(scope, stream).get();
-        assertTrue(subscribers.size()==2);
+        assertTrue(subscribers.size() == 2);
         assertTrue(subscribers.contains(subscriber1));
         assertTrue(subscribers.contains(subscriber2));
 
         assertTrue(controller.removeSubscriber(scope, stream, subscriber2).get());
         List<String> subscribersNow = controller.getSubscribersForStream(scope, stream).get();
-        assertTrue(subscribersNow.size()==1);
+        assertTrue(subscribersNow.size() == 1);
         assertTrue(subscribersNow.contains(subscriber1));
         assertFalse(subscribersNow.contains(subscriber2));
 
         // and now add again...
         assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
         List<String> subscribersAgain = controller.getSubscribersForStream(scope, stream).get();
-        assertTrue(subscribersAgain.size()==2);
+        assertTrue(subscribersAgain.size() == 2);
         assertTrue(subscribersAgain.contains(subscriber1));
         assertTrue(subscribersAgain.contains(subscriber2));
     }
