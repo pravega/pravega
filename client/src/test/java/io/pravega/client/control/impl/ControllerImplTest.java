@@ -395,7 +395,7 @@ public class ControllerImplTest {
                             .setStatus(UpdateSubscriberStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getStreamCut().getStreamInfo().equals("stream2")) {
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream2")) {
                     responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
                             .setStatus(UpdateSubscriberStatus.Status.FAILURE)
                             .build());
