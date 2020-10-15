@@ -12,6 +12,7 @@ package io.pravega.client.admin;
 import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -141,12 +142,24 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * Deletes an existing scope. The scope must contain no
-     * stream.
+     * stream. This is same as calling {@link #deleteScope(String, boolean)} with deleteStreams flag set to false. 
      *
-     * @param scopeName  The name of the scope to create this stream in.
+     * @param scopeName  The name of the scope to delete.
      * @return True if scope is deleted
      */
     boolean deleteScope(String scopeName);
+
+    /**
+     * Deletes scope by listing and deleting all streams in scope. This method is not atomic and if new streams are added 
+     * to the scope concurrently, the attempt to delete the scope may fail. Deleting scope is idempotent and failure to 
+     * delete scope is retry-able.  
+     *
+     * @param scopeName  The name of the scope to delete.
+     * @param deleteStreams To list and delete streams in scope before attempting to delete scope. 
+     * @return True if scope is deleted, false otherwise. 
+     * @throws DeleteScopeFailedException is thrown if this method is unable to seal and delete a stream.  
+     */
+    boolean deleteScope(String scopeName, boolean deleteStreams) throws DeleteScopeFailedException;
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.

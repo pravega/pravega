@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
@@ -384,6 +385,9 @@ public class StorageReadManager implements AutoCloseable {
          *
          * @param data The result to complete with.
          */
+
+        // NOTE: https://github.com/spotbugs/spotbugs/issues/811
+        @SuppressFBWarnings
         private void complete(ByteArraySegment data) {
             Preconditions.checkState(!isDone(), "This Request is already completed.");
             this.resultFuture.complete(new Result(data, false));

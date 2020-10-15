@@ -148,7 +148,7 @@ public class AckCalculatorTests {
         }
 
         @Override
-        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+        public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
             throw new UnsupportedOperationException();
         }
 

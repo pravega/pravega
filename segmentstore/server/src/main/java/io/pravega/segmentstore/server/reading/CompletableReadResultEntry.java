@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 /**
  * Extends the ReadResultEntry interface by adding the ability to register a callback to be invoked upon completion.
  */
-interface CompletableReadResultEntry extends ReadResultEntry {
+public interface CompletableReadResultEntry extends ReadResultEntry {
     /**
      * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is completed.
      *
