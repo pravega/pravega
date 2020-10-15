@@ -154,7 +154,7 @@ public interface Controller extends AutoCloseable {
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
      * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the subscriber was updated in Stream Metadata.
+     *         indicate that the subscribers position was updated in Stream Metadata.
      */
     CompletableFuture<Boolean> updateTruncationStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
 

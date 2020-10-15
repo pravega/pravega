@@ -51,10 +51,6 @@ public class StreamSubscriber {
         this.updateTime = updationTime;
     }
 
-    public static StreamSubscriber update(@NonNull String subscriber, @NonNull ImmutableMap<Long, Long> truncationStreamCut) {
-        return new StreamSubscriber(subscriber, truncationStreamCut, System.currentTimeMillis());
-    }
-
     private static class StreamSubscriberBuilder implements ObjectBuilder<StreamSubscriber> {
     }
 

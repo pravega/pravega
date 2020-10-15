@@ -387,6 +387,36 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
+    public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
+        // subscribers for non-existing stream
+        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, "stream2", null).get();
+        assertEquals(0, allSubscribers.size());
+
+        // no subscribers found for existing Stream
+        allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        assertEquals(0, allSubscribers.size());
+
+        // add a new subscribers - positive case
+        String subscriber1 = "subscriber1";
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        String subscriber2 = "subscriber2";
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        String subscriber3 = "subscriber3";
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        assertEquals(3, allSubscribers.size());
+        assertTrue(allSubscribers.contains(subscriber1));
+        assertTrue(allSubscribers.contains(subscriber2));
+        assertTrue(allSubscribers.contains(subscriber3));
+    }
+
+    @Test(timeout = 30000)
     public void updateTruncationStreamCutTest() throws InterruptedException, ExecutionException {
         String subscriber1 = "subscriber1";
         AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
