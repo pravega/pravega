@@ -42,7 +42,6 @@ import mesosphere.marathon.client.MarathonException;
 
 import static org.junit.Assert.assertEquals;
 import static javax.ws.rs.core.Response.Status.OK;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -89,24 +88,24 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
     @Test
     public void listScopes() {
-        Service conService = Utils.createPravegaControllerService(null);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        URI controllerRESTUri = ctlURIs.get(1);
+        Service controllerService = Utils.createPravegaControllerService(null);
+        List<URI> controllerURIs = controllerService.getServiceDetails();
+        URI controllerRESTUri = controllerURIs.get(1);
         Invocation.Builder builder;
-        Response response;
+        @Cleanup
+        Response response = null;
         String protocol = Utils.TLS_AND_AUTH_ENABLED ? "https://" : "http://";
         restServerURI = protocol + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
         log.info("REST Server URI: {}", restServerURI);
 
-        assertFalse(true);
-
-        // TEST REST server status, ping test
+        // Validate the liveliness of the server through a 'ping' request.
         resourceURl = new StringBuilder(restServerURI).append("/ping").toString();
         webTarget = client.target(resourceURl);
         builder = webTarget.request();
         response = builder.get();
-        assertEquals("Ping test", OK.getStatusCode(), response.getStatus());
-        log.info("REST Server is running. Ping successful.");
+        assertEquals(String.format("Received unexpected status code: %s in response to 'ping' request.", response.getStatus()),
+                OK.getStatusCode(),
+                response.getStatus());
 
         final String scope1 = RandomStringUtils.randomAlphanumeric(10);
         final String stream1 = RandomStringUtils.randomAlphanumeric(10);
@@ -126,14 +125,22 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         assertTrue("Failed to create scope", isScopeCreated);
         // Create a stream.
         boolean isStreamCreated = streamManager.createStream(scope1, stream1, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-        assertTrue("Failed to create stream", isScopeCreated);
+        assertTrue("Failed to create stream", isStreamCreated);
 
-        // Query for an existing scope.
+        // Validate that the scope is returned from the request.
         webTarget = client.target(restServerURI).path("v1").path("scopes");
         builder = webTarget.request();
         response = builder.get();
         assertEquals("Get scopes failed.", OK.getStatusCode(), response.getStatus());
         responseAsString = response.readEntity(String.class);
-        assertTrue(responseAsString.contains("\"scopeName\":\"_system\""));
+        assertTrue(responseAsString.contains(String.format("\"scopeName\":\"%s\"", scope1)));
+
+        // Validate that the stream is returned from the request.
+        webTarget = client.target(restServerURI).path("v1").path("scopes").path(scope1).path("streams");
+        builder = webTarget.request();
+        response = builder.get();
+        assertEquals("Get streams failed.", OK.getStatusCode(), response.getStatus());
+        responseAsString = response.readEntity(String.class);
+        assertTrue(responseAsString.contains(String.format("\"streamName\":\"%s\"", stream1)));
     }
 }
