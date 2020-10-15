@@ -226,6 +226,14 @@ public interface BufferView {
          * @return The number of bytes available to read.
          */
         int available();
+        
+
+        /**
+         * Skips over the specified number of bytes.
+         * @exception  OutOfBoundsException  if this stream reaches the end before reading
+         *               all the bytes.
+         */
+        void skipBytes(int num);
 
         /**
          * Reads one input byte and returns
@@ -474,6 +482,7 @@ public interface BufferView {
                 super(message);
             }
         }
+
     }
 
     /**

@@ -320,6 +320,15 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
             }
             return len;
         }
+        
+        @Override
+        public void skipBytes(int num) {
+            int nextPos = this.position + num;
+            if (nextPos > length) {
+                throw new OutOfBoundsException();
+            }
+            this.position = nextPos;
+        }
 
         @Override
         public byte readByte() {

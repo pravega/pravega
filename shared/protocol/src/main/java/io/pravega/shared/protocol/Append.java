@@ -9,10 +9,7 @@
  */
 package io.pravega.shared.protocol;
 
-import io.netty.buffer.ByteBuf;
-import io.pravega.shared.protocol.Request;
-import io.pravega.shared.protocol.RequestProcessor;
-import io.pravega.shared.protocol.WireCommands;
+import io.pravega.common.util.BufferView;
 import io.pravega.shared.protocol.WireCommands.Event;
 import java.util.UUID;
 import lombok.Data;
@@ -25,7 +22,7 @@ public class Append implements Request, Comparable<Append> {
     final UUID writerId;
     final long eventNumber;
     final int eventCount;
-    final ByteBuf data;
+    final BufferView data;
     final Long expectedLength;
     final long flowId;
 
@@ -38,7 +35,7 @@ public class Append implements Request, Comparable<Append> {
     }
 
     public int getDataLength() {
-        return data.readableBytes();
+        return data.getLength();
     }
 
     public boolean isConditional() {

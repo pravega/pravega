@@ -223,6 +223,21 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
+        public void skipBytes(int numBytes) {
+            if (numBytes > available()) {
+                throw new OutOfBoundsException();
+            }
+            int remaining = numBytes;
+            while (remaining > 0) {
+                BufferView.Reader current = getCurrent();
+                int toSkip = Math.min(current.available(), remaining);
+                this.available -= toSkip;
+                remaining -= toSkip;
+                current.skipBytes(toSkip);         
+            }
+        }
+        
+        @Override
         public byte readByte() {
             BufferView.Reader current = getCurrent();
             if (current == null) {

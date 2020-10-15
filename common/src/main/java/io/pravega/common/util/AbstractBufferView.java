@@ -317,6 +317,13 @@ public abstract class AbstractBufferView implements BufferView {
             public String readUTF() throws UTFDataFormatException {
                 throw new OutOfBoundsException("Cannot read from Empty BufferView.");
             }
+
+            @Override
+            public void skipBytes(int num) {
+                if (num != 0) {
+                    throw new OutOfBoundsException("Cannot skip in an Empty BufferView.");
+                }
+            }
         }
     }
 

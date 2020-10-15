@@ -229,6 +229,32 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     }
 
     /**
+     * Writes an integer at the specified index.
+     * The integer is written using 4 bytes in bigEndian order.
+     * This is equivalent to:
+     * <pre>{@code
+     * set(index, (byte)(0xff & (v >> 24)));
+     * set(index+1, (byte)(0xff & (v >> 16)));
+     * set(index+2, (byte)(0xff & (v >>  8)));
+     * set(index+3, (byte)(0xff & v));
+     * }</pre>
+     * 
+     *
+     * @param index The index to set the value at.
+     * @param value The value to set.
+     * @throws IllegalStateException          If the ByteArraySegment is readonly.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid.
+     */
+    public void setInt(int index, int value) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Preconditions.checkElementIndex(index + 3, this.length, "index");
+        this.array[index + this.startOffset] = (byte) ((value >>> 24) & 0xFF);
+        this.array[index + this.startOffset + 1] = (byte) ((value >>> 16) & 0xFF);
+        this.array[index + this.startOffset + 2] = (byte) ((value >>> 8) & 0xFF);
+        this.array[index + this.startOffset + 3] = (byte) ((value >>> 0) & 0xFF);
+    }
+    
+    /**
      * Gets a value indicating whether the ByteArraySegment is read-only.
      *
      * @return The value.
@@ -331,6 +357,14 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             System.arraycopy(array(), arrayOffset() + this.position, segment.array(), segment.arrayOffset(), len);
             this.position += len;
             return len;
+        }
+        
+        @Override
+        public void skipBytes(int numBytes) {
+            if (position + numBytes >= ByteArraySegment.this.length) {
+                throw new OutOfBoundsException();
+            }
+            this.position += numBytes;
         }
 
         @Override

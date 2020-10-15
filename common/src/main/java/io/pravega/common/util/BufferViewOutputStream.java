@@ -199,6 +199,25 @@ public final class BufferViewOutputStream extends OutputStream implements DataOu
     public void writeDouble(double v) {
         writeLong(Double.doubleToLongBits(v));
     }
+    
+    /**
+     * Allocates space for the specified number of bytes but does not write them. This allows for delaying the writing
+     * the bytes at this location until later. (Provided the size is known) 
+     * These values can be written later via mutating the returned byteArraySegment, which is of size `numBytes`.
+     * 
+     * Any changes made to these bytes are expected to be completed before {@link #close()} or {@link #getView()} are called.
+     * 
+     * 
+     * @param numBytes The number of bytes to skip over and delay specifying.
+     * @return A ByteArraySegment which can be used to supply a value for these bytes.
+     */
+    public ByteArraySegment delayWriting(int numBytes) {
+        Exceptions.checkNotClosed(isClosed(), this);
+        allocateNewChunkIfNeeded(numBytes);
+        ByteArraySegment segment = new ByteArraySegment(currentChunk, bytesWrittenInChunk, numBytes);
+        bytesWrittenInChunk += numBytes;
+        return segment;
+    }
 
     @Override
     public void writeBytes(String s) {
