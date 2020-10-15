@@ -48,12 +48,11 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 public class CheckpointState {
     
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
-    @Getter
+
     private final List<String> checkpoints;
     /**
      * Maps CheckpointId to remaining hosts.
      */
-    @Getter
     private final Map<String, List<String>> uncheckpointedHosts;
     
     /**
@@ -65,21 +64,18 @@ public class CheckpointState {
     /**
      *  Maps CheckpointId to positions in segments.
      */
-    @Getter
     private final Map<String, Map<Segment, Long>> checkpointPositions;
-    @Getter
-    private Map<Segment, Long> lastStreamCutPosition;
-    @Getter
+
     private Map<Segment, Long> lastCheckpointPosition;
 
 
     public CheckpointState() {
-        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, null);
+        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null);
     }
     
     @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
-            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, Map<Segment, Long> lastStreamCutPosition) {
+            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition) {
         Preconditions.checkNotNull(checkpoints);
         Preconditions.checkNotNull(uncheckpointedHosts);
         Preconditions.checkNotNull(checkpointPositions);
@@ -87,7 +83,6 @@ public class CheckpointState {
         this.uncheckpointedHosts = uncheckpointedHosts;
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
-        this.lastStreamCutPosition = lastStreamCutPosition;
         recomputeCheckpointIndex();
     }
 
@@ -146,9 +141,8 @@ public class CheckpointState {
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
 
-                if (isCheckpointSilent(checkpointId)) {
-                    lastStreamCutPosition = checkpointPositions.get(checkpointId);
-                } else {
+                //store last checkpoint position if it is not a stream-cut (silent checkpoint)
+                if (!isCheckpointSilent(checkpointId)) {
                     //checkpoint operation completed for all readers, update the last checkpoint position.
                     lastCheckpointPosition = checkpointPositions.get(checkpointId);
                 }
@@ -214,8 +208,7 @@ public class CheckpointState {
         Map<String, Map<Segment, Long>> cpps = new HashMap<>();
         checkpointPositions.forEach((cp, pos) -> cpps.put(cp, new HashMap<>(pos)));
         Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
-        Map<Segment, Long> lsp = lastStreamCutPosition == null ? null : new HashMap<>(lastStreamCutPosition);
-        return new CheckpointState(cps, ucph, cpps, lcp, lsp);
+        return new CheckpointState(cps, ucph, cpps, lcp);
     }
     
     @Override
@@ -234,7 +227,7 @@ public class CheckpointState {
 
     }
 
-    protected static class CheckpointStateSerializer
+    private static class CheckpointStateSerializer
             extends VersionedSerializer.WithBuilder<CheckpointState, CheckpointStateBuilder> {
         @Override
         protected CheckpointStateBuilder newBuilder() {
@@ -248,8 +241,7 @@ public class CheckpointState {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00)
-                    .revision(1, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00);
         }
         
         private void read00(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
@@ -260,11 +252,6 @@ public class CheckpointState {
             builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
             builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
-            try {
-                builder.lastStreamCutPosition(input.readMap(segmentDeserializer, longDeserializer));
-            } catch (EOFException e) {
-                builder.lastStreamCutPosition(null);
-            }
         }
 
         private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
@@ -275,22 +262,6 @@ public class CheckpointState {
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
             output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
             output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
-            output.writeMap(object.lastStreamCutPosition, segmentSerializer, longSerializer);
-        }
-
-        private void read01(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
-            ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
-            ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
-            ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
-            builder.checkpoints(input.readCollection(stringDeserializer, ArrayList::new));
-            builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
-            builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
-            builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
-            builder.lastStreamCutPosition(input.readMap(segmentDeserializer, longDeserializer));
-        }
-
-        private void write01(CheckpointState object, RevisionDataOutput output) throws IOException {
-            write00(object, output);
         }
     }
 
