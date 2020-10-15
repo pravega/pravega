@@ -836,7 +836,7 @@ project('test:system') {
     apply plugin: 'maven'
 
     // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
-    compileJava {
+    tasks.withType(JavaCompile) {
         options.compilerArgs.remove("-Werror")
         options.compilerArgs.remove(getDefaultJavaVersion())
         options.compilerArgs.add(clientJavaVersion)
