@@ -30,7 +30,7 @@ public class PasswordFileCreatorTool {
                 if (Strings.isNullOrEmpty(s)) {
                     break;
                 }
-                String[] lists = s.split(":");
+                String[] lists = s.split(":", 3);
                 String toWrite = lists[0] + ":" + passwordEncryptor.encryptPassword(lists[1])
                         + ":" + lists[2];
                 writer.write(toWrite + "\n");
