@@ -324,27 +324,27 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.updateTruncationStreamCut("scope", "stream", "subscriber", streamCut).join());
+        Assert.assertTrue(this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join());
 
         when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.updateTruncationStreamCut("scope", "stream", "subscriber", streamCut).join(),
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join(),
                 ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.updateTruncationStreamCut("scope", "stream", "subscriber", streamCut).join(),
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.updateTruncationStreamCut("scope", "stream", "subscriber", streamCut).join(),
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join(),
                 ex -> ex instanceof IllegalArgumentException);
     }
 

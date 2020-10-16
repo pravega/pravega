@@ -255,7 +255,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateTruncationStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
         throw new UnsupportedOperationException();
     }
 

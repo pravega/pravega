@@ -227,7 +227,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateTruncationStreamCut(final String scope, final String streamName, final String subscriber,
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
                                                                 final StreamCut streamCut) {
 
         return this.controller.updateTruncationStreamCut(scope, streamName, subscriber, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {

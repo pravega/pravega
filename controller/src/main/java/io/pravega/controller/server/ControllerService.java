@@ -201,7 +201,7 @@ public class ControllerService {
         Preconditions.checkNotNull(subscriber, "subscriber is null");
         Preconditions.checkNotNull(truncationStreamCut, "Truncation StreamCut is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.updateTruncationStreamCut(scope, stream, subscriber, truncationStreamCut, null)
+        return streamMetadataTasks.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, null)
                             .thenApplyAsync(status -> {
                                 reportUpdateTruncationSCMetrics(scope, stream, status, timer.getElapsed());
                                 return UpdateSubscriberStatus.newBuilder().setStatus(status).build();

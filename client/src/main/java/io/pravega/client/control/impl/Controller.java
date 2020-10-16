@@ -123,6 +123,7 @@ public interface Controller extends AutoCloseable {
      * @param scope Scope name
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
@@ -133,6 +134,7 @@ public interface Controller extends AutoCloseable {
      * @param scope Scope name
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
@@ -142,7 +144,7 @@ public interface Controller extends AutoCloseable {
      * Get list of Subscribers for the Stream.
      * @param scope Scope name
      * @param streamName Stream name
-     * @return List of StreamSubscribers
+     * @return List of StreamSubscribers.
      */
     CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName);
 
@@ -153,10 +155,11 @@ public interface Controller extends AutoCloseable {
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
      * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscribers position was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> updateTruncationStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in

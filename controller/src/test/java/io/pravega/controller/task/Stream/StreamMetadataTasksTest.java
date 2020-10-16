@@ -417,7 +417,7 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
-    public void updateTruncationStreamCutTest() throws InterruptedException, ExecutionException {
+    public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
         String subscriber1 = "subscriber1";
         AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
@@ -432,19 +432,19 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber2));
 
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L, 1L, 10L);
-        UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, subscriber1,
+        UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1,
                                                                                             streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
-        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         // update non-existing stream
-        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
 
         // update non-existing subscriber
-        updateStatus = streamMetadataTasks.updateTruncationStreamCut(SCOPE, stream1, "nosubscriber", streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber", streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
 

@@ -634,7 +634,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateTruncationStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");

@@ -244,27 +244,27 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> createSubscriber(String subscriber) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Void> updateSubscriber(String subscriber, ImmutableMap<Long, Long> streamCut) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Void> removeSubscriber(String subscriber) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override

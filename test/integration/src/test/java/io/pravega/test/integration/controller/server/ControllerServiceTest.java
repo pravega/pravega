@@ -216,7 +216,7 @@ public class ControllerServiceTest {
         getSegmentsAfterCreation(controller, scope1, streamName1);
 
         addRemoveSubscribersTest(controller, scope1, streamName2);
-        updateTruncationStreamCutTest(controller, scope1, streamName1);
+        updateSubscriberStreamCutTest(controller, scope1, streamName1);
     }
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
@@ -345,7 +345,7 @@ public class ControllerServiceTest {
         assertTrue(subscribersMore.contains(subscriber3));
     }
 
-    private static void updateTruncationStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
+    private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
         // add the first subscriber
         final String subscriber = "up_subscriber";
         assertTrue(controller.addSubscriber(scope, stream, subscriber).get());
@@ -355,11 +355,11 @@ public class ControllerServiceTest {
         Segment seg2 = new Segment(scope, stream, 1L);
         ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg1, 1L, seg2, 11L);
         StreamCut streamCut = new StreamCutImpl(streamToBeUpdated, streamCutPositions);
-        assertTrue(controller.updateTruncationStreamCut(scope, stream, subscriber, streamCut).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCut).get());
 
         ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg1, 2L, seg2, 22L);
         StreamCut streamCutNew = new StreamCutImpl(streamToBeUpdated, streamCutPositionsNew);
-        assertTrue(controller.updateTruncationStreamCut(scope, stream, subscriber, streamCutNew).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCutNew).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,

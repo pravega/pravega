@@ -423,11 +423,11 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<UpdateSubscriberStatus.Status> updateTruncationStreamCut(String scope, String stream,
+    public CompletableFuture<UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String scope, String stream,
                                                                              String subscriber, ImmutableMap<Long, Long> truncationStreamCut,
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("updateTruncationStreamCut", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("updateSubscriberStreamCut", scope, stream);
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
