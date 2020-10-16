@@ -54,9 +54,22 @@ public interface WriterSegmentProcessor extends AutoCloseable {
     /**
      * Flushes the contents of the Processor.
      *
+     * @param force   If true, force-flushes everything accumulated in the {@link WriterSegmentProcessor}, regardless of
+     *                the value returned by {@link #mustFlush()}.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<WriterFlushResult> flush(Duration timeout);
+    CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout);
+
+    /**
+     * Flushes the contents of the Processor without forcing it. Equivalent to {@code flush(false, timeout)}.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
+     * occurred during the flush, the Future will be completed with the appropriate exception.
+     */
+    default CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+        return flush(false, timeout);
+    }
 }
