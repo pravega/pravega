@@ -378,8 +378,7 @@ public interface Controller extends AutoCloseable {
      * @param accessOperation The requested permission.
      * @return The delegation token for the given stream.
      */
-    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
-                                                             AccessOperation accessOperation);
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation);
 
     //region KeyValueTables
 
