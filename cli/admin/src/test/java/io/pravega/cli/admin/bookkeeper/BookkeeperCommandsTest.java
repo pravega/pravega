@@ -54,11 +54,14 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     private final InputStream originalIn = System.in;
 
     public BookkeeperCommandsTest() {
-        super(3);
+        super(1);
     }
 
     @Before
     public void setUp() throws Exception {
+	    baseConf.setAllowLoopback(true);
+	    baseConf.setEnableLocalTransport(true);
+	    baseConf.setAdvertisedAddress("localhost");
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         super.setUp();
@@ -69,6 +72,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         bkProperties.setProperty("pravegaservice.zk.connect.uri", zkUtil.getZooKeeperConnectString());
         bkProperties.setProperty("bookkeeper.ledger.path", "/ledgers");
         bkProperties.setProperty("bookkeeper.zk.metadata.path", "ledgers");
+        bkProperties.setProperty("bookkeeper.ensemble.size", "1");
+        bkProperties.setProperty("bookkeeper.ack.quorum.size", "1");
+        bkProperties.setProperty("bookkeeper.write.quorum.size", "1");
         bkProperties.setProperty("pravegaservice.clusterName", "");
         STATE.get().getConfigBuilder().include(bkProperties);
 
@@ -185,7 +191,11 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
-        BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder().with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
+        BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
                 .with(BookKeeperConfig.ZK_ADDRESS, zkUtil.getZooKeeperConnectString()).build();
         @Cleanup
