@@ -356,6 +356,74 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests {@link AttributeAggregator#flush} with the force flag set.
+     */
+    @Test
+    public void testFlushForce() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+        final int attributesPerUpdate = Math.max(1, config.getFlushAttributesThreshold() / 5);
+        final int updateCount = 10;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        val outstandingAttributes = new HashSet<UUID>();
+        val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
+        val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
+
+        // Part 0: Empty operations.
+        context.aggregator.add(generateUpdateAttributesAndUpdateMetadata(0, context));
+        Assert.assertFalse("Unexpected value returned by mustFlush() after empty operation.", context.aggregator.mustFlush());
+        Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after empty operation.",
+                firstOutstandingSeqNo.get(), context.aggregator.getLowestUncommittedSequenceNumber());
+
+        // Do an initial fill-up. This will verify that force-flush works (just like no-force-flush) when there's sufficient
+        // attributes accumulated.
+        for (int i = 0; i < config.getFlushAttributesThreshold(); i++) {
+            // Add another operation.
+            AttributeUpdaterOperation op = i % 2 == 0
+                    ? generateAppendAndUpdateMetadata(attributesPerUpdate, context)
+                    : generateUpdateAttributesAndUpdateMetadata(attributesPerUpdate, context);
+            addExtendedAttributes(op, outstandingAttributes);
+            firstOutstandingSeqNo.compareAndSet(Operation.NO_SEQUENCE_NUMBER, op.getSequenceNumber());
+            lastOutstandingSeqNo.set(op.getSequenceNumber());
+            context.aggregator.add(op);
+        }
+
+        Assert.assertTrue("Unexpected value returned by mustFlush() after initial fill-up.", context.aggregator.mustFlush());
+        for (int i = 0; i < updateCount; i++) {
+            // Add another operation.
+            AttributeUpdaterOperation op = i % 2 == 0
+                    ? generateAppendAndUpdateMetadata(attributesPerUpdate, context)
+                    : generateUpdateAttributesAndUpdateMetadata(attributesPerUpdate, context);
+            addExtendedAttributes(op, outstandingAttributes);
+            firstOutstandingSeqNo.compareAndSet(Operation.NO_SEQUENCE_NUMBER, op.getSequenceNumber());
+            lastOutstandingSeqNo.set(op.getSequenceNumber());
+            context.aggregator.add(op);
+
+            boolean expectFlush = outstandingAttributes.size() >= config.getFlushAttributesThreshold();
+            Assert.assertEquals("Unexpected value returned by mustFlush() (count threshold).",
+                    expectFlush, context.aggregator.mustFlush());
+            Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (count threshold).",
+                    firstOutstandingSeqNo.get(), context.aggregator.getLowestUncommittedSequenceNumber());
+
+            // Call flush() and inspect the result.
+            WriterFlushResult flushResult = context.aggregator.flush(true, TIMEOUT).join();
+            Assert.assertFalse("Unexpected value returned by mustFlush() after flush (count threshold).", context.aggregator.mustFlush());
+            Assert.assertEquals("Not all attributes were flushed (count threshold).",
+                    outstandingAttributes.size(), flushResult.getFlushedAttributes());
+            checkAttributes(context);
+            checkAutoAttributesEventual(lastOutstandingSeqNo.get(), context);
+            outstandingAttributes.clear();
+            firstOutstandingSeqNo.set(Operation.NO_SEQUENCE_NUMBER);
+            lastOutstandingSeqNo.set(Operation.NO_SEQUENCE_NUMBER);
+
+            assertEventuallyEquals(
+                    "Unexpected value returned by getLowestUncommittedSequenceNumber() after flush (count threshold).",
+                    firstOutstandingSeqNo.get(), context.aggregator::getLowestUncommittedSequenceNumber);
+        }
+    }
+
+    /**
      * Tests {@link AttributeAggregator#flush} in the presence of generic errors.
      */
     @Test
