@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -108,7 +109,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .batchingThrottler(durableDataLog::getQueueStatistics)
                 .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
                 .build();
-        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
     }
@@ -128,13 +129,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // OperationProcessor starts and is shut down as soon as doStop() is invoked.
         val queueProcessor = Futures
                 .loop(this::isRunning,
-                        () -> this.throttler.throttle()
+                        () -> getThrottler().throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
 
         // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
-        // DurableDataLong and now need to be added to the in-memory State.
+        // DurableDataLog and now need to be added to the in-memory State.
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
@@ -224,7 +225,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         if (!isRunning()) {
             result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
         } else {
-            log.debug("{}: process {}.", this.traceObjectId, operation);
+            log.debug("{}: process[{}] {}.", this.traceObjectId, priority, operation);
             try {
                 this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
@@ -233,6 +234,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
 
                 result.completeExceptionally(e);
+            }
+
+            if (priority.isThrottlingExempt()) {
+                // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
+                // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
+                // may not get a chance to execute.
+                getThrottler().notifyThrottleSourceChanged();
             }
         }
 
@@ -248,6 +256,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     private int getFetchCount() {
         return Math.max(1, (int) (this.cacheUtilizationProvider.getCacheInsertionCapacity() * MAX_READ_AT_ONCE));
+    }
+
+    /**
+     * Determines if the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority}
+     * that requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
+     *
+     * @return True if throttling needs to be suspended, false otherwise.
+     */
+    @VisibleForTesting
+    protected boolean hasThrottleExemptOperations() {
+        val o = this.operationQueue.peek();
+        return o != null && o.getPriority().isThrottlingExempt();
+    }
+
+    /**
+     * Gets the throttler.
+     */
+    @VisibleForTesting
+    protected Throttler getThrottler() {
+        return this.throttler;
     }
 
     /**
@@ -300,7 +328,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (!this.throttler.isThrottlingRequired()) {
+                    if (hasThrottleExemptOperations() || !getThrottler().isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(getFetchCount());

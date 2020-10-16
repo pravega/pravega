@@ -209,14 +209,14 @@ public class PriorityBlockingDrainingQueueTests {
     @Data
     private static class TestItem implements PriorityBlockingDrainingQueue.Item {
         private final int value;
-        private final byte priority;
+        private final byte priorityValue;
     }
 
     private static class TestItemComparator implements Comparator<TestItem> {
 
         @Override
         public int compare(TestItem t1, TestItem t2) {
-            int i = Byte.compare(t1.getPriority(), t2.getPriority());
+            int i = Byte.compare(t1.getPriorityValue(), t2.getPriorityValue());
             if (i == 0) {
                 return Integer.compare(t1.getValue(), t2.getValue());
             }

@@ -63,14 +63,14 @@ public class CompletableOperationTests {
     }
 
     /**
-     * Tests the {@link CompletableOperation#getPriority()} method.
+     * Tests the {@link CompletableOperation#getPriorityValue()} method.
      */
     @Test
     public void testPriority() {
         MetadataCheckpointOperation op = new MetadataCheckpointOperation();
         for (OperationPriority p : OperationPriority.values()) {
             CompletableOperation co = new CompletableOperation(op, p, new CompletableFuture<>());
-            Assert.assertEquals("Unexpected priority level for " + p, p.getValue(), co.getPriority());
+            Assert.assertEquals("Unexpected priority level for " + p, p.getValue(), co.getPriorityValue());
         }
     }
 }

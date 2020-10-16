@@ -29,6 +29,7 @@ public class CompletableOperation implements PriorityBlockingDrainingQueue.Item 
     //region Members
 
     private final Operation operation;
+    @Getter
     private final OperationPriority priority;
     private final Consumer<Throwable> failureHandler;
     private final Consumer<Void> successHandler;
@@ -120,7 +121,7 @@ public class CompletableOperation implements PriorityBlockingDrainingQueue.Item 
     }
 
     @Override
-    public byte getPriority() {
+    public byte getPriorityValue() {
         return this.priority.getValue();
     }
 

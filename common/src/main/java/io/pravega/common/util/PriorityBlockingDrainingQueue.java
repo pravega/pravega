@@ -54,7 +54,7 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
 
     @Override
     protected void addInternal(T item) {
-        byte p = item.getPriority();
+        byte p = item.getPriorityValue();
         Preconditions.checkArgument(p >= 0 && p < this.queues.length,
                 "Item.getPriority() must be a value between 0 (inclusive) and %s (exclusive).", this.queues.length);
         getOrCreateQueue(p).add(item);
@@ -144,6 +144,6 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
          *
          * @return The priority.
          */
-        byte getPriority();
+        byte getPriorityValue();
     }
 }
