@@ -424,25 +424,38 @@ public class PravegaTablesStoreHelper {
      * a new ContinutionToken.
      */
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String tableName, ByteBuf continuationToken, int limit) {
-        log.trace("get keys paginated called for : {}", tableName);
-
-        return withRetries(() ->
-                segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
-                        () -> String.format("get keys paginated for table: %s", tableName))
-                             .thenApplyAsync(result -> {
-                                 try {
-                                     List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
-                                                                .collect(Collectors.toList());
-                                     log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     // if the returned token and result are empty, return the incoming token so that 
-                                     // callers can resume from that token. 
-                                     return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
-                                 } finally {
-                                     releaseKeys(result.getItems());
-                                 }
-                             }, executor);
+        return getKeysWithPrefixPaginated(tableName, continuationToken, limit, "");
     }
-    
+
+    /**
+     * Method to get paginated list of keys with a continuation token.
+     * @param tableName tableName
+     * @param continuationToken previous continuationToken
+     * @param limit limit on number of keys to retrieve
+     * @param prefix key prefix.
+     * @return CompletableFuture which when completed will have a list of keys of size less than or equal to limit and
+     * a new ContinutionToken.
+     */
+    public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysWithPrefixPaginated(String tableName, ByteBuf continuationToken, int limit, final String prefix) {
+        log.trace("get keys paginated called for : {}", tableName);
+        return withRetries(() ->
+                        segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(),
+                                RequestTag.NON_EXISTENT_ID, prefix),
+                () -> String.format("get keys paginated for table: %s", tableName))
+                .thenApplyAsync(result -> {
+                    try {
+                        List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
+                                .collect(Collectors.toList());
+                        log.trace("get keys paginated on table {} returned items {}", tableName, items);
+                        // if the returned token and result are empty, return the incoming token so that
+                        // callers can resume from that token.
+                        return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
+                    } finally {
+                        releaseKeys(result.getItems());
+                    }
+                }, executor);
+    }
+
     /**
      * Method to get paginated list of entries with a continuation token.
      * @param tableName tableName
@@ -490,6 +503,21 @@ public class PravegaTablesStoreHelper {
      */
     public AsyncIterator<String> getAllKeys(String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(tableName, token, 1000)
+                .thenApplyAsync(result -> {
+                    token.release();
+                    return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
+                }, executor),
+                IteratorStateImpl.EMPTY.getToken());
+    }
+
+    /**
+     * Method to retrieve all keys in the table. It returns an asyncIterator which can be used to iterate over the returned keys.
+     * @param tableName table name.
+     * @param prefix key prefix.
+     * @return AsyncIterator that can be used to iterate over keys in the table.
+     */
+    public AsyncIterator<String> getAllKeysWithPrefix(String tableName, String prefix) {
+        return new ContinuationTokenAsyncIterator<>(token -> getKeysWithPrefixPaginated(tableName, token, 1000, prefix)
                 .thenApplyAsync(result -> {
                     token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());

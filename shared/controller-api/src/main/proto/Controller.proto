@@ -54,7 +54,7 @@ service ControllerService {
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
     rpc removeSubscriber(StreamSubscriberInfo) returns (RemoveSubscriberStatus);
-    rpc getSubscribersForStream(StreamInfo) returns (StreamSubscribers);
+    rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateTruncationStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
 }
 
@@ -149,7 +149,7 @@ message RemoveSubscriberStatus {
         SUCCESS = 0;
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
-        SUBSCRIBER_NOT_FOUND = 4;
+        SUBSCRIBER_NOT_FOUND = 3;
     }
     Status status = 1;
 }
@@ -159,10 +159,31 @@ message UpdateSubscriberStatus {
         SUCCESS = 0;
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
-        SUBSCRIBER_NOT_FOUND = 4;
-        STREAMCUT_NOT_VALID = 5;
+        SUBSCRIBER_NOT_FOUND = 3;
+        STREAMCUT_NOT_VALID = 4;
     }
     Status status = 1;
+}
+
+message StreamSubscriberInfo {
+    string scope = 1;
+    string stream = 2;
+    string subscriber = 3;
+}
+
+message SubscriberStreamCut {
+    string subscriber = 1;
+    StreamCut streamCut = 2;
+}
+
+message SubscribersResponse {
+    repeated string subscribers = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        STREAM_NOT_FOUND = 2;
+    }
+    Status status = 2;
 }
 
 message DeleteStreamStatus {
@@ -258,22 +279,6 @@ message ContinuationToken {
 message StreamInfo {
     string scope = 1;
     string stream = 2;
-}
-
-message StreamSubscriberInfo {
-    string scope = 1;
-    string stream = 2;
-    string subscriber = 3;
-}
-
-message SubscriberStreamCut {
-    string subscriber = 1;
-    StreamCut streamCut = 2;
-}
-
-
-message StreamSubscribers {
-    repeated string subscriber = 1;
 }
 
 message ScalingPolicy {

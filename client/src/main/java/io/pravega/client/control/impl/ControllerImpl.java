@@ -84,6 +84,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -610,26 +611,39 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String streamName) {
+    public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
-        final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "getSubscribersForStream", streamName);
-        final CompletableFuture<StreamSubscribers> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<StreamSubscribers> callback = new RPCAsyncCallback<>(requestId, "getSubscribersForStream", scope, streamName);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getSubscribersForStream(ModelHelper.createStreamInfo(scope, streamName), callback);
-            return callback.getFuture();
+        long traceId = LoggerHelpers.traceEnter(log, "listSubscribers");
+        long requestId = requestIdGenerator.get();
+        final CompletableFuture<SubscribersResponse> result = this.retryConfig.runAsync(() -> {
+        RPCAsyncCallback<SubscribersResponse> callback = new RPCAsyncCallback<>(requestId, "listSubscribers");
+
+        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listSubscribers")
+                .listSubscribers(ModelHelper.createStreamInfo(scope, streamName), callback);
+        return callback.getFuture();
         }, this.executor);
-        return result.thenApply(subscribers -> {
-            log.debug("Received the following data from the controller {}", subscribers.getSubscriberList());
-            return subscribers.getSubscriberList().stream()
-                    .collect(Collectors.toList());
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to list subscribers for stream {}/{}", scope, streamName);
+                    throw new ControllerFailureException("Failed to list subscribers for stream" + streamName);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}", streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully listed subscribers for stream: {}/{}", scope, streamName);
+                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status listing subscribers " + x.getStatus());
+            }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("get Subscribers for Stream {}/{}  failed: ", scope, streamName,  e);
+                log.warn(requestId, "listSubscribers for stream {}/{} failed: ", scope, streamName, e);
             }
-            LoggerHelpers.traceLeave(log, "getSubscribersForStream", traceId);
+            LoggerHelpers.traceLeave(log, "listSubscribers", traceId, requestId);
         });
     }
 
@@ -1726,6 +1740,12 @@ public class ControllerImpl implements Controller {
         public void updateTruncationStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .updateTruncationStreamCut(subscriberStreamCut, callback);
+        }
+
+        public void listSubscribers(StreamInfo request,
+                               RPCAsyncCallback<SubscribersResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .listSubscribers(request, callback);
         }
 
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {

@@ -146,7 +146,7 @@ public interface Controller extends AutoCloseable {
      * @param streamName Stream name
      * @return List of StreamSubscribers.
      */
-    CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName);
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName);
 
     /**
      * API to update the truncation StreamCut for a particular Subscriber on Controller.

@@ -253,7 +253,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
+    public CompletableFuture<List<String>> listSubscribers() {
         throw new UnsupportedOperationException();
     }
 

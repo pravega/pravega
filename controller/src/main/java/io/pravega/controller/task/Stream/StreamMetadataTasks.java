@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
@@ -84,7 +85,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -380,37 +380,36 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream, OperationContext contextOpt) {
+
+    public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("getSubscribersForStream", scope, stream);
-        final List<String> emptySubscribersList = Collections.emptyList();
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+        return streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
-                  if (!exists) {
-                    // 1. if Stream does not exist return empty list
-                    return CompletableFuture.completedFuture(emptySubscribersList);
-                  }
-                  // 2. get subscribers data
-                  return Futures.exceptionallyExpecting(streamMetadataStore.getAllSubscribers(scope, stream, context, executor),
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                    .thenCompose(subscribersData -> {
-                        //3. if SubscribersRecord does not exist return empty list
-                        if (subscribersData == null) {
-                            return CompletableFuture.completedFuture(emptySubscribersList);
-                        }
-                        return CompletableFuture.completedFuture(subscribersData.keySet().stream().collect(Collectors.toList()));
-                    }).exceptionally(ex -> {
-                              log.warn(requestId, "Exception thrown in trying to get list of Stream subscribers. {}",
-                                      ex.getMessage());
-                              Throwable cause = Exceptions.unwrap(ex);
-                              if (cause instanceof TimeoutException) {
-                                  throw new CompletionException(cause);
-                              } else {
-                                  log.warn(requestId, "getSubscribersForStream failed due to {}", cause);
-                                  return emptySubscribersList;
-                              }
-                          });
-                  }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+                    if (!exists) {
+                        return CompletableFuture.completedFuture(SubscribersResponse.newBuilder()
+                                .setStatus(SubscribersResponse.Status.STREAM_NOT_FOUND).build());
+                    }
+                  // 2. get subscribers
+                  return streamMetadataStore.listSubscribers(scope, stream, context, executor)
+                          .thenApply(result -> SubscribersResponse.newBuilder()
+                                     .setStatus(SubscribersResponse.Status.SUCCESS)
+                                     .addAllSubscribers(result).build())
+                            .exceptionally(ex -> {
+                                log.warn(requestId, "Exception thrown in trying to get list of Stream subscribers. {}",
+                                        ex.getMessage());
+                                Throwable cause = Exceptions.unwrap(ex);
+                                if (cause instanceof TimeoutException) {
+                                    throw new CompletionException(cause);
+                                } else {
+                                    log.warn(requestId, "getSubscribersForStream failed due to {}", cause);
+                                    List<String> emptyList = new ArrayList<>();
+                                    return SubscribersResponse.newBuilder()
+                                            .setStatus(SubscribersResponse.Status.FAILURE).build();
+                                }
+                            });
+                });
+
     }
 
     /**

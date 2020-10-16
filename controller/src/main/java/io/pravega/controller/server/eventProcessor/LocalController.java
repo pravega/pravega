@@ -222,8 +222,19 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<String>> getSubscribersForStream(final String scope, final String streamName) {
-        return this.controller.getSubscribersForStream(scope, streamName);
+    public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
+        return this.controller.listSubscribers(scope, streamName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to listSubscribers for stream: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                default:
+                    throw new ControllerFailureException("Unknown return status for listSubscribers on stream " + scope + "/" + streamName + " " + x.getStatus());
+            }
+        });
     }
 
     @Override

@@ -52,6 +52,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -174,11 +175,11 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String stream) {
+    public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
+        return streamMetadataTasks.listSubscribers(scope, stream, null);
 
-        return streamMetadataTasks.getSubscribersForStream(scope, stream, null);
     }
 
     public CompletableFuture<RemoveSubscriberStatus> removeSubscriber(String scope, String stream, final String subscriber) {

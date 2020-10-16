@@ -125,10 +125,10 @@ interface Stream {
     CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber);
 
     /**
-     * Fetches the record corresponding to the subscriber
-     * @return record holding information about this subscriber for the Stream.
+     * Fetches names for all subscribers of the Stream
+     * @return iterator to iterate over all subscribers for the Stream.
      */
-    CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers();
+    CompletableFuture<List<String>> listSubscribers();
 
     /**
      * Update subscribers record for the Stream.

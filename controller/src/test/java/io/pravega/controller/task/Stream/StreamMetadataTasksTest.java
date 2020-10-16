@@ -337,7 +337,7 @@ public abstract class StreamMetadataTasksTest {
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
@@ -367,7 +367,7 @@ public abstract class StreamMetadataTasksTest {
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
@@ -389,11 +389,11 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
         // subscribers for non-existing stream
-        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, "stream2", null).get();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, "stream2", null).get().getSubscribersList();
         assertEquals(0, allSubscribers.size());
 
         // no subscribers found for existing Stream
-        allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
         assertEquals(0, allSubscribers.size());
 
         // add a new subscribers - positive case
@@ -409,7 +409,7 @@ public abstract class StreamMetadataTasksTest {
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
@@ -426,7 +426,7 @@ public abstract class StreamMetadataTasksTest {
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.getSubscribersForStream(SCOPE, stream1, null).get();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
         assertEquals(2, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));

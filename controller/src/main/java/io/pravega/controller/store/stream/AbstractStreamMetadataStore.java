@@ -550,8 +550,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope,
-                                                                                              final String name,
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope, final String name,
                                                                                               final String subscriber,
                                                                                               final OperationContext context,
                                                                                               final Executor executor) {
@@ -559,11 +558,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers(final String scope,
-                                                                                final String name,
+    public CompletableFuture<List<String>> listSubscribers(final String scope, final String name,
                                                                                 final OperationContext context,
                                                                                 final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).getAllSubscribers(), executor);
+        return Futures.completeOn(getStream(scope, name, context).listSubscribers(), executor);
     }
 
     @Override

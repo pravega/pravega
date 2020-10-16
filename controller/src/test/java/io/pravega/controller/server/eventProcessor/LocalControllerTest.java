@@ -349,24 +349,28 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testGetSubscribersForStream() throws ExecutionException, InterruptedException {
+    public void testListSubscribers() throws ExecutionException, InterruptedException {
         List<String> subscriberList = new ArrayList<>(3);
         subscriberList.add("sub1");
         subscriberList.add("sub2");
         subscriberList.add("sub3");
+        Controller.SubscribersResponse result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(subscriberList).setStatus(Controller.SubscribersResponse.Status.SUCCESS).build();
 
-        when(this.mockControllerService.getSubscribersForStream(any(), any())).thenReturn(
-                CompletableFuture.completedFuture(subscriberList));
-        List<String> returnedSubscribers = this.testController.getSubscribersForStream("scope", "stream").join();
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        List<String> returnedSubscribers = this.testController.listSubscribers("scope", "stream").join();
         Assert.assertEquals(3, returnedSubscribers.size());
         Assert.assertTrue(returnedSubscribers.contains("sub1"));
         Assert.assertTrue(returnedSubscribers.contains("sub2"));
         Assert.assertTrue(returnedSubscribers.contains("sub3"));
 
         List<String> emptyList = new ArrayList<String>();
-        when(this.mockControllerService.getSubscribersForStream(any(), any())).thenReturn(
-                CompletableFuture.completedFuture(emptyList));
-        returnedSubscribers = this.testController.getSubscribersForStream("scope", "stream").join();
+        result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(emptyList).setStatus(Controller.SubscribersResponse.Status.SUCCESS).build();
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        returnedSubscribers = this.testController.listSubscribers("scope", "stream").join();
         Assert.assertEquals(0, returnedSubscribers.size());
     }
 

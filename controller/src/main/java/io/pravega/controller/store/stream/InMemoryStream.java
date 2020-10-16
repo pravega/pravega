@@ -878,11 +878,10 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers() {
-        Map<String, StreamSubscriber> result;
+    public CompletableFuture<List<String>> listSubscribers() {
+        List<String> result;
         synchronized (subscribersLock) {
-            result = streamSubscribers.stream().map(s -> s.getObject())
-                    .collect(Collectors.toMap(StreamSubscriber::getSubscriber, s1 -> s1));
+            result = streamSubscribers.stream().map(s -> s.getObject().getSubscriber()).collect(Collectors.toList());
         }
         return CompletableFuture.completedFuture(result);
     }

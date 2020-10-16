@@ -343,8 +343,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope        stream scope
      * @param name         stream name.
      * @param subscriber   subscriber name.
-     * @param context      operation context
-     * @param executor     callers executor
+     * @param context      operation context.
+     * @param executor     callers executor.
      * @return current stream configuration.
      */
     CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope, final String name,
@@ -353,17 +353,17 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                        final Executor executor);
 
     /**
-     * Fetches the current stream subscribers record.
+     * List scopes with pagination. This api continues listing scopes from the supplied continuation token
+     * and returns a count limited list of scopes and a new continuation token.
      *
-     * @param scope        stream scope
-     * @param name         stream name.
-     * @param context      operation context
-     * @param executor     callers executor
-     * @return current stream configuration.
+     * @param scope scope name.
+     * @param stream stream for which to list subscribers.
+     * @param context operation context.
+     * @param executor executor.
+     * @return A list of subscribers for Stream.
      */
-    CompletableFuture<Map<String, StreamSubscriber>> getAllSubscribers(final String scope, final String name,
-                                                                         final OperationContext context,
-                                                                         final Executor executor);
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String stream,
+                                                    final OperationContext context, final Executor executor);
 
 
     /**
@@ -372,8 +372,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param streamCut     new stream cut.
-     * @param context       operation context
-     * @param executor      callers executor
+     * @param context       operation context.
+     * @param executor      callers executor.
      * @return future of operation.
      */
     CompletableFuture<Void> startTruncation(final String scope,
@@ -388,8 +388,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope               stream scope
      * @param name                stream name.
      * @param record              versioned record
-     * @param context             operation context
-     * @param executor            callers executor
+     * @param context             operation context.
+     * @param executor            callers executor.
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
