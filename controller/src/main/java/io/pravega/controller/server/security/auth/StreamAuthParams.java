@@ -11,6 +11,7 @@ package io.pravega.controller.server.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -40,11 +41,7 @@ public class StreamAuthParams {
         this.scope = scope;
         this.stream = stream;
         this.isInternalWritesWithReadPermEnabled = isInternalWritesWithReadPermEnabled;
-        if (stream.startsWith("_")) {
-            this.isInternalStream = true;
-        } else {
-            this.isInternalStream = false;
-        }
+        this.isInternalStream = stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ? true : false;
     }
 
     public AuthHandler.Permissions requiredPermissionForWrites() {
@@ -73,7 +70,7 @@ public class StreamAuthParams {
     }
 
     public static String toResourceString(String scope, String stream) {
-        return toResourceString(scope, stream, stream.startsWith("_"));
+        return toResourceString(scope, stream, stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX));
     }
 
     public boolean isStreamUserDefined() {

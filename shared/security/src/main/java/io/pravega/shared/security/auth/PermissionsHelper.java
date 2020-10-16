@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.security.auth;
 
+import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
 import lombok.NonNull;
 
@@ -23,14 +24,14 @@ public class PermissionsHelper {
      * @param accessOperation accessOperation to translate
      * @return a {@link AuthHandler.Permissions} object that represents the specified {@code accessOperation}
      */
-    public static AuthHandler.Permissions toAuthHandlerPermissions(AccessOperation accessOperation) {
+    public static AuthHandler.Permissions toAuthHandlerPermissions(@NonNull AccessOperation accessOperation) {
         if (accessOperation.equals(AccessOperation.READ)) {
             return AuthHandler.Permissions.READ;
         } else if (accessOperation.equals(AccessOperation.WRITE) ||
                 accessOperation.equals(AccessOperation.READ_UPDATE)) {
             return AuthHandler.Permissions.READ_UPDATE;
         } else {
-            throw new IllegalArgumentException("Cannot translate");
+            throw new IllegalArgumentException("Cannot translate access operation " + accessOperation.name());
         }
     }
 
@@ -42,8 +43,8 @@ public class PermissionsHelper {
      *                           {@code accessOperationStr} can't be parsed.
      * @return the parsed or default {@link AuthHandler.Permissions} object,
      */
-    public static AuthHandler.Permissions parse(@NonNull String accessOperationStr, AuthHandler.Permissions defaultPermissions) {
-        if (accessOperationStr.equals("")) {
+    public static AuthHandler.Permissions parse(String accessOperationStr, AuthHandler.Permissions defaultPermissions) {
+        if (Strings.isNullOrEmpty(accessOperationStr)) {
             return defaultPermissions;
         }
         try {

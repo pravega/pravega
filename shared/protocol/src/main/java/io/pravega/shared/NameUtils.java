@@ -34,6 +34,9 @@ public final class NameUtils {
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
+    // The string which may be used to identify whether a segment is part of an internal stream.
+    public static final String INTERNAL_STREAM_IDENTIFYING_PATTERN = "/" + INTERNAL_NAME_PREFIX;
+
     /**
      * Size of the prefix or suffix included with the user stream name.
      */
@@ -132,7 +135,7 @@ public final class NameUtils {
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
-    @Getter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
     //endregion

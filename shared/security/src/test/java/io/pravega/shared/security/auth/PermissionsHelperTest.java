@@ -32,6 +32,7 @@ public class PermissionsHelperTest {
     @Test
     public void parsesEmptyPermissionStringToDefault() {
         assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse("", AuthHandler.Permissions.READ));
+        assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse(null, AuthHandler.Permissions.READ));
     }
 
     @Test

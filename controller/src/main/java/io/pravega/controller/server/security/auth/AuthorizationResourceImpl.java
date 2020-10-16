@@ -10,6 +10,7 @@
 package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
+import io.pravega.shared.NameUtils;
 import lombok.NonNull;
 
 /**
@@ -77,10 +78,10 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     @Override
     public String ofInternalStream(String scopeName, @NonNull String streamName) {
         // Internal stream names start with either `_RG` (reader groups) or `_MARK` (watermarks).
-        if (streamName.startsWith("_RG")) {
-            return ofReaderGroupInScope(scopeName, streamName.replace("_RG", ""));
-        } else if (streamName.startsWith("_MARK")) {
-            return ofWatermarkInScope(scopeName, streamName.replace("_MARK", ""));
+        if (streamName.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
+            return ofReaderGroupInScope(scopeName, streamName.replace(NameUtils.READER_GROUP_STREAM_PREFIX, ""));
+        } else if (streamName.startsWith(NameUtils.getMARK_PREFIX())) {
+            return ofWatermarkInScope(scopeName, streamName.replace(NameUtils.getMARK_PREFIX(), ""));
         } else {
             return ofStreamInScope(scopeName, streamName);
         }

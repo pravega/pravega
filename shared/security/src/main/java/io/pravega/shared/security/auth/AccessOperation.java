@@ -14,13 +14,10 @@ package io.pravega.shared.security.auth;
  * always 'allow' access to specified access operations in Pravega.
  */
 public enum AccessOperation {
-    /**
-     * Not known.
-     */
-    UNKNOWN,
 
     /**
-     * Any operation.
+     * Doesn't represent any specific operation, and allows the caller to make it explicit that any access operation.
+     * It is primarily meant for use in tests.
      */
     ANY,
 

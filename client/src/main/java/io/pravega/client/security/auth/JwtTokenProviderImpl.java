@@ -81,6 +81,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        Preconditions.checkNotNull(accessOperation, "accessOperation");
 
         this.scopeName = scopeName;
         this.streamName = streamName;

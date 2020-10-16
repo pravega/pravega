@@ -379,8 +379,7 @@ public final class ModelHelper {
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
     }
 
-    public static final StreamInfo createStreamInfo(final String scope, final String stream,
-                                                    AccessOperation accessOperation) {
+    public static final StreamInfo createStreamInfo(final String scope, final String stream, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
@@ -391,9 +390,7 @@ public final class ModelHelper {
     }
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
+        return createStreamInfo(scope, stream, null);
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

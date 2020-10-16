@@ -40,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import io.pravega.shared.security.auth.AccessOperation;
 import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -471,10 +470,5 @@ public class ReaderGroupStateManager {
     
     Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
         return sync.getState().getLastReadPositions(stream);
-    }
-
-    public String getOrRefreshDelegationTokenFor(Segment segmentId) {
-            return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(),
-                    segmentId.getStreamName(), AccessOperation.READ), RuntimeException::new);
     }
 }
