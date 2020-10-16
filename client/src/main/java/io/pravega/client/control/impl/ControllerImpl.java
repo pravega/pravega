@@ -1254,7 +1254,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor", scope, streamName);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                   .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, accessOperation), callback);
+                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, accessOperation), callback);
             return callback.getFuture();
         }, this.executor);
 
