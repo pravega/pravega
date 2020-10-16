@@ -17,7 +17,14 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -81,7 +88,7 @@ public final class SecureSetupUtils {
     private final int controllerRESTPort = TestUtils.getAvailableListenPort();
     @Getter
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
+    private ClientConfig clientConfig = null;
 
     public ClientConfig generateValidClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
@@ -117,8 +124,9 @@ public final class SecureSetupUtils {
             log.warn("Services already started, not attempting to start again");
             return;
         }
+        this.clientConfig = generateValidClientConfig();
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(generateValidClientConfig()).build(),
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                 executor);
         this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
 
@@ -146,7 +154,8 @@ public final class SecureSetupUtils {
         // Start Controller.
         this.controllerWrapper = new ControllerWrapper(
                 this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort);
+                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, this.authEnabled,
+                "../" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH, "secret", 600);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
         log.info("Initialized Pravega Controller");
