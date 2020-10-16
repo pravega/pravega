@@ -59,9 +59,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     @Before
     public void setUp() throws Exception {
-	    baseConf.setAllowLoopback(true);
-	    baseConf.setEnableLocalTransport(true);
-	    baseConf.setAdvertisedAddress("localhost");
+        baseConf.setAllowLoopback(true);
+        baseConf.setEnableLocalTransport(true);
+        baseConf.setAdvertisedAddress("localhost");
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         super.setUp();
