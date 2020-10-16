@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -488,7 +489,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
         List<OperationWithCompletion> completionFutures = new ArrayList<>();
-        operations.forEach(op -> completionFutures.add(new OperationWithCompletion(op, operationProcessor.process(op))));
+        operations.forEach(op -> completionFutures.add(new OperationWithCompletion(op, operationProcessor.process(op, OperationPriority.Normal))));
         return completionFutures;
     }
 

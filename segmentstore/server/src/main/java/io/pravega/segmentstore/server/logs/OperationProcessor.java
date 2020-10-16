@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.common.util.PriorityBlockingDrainingQueue;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -62,7 +64,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final MemoryStateUpdater stateUpdater;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
-    private final BlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final PriorityBlockingDrainingQueue<CompletableOperation> operationQueue;
     private final BlockingDrainingQueue<List<CompletableOperation>> commitQueue;
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
@@ -93,7 +95,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.metadata = metadata;
         this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.operationQueue = new BlockingDrainingQueue<>();
+        this.operationQueue = new PriorityBlockingDrainingQueue<>(OperationPriority.getMaxPriorityValue());
         this.commitQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
@@ -211,19 +213,20 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Processes the given Operation. This method returns when the given Operation has been added to the internal queue.
      *
      * @param operation The Operation to process.
+     * @param priority  Operation Priority.
      * @return A CompletableFuture that, when completed, will indicate the Operation has finished processing. If the
      * Operation completed successfully, the Future will contain the Sequence Number of the Operation. If the Operation
      * failed, it will contain the exception that caused the failure.
      * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
-    public CompletableFuture<Void> process(Operation operation) {
+    CompletableFuture<Void> process(Operation operation, OperationPriority priority) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         if (!isRunning()) {
             result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
         } else {
             log.debug("{}: process {}.", this.traceObjectId, operation);
             try {
-                this.operationQueue.add(new CompletableOperation(operation, result));
+                this.operationQueue.add(new CompletableOperation(operation, priority, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
                     throw e;
