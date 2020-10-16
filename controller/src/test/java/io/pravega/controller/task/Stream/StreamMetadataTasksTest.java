@@ -39,7 +39,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -101,6 +101,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -973,6 +974,27 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
+    public void sealStreamFailing() throws Exception {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        // attempt to seal a stream which is in creating state. This should fail and be retried. 
+        // now set the stream state to active. 
+        // it should be sealed.
+        String creating = "creating";
+        streamStorePartialMock.createStream(SCOPE, creating, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), null, executor).join();
+        UpdateStreamStatus.Status status = streamMetadataTasks.sealStream(SCOPE, creating, null, 1).join();
+        assertEquals(status, UpdateStreamStatus.Status.FAILURE);
+
+        streamStorePartialMock.setState(SCOPE, creating, State.ACTIVE, null, executor).join();
+        CompletableFuture<UpdateStreamStatus.Status> statusFuture = streamMetadataTasks.sealStream(SCOPE, creating, null, 1);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, statusFuture.join());
+    }
+    
+    @Test(timeout = 30000)
     public void sealStreamWithTxnTest() throws Exception {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -1607,6 +1629,11 @@ public abstract class StreamMetadataTasksTest {
         @Override
         public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
             return writeEvent(event);
+        }
+
+        @Override
+        public CompletableFuture<Void> writeEvents(String routingKey, List<ControllerEvent> events) {
+            throw new NotImplementedException("mock doesnt require this");
         }
 
         @Override

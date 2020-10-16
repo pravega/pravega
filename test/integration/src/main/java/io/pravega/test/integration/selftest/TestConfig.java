@@ -33,6 +33,7 @@ public class TestConfig {
     public static final String DEFAULT_CONFIG_FILE_NAME = "selftest.config.properties";
     public static final String BK_ZK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     public static final String LOCALHOST = InetAddress.getLoopbackAddress().getHostName();
+    static final String TMP_DIR = System.getProperty("java.io.tmp", "/tmp");
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
     static final Property<Integer> STREAM_COUNT = Property.named("streamCount", 100);
@@ -61,12 +62,12 @@ public class TestConfig {
     static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
     static final Property<String> BOOKIE_LEDGERS_DIR = Property.named("bkLedgersDir", "");
-    static final Property<String> STORAGE_DIR = Property.named("storageDir", "/tmp/pravega/storage");
+    static final Property<String> STORAGE_DIR = Property.named("storageDir", TMP_DIR + "/pravega/storage");
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
     private static final Property<Boolean> ENABLE_SECURITY = Property.named("enableSecurity", false);
-    private static final String TEST_OUTPUT_PATH = "/tmp/pravega";
+    private static final String TEST_OUTPUT_PATH = TMP_DIR + "/pravega";
     private static final String LOG_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.%s.log";
     private static final String METRICS_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.metrics.%s";
     private static final String COMPONENT_CODE = "selftest";

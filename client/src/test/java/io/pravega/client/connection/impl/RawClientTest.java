@@ -10,6 +10,7 @@ package io.pravega.client.connection.impl;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -21,7 +22,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
-import io.pravega.test.common.AssertExtensions;
+import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -29,6 +30,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -79,6 +81,25 @@ public class RawClientTest {
     }
 
     @Test
+    public void testRecvErrorMessage() throws InterruptedException, ExecutionException, ConnectionFailedException {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        Segment segment = new Segment("scope", "testHello", 0);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, segment);
+
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        WireCommands.ErrorMessage reply = new ErrorMessage(requestId, segment.getScopedName(), "error.", ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        processor.process(reply);
+        Mockito.verify(connection).close();
+    }
+
+    @Test
     public void testExceptionHandling() throws ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
@@ -102,7 +123,7 @@ public class RawClientTest {
         processor.processingFailure(new ConnectionFailedException("Custom error"));
 
         assertTrue(future.isCompletedExceptionally());
-        AssertExtensions.assertFutureThrows("The future should be completed exceptionally", future,
+        assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof ConnectionFailedException);
 
         WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
@@ -114,7 +135,7 @@ public class RawClientTest {
         processor.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(2L, "", WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
 
         assertTrue(future.isCompletedExceptionally());
-        AssertExtensions.assertFutureThrows("The future should be completed exceptionally", future,
+        assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof AuthenticationException);
     }
 
@@ -133,5 +154,32 @@ public class RawClientTest {
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.Hello(0, 0)));
         rawClient.close();
         Mockito.verify(connection).close();
+    }
+
+    @Test
+    public void testExceptionWhileObtainingConnection() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+
+        // setup mock
+        CompletableFuture<PravegaNodeUri> endpointFuture = new CompletableFuture<>();
+        endpointFuture.complete(endpoint);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getEndpointForSegment(Mockito.any(String.class))).thenReturn(endpointFuture);
+
+        ConnectionPool connectionPool = Mockito.mock(ConnectionPool.class);
+        CompletableFuture<ClientConnection> connectionFuture = new CompletableFuture<>();
+        // simulate error when obtaining a client connection.
+        connectionFuture.completeExceptionally(new RuntimeException("Mock error"));
+        Mockito.when(connectionPool.getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class)))
+                .thenReturn(connectionFuture);
+
+        // Test exception paths.
+        RawClient rawClient = new RawClient(endpoint, connectionPool);
+        CompletableFuture<Reply> reply = rawClient.sendRequest(100L, new WireCommands.Hello(0, 0));
+        assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply, t -> t instanceof ConnectionFailedException);
+
+        RawClient rawClient1 = new RawClient(controller, connectionPool, new Segment("scope", "stream", 1));
+        CompletableFuture<Reply> reply1 = rawClient1.sendRequest(101L, new WireCommands.Hello(0, 0));
+        assertFutureThrows("RawClient did not wrap the exception into ConnectionFailedException", reply1, t -> t instanceof ConnectionFailedException);
     }
 }

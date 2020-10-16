@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -16,28 +17,22 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.server.reading.CompletableReadResultEntry;
+import io.pravega.segmentstore.server.reading.StreamSegmentReadResult;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 
 /**
  * Mocks a {@link ReadResult} wrapping a {@link ByteArraySegment} as its source.
  */
-@RequiredArgsConstructor
 @Getter
-class ReadResultMock implements ReadResult {
+class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
     //region Members
 
-    private final long streamSegmentStartOffset;
     private final ArrayView data;
-    private final int maxResultLength;
     private final int entryLength;
     private int consumedLength;
-    private boolean closed;
-    @Setter
-    private boolean copyOnRead = false;
 
     //endregion
 
@@ -47,18 +42,23 @@ class ReadResultMock implements ReadResult {
         this(0L, new ByteArraySegment(data), maxResultLength, entryLength);
     }
 
+    ReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
+        super(streamSegmentStartOffset, maxResultLength, ReadResultMock::noopSupplier, "");
+        this.data = data;
+        this.entryLength = entryLength;
+    }
+
+    private static CompletableReadResultEntry noopSupplier(long startOffset, int remainingLength, boolean copy) {
+        throw new UnsupportedOperationException();
+    }
+
     //endregion
 
     //region ReadResult Implementation
 
     @Override
-    public void close() {
-        this.closed = true;
-    }
-
-    @Override
     public boolean hasNext() {
-        return this.consumedLength < this.maxResultLength;
+        return this.consumedLength < getMaxResultLength();
     }
 
     @Override
@@ -67,8 +67,9 @@ class ReadResultMock implements ReadResult {
             return null;
         }
 
+        Preconditions.checkState(isCopyOnRead(), "Copy-on-read required for all Table Segment read requests.");
         int relativeOffset = this.consumedLength;
-        int length = Math.min(this.entryLength, Math.min(this.data.getLength(), this.maxResultLength )- relativeOffset);
+        int length = Math.min(this.entryLength, Math.min(this.data.getLength(), getMaxResultLength()) - relativeOffset);
         this.consumedLength += length;
         return new Entry(relativeOffset, length);
     }
@@ -106,7 +107,7 @@ class ReadResultMock implements ReadResult {
 
         @Override
         public long getStreamSegmentOffset() {
-            return streamSegmentStartOffset + relativeOffset;
+            return getStreamSegmentStartOffset() + relativeOffset;
         }
 
         @Override
