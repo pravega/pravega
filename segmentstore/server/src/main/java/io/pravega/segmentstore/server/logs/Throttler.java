@@ -142,7 +142,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
             // as needed until the pressure is relieved.
             return Futures.loop(
-                    () -> delay.get().isMaximum(),
+                    () -> delay.get().isMaximum() && !this.isSuspended.get(),
                     () -> throttleOnce(delay.get())
                             .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
                     this.executor);

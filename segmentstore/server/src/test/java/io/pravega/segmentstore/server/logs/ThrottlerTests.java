@@ -343,7 +343,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testTemporaryDisabled() throws Exception {
-        val delays = Collections.<Integer>synchronizedList(new ArrayList<>());
+        testTemporaryDisabled(10000); // Non-max delay.
+        testTemporaryDisabled(ThrottlerCalculator.MAX_DELAY_MILLIS); // Max delay (different code path).
+    }
+
+    private void testTemporaryDisabled(int delayMillis) throws Exception {
+        val delays = new ArrayList<>();
         val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
 
         val disabled = new AtomicBoolean(true);
@@ -351,7 +356,7 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), disabled::get, executorService(), metrics, delays::add);
 
         // Test 1: Do not throttle if temporarily disabled.
-        calculator.setDelayMillis(10000);
+        calculator.setDelayMillis(delayMillis);
         val disabledThrottle = t.throttle();
         Assert.assertTrue("Expected throttle() result to be completed for disabled throttle.", disabledThrottle.isDone());
 
@@ -370,7 +375,10 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         Assert.assertFalse("Not expected non-disabled throttle to be completed yet.", t2.isDone());
         disabled.set(true);
         Assert.assertFalse("Not expected throttle future to be completed yet.", t2.isDone());
-        t.completeDelayFuture();
+        if (delayMillis < ThrottlerCalculator.MAX_DELAY_MILLIS) {
+            // This is only set for non-maximum delays.
+            t.completeDelayFuture();
+        }
         TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
     }
 
