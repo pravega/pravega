@@ -248,7 +248,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber) {
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber) {
         throw new UnsupportedOperationException();
     }
 
@@ -258,7 +258,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriber(String subscriber, ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Void> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
         throw new UnsupportedOperationException();
     }
 

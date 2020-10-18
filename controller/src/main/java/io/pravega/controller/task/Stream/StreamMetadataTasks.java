@@ -383,7 +383,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("getSubscribersForStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("listSubscribers", scope, stream);
         return streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
                     if (!exists) {
@@ -402,8 +402,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof TimeoutException) {
                                     throw new CompletionException(cause);
                                 } else {
-                                    log.warn(requestId, "getSubscribersForStream failed due to {}", cause);
-                                    List<String> emptyList = new ArrayList<>();
+                                    log.warn(requestId, "listSubscribers failed due to {}", ex.getMessage());
                                     return SubscribersResponse.newBuilder()
                                             .setStatus(SubscribersResponse.Status.FAILURE).build();
                                 }
@@ -441,7 +440,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
                                 }
                                 // 3. Update the StreamCut
-                                return streamMetadataStore.updateSubscriber(scope, stream, subscriber, truncationStreamCut, context, executor)
+                                return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, context, executor)
                                         .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
                                         .exceptionally(ex -> {
                                             log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());

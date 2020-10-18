@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
@@ -44,7 +43,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
@@ -504,6 +502,7 @@ public class SegmentHelper implements AutoCloseable {
      * @param state             Last known state of the iterator.
      * @param delegationToken   The token to be presented to the Segment Store.
      * @param clientRequestId   Request id.
+
      * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
     public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
@@ -511,30 +510,6 @@ public class SegmentHelper implements AutoCloseable {
                                                                           final IteratorStateImpl state,
                                                                           final String delegationToken,
                                                                           final long clientRequestId) {
-       return readTableKeys(tableName, suggestedKeyCount, state, delegationToken, clientRequestId, "");
-    }
-
-    /**
-     * The method sends a WireCommand to iterate over table keys.
-     *
-     * @param tableName         Qualified table name.
-     * @param suggestedKeyCount Suggested number of {@link TableSegmentKey}s to be returned by the SegmentStore.
-     * @param state             Last known state of the iterator.
-     * @param delegationToken   The token to be presented to the Segment Store.
-     * @param clientRequestId   Request id.
-     * @param keyPrefix prefix for the key.
-     * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
-     */
-    public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
-                                                                          final int suggestedKeyCount,
-                                                                          final IteratorStateImpl state,
-                                                                          final String delegationToken,
-                                                                          final long clientRequestId,
-                                                                          final String keyPrefix) {
-        ByteBuf prefix = Unpooled.EMPTY_BUFFER;
-        if (!keyPrefix.isEmpty()) {
-            prefix = Unpooled.copiedBuffer(keyPrefix.subSequence(0, keyPrefix.length()), Charset.defaultCharset());
-        }
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
@@ -543,7 +518,7 @@ public class SegmentHelper implements AutoCloseable {
         final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
-                token.getToken(), prefix);
+                token.getToken(), Unpooled.EMPTY_BUFFER);
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);

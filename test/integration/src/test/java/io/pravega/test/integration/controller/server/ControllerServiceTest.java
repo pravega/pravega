@@ -32,6 +32,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -317,20 +319,20 @@ public class ControllerServiceTest {
         final String subscriber2 = "subscriber2";
         assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
 
-        List<String> subscribers = controller.getSubscribersForStream(scope, stream).get();
+        List<String> subscribers = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribers.size() == 2);
         assertTrue(subscribers.contains(subscriber1));
         assertTrue(subscribers.contains(subscriber2));
 
         assertTrue(controller.removeSubscriber(scope, stream, subscriber2).get());
-        List<String> subscribersNow = controller.getSubscribersForStream(scope, stream).get();
+        List<String> subscribersNow = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersNow.size() == 1);
         assertTrue(subscribersNow.contains(subscriber1));
         assertFalse(subscribersNow.contains(subscriber2));
 
         // and now add again...
         assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
-        List<String> subscribersAgain = controller.getSubscribersForStream(scope, stream).get();
+        List<String> subscribersAgain = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersAgain.size() == 2);
         assertTrue(subscribersAgain.contains(subscriber1));
         assertTrue(subscribersAgain.contains(subscriber2));
@@ -338,7 +340,7 @@ public class ControllerServiceTest {
         // add more new subscribers
         final String subscriber3 = "subscriber3";
         assertTrue(controller.addSubscriber(scope, stream, subscriber3).get());
-        List<String> subscribersMore = controller.getSubscribersForStream(scope, stream).get();
+        List<String> subscribersMore = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersMore.size() == 3);
         assertTrue(subscribersMore.contains(subscriber1));
         assertTrue(subscribersMore.contains(subscriber2));

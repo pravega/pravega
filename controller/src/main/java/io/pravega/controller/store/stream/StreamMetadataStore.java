@@ -314,7 +314,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor      callers executor
      * @return Future of operation
      */
-    CompletableFuture<Void> updateSubscriber(final String scope,
+    CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
                                                      final String name,
                                                      final String subscriber,
                                                      final ImmutableMap<Long, Long> streamCut,

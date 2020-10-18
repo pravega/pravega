@@ -81,7 +81,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatu
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscribers;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -389,15 +389,16 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getSubscribersForStream(StreamInfo request,
-                                         StreamObserver<StreamSubscribers> responseObserver) {
+            public void listSubscribers(StreamInfo request,
+                                         StreamObserver<SubscribersResponse> responseObserver) {
                 if (request.getStream().equals("stream1")) {
-                    responseObserver.onNext(StreamSubscribers.newBuilder().addSubscriber("sub1")
-                            .addSubscriber("sub2").addSubscriber("sub3")
+                    responseObserver.onNext(SubscribersResponse.newBuilder().setStatus(SubscribersResponse.Status.SUCCESS)
+                            .addSubscribers("sub1")
+                            .addSubscribers("sub2").addSubscribers("sub3")
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(StreamSubscribers.newBuilder().build());
+                    responseObserver.onNext(SubscribersResponse.newBuilder().build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
                     // dont send any response
@@ -1498,11 +1499,11 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetSubscribersForStream() throws Exception {
-        CompletableFuture<List<String>> getSubscribersList = controllerClient.getSubscribersForStream("scope1", "stream1");
+    public void testListSubscribers() throws Exception {
+        CompletableFuture<List<String>> getSubscribersList = controllerClient.listSubscribers("scope1", "stream1");
         assertEquals(3, getSubscribersList.get().size());
 
-        getSubscribersList = controllerClient.getSubscribersForStream("scope1", "stream2");
+        getSubscribersList = controllerClient.listSubscribers("scope1", "stream2");
         assertEquals(0, getSubscribersList.get().size());
     }
 

@@ -122,7 +122,7 @@ interface Stream {
      * Fetches the record corresponding to the subscriber
      * @return record holding information about this subscriber for the Stream.
      */
-    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(String subscriber);
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber);
 
     /**
      * Fetches names for all subscribers of the Stream
@@ -136,7 +136,7 @@ interface Stream {
      * @param streamCut  truncation streamcut for subscriber to be added/updated.
      * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscriber(final String subscriber, final ImmutableMap<Long, Long> streamCut);
+    CompletableFuture<Void> updateSubscriberStreamCut(final String subscriber, final ImmutableMap<Long, Long> streamCut);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.

@@ -250,7 +250,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<String>> getSubscribersForStream(String scope, String streamName) {
+    public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
         throw new UnsupportedOperationException();
     }
 
