@@ -94,8 +94,7 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                 || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
                 || resource.startsWith(claimKey + "/") // example 3
                 || claimKey.equals("*");
-
-        log.debug("claimKey: [{}], resource: [{}], result: [{}]", claimKey, resource, result);
-        return result; // 4
+        log.trace("claimKey: [{}], resource: [{}], result: [{}]", claimKey, resource, result);
+        return result;
     }
 }

@@ -27,6 +27,9 @@ public class PermissionsHelperTest {
     public void throwsExceptionForNotUnderstoodPermissions() {
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> PermissionsHelper.toAuthHandlerPermissions(AccessOperation.ANY));
+
+        AssertExtensions.assertThrows(NullPointerException.class,
+                () -> PermissionsHelper.toAuthHandlerPermissions(null));
     }
 
     @Test

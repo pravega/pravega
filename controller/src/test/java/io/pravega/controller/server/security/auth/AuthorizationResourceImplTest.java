@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.security.auth;
 
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -84,5 +85,8 @@ public class AuthorizationResourceImplTest {
 
         assertEquals("prn::/scope:_system/stream:_requeststream",
                 objectUnderTest.ofInternalStream("_system", "_requeststream"));
+
+        AssertExtensions.assertThrows(NullPointerException.class,
+                () -> objectUnderTest.ofInternalStream("testScope", null));
     }
 }
