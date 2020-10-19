@@ -56,6 +56,7 @@ import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -893,7 +894,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout) {
-        return this.durableLog.add(new DeleteSegmentOperation(segmentId), timeout);
+        // DeleteSegmentOperations need to have Critical priority so that they may be exempt from Cache Throttling. This
+        // is because they may be used for freeing up Storage space (and even Cache space) if the system gets full or
+        // close to becoming full. If this happens, chances are much higher that we'll be throttling incoming requests,
+        // but we need to make sure that operations which are meant to relieve pressure are not subject to such delays
+        // (otherwise there is a chance they will never be executed).
+        return this.durableLog.add(new DeleteSegmentOperation(segmentId), OperationPriority.Critical, timeout);
     }
 
     //endregion
