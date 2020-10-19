@@ -11,17 +11,13 @@ package io.pravega.shared.protocol;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.CorruptedFrameException;
-import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.BufferViewOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.segment.ScaleType;
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -38,9 +34,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.Accessors;
-
-import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
-import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
@@ -81,7 +74,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException;
+        WireCommand readFrom(BufferView.Reader in, int length) throws IOException;
     }
 
     @Data
@@ -101,12 +94,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeInt(highVersion);
             out.writeInt(lowVersion);
         }
 
-        public static Hello readFrom(DataInput in, int length) throws IOException {
+        public static Hello readFrom(BufferView.Reader in, int length) throws IOException {
             int highVersion = in.readInt();
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
@@ -132,14 +125,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(correctHost);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String correctHost = in.readUTF();
@@ -170,14 +163,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
             out.writeLong(offset);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
@@ -209,7 +202,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(startOffset);
@@ -217,7 +210,7 @@ public final class WireCommands {
             out.writeLong(offset);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             long startOffset = in.readLong();
@@ -245,13 +238,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
@@ -286,14 +279,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
             out.writeLong(offset);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
@@ -325,13 +318,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
@@ -362,14 +355,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
@@ -405,13 +398,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(operationName);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String operationName = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
@@ -435,7 +428,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             for (int i = 0; i < length / 8; i++) {
                 out.writeLong(0L);
             }
@@ -444,15 +437,8 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            int skipped = 0;
-            while (skipped < length) {
-                int skipBytes = in.skipBytes(length - skipped);
-                if (skipBytes < 0) {
-                    throw new CorruptedFrameException("Not enough bytes in buffer. Was attempting to read: " + length);
-                }
-                skipped += skipBytes;
-            }
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+            in.skipBytes(length);
             return new Padding(length);
         }
     }
@@ -461,15 +447,17 @@ public final class WireCommands {
     @EqualsAndHashCode(callSuper = false)
     public static final class PartialEvent extends ReleasableCommand {
         final WireCommandType type = WireCommandType.PARTIAL_EVENT;
-        final ByteBuf data;
+        final BufferView data;
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
-            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+        public void writeFields(BufferViewOutputStream out) throws IOException {
+            data.copyTo(out);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            return new PartialEvent(in.readFully(length).retain()).requireRelease();
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+            BufferView readSlice = in.readSlice(length);
+            readSlice.retain();
+            return new PartialEvent(readSlice).requireRelease();
         }
 
         @Override
@@ -481,20 +469,20 @@ public final class WireCommands {
     @Data
     public static final class Event implements WireCommand {
         final WireCommandType type = WireCommandType.EVENT;
-        final ByteBuf data;
+        final BufferView data;
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeInt(type.getCode());
-            out.writeInt(data.readableBytes());
-            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            out.writeInt(data.getLength());
+            data.copyTo(out);
         }
 
-        public ByteBuf getAsByteBuf() {
-            ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
-            header.writeInt(type.getCode());
-            header.writeInt(data.readableBytes());
-            return Unpooled.wrappedUnmodifiableBuffer(header, data);
+        public BufferView getAsByteBuf() {
+            byte[] header = new byte[TYPE_PLUS_LENGTH_SIZE];
+            BitConverter.writeInt(header, 0, type.getCode());
+            BitConverter.writeInt(header, 4, data.getLength());
+            return BufferView.wrap(new ByteArraySegment(header), data);
         }
     }
 
@@ -513,7 +501,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
@@ -521,7 +509,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             UUID uuid = new UUID(in.readLong(), in.readLong());
             String segment = in.readUTF();
@@ -535,29 +523,30 @@ public final class WireCommands {
     public static final class AppendBlock extends ReleasableCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;
-        final ByteBuf data;
+        final BufferView data;
 
         public AppendBlock(UUID writerId) {
             this.writerId = writerId;
-            this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
+            this.data = BufferView.empty(); // Populated on read path
         }
 
         @VisibleForTesting
-        public AppendBlock(UUID writerId, ByteBuf data) {
+        public AppendBlock(UUID writerId, BufferView data) {
             this.writerId = writerId;
             this.data = data;
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             // Data not written, as it should be null.
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            ByteBuf data = in.readFully(length - Long.BYTES * 2).retain();
+            BufferView data = in.readFully(length - Long.BYTES * 2);
+            data.retain();
             return new AppendBlock(writerId, data).requireRelease();
         }
 
@@ -573,41 +562,42 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.APPEND_BLOCK_END;
         final UUID writerId;
         final int sizeOfWholeEvents;
-        final ByteBuf data;
+        final BufferView data;
         final int numEvents;
         final long lastEventNumber;
         final long requestId;
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeInt(sizeOfWholeEvents);
             if (data == null) {
                 out.writeInt(0);
             } else {
-                out.writeInt(data.readableBytes());
-                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+                out.writeInt(data.getLength());
+                data.copyTo(out);
             }
             out.writeInt(numEvents);
             out.writeLong(lastEventNumber);
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
-            ByteBuf data;
+            BufferView data;
             if (dataLength > 0) {
                 data = in.readFully(dataLength);
             } else {
-                data = EMPTY_BUFFER;
+                data = BufferView.empty();
             }
+            data.retain();
             int numEvents = in.readInt();
             long lastEventNumber = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, data.retain(), numEvents, lastEventNumber, requestId)
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, data, numEvents, lastEventNumber, requestId)
                     .requireRelease();
         }
 
@@ -628,7 +618,7 @@ public final class WireCommands {
         final long requestId;
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
@@ -637,7 +627,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
@@ -646,7 +636,7 @@ public final class WireCommands {
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId).requireRelease();
         }
 
-        private static Event readEvent(EnhancedByteBufInputStream in, int length) throws IOException {
+        private static Event readEvent(BufferView.Reader in, int length) throws IOException {
             int typeCode = in.readInt();
             if (typeCode != WireCommandType.EVENT.getCode()) {
                 throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
@@ -655,7 +645,9 @@ public final class WireCommands {
             if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
                 throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
             }
-            return new Event(in.readFully(eventLength).retain());
+            ArrayView data = in.readFully(eventLength);
+            data.retain();
+            return new Event(data);
         }
 
         @Override
@@ -689,7 +681,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(writerId.getMostSignificantBits());
@@ -697,7 +689,7 @@ public final class WireCommands {
             out.writeLong(lastEventNumber);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID writerId = new UUID(in.readLong(), in.readLong());
@@ -721,7 +713,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
@@ -730,7 +722,7 @@ public final class WireCommands {
             out.writeLong(currentSegmentWriteOffset);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long previousEventNumber = in.available() >= Long.BYTES ? in.readLong() : -1L;
@@ -758,14 +750,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
@@ -794,7 +786,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeUTF(segment);
             out.writeLong(offset);
             out.writeInt(suggestedLength);
@@ -802,7 +794,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             int suggestedLength = in.readInt();
@@ -828,7 +820,7 @@ public final class WireCommands {
         final long offset;
         final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
-        final ByteBuf data;
+        final BufferView data;
         final long requestId;
 
         @Override
@@ -837,18 +829,18 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeUTF(segment);
             out.writeLong(offset);
             out.writeBoolean(atTail);
             out.writeBoolean(endOfSegment);
-            int dataLength = data.readableBytes();
+            int dataLength = data.getLength();
             out.writeInt(dataLength);
-            this.data.getBytes(this.data.readerIndex(), (OutputStream) out, dataLength);
+            data.copyTo(out);
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             boolean atTail = in.readBoolean();
@@ -857,7 +849,8 @@ public final class WireCommands {
             if (dataLength > length) {
                 throw new BufferOverflowException();
             }
-            ByteBuf data = in.readFully(dataLength).retain();
+            BufferView data = in.readFully(dataLength);
+            data.retain();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
             return new SegmentRead(segment, offset, atTail, endOfSegment, data, requestId).requireRelease();
         }
@@ -888,7 +881,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeLong(attributeId.getMostSignificantBits());
@@ -896,7 +889,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
@@ -917,12 +910,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeLong(value);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             long value = in.readLong();
             return new SegmentAttribute(requestId, value);
@@ -946,7 +939,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeLong(attributeId.getMostSignificantBits());
@@ -956,7 +949,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             UUID attributeId = new UUID(in.readLong(), in.readLong());
@@ -979,12 +972,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeBoolean(success);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             boolean success = in.readBoolean();
             return new SegmentAttributeUpdated(requestId, success);
@@ -1005,13 +998,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1038,7 +1031,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segmentName);
             out.writeBoolean(exists);
@@ -1049,7 +1042,7 @@ public final class WireCommands {
             out.writeLong(startOffset);
         }
 
-        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segmentName = in.readUTF();
             boolean exists = in.readBoolean();
@@ -1086,7 +1079,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeInt(targetRate);
@@ -1094,7 +1087,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             int desiredRate = in.readInt();
@@ -1121,14 +1114,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeBoolean(sorted);
         }
 
-        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1153,12 +1146,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentCreated(requestId, segment);
@@ -1182,7 +1175,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeInt(targetRate);
@@ -1190,7 +1183,7 @@ public final class WireCommands {
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             int desiredRate = in.readInt();
@@ -1213,12 +1206,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentPolicyUpdated(requestId, segment);
@@ -1240,14 +1233,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
@@ -1271,14 +1264,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
@@ -1301,14 +1294,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeLong(newTargetWriteOffset);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
@@ -1331,13 +1324,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1359,13 +1352,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1385,12 +1378,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentSealed(requestId, segment);
@@ -1412,14 +1405,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(truncationOffset);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             long truncationOffset = in.readLong();
@@ -1440,12 +1433,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentTruncated(requestId, segment);
@@ -1466,13 +1459,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1495,14 +1488,14 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeBoolean(mustBeEmpty);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             boolean mustBeEmpty = in.readBoolean();
@@ -1523,12 +1516,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentDeleted(requestId, segment);
@@ -1550,11 +1543,11 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) {
+        public void writeFields(BufferViewOutputStream out) {
 
         }
 
-        public static WireCommand readFrom(DataInput in, int length) {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             return new KeepAlive();
         }
 
@@ -1586,7 +1579,7 @@ public final class WireCommands {
             this.errorCode = errorCode;
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
 
@@ -1610,7 +1603,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
             out.writeInt(errorCode.getCode());
@@ -1663,7 +1656,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -1671,7 +1664,7 @@ public final class WireCommands {
             out.writeLong(tableSegmentOffset);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1699,7 +1692,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeInt(updatedVersions.size());
             for (long version: updatedVersions) {
@@ -1707,7 +1700,7 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             int numberOfEntries = in.readInt();
             List<Long> updatedVersions = new ArrayList<>(numberOfEntries);
@@ -1736,7 +1729,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -1747,7 +1740,7 @@ public final class WireCommands {
             out.writeLong(tableSegmentOffset);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1779,12 +1772,12 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new TableKeysRemoved(requestId, segment);
@@ -1809,7 +1802,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -1819,7 +1812,7 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -1851,13 +1844,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             entries.writeFields(out);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
@@ -1879,8 +1872,8 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        final BufferView continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+        final BufferView prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1888,40 +1881,40 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedKeyCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(continuationToken.getLength()); // continuation token length.
+            if (continuationToken.getLength() != 0) {
+                continuationToken.copyTo(out);
             }
 
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            out.writeInt(prefixFilter.getLength());
+            if (prefixFilter.getLength() != 0) {
+                prefixFilter.copyTo(out);
             }
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int suggestedKeyCount = in.readInt();
             int dataLength = in.readInt();
 
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
+            ArrayView continuationToken = in.readFully(dataLength);
 
             int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
+            BufferView prefixFilter;
             if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
+                prefixFilter = in.readFully(prefixFilterLength);
+            } else {
+                prefixFilter = BufferView.empty();
             }
 
-            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, continuationToken, prefixFilter);
         }
     }
 
@@ -1934,7 +1927,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final List<TableKey> keys;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+        final BufferView continuationToken; // this is used to indicate the point from which the next keys should be fetched.
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1942,18 +1935,18 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeInt(keys.size());
             for (TableKey key : keys) {
                 key.writeFields(out);
             }
-            out.writeInt(continuationToken.readableBytes());
-            continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(continuationToken.getLength());
+            continuationToken.copyTo(out);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
@@ -1965,10 +1958,9 @@ public final class WireCommands {
             }
 
             int dataLength = in.readInt();
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
+            ArrayView continuationToken = in.readFully(dataLength);
 
-            return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken)).requireRelease();
+            return new TableKeysRead(requestId, segment, keys, continuationToken).requireRelease();
         }
 
         @Override
@@ -1986,8 +1978,8 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        final BufferView continuationToken; // this is used to indicate the point from which the next entry should be fetched.
+        final BufferView prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1995,39 +1987,39 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedEntryCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(continuationToken.getLength()); // continuation token length.
+            if (continuationToken.getLength() != 0) {
+                continuationToken.copyTo(out);
             }
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            out.writeInt(prefixFilter.getLength());
+            if (prefixFilter.getLength() != 0) {
+                prefixFilter.copyTo(out);
             }
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int suggestedEntryCount = in.readInt();
             int dataLength = in.readInt();
 
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
+            ArrayView continuationToken = in.readFully(dataLength);
 
             int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
+            BufferView prefixFilter;
             if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
+                prefixFilter = in.readFully(prefixFilterLength);
+            } else {
+                prefixFilter = BufferView.empty();
             }
 
-            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, continuationToken, prefixFilter);
         }
     }
 
@@ -2040,7 +2032,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final TableEntries entries;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+        final BufferView continuationToken; // this is used to indicate the point from which the next keys should be fetched.
 
 
         @Override
@@ -2049,23 +2041,22 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             entries.writeFields(out);
-            out.writeInt(continuationToken.readableBytes());
-            continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(continuationToken.getLength());
+            continuationToken.copyTo(out);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             final int initialAvailable = in.available();
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());
             int dataLength = in.readInt();
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
-            return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken)).requireRelease();
+            BufferView continuationToken = in.readFully(dataLength);
+            return new TableEntriesRead(requestId, segment, entries, continuationToken).requireRelease();
         }
 
         @Override
@@ -2080,7 +2071,7 @@ public final class WireCommands {
 
         final List<Map.Entry<TableKey, TableValue>> entries;
 
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeInt(entries.size());
             for (Map.Entry<TableKey, TableValue> ent : entries) {
                 ent.getKey().writeFields(out);
@@ -2088,7 +2079,7 @@ public final class WireCommands {
             }
         }
 
-        public static TableEntries readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableEntries readFrom(BufferView.Reader in, int length) throws IOException {
             int numberOfEntries = in.readInt();
             List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
             for (int i = 0; i < numberOfEntries; i++) {
@@ -2112,21 +2103,21 @@ public final class WireCommands {
         public static final long NO_VERSION = Long.MIN_VALUE;
         public static final long NOT_EXISTS = -1L;
         public static final int HEADER_BYTES = 2 * Integer.BYTES;
-        public static final TableKey EMPTY = new TableKey(EMPTY_BUFFER, Long.MIN_VALUE);
+        public static final TableKey EMPTY = new TableKey(BufferView.empty(), Long.MIN_VALUE);
 
-        final ByteBuf data;
+        final BufferView data;
         final long keyVersion;
 
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(Integer.BYTES + data.readableBytes() + Long.BYTES); // total length of the TableKey.
-            out.writeInt(data.readableBytes()); // data length.
-            if (data.readableBytes() != 0) {
-                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+        public void writeFields(BufferViewOutputStream out) throws IOException {
+            out.writeInt(Integer.BYTES + data.getLength() + Long.BYTES); // total length of the TableKey.
+            out.writeInt(data.getLength()); // data length.
+            if (data.getLength() != 0) {
+                data.copyTo(out);
                 out.writeLong(keyVersion);
             }
         }
 
-        public static TableKey readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableKey readFrom(BufferView.Reader in, int length) throws IOException {
             int payLoadSize = in.readInt();
             int dataLength = in.readInt();
             if (dataLength == 0) {
@@ -2136,13 +2127,14 @@ public final class WireCommands {
                 throw new InvalidMessageException("Was expecting length of at least : " + payLoadSize + " but found: " + length);
             }
 
-            ByteBuf msg = in.readFully(dataLength);
+            BufferView msg = in.readFully(dataLength);
+            msg.retain();
             long keyVersion = in.readLong();
-            return new TableKey(msg.retain(), keyVersion);
+            return new TableKey(msg, keyVersion);
         }
 
         public int size() {
-            return HEADER_BYTES + this.data.readableBytes() + Long.BYTES;
+            return HEADER_BYTES + this.data.getLength() + Long.BYTES;
         }
 
         void release() {
@@ -2152,20 +2144,20 @@ public final class WireCommands {
 
     @Data
     public static final class TableValue {
-        public static final TableValue EMPTY = new TableValue(EMPTY_BUFFER);
+        public static final TableValue EMPTY = new TableValue(BufferView.empty());
         public static final int HEADER_BYTES = 2 * Integer.BYTES;
 
-        final ByteBuf data;
+        final BufferView data;
 
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(Integer.BYTES + data.readableBytes()); // total length of of TableValue.
-            out.writeInt(data.readableBytes()); // data length.
-            if (data.readableBytes() != 0) {
-                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+        public void writeFields(BufferViewOutputStream out) throws IOException {
+            out.writeInt(Integer.BYTES + data.getLength()); // total length of of TableValue.
+            out.writeInt(data.getLength()); // data length.
+            if (data.getLength() != 0) {
+                data.copyTo(out);
             }
         }
 
-        public static TableValue readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static TableValue readFrom(BufferView.Reader in, int length) throws IOException {
             int payloadSize = in.readInt();
             int valueLength = in.readInt();
             if (valueLength == 0) {
@@ -2175,12 +2167,13 @@ public final class WireCommands {
                 throw new InvalidMessageException("Was expecting length of at least : " + payloadSize + " but found: " + length);
             }
 
-            ByteBuf msg = in.readFully(valueLength);
-            return new TableValue(msg.retain());
+            BufferView msg = in.readFully(valueLength);
+            msg.retain();
+            return new TableValue(msg);
         }
 
         public int size() {
-            return HEADER_BYTES + this.data.readableBytes();
+            return HEADER_BYTES + this.data.getLength();
         }
 
         void release() {
@@ -2201,13 +2194,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
@@ -2238,13 +2231,13 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
@@ -2278,7 +2271,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
@@ -2286,7 +2279,7 @@ public final class WireCommands {
             out.writeInt(suggestedEntryCount);
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
@@ -2314,7 +2307,7 @@ public final class WireCommands {
         }
 
         @Override
-        public void writeFields(DataOutput out) throws IOException {
+        public void writeFields(BufferViewOutputStream out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
             entries.writeFields(out);
@@ -2323,7 +2316,7 @@ public final class WireCommands {
             out.writeLong(lastPosition);
         }
 
-        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             TableEntries entries = TableEntries.readFrom(in, in.available());

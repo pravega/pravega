@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.protocol;
 
-import java.io.DataOutput;
+import io.pravega.common.util.BufferViewOutputStream;
 import java.io.IOException;
 
 /**
@@ -18,5 +18,5 @@ import java.io.IOException;
 public interface WireCommand {
     WireCommandType getType();
 
-    void writeFields(DataOutput out) throws IOException;
+    void writeFields(BufferViewOutputStream out) throws IOException;
 }
