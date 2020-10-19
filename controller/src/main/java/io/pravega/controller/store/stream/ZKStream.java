@@ -444,6 +444,11 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<Void> createSubscribersRecordIfAbsent() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Void> createMarkerData(long segmentId, long timestamp) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         byte[] b = new byte[Long.BYTES];

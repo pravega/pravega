@@ -115,6 +115,7 @@ public abstract class PersistentStreamBase implements Stream {
                         .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.EMPTY))
                         .thenCompose((Void v) -> createStateIfAbsent(StateRecord.builder().state(State.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createStreamResponse))
+                        .thenCompose((Void v) -> createSubscribersRecordIfAbsent())
                         .thenApply((Void v) -> createStreamResponse));
     }
 
@@ -1976,6 +1977,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     // region state
     abstract CompletableFuture<Void> createStateIfAbsent(final StateRecord state);
+
+    // invoke this when creating a new Stream or when moving a Stream to CBR
+    abstract CompletableFuture<Void> createSubscribersRecordIfAbsent();
 
     abstract CompletableFuture<Version> setStateData(final VersionedMetadata<StateRecord> state);
 
