@@ -269,9 +269,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
                         .setStatus(Controller.AddSubscriberStatus.Status.SUBSCRIBER_EXISTS).build()));
-        assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.addSubscriber("scope", "stream", "subscriber").join(),
-                ex -> ex instanceof IllegalArgumentException);
+        Assert.assertFalse(this.testController.addSubscriber("scope", "stream", "subscriber").join());
 
         when(this.mockControllerService.addSubscriber(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
@@ -306,9 +304,8 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
                         .setStatus(Controller.RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
-        assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.removeSubscriber("scope", "stream", "subscriber").join(),
-                ex -> ex instanceof IllegalArgumentException);
+        Assert.assertFalse(this.testController.removeSubscriber("scope", "stream", "subscriber").join());
+
 
         when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
