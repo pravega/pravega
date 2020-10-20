@@ -25,6 +25,12 @@ import lombok.RequiredArgsConstructor;
 public class SegmentType {
     //region Flags
 
+    /*
+     * Note to developers: DO NOT CHANGE the number (bit) representations of the fields below. They are used for bitwise
+     * concatenation and their values are stored as Segment Attributes. Changing them would break backwards compatibility.
+     * Adding new values is OK. Do not reuse retired values. Carefully consider the addition of new values as there are
+     * a maximum of 64 flags that can be set using this scheme.
+     */
     @VisibleForTesting
     static final long FORMAT_BASIC = 0b0000_0000L;
     @VisibleForTesting

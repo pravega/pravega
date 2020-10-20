@@ -169,6 +169,9 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     private void ensureInitialized() {
         if (!isTableInitialized.get()) {
+            // Storage Metadata Segment is a System, Internal Segment. It must also be designated as Critical since the
+            // Segment Store may not function properly without it performing well. The Critical designation will cause
+            // all of its "modify" operations to bypass any ingestion pipeline throttling and be expedited for processing.
             val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
             try {
                 this.tableStore.createSegment(tableName, segmentType, timeout).join();

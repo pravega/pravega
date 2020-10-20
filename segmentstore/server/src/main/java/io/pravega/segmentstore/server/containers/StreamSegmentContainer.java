@@ -46,6 +46,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
@@ -58,6 +59,7 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -113,6 +115,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final SegmentStoreMetrics.Container metrics;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
+    private final PriorityCalculator priorityCalculator;
 
     //endregion
 
@@ -160,6 +163,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
+        this.priorityCalculator = new PriorityCalculator();
     }
 
     private MetadataStore createMetadataStore() {
@@ -545,17 +549,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
                     log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
-                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining()).thenApply(v2 -> {
-                        return new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
-                                                            sourceMetadata.getLength(), sourceMetadata.getAttributes());
-                    });
+                    return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining()).thenApply(v2 ->
+                            new MergeStreamSegmentResult(this.metadata.getStreamSegmentMetadata(targetSegmentId).getLength(),
+                                    sourceMetadata.getLength(), sourceMetadata.getAttributes()));
                 } else {
                     // Source now has some data - we must merge the two.
                     MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
-                    return this.durableLog.add(operation, timer.getRemaining()).thenApply(v2 -> {
-                        return new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
-                                                            operation.getLength(), sourceMetadata.getAttributes());
-                    });
+                    return addOperation(operation, timer.getRemaining()).thenApply(v2 ->
+                            new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
+                                    operation.getLength(), sourceMetadata.getAttributes()));
                 }
             }, this.executor);
         } else {
@@ -563,10 +565,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // the Merge right after the Seal.
             MergeSegmentOperation operation = new MergeSegmentOperation(targetSegmentId, sourceSegmentId);
             return CompletableFuture.allOf(sealResult,
-                                           this.durableLog.add(operation, timer.getRemaining())).thenApply(v2 -> {
-                                               return new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
-                                                                                   operation.getLength(), sourceMetadata.getAttributes());
-                                           });
+                    addOperation(operation, timer.getRemaining())).thenApply(v2 ->
+                    new MergeStreamSegmentResult(operation.getStreamSegmentOffset() + operation.getLength(),
+                            operation.getLength(), sourceMetadata.getAttributes()));
         }
     }
 
@@ -643,13 +644,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private CompletableFuture<Long> seal(long segmentId, Duration timeout) {
         StreamSegmentSealOperation operation = new StreamSegmentSealOperation(segmentId);
-        return StreamSegmentContainer.this.durableLog.add(operation, timeout)
-                                                     .thenApply(seqNo -> operation.getStreamSegmentOffset());
+        return addOperation(operation, timeout)
+                .thenApply(seqNo -> operation.getStreamSegmentOffset());
     }
 
     private CompletableFuture<Void> truncate(long segmentId, long offset, Duration timeout) {
         StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(segmentId, offset);
-        return this.durableLog.add(op, timeout);
+        return addOperation(op, timeout);
     }
 
     /**
@@ -667,7 +668,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // It is OK to ignore StreamSegmentSealedException as the segment may have already been sealed by a concurrent
             // call to this or via some other operation.
             return Futures.exceptionallyExpecting(
-                    this.durableLog.add(new StreamSegmentSealOperation(metadata.getId()), timeout),
+                    addOperation(new StreamSegmentSealOperation(metadata.getId()), timeout),
                     ex -> ex instanceof StreamSegmentSealedException,
                     null);
         }
@@ -703,11 +704,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Collection<AttributeUpdate> updates = operation.getAttributeUpdates();
         if (updates == null || updates.isEmpty()) {
             // No need for extra complicated handling.
-            return this.durableLog.add(operation, timer.getRemaining());
+            return addOperation(operation, timer.getRemaining());
         }
 
         return Futures.exceptionallyCompose(
-                this.durableLog.add(operation, timer.getRemaining()),
+                addOperation(operation, timer.getRemaining()),
                 ex -> {
                     // We only retry BadAttributeUpdateExceptions if it has the PreviousValueMissing flag set.
                     ex = Exceptions.unwrap(ex);
@@ -723,7 +724,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                             return getAndCacheAttributes(segmentMetadata, attributeIds, true, timer)
                                     .thenComposeAsync(attributes -> {
                                         // Final attempt - now that we should have the attributes cached.
-                                        return this.durableLog.add(operation, timer.getRemaining());
+                                        return addOperation(operation, timer.getRemaining());
                                     }, this.executor);
                         }
                     }
@@ -797,8 +798,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                 // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
                 // invoke this one again.
-                return this.durableLog.add(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
-                                      .thenApply(v -> extendedAttributes);
+                return addOperation(new UpdateAttributesOperation(segmentMetadata.getId(), updates), timer.getRemaining())
+                        .thenApply(v -> extendedAttributes);
             }, this.executor);
         }
 
@@ -882,7 +883,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             op.markPinned();
         }
 
-        return this.durableLog.add(op, timeout).thenApply(ignored -> op.getStreamSegmentId());
+        OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op.getType());
+        return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
@@ -896,12 +898,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout) {
-        // DeleteSegmentOperations need to have Critical priority so that they may be exempt from Cache Throttling. This
-        // is because they may be used for freeing up Storage space (and even Cache space) if the system gets full or
-        // close to becoming full. If this happens, chances are much higher that we'll be throttling incoming requests,
-        // but we need to make sure that operations which are meant to relieve pressure are not subject to such delays
-        // (otherwise there is a chance they will never be executed).
-        return this.durableLog.add(new DeleteSegmentOperation(segmentId), OperationPriority.Critical, timeout);
+        // NOTE: DeleteSegmentOperations have their OperationPriority set to Critical.
+        return addOperation(new DeleteSegmentOperation(segmentId), timeout);
+    }
+
+    private <T extends Operation & SegmentOperation> CompletableFuture<Void> addOperation(T operation, Duration timeout) {
+        SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(operation.getStreamSegmentId());
+        OperationPriority priority = calculatePriority(sm.getType(), operation.getType());
+        return this.durableLog.add(operation, priority, timeout);
+    }
+
+    private OperationPriority calculatePriority(SegmentType segmentType, OperationType operationType) {
+        return this.priorityCalculator.getPriority(segmentType, operationType);
     }
 
     //endregion

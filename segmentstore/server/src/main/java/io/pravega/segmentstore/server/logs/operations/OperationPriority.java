@@ -25,11 +25,13 @@ public enum OperationPriority {
      * its functioning. Examples include, but are not limited to, {@link Operation}s that have a direct result of freeing
      * resources (such as those required by the Storage adapter(s)).
      *
+     * Consider using {@link #High} before assigning this priority to operations.
+     *
      * All {@link Operation}s with this priority level are EXEMPT from throttling in the OperationProcessor.
      *
      * WARNING: NO EXTERNAL OPERATIONS SHOULD BE ASSIGNED THIS PRIORITY LEVEL. Consider using {@link #Critical} instead.
      */
-    System((byte) 0, true),
+    SystemCritical((byte) 0, true),
 
     /**
      * Highest priority level that can be assigned to external {@link Operation}s. Only {@link Operation}s that can clear
@@ -42,11 +44,20 @@ public enum OperationPriority {
     Critical((byte) 1, true),
 
     /**
+     * Elevated priority level recommended Segment Store internal operations that are needed for its function, but are
+     * not as crucial as those requiring {@link #SystemCritical}. Examples include, but are not limited to, maintenance
+     * {@link Operation}s that are performed in order to keep the system healthy (Segment evictions, etc.).
+     *
+     * All {@link Operation}s with this priority level are subject to throttling in the OperationProcessor.
+     */
+    High((byte) 2, false),
+
+    /**
      * Normal priority level. All external {@link Operation}s that do not qualify for {@link #Critical} have this.
      *
      * All {@link Operation}s with this priority level are subject to throttling in the OperationProcessor.
      */
-    Normal((byte) 2, false);
+    Normal((byte) 3, false);
 
     /**
      * Numeric value for Priority. Lower value is more important.
