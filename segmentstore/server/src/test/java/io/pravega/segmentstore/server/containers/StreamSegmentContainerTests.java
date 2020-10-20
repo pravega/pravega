@@ -167,6 +167,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final SegmentType BASIC_TYPE = SegmentType.builder().build();
+    private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
+            BASIC_TYPE,
+            SegmentType.builder(BASIC_TYPE).build(),
+            SegmentType.builder(BASIC_TYPE).internal().build(),
+            SegmentType.builder(BASIC_TYPE).critical().build(),
+            SegmentType.builder(BASIC_TYPE).system().build(),
+            SegmentType.builder(BASIC_TYPE).system().critical().build(),
+    };
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -321,6 +329,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfGreater, Attributes.NULL_ATTRIBUTE_VALUE));
             Assert.assertEquals("Unexpected value for attribute " + attributeReplaceIfEquals + " for segment " + segmentName,
                     expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeReplaceIfEquals, Attributes.NULL_ATTRIBUTE_VALUE));
+
+            val expectedType = getSegmentType(segmentName);
+            val actualType = SegmentType.fromAttributes(sp.getAttributes());
+            Assert.assertEquals("Unexpected Segment Type.", expectedType, actualType);
         }
 
         checkActiveSegments(context.container, segmentNames.size());
@@ -382,6 +394,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
             Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
             Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
+            Assert.assertEquals("Unexpected Segment Type.", getSegmentType(segmentName), SegmentType.fromAttributes(sp.getAttributes()));
         }
 
         // 4. Reads (regular reads, not tail reads).
@@ -425,14 +438,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            opFutures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
+            opFutures.add(container.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT));
         }
 
-        val sortedTableSegment = SegmentType.builder(BASIC_TYPE).sortedTableSegment().build();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i) + "_Table";
             tableSegmentNames.add(segmentName);
-            opFutures.add(tableStore.createSegment(segmentName, sortedTableSegment, TIMEOUT));
+            val type = SegmentType.builder(getSegmentType(segmentName)).sortedTableSegment().build();
+            opFutures.add(tableStore.createSegment(segmentName, type, TIMEOUT));
         }
 
         // 1.1 Wait for all segments to be created prior to using them.
@@ -685,7 +698,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 1. Create the Segment.
         String segmentName = getSegmentName(0);
-        localContainer.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val segment1 = localContainer.forSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2. Set some initial attribute values and verify in-memory iterator.
@@ -863,6 +876,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength.get(), sp.getLength());
         Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
         Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
+        Assert.assertEquals("Unexpected Segment Type.", getSegmentType(segmentName), SegmentType.fromAttributes(sp.getAttributes()));
 
         // Verify all attribute values.
         Assert.assertEquals("Unexpected value for attribute " + attributeAccumulate + " for segment " + segmentName,
@@ -1394,7 +1408,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val initialAttributes = createAttributeUpdates(attributes);
         applyAttributes(initialAttributes, expectedAttributes);
         expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        localContainer.createStreamSegment(segmentName, BASIC_TYPE, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, getSegmentType(segmentName), initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
@@ -1441,7 +1455,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Now Create the Segment again and verify the old attributes were not "remembered".
         val newAttributes = createAttributeUpdates(attributes);
         applyAttributes(newAttributes, expectedAttributes);
-        localContainer.createStreamSegment(segmentName, BASIC_TYPE, newAttributes, TIMEOUT)
+        localContainer.createStreamSegment(segmentName, getSegmentType(segmentName), newAttributes, TIMEOUT)
                       .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1475,7 +1489,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.startAsync().awaitRunning();
 
             // Create segment and make one append to it.
-            container1.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Wait until the segment is forgotten.
@@ -1535,7 +1549,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < createdSegmentCount; i++) {
             String name = getSegmentName(i);
             segments.add(name);
-            localContainer.createStreamSegment(name, BASIC_TYPE, null, TIMEOUT).join();
+            localContainer.createStreamSegment(name, getSegmentType(name), null, TIMEOUT).join();
         }
 
         // Activate three segments (this should fill up available capacity).
@@ -1606,7 +1620,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.startAsync().awaitRunning();
 
         // Create segment with initial attributes and verify they were set correctly.
-        localContainer.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
@@ -1723,7 +1737,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             for (int i = 0; i < SEGMENT_COUNT; i++) {
                 String segmentName = getSegmentName(i);
                 segmentNames.add(segmentName);
-                creationFutures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
+                creationFutures.add(container.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT));
             }
 
             // Wait for the segments to be created first.
@@ -1838,7 +1852,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected result from getExtension().", extension.get(), p);
 
         // Verify Writer Segment Processors are properly wired in.
-        context.container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).join();
+        context.container.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).join();
         context.container.append(segmentName, data, null, TIMEOUT).join();
         val rawOp = operationProcessed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Unexpected operation type.", rawOp instanceof CachedStreamSegmentAppendOperation);
@@ -2175,7 +2189,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
+            futures.add(container.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT));
         }
 
         Futures.allOf(futures).join();
@@ -2189,10 +2203,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (String segmentName : segmentNames) {
             val txnList = new ArrayList<String>(TRANSACTIONS_PER_SEGMENT);
             transactions.put(segmentName, txnList);
+            // Transaction segments should have the same type as their parents, otherwise our checks won't work properly.
+            val segmentType = getSegmentType(segmentName);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
-                futures.add(context.container.createStreamSegment(txnName, BASIC_TYPE, null, TIMEOUT));
+                futures.add(context.container.createStreamSegment(txnName, segmentType, null, TIMEOUT));
             }
         }
 
@@ -2215,6 +2231,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static String getSegmentName(int i) {
         return "Segment_" + i;
+    }
+
+    private SegmentType getSegmentType(String segmentName) {
+        // "Randomize" through all the segment types, but using a deterministic function so we can check results later.
+        return SEGMENT_TYPES[Math.abs(segmentName.hashCode() % SEGMENT_TYPES.length)];
     }
 
     private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, TestContext context) {
