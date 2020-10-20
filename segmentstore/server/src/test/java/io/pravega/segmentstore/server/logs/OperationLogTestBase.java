@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -104,7 +105,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < streamSegmentCount; i++) {
             val op = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(getStreamSegmentName(i)).build());
             operations.add(op);
-            futures.add(durableLog.add(op, TIMEOUT));
+            futures.add(durableLog.add(op, OperationPriority.Normal, TIMEOUT));
         }
 
         Futures.allOf(futures).join();
@@ -147,7 +148,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
                 String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 StreamSegmentMapOperation op = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(transactionName).build());
-                durableLog.add(op, TIMEOUT).join();
+                durableLog.add(op, OperationPriority.Normal, TIMEOUT).join();
                 result.put(op.getStreamSegmentId(), streamSegmentId);
             }
         }

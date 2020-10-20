@@ -31,18 +31,6 @@ public interface OperationLog extends Container {
     CompletableFuture<Void> add(Operation operation, OperationPriority priority, Duration timeout);
 
     /**
-     * Adds a new {@link Operation} to the {@link OperationLog} with a priority level set to {@link OperationPriority#Normal}.
-     *
-     * @param operation The {@link Operation} to append.
-     * @param timeout   Timeout for the {@link Operation}.
-     * @return A CompletableFuture that, when completed, will indicate that the {@link Operation} has been durably added.
-     * If the {@link Operation} failed to be added, this Future will complete with the appropriate exception.
-     */
-    default CompletableFuture<Void> add(Operation operation, Duration timeout) {
-        return add(operation, OperationPriority.Normal, timeout);
-    }
-
-    /**
      * Truncates the log up to the given sequence.
      *
      * @param upToSequence The Sequence up to where to truncate.

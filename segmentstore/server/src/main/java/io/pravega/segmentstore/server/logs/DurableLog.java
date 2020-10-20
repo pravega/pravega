@@ -326,7 +326,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
         // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
         // info will be readily available upon recovery without delay.
-        return add(new StorageMetadataCheckpointOperation(), timer.getRemaining())
+        return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.

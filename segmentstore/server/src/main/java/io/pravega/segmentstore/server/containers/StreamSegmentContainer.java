@@ -54,6 +54,7 @@ import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
+import io.pravega.segmentstore.server.logs.PriorityCalculator;
 import io.pravega.segmentstore.server.logs.operations.AttributeUpdaterOperation;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;

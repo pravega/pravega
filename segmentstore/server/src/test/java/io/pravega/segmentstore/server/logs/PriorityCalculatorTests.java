@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.containers;
+package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;

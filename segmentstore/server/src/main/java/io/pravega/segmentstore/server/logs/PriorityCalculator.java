@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.containers;
+package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
@@ -16,7 +16,7 @@ import io.pravega.segmentstore.server.logs.operations.OperationType;
 /**
  * Calculates {@link OperationPriority} based on various factors.
  */
-class PriorityCalculator {
+public final class PriorityCalculator {
 
     /**
      * Determines an {@link OperationPriority} appropriate for the given {@link SegmentType} and {@link OperationType}.
