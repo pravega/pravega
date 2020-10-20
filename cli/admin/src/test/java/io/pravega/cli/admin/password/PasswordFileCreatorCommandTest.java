@@ -30,4 +30,12 @@ public class PasswordFileCreatorCommandTest {
         // Remove generated file by command.
         Files.delete(Paths.get(fileName));
     }
+
+    @Test
+    public void testPasswordFileCreatorCommandParsesAuthFormat() throws Exception {
+        final String fileName = "fileWithAuthFormat";
+        TestUtils.executeCommand("password create-password-file " + fileName + " user:password:prn::/scope:scope1,READ_UPDATE,", new AdminCommandState());
+        Assert.assertTrue(Files.exists(Paths.get(fileName)));
+        Files.delete(Paths.get(fileName));
+    }
 }
