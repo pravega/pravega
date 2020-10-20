@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -452,12 +453,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureRunning();
 
-        logRequest("createStreamSegment", streamSegmentName);
+        logRequest("createStreamSegment", streamSegmentName, segmentType);
         this.metrics.createSegment();
-        return this.metadataStore.createSegment(streamSegmentName, attributes, timeout);
+        return this.metadataStore.createSegment(streamSegmentName, segmentType, attributes, timeout);
     }
 
     @Override

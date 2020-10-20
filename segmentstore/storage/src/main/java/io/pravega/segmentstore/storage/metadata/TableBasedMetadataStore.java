@@ -15,16 +15,13 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,6 +29,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * {@link TableStore} based storage metadata store.
@@ -169,8 +169,9 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     private void ensureInitialized() {
         if (!isTableInitialized.get()) {
+            val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
             try {
-                this.tableStore.createSegment(tableName, timeout).join();
+                this.tableStore.createSegment(tableName, segmentType, timeout).join();
                 log.info("Created table segment {}", tableName);
             } catch (CompletionException e) {
                 if (e.getCause() instanceof StreamSegmentExistsException) {

@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -152,7 +153,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * exclude these from all our checks.
      */
     private static final Collection<UUID> AUTO_ATTRIBUTES = Collections.unmodifiableSet(
-            Sets.newHashSet(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO));
+            Sets.newHashSet(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Attributes.ATTRIBUTE_SEGMENT_TYPE));
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
@@ -165,6 +166,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
+    private static final SegmentType BASIC_TYPE = SegmentType.builder().build();
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -423,13 +425,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+            opFutures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
         }
 
+        val sortedTableSegment = SegmentType.builder(BASIC_TYPE).sortedTableSegment().build();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i) + "_Table";
             tableSegmentNames.add(segmentName);
-            opFutures.add(tableStore.createSegment(segmentName, true, TIMEOUT));
+            opFutures.add(tableStore.createSegment(segmentName, sortedTableSegment, TIMEOUT));
         }
 
         // 1.1 Wait for all segments to be created prior to using them.
@@ -682,7 +685,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 1. Create the Segment.
         String segmentName = getSegmentName(0);
-        localContainer.createStreamSegment(segmentName, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val segment1 = localContainer.forSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2. Set some initial attribute values and verify in-memory iterator.
@@ -1391,7 +1394,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val initialAttributes = createAttributeUpdates(attributes);
         applyAttributes(initialAttributes, expectedAttributes);
         expectedAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        localContainer.createStreamSegment(segmentName, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, BASIC_TYPE, initialAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after segment creation.", expectedAttributes, sp, AUTO_ATTRIBUTES);
 
@@ -1438,7 +1441,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Now Create the Segment again and verify the old attributes were not "remembered".
         val newAttributes = createAttributeUpdates(attributes);
         applyAttributes(newAttributes, expectedAttributes);
-        localContainer.createStreamSegment(segmentName, newAttributes, TIMEOUT)
+        localContainer.createStreamSegment(segmentName, BASIC_TYPE, newAttributes, TIMEOUT)
                       .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1472,7 +1475,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container1.startAsync().awaitRunning();
 
             // Create segment and make one append to it.
-            container1.createStreamSegment(segmentName, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            container1.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             container1.append(segmentName, appendData, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Wait until the segment is forgotten.
@@ -1532,7 +1535,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < createdSegmentCount; i++) {
             String name = getSegmentName(i);
             segments.add(name);
-            localContainer.createStreamSegment(name, null, TIMEOUT).join();
+            localContainer.createStreamSegment(name, BASIC_TYPE, null, TIMEOUT).join();
         }
 
         // Activate three segments (this should fill up available capacity).
@@ -1603,7 +1606,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.startAsync().awaitRunning();
 
         // Create segment with initial attributes and verify they were set correctly.
-        localContainer.createStreamSegment(segmentName, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
@@ -1720,7 +1723,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             for (int i = 0; i < SEGMENT_COUNT; i++) {
                 String segmentName = getSegmentName(i);
                 segmentNames.add(segmentName);
-                creationFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+                creationFutures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
             }
 
             // Wait for the segments to be created first.
@@ -1835,7 +1838,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected result from getExtension().", extension.get(), p);
 
         // Verify Writer Segment Processors are properly wired in.
-        context.container.createStreamSegment(segmentName, null, TIMEOUT).join();
+        context.container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT).join();
         context.container.append(segmentName, data, null, TIMEOUT).join();
         val rawOp = operationProcessed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Unexpected operation type.", rawOp instanceof CachedStreamSegmentAppendOperation);
@@ -2172,7 +2175,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+            futures.add(container.createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT));
         }
 
         Futures.allOf(futures).join();
@@ -2189,7 +2192,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
-                futures.add(context.container.createStreamSegment(txnName, null, TIMEOUT));
+                futures.add(context.container.createStreamSegment(txnName, BASIC_TYPE, null, TIMEOUT));
             }
         }
 
@@ -2311,7 +2314,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static void waitForOperationsInReadIndex(SegmentContainer container) throws Exception {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         String segmentName = "test" + System.nanoTime();
-        container.createStreamSegment(segmentName, null, timer.getRemaining())
+        container.createStreamSegment(segmentName, BASIC_TYPE, null, timer.getRemaining())
                 .thenCompose(v -> container.append(segmentName, new ByteArraySegment(new byte[1]), null, timer.getRemaining()))
                 .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
                 .thenCompose(rr -> {
@@ -2482,7 +2485,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
          */
         CompletableFuture<Void> appendRandomly(String segmentName, boolean createSegment, Supplier<Boolean> canContinue) {
             byte[] appendData = new byte[1];
-            return (createSegment ? createStreamSegment(segmentName, null, TIMEOUT) : CompletableFuture.completedFuture(null))
+            return (createSegment ? createStreamSegment(segmentName, BASIC_TYPE, null, TIMEOUT) : CompletableFuture.completedFuture(null))
                     .thenCompose(v -> Futures.loop(
                             canContinue,
                             () -> Futures.toVoid(append(segmentName, new ByteArraySegment(appendData), null, TIMEOUT)),

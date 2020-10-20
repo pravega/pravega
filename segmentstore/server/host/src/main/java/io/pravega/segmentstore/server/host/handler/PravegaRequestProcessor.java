@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -89,9 +90,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -100,7 +101,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.Getter;
 import lombok.Setter;
 import lombok.val;
@@ -132,6 +132,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
+    private static final SegmentType STREAM_SEGMENT = SegmentType.builder().build();
+    private static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
+    private static final SegmentType TABLE_SEGMENT_SORTED = SegmentType.builder().sortedTableSegment().build();
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
     private final ServerConnection connection;
@@ -435,7 +438,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
        }
 
        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
-       segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
+       segmentStore.createStreamSegment(createStreamSegment.getSegment(), STREAM_SEGMENT, attributes, TIMEOUT)
                    .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                    .whenComplete((res, e) -> {
                     if (e == null) {
@@ -574,12 +577,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
-        tableStore.createSegment(createTableSegment.getSegment(), createTableSegment.isSorted(), TIMEOUT)
-                  .thenAccept(v -> {
-                      connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
-                      this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
-                  })
-                  .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
+        val type = createTableSegment.isSorted() ? TABLE_SEGMENT_SORTED : TABLE_SEGMENT_HASH;
+        tableStore.createSegment(createTableSegment.getSegment(), type, TIMEOUT)
+                .thenAccept(v -> {
+                    connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
+                    this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
     }
 
     @Override
