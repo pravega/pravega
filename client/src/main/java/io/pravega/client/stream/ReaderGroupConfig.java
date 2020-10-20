@@ -49,11 +49,41 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
+    @Getter
+    private final boolean isSubscriber;
+    @Getter
+    private final boolean autoTruncateAtLastCheckpoint;
+
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
+       private boolean isSubscriber = false; //default value
+       private boolean autoTruncateAtLastCheckpoint = false; //default value
+
+       /**
+        * Makes the reader group a subscriber reader group. During CBR (Consumption Based Retention),
+        * the subscriber reader group's positions are considered during truncation. The stream will truncate
+        * to the last checkpoint position of this group.
+        *
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder isSubscriber() {
+           this.isSubscriber = true;
+           return this;
+       }
+
+       /**
+        * Allows for every checkpoint initiated by this reader group (automatic or manual)
+        * to be published as a truncation point to the controller, if the reader group is a subscriber reader group.
+        *
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder autoTruncateAtLastCheckpoint() {
+           this.autoTruncateAtLastCheckpoint = true;
+           return this;
+       }
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -199,7 +229,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, isSubscriber, autoTruncateAtLastCheckpoint);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
