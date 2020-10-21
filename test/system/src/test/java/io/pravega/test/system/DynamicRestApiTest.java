@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system;
 
-import com.fasterxml.jackson.jaxrs.json.JacksonJsonProvider;
+import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.JacksonJsonProvider;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
@@ -90,6 +90,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
     public void listScopes() {
         Service controllerService = Utils.createPravegaControllerService(null);
         List<URI> controllerURIs = controllerService.getServiceDetails();
+        URI controllerGRPCUri = controllerURIs.get(0);
         URI controllerRESTUri = controllerURIs.get(1);
         Invocation.Builder builder;
         @Cleanup
@@ -114,9 +115,9 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         String responseAsString = null;
 
         ClientConfig clientConfig = ClientConfig.builder()
-                        .controllerURI(controllerRESTUri)
-                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                        .build();
+                .controllerURI(controllerGRPCUri)
+                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                .build();
         // Create a scope.
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
