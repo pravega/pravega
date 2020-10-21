@@ -548,10 +548,30 @@ public class StreamMetadataTasks extends TaskBase {
 
                 return latestOpt.flatMap(latest ->
                         retentionSet.getRetentionRecords().stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionParam())
-                                .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime)));
+                                    .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime)));
+            case CONSUMPTION:
+                switch (policy.getConsumptionLimits().getType()) {
+                    case SIZE:
+                        streamcutBySize(policy, retentionSet, newRecord);
+                        break;
+                    case TIME:
+                        streamcutByTime(policy, retentionSet, recordingTime);
+                        break;
+                }
             default:
                 throw new NotImplementedException(policy.getRetentionType().toString());
         }
+    }
+
+    private Optional<StreamCutReferenceRecord> streamcutBySize(RetentionPolicy policy, RetentionSet retentionSet, StreamCutRecord newRecord) {
+        return Optional.ofNullable(newRecord).flatMap(latest ->
+                retentionSet.getRetentionRecords().stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionParam())
+                        .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime)));
+    }
+
+    private Optional<StreamCutReferenceRecord> streamcutByTime(RetentionPolicy policy, RetentionSet retentionSet, long recordingTime) {
+        return retentionSet.getRetentionRecords().stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionParam())
+                .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
     }
 
     /**

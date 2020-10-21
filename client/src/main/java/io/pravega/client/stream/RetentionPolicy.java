@@ -32,12 +32,17 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE
+        SIZE,
+
+        /**
+         * Set retention policy based on Consumption. 
+         */
+        CONSUMPTION
     }
 
     private final RetentionType retentionType;
     private final long retentionParam;
-
+    private final ConsumptionLimits consumptionLimits;
     /**
      * Create a retention policy to configure a stream to periodically truncated
      * according to the specified duration.
@@ -46,7 +51,7 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy byTime(Duration duration) {
-        return new RetentionPolicy(RetentionType.TIME, duration.toMillis());
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME).retentionParam(duration.toMillis()).build();
     }
 
     /**
@@ -57,6 +62,34 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy bySizeBytes(long size) {
-        return new RetentionPolicy(RetentionType.SIZE, size);
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE).retentionParam(size).build();
+    }
+    
+    /**
+     * Create a retention policy to configure a stream to truncate a stream
+     * according to positions of subscribed readergroups.
+     *
+     * @param limitByTime limit by time
+     * @param minLimit min limit
+     * @param maxLimit max limit
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy ofConsumption(boolean limitByTime, long minLimit, long maxLimit) {
+        ConsumptionLimits.Type type = limitByTime ? ConsumptionLimits.Type.TIME : ConsumptionLimits.Type.SIZE;
+        return RetentionPolicy.builder().retentionType(RetentionType.CONSUMPTION)
+                              .consumptionLimits(new ConsumptionLimits(type, minLimit, maxLimit)).build();
+    }
+    
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    public static class ConsumptionLimits {
+        public enum Type {
+            TIME,
+            SIZE
+        }
+
+        private final Type type;
+        private final long minValue;
+        private final long maxValue;
     }
 }
