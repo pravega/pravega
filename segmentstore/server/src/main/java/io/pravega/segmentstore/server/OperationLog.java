@@ -39,6 +39,14 @@ public interface OperationLog extends Container {
     CompletableFuture<Void> truncate(long upToSequence, Duration timeout);
 
     /**
+     * Creates and persists a Metadata Checkpoint.
+     *
+     * @param timeout The timeout for the operation.
+     * @return The Sequence Number of the Metadata Checkpoint.
+     */
+    CompletableFuture<Long> checkpoint(Duration timeout);
+
+    /**
      * Reads a number of entries from the log.
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.

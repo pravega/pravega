@@ -46,7 +46,7 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 public class CheckpointState {
     
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
-    
+
     private final List<String> checkpoints;
     /**
      * Maps CheckpointId to remaining hosts.
@@ -138,8 +138,12 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
-                //checkpoint operation completed for all readers, update the last checkpoint position.
-                lastCheckpointPosition = checkpointPositions.get(checkpointId);
+
+                //store last checkpoint position if it is not a stream-cut (silent checkpoint)
+                if (!isCheckpointSilent(checkpointId)) {
+                    //checkpoint operation completed for all readers, update the last checkpoint position.
+                    lastCheckpointPosition = checkpointPositions.get(checkpointId);
+                }
             }
         }
     }
