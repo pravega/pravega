@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.protocol;
 
-import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ArrayView;
 import io.pravega.shared.protocol.WireCommands.Event;
 import java.util.UUID;
 import lombok.Data;
@@ -22,16 +22,16 @@ public class Append implements Request, Comparable<Append> {
     final UUID writerId;
     final long eventNumber;
     final int eventCount;
-    final BufferView data;
+    final ArrayView data;
     final Long expectedLength;
     final long flowId;
 
     public Append(String segment, UUID writerId, long eventNumber, Event event, long flowId) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null, flowId);
+        this(segment, writerId, eventNumber, 1, event.asArrayView(), null, flowId);
     }
     
     public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long flowId) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, flowId);
+        this(segment, writerId, eventNumber, 1, event.asArrayView(), expectedLength, flowId);
     }
 
     public int getDataLength() {

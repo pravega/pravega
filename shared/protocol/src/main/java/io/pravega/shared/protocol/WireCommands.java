@@ -99,7 +99,7 @@ public final class WireCommands {
             out.writeInt(lowVersion);
         }
 
-        public static Hello readFrom(BufferView.Reader in, int length) throws IOException {
+        public static Hello readFrom(BufferView.Reader in, int length) {
             int highVersion = in.readInt();
             int lowVersion = in.readInt();
             return new Hello(highVersion, lowVersion);
@@ -437,7 +437,7 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             in.skipBytes(length);
             return new Padding(length);
         }
@@ -454,7 +454,7 @@ public final class WireCommands {
             data.copyTo(out);
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             BufferView readSlice = in.readSlice(length);
             readSlice.retain();
             return new PartialEvent(readSlice).requireRelease();
@@ -469,7 +469,7 @@ public final class WireCommands {
     @Data
     public static final class Event implements WireCommand {
         final WireCommandType type = WireCommandType.EVENT;
-        final BufferView data;
+        final ArrayView data;
 
         @Override
         public void writeFields(BufferViewOutputStream out) throws IOException {
@@ -478,11 +478,12 @@ public final class WireCommands {
             data.copyTo(out);
         }
 
-        public BufferView getAsByteBuf() {
-            byte[] header = new byte[TYPE_PLUS_LENGTH_SIZE];
-            BitConverter.writeInt(header, 0, type.getCode());
-            BitConverter.writeInt(header, 4, data.getLength());
-            return BufferView.wrap(new ByteArraySegment(header), data);
+        public ArrayView asArrayView() {
+            byte[] array = new byte[TYPE_PLUS_LENGTH_SIZE + data.getLength()];
+            BitConverter.writeInt(array, 0, type.getCode());
+            BitConverter.writeInt(array, 4, data.getLength());
+            data.copyTo(array, TYPE_PLUS_LENGTH_SIZE, data.getLength());
+            return new ByteArraySegment(array);
         }
     }
 
@@ -543,7 +544,7 @@ public final class WireCommands {
             // Data not written, as it should be null.
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             BufferView data = in.readFully(length - Long.BYTES * 2);
             data.retain();
@@ -722,7 +723,7 @@ public final class WireCommands {
             out.writeLong(currentSegmentWriteOffset);
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long previousEventNumber = in.available() >= Long.BYTES ? in.readLong() : -1L;
@@ -757,7 +758,7 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
@@ -915,7 +916,7 @@ public final class WireCommands {
             out.writeLong(value);
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             long requestId = in.readLong();
             long value = in.readLong();
             return new SegmentAttribute(requestId, value);
@@ -1700,7 +1701,7 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(BufferView.Reader in, int length) throws IOException {
+        public static WireCommand readFrom(BufferView.Reader in, int length) {
             long requestId = in.readLong();
             int numberOfEntries = in.readInt();
             List<Long> updatedVersions = new ArrayList<>(numberOfEntries);
@@ -2157,7 +2158,7 @@ public final class WireCommands {
             }
         }
 
-        public static TableValue readFrom(BufferView.Reader in, int length) throws IOException {
+        public static TableValue readFrom(BufferView.Reader in, int length) {
             int payloadSize = in.readInt();
             int valueLength = in.readInt();
             if (valueLength == 0) {

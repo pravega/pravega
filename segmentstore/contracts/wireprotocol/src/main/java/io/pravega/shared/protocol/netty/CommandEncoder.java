@@ -13,8 +13,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import io.pravega.common.util.ArrayView;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.Append;
 import io.pravega.shared.protocol.AppendBatchSizeTracker;
@@ -179,7 +181,7 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
          * @param out               Network channel buffer.
          */
         private void flush(int sizeOfWholeEvents, ByteBuf data, ByteBuf out) {
-            writeMessage(new AppendBlockEnd(id, sizeOfWholeEvents, data, eventCount, lastEventNumber, requestId), out);
+            writeMessage(new AppendBlockEnd(id, sizeOfWholeEvents, new ByteBufWrapper(data), eventCount, lastEventNumber, requestId), out);
             eventCount = 0;
         }
     }
@@ -194,15 +196,21 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
             sessions.forEach(session -> session.flush(out));
         }
     }
+    
+    private ByteBuf appendToBuf(Append append) {
+        ArrayView data = append.getData();
+        return Unpooled.wrappedBuffer(data.array(), data.arrayOffset(), data.getLength());
+    }
 
     @Override
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
             validateAppend(append, session);
-            final ByteBuf data = append.getData().slice();
+            
+            final ByteBuf data = appendToBuf(append);
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
 
@@ -320,7 +328,7 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
      * @param out               channel Buffer.
      */
     private void startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
-        final int msgSize = append.getData().readableBytes();
+        final int msgSize = append.getData().getLength();
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
@@ -330,8 +338,8 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
                         blockSize);
             }
         }
-        segmentBeingAppendedTo = append.segment;
-        writerIdPerformingAppends = append.writerId;
+        segmentBeingAppendedTo = append.getSegment();
+        writerIdPerformingAppends = append.getWriterId();
         if (ctx != null && blockSize > msgSize) {
             currentBlockSize = blockSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE, out);
@@ -382,7 +390,7 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
      * @param out           channel Buffer.
      */
     private void completeAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out) {
-        writeMessage(new PartialEvent(data), out);
+        writeMessage(new PartialEvent(new ByteBufWrapper(data)), out);
         completeAppend(pendingData, out);
     }
 
