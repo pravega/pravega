@@ -65,7 +65,7 @@ public abstract class StreamCommand extends Command {
         public void execute() {
             ensureMinArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            val sm = StreamManager.create(getValidClientConfig());
             val sc = StreamConfiguration.builder()
                     .scalingPolicy(ScalingPolicy.builder()
                             .scaleType(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)
@@ -104,7 +104,7 @@ public abstract class StreamCommand extends Command {
         public void execute() {
             ensureMinArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            val sm = StreamManager.create(getValidClientConfig());
             for (int i = 0; i < getCommandArgs().getArgs().size(); i++) {
                 val s = getScopedNameArg(i);
                 boolean sealed = sm.sealStream(s.getScope(), s.getName());
@@ -142,7 +142,7 @@ public abstract class StreamCommand extends Command {
         public void execute() {
             ensureArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            val sm = StreamManager.create(getValidClientConfig());
             val streamIterator = sm.listStreams(getArg(0));
             if (!streamIterator.hasNext()) {
                 output("Scope '%s' does not have any Streams.", getArg(0));
@@ -183,7 +183,7 @@ public abstract class StreamCommand extends Command {
             }
 
             @Cleanup
-            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), ClientConfig.builder().controllerURI(getControllerUri()).build());
+            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), getValidClientConfig());
             @Cleanup
             val writer = factory.createEventWriter(scopedStream.getName(), new UTF8StringSerializer(), EventWriterConfig.builder().build());
 
@@ -247,7 +247,7 @@ public abstract class StreamCommand extends Command {
             val readerGroup = UUID.randomUUID().toString().replace("-", "");
             val readerId = UUID.randomUUID().toString().replace("-", "");
 
-            val cc = ClientConfig.builder().controllerURI(getControllerUri()).build();
+            val cc = getValidClientConfig();
             val readerConfig = ReaderConfig.builder().build();
             @Cleanup
             val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), cc);

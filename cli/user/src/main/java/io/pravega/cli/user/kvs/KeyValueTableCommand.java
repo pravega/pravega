@@ -56,12 +56,12 @@ public abstract class KeyValueTableCommand extends Command {
     }
 
     protected KeyValueTableManager createManager() {
-        return KeyValueTableManager.create(URI.create(getConfig().getControllerUri()));
+        return KeyValueTableManager.create(getValidClientConfig());
     }
 
     protected KeyValueTableFactory createKVTFactory(ScopedName scopedName) {
         return KeyValueTableFactory
-                .withScope(scopedName.getScope(), ClientConfig.builder().controllerURI(getControllerUri()).build());
+                .withScope(scopedName.getScope(), getValidClientConfig());
     }
 
     protected KeyValueTable<String, String> createKVT(ScopedName scopedName, KeyValueTableFactory factory) {
