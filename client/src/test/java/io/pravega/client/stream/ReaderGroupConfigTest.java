@@ -13,13 +13,23 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.CheckpointImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
+
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 public class ReaderGroupConfigTest {
@@ -77,6 +87,41 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
+    public void testIsSubscriber() {
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .isSubscriber()
+                .build();
+
+        assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
+        assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertTrue(cfg.isSubscriber());
+        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
+    }
+
+    @Test
+    public void testAutoTruncateAtLastCheckpoint() {
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .isSubscriber()
+                .autoTruncateAtLastCheckpoint()
+                .build();
+
+        assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
+        assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
+        assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
+        assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertTrue(cfg.isSubscriber());
+        assertTrue(cfg.isAutoTruncateAtLastCheckpoint());
+    }
+
+    @Test
     public void testValidConfig() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                                                  .disableAutomaticCheckpoints()
@@ -88,6 +133,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
+        assertFalse(cfg.isSubscriber());
+        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
     }
 
     @Test
@@ -234,5 +281,47 @@ public class ReaderGroupConfigTest {
         ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(SCOPE,
                 streamName, 0), offset).build();
         return new StreamCutImpl(Stream.of(SCOPE, streamName), positions);
+    }
+
+
+    // Versioned serializer to simulate version 0 of ReaderGroupConfigSerializerV0
+    private static class ReaderGroupConfigSerializerV0 extends VersionedSerializer.Direct<ReaderGroupConfig> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfig builder) throws IOException {
+            //NOP
+        }
+
+        private void write00(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            RevisionDataOutput.ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            RevisionDataOutput.ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.getStartingStreamCuts(), keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.getEndingStreamCuts(), keySerializer, valueSerializer);
+        }
+    }
+
+    @Test
+    public void testReaderGroupConfigSerializationCompatabilityV0() throws Exception {
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .build();
+
+        // Obtain version 0 serialized data
+        final ByteBuffer bufV0 = ByteBuffer.wrap(new ReaderGroupConfigSerializerV0().serialize(cfg).array());
+        // deserialize it using current version 1 serialization and ensure compatibility.
+        assertEquals(cfg, ReaderGroupConfig.fromBytes(bufV0));
     }
 }

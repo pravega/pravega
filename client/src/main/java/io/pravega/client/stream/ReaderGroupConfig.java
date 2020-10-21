@@ -295,6 +295,7 @@ public class ReaderGroupConfig implements Serializable {
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
             version(0).revision(1, this::write01, this::read01);
+            version(1).revision(0, this::write10, this::read10);
         }
 
         private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
@@ -333,6 +334,34 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
+        }
+
+        private void read10(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
+            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
+            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
+            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
+            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
+            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
+            if (revisionDataInput.readBoolean()) {
+                builder.isSubscriber();
+            }
+            if (revisionDataInput.readBoolean()) {
+                builder.autoTruncateAtLastCheckpoint();
+            }
+        }
+
+        private void write10(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
+            revisionDataOutput.writeBoolean(object.isSubscriber());
+            revisionDataOutput.writeBoolean(object.isAutoTruncateAtLastCheckpoint());
         }
     }
 
