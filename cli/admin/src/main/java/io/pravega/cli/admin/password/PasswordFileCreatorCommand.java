@@ -51,22 +51,14 @@ public class PasswordFileCreatorCommand extends AdminCommand {
     private String getUserDetails(List<String> userInput) {
         String userDetails = userInput.get(1);
 
-        // A sample object value comprises of  "userName:password:acl". We don't want the splits at the
-        // access control entries (like "prn::/scope:testScope") in the ACL, so we restrict the splits to 3.
-        if ((userDetails.split(":", 3)).length == 3) {
-            return userDetails;
-        } else {
-            throw new IllegalArgumentException("The user detail entered is not of the format uname:pwd:acl");
-        }
+        // An exception is thrown if the structure is invalid
+        PasswordFileEntryParser.parse(userDetails, true);
+        return userDetails;
     }
 
     private void createPassword(String userDetails) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        String[] lists = parseUserDetails(userDetails);
+        String[] lists = PasswordFileEntryParser.parse(userDetails);
         toWrite = generatePassword(lists);
-    }
-
-    private String[] parseUserDetails(String userDetails) {
-        return userDetails.split(":");
     }
 
     private String generatePassword(String[] lists) throws NoSuchAlgorithmException, InvalidKeySpecException {
