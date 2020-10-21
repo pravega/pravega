@@ -19,6 +19,7 @@ public class PasswordFileEntryParserTest {
     @Test
     public void parseThrowsExceptionForInvalidInput() {
         AssertExtensions.assertThrows(NullPointerException.class, () -> PasswordFileEntryParser.parse(null));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> PasswordFileEntryParser.parse(null, true));
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> PasswordFileEntryParser.parse("username:hashedPassword"));
     }
@@ -26,6 +27,7 @@ public class PasswordFileEntryParserTest {
     @Test
     public void parsesExpectedInput() {
         assertTrue(PasswordFileEntryParser.parse("username:hashedpassword:prn::*,READ_UPDATE").length == 3);
+        assertTrue(PasswordFileEntryParser.parse("username:hashedpassword", false).length == 2);
         assertTrue(PasswordFileEntryParser.parse("username:hashedpassword:prn::/,READ_UPDATE;prn::/scope,READ_UPDATE").length == 3);
     }
 }
