@@ -185,6 +185,14 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
         }
 
         @Override
+        public void skipBytes(int num) {
+            int len = Math.min(num, this.buf.readableBytes());
+            if (len > 0) {
+                this.buf.skipBytes(len);
+            }
+        }
+        
+        @Override
         public byte readByte() {
             try {
                 return this.buf.readByte();

@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.pravega.common.util.BufferView;
 import io.pravega.shared.protocol.Append;
 import io.pravega.shared.protocol.InvalidMessageException;
 import io.pravega.shared.protocol.Request;
@@ -25,8 +26,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.netty.buffer.Unpooled.wrappedUnmodifiableBuffer;
 
 /**
  * AppendBlocks are decoded specially to avoid having to parse every append individually.
@@ -159,9 +158,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         UUID writerId = blockEnd.getWriterId();
         Segment segment = getSegment(writerId);
         int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
-        ByteBuf appendDataBuf;
-        if (blockEnd.numEvents <= 0) {
-            throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
+        BufferView appendDataBuf;
+        if (blockEnd.getNumEvents() <= 0) {
+            throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.getNumEvents());
         }
         if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
             throw new InvalidMessageException(
@@ -177,10 +176,10 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                                         "Append block Writer ID : %s, Append block End Writer ID: %s",
                                 currentBlock.getWriterId(), writerId));
             }
-            if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
+            if (sizeOfWholeEventsInBlock > currentBlock.getData().getLength() || sizeOfWholeEventsInBlock < 0) {
                 throw new InvalidMessageException(
                         String.format("Invalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
-                                sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
+                                sizeOfWholeEventsInBlock, currentBlock.getData().getLength()));
             }
             appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
         } else {
@@ -191,30 +190,30 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         }
         segment.lastEventNumber = blockEnd.getLastEventNumber();
         currentBlock = null;
-        return new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null, blockEnd.getRequestId());
+        return new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.getNumEvents(), appendDataBuf, null, blockEnd.getRequestId());
     }
 
-    private ByteBuf getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
-        ByteBuf appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
-        final int remaining = currentBlock.getData().readableBytes() - sizeOfWholeEventsInBlock;
+    private BufferView getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
+        BufferView appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
+        final int remaining = currentBlock.getData().getLength() - sizeOfWholeEventsInBlock;
         if (remaining > 0) {
-            ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
+            BufferView dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
             WireCommand cmd = CommandDecoder.parseCommand(dataRemainingInBlock);
             if (!(cmd.getType() == WireCommandType.PARTIAL_EVENT || cmd.getType() == WireCommandType.PADDING)) {
                 throw new InvalidMessageException("Found " + cmd.getType()
                         + " at end of append block but was expecting a partialEvent or padding.");
             }
-            if (cmd.getType() == WireCommandType.PADDING && blockEnd.getData().readableBytes() != 0) {
+            if (cmd.getType() == WireCommandType.PADDING && blockEnd.getData().getLength() != 0) {
                 throw new InvalidMessageException("Unexpected data in BlockEnd");
             }
             if (cmd.getType() == WireCommandType.PARTIAL_EVENT) {
                 // Work around a bug in netty:
                 // See https://github.com/netty/netty/issues/5597
-                if (appendDataBuf.readableBytes() == 0) {
+                if (appendDataBuf.getLength() == 0) {
                     currentBlock.release();
-                    appendDataBuf = wrappedUnmodifiableBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = BufferView.wrap(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
-                    appendDataBuf = wrappedUnmodifiableBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = BufferView.wrap(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 }
             }
         }

@@ -9,20 +9,18 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import java.io.DataInput;
-import java.io.IOException;
-import java.util.List;
-
 import com.google.common.annotations.VisibleForTesting;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.BufferView.Reader;
 import io.pravega.shared.protocol.InvalidMessageException;
 import io.pravega.shared.protocol.WireCommand;
 import io.pravega.shared.protocol.WireCommandType;
 import io.pravega.shared.protocol.WireCommands;
-import lombok.Cleanup;
+import java.io.IOException;
+import java.util.List;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,21 +45,32 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
     @VisibleForTesting
     public static WireCommand parseCommand(ByteBuf in) throws IOException {
-        @Cleanup
-        EnhancedByteBufInputStream is = new EnhancedByteBufInputStream(in);
         int readableBytes = in.readableBytes();
         if (readableBytes < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Not enough bytes to read.");
         }
+        Reader is = new ByteBufWrapper(in.readSlice(WireCommands.TYPE_PLUS_LENGTH_SIZE)).getBufferViewReader();
         WireCommandType type = readType(is);
         int length = readLength(is, readableBytes);
-        int readIndex = in.readerIndex();
+        ByteBufWrapper byteBufWrapper = new ByteBufWrapper(in.readSlice(length));
+        WireCommand command = type.readFrom(byteBufWrapper.getBufferViewReader(), length);
+        return command;
+    }
+    
+    @VisibleForTesting
+    public static WireCommand parseCommand(BufferView in) throws IOException {
+        int readableBytes = in.getLength();
+        if (readableBytes < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
+            throw new InvalidMessageException("Not enough bytes to read.");
+        }
+        Reader is = in.getBufferViewReader();
+        WireCommandType type = readType(is);
+        int length = readLength(is, readableBytes);
         WireCommand command = type.readFrom(is, length);
-        in.readerIndex(readIndex + length);
         return command;
     }
 
-    private static int readLength(DataInput is, int readableBytes) throws IOException {
+    private static int readLength(Reader is, int readableBytes) {
         int length = is.readInt();
         if (length < 0) {
             throw new InvalidMessageException("Length read from wire was negitive.");
@@ -72,7 +81,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
         return length;
     }
 
-    private static WireCommandType readType(DataInput is) throws IOException {
+    private static WireCommandType readType(Reader is) {
         int t = is.readInt();
         WireCommandType type = WireCommands.getType(t);
         if (type == null) {
