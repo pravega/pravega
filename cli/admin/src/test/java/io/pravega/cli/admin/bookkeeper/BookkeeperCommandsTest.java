@@ -34,6 +34,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,9 +60,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     @Before
     public void setUp() throws Exception {
-        baseConf.setAllowLoopback(true);
-        baseConf.setEnableLocalTransport(true);
-        baseConf.setAdvertisedAddress("127.0.0.1");
+        baseConf.setAdvertisedAddress(InetAddress.getByName("localhost").getHostAddress());
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         super.setUp();
