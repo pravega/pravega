@@ -336,7 +336,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges));
     }
 
     @Override
@@ -529,7 +529,7 @@ public class LocalController implements Controller {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
-        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new KeyValueTableSegments(getRangeMap(ranges));
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {

@@ -790,7 +790,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SegmentsAtTime> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentsAtTime> callback = new RPCAsyncCallback<>(traceId, "getSegmentsAtTime", stream, timestamp);
-            StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName());
+            StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName(), AccessOperation.NONE);
             GetSegmentsRequest request = GetSegmentsRequest.newBuilder()
                     .setStreamInfo(streamInfo)
                     .setTimestamp(timestamp)
@@ -909,7 +909,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments", scope, stream);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
+                  .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream, AccessOperation.NONE), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::getStreamSegments)
@@ -960,7 +960,7 @@ public class ControllerImpl implements Controller {
                     r.getMinKey(), r.getMaxKey(), r.getSegmentId());
             rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
-        return new StreamSegments(rangeMap, ranges.getDelegationToken());
+        return new StreamSegments(rangeMap);
     }
 
     @Override
@@ -1042,7 +1042,7 @@ public class ControllerImpl implements Controller {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
             rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
+        StreamSegments segments = new StreamSegments(rangeMap);
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
@@ -1411,7 +1411,7 @@ public class ControllerImpl implements Controller {
                             r.getMinKey(), r.getMaxKey(), r.getSegmentId());
                     rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
                 }
-                return new KeyValueTableSegments(rangeMap, ranges.getDelegationToken());
+                return new KeyValueTableSegments(rangeMap);
             }).whenComplete((x, e) -> {
                 if (e != null) {
                     log.warn("getCurrentSegmentsForKeyValueTable for {}/{} failed: ", scope, kvtName, e);

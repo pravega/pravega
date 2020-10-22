@@ -77,9 +77,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
         Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
-        String delegationToken = segments.getDelegationToken();
         DelegationTokenProvider tokenProvider =
-                DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.WRITE);
+                DelegationTokenProviderFactory.create(controller, segment, AccessOperation.WRITE);
         return new BufferedByteStreamWriterImpl(
                 new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
                 metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider)));

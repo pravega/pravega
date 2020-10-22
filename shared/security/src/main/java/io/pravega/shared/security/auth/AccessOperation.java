@@ -34,5 +34,10 @@ public enum AccessOperation {
     /**
      * Represents reads and writes (inserts, updates and deletes).
      */
-    READ_UPDATE;
+    READ_UPDATE,
+
+    /**
+     * Doesn't represent any access operation.
+     */
+    NONE;
 }

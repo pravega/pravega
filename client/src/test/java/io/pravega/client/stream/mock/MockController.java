@@ -408,7 +408,7 @@ public class MockController implements Controller {
 
     private StreamSegments getCurrentSegments(Stream stream) {
         if (isStreamSealed(stream)) {
-            return new StreamSegments(new TreeMap<>(), "");
+            return new StreamSegments(new TreeMap<>());
         } else {
             List<Segment> segmentsInStream = getSegmentsForStream(stream);
             TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
@@ -416,7 +416,7 @@ public class MockController implements Controller {
                 SegmentWithRange s = createRange(stream.getScope(), stream.getStreamName(), segmentsInStream.size(), i);
                 segments.put(s.getRange().getHigh(), s);
             }
-            return new StreamSegments(segments, "");
+            return new StreamSegments(segments);
         }
     }
 
@@ -427,7 +427,7 @@ public class MockController implements Controller {
             SegmentWithRange s = createRange(kvt.getScope(), kvt.getKeyValueTableName(), segmentsInStream.size(), i);
             segments.put(s.getRange().getHigh(), s);
         }
-        return new KeyValueTableSegments(segments, "");
+        return new KeyValueTableSegments(segments);
     }
 
     @Synchronized

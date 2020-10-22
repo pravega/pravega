@@ -187,8 +187,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : txnSegments.getStreamSegments().getSegments()) {
             if (tokenProvider == null) {
-                tokenProvider = DelegationTokenProviderFactory.create(
-                        txnSegments.getStreamSegments().getDelegationToken(), controller, s, AccessOperation.WRITE);
+                tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.WRITE);
             }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
                     config, tokenProvider);
@@ -218,8 +217,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
             if (tokenProvider == null) {
-                tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s,
-                        AccessOperation.WRITE);
+                tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.WRITE);
             }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
                     tokenProvider);
