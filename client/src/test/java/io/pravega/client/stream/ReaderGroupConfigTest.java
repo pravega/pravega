@@ -152,6 +152,16 @@ public class ReaderGroupConfigTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void testInValidAutoTruncateAtLastCheckpoint() {
+        ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .autoTruncateAtLastCheckpoint()
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void testMissingStreamNames() {
         ReaderGroupConfig.builder()
                          .disableAutomaticCheckpoints()

@@ -228,6 +228,12 @@ public class ReaderGroupConfig implements Serializable {
            Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
                    "Outstanding checkpoint request should be greater than zero");
 
+           //basic check to make sure autoTruncateAtLastCheckpoint is not true while isSubscriber is false
+           if (!isSubscriber) {
+               Preconditions.checkArgument(!autoTruncateAtLastCheckpoint,
+                       "ReaderGroup should be subscriber to be able to auto-truncate");
+           }
+
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
                    startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, isSubscriber, autoTruncateAtLastCheckpoint);
        }
