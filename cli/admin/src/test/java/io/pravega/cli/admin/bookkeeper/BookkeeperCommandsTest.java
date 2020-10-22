@@ -34,10 +34,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.NetworkInterface;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
@@ -61,15 +63,21 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     public void setUp() throws Exception {
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
-        try {
-            super.setUp();
-        } catch (Exception e) {
-            // On some containerized environments, using lo interface does not allow to resolve the host name. As an
-            // alternative, we try with eth0 if available.
-            super.tearDown();
-            baseConf.setListeningInterface("eth0");
-            super.setUp();
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        boolean successfulSetup = false;
+        while (interfaces.hasMoreElements()) {
+            try {
+                super.setUp();
+                successfulSetup = true;
+                break;
+            } catch (Exception e) {
+                // On some environments, using default interface does not allow to resolve the host name. We keep
+                // iterating over existing interfaces to start the Bookkeeper cluster.
+                super.tearDown();
+                baseConf.setListeningInterface(interfaces.nextElement().getName());
+            }
         }
+        assert successfulSetup;
 
         STATE.set(new AdminCommandState());
         Properties bkProperties = new Properties();
