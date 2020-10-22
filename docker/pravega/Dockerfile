@@ -7,7 +7,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-FROM openjdk:11.0-jre-slim
+FROM openjdk:11.0.8-jre-slim
 
 RUN apt-get update && apt-get install -y -q \
     rpcbind \
