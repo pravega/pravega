@@ -79,12 +79,12 @@ public abstract class Command {
     }
 
     protected URI getControllerUri() {
-        return URI.create(getConfig().getControllerUri());
+        return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
     }
 
-    protected ClientConfig getValidClientConfig() {
+    protected ClientConfig getClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
-                .controllerURI(URI.create(getConfig().getControllerUri()));
+                .controllerURI(getControllerUri());
         if (getConfig().isAuthEnabled()) {
             clientConfigBuilder.credentials(new DefaultCredentials(getConfig().getPassword(),
                     getConfig().getUserName()));

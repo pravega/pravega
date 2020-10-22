@@ -47,7 +47,7 @@ public class InteractiveConfig {
 
     public static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
-                .controllerUri("tcp://localhost:9090")
+                .controllerUri("localhost:9090")
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
                 .maxListItems(1000)
