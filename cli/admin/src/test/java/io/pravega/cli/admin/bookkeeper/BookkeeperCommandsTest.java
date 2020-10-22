@@ -34,7 +34,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,10 +59,17 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
 
     @Before
     public void setUp() throws Exception {
-        baseConf.setAdvertisedAddress(InetAddress.getByName("localhost").getHostAddress());
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
-        super.setUp();
+        try {
+            super.setUp();
+        } catch (Exception e) {
+            // On some containerized environments, using lo interface does not allow to resolve the host name. As an
+            // alternative, we try with eth0 if available.
+            super.tearDown();
+            baseConf.setListeningInterface("eth0");
+            super.setUp();
+        }
 
         STATE.set(new AdminCommandState());
         Properties bkProperties = new Properties();
