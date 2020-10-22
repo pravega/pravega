@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -147,6 +148,13 @@ public interface BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
+
+    /**
+     * Gets an {@link Iterator} through each of the {@link ByteBuffer}s that make up this {@link BufferView}, in order.
+     *
+     * @return A {@link Iterator}.
+     */
+    Iterator<ByteBuffer> iterateBuffers();
 
     /**
      * Wraps the given {@link BufferView} into a single instance.

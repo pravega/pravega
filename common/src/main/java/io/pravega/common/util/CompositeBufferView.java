@@ -155,6 +155,11 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     }
 
     @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        return Iterators.concat(Iterators.transform(this.components.iterator(), BufferView::iterateBuffers));
+    }
+
+    @Override
     public void retain() {
         this.components.forEach(BufferView::retain);
     }

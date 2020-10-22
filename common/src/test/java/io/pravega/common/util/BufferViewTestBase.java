@@ -125,10 +125,10 @@ public abstract class BufferViewTestBase {
     }
 
     /**
-     * Tests {@link BufferView#collect} and {@link BufferView#getContents()}.
+     * Tests {@link BufferView#collect}, {@link BufferView#getContents()} and {@link BufferView#iterateBuffers()}.
      */
     @Test
-    public void testCollect() {
+    public void testCollectAndIterateBuffers() {
         val data = newData();
         @Cleanup("release")
         val bufferView = toBufferView(data);
@@ -141,6 +141,12 @@ public abstract class BufferViewTestBase {
         val collectedContentsData = getData(collectedContents);
         Assert.assertEquals("collect().", data, collectedContentsData);
         AssertExtensions.assertListEquals("", getContents, collectedContents, ByteBuffer::equals);
+
+        val iteratedContents = new ArrayList<ByteBuffer>();
+        bufferView.iterateBuffers().forEachRemaining(iteratedContents::add);
+        val iteratedContentsData = getData(iteratedContents);
+        Assert.assertEquals("iterateBuffers().", data, iteratedContentsData);
+        AssertExtensions.assertListEquals("", getContents, iteratedContents, ByteBuffer::equals);
     }
 
     /**
