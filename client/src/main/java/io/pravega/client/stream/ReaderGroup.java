@@ -178,6 +178,15 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     ReaderSegmentDistribution getReaderSegmentDistribution();
 
     /**
+     * Publishes the given stream-cut to the controller in order to truncate the given stream if
+     * the reader group is a subscriber
+     *
+     * @param stream the stream to be truncated.
+     * @param streamCut the stream-cut with which truncation should be done.
+     */
+    void updateTruncationCheckpoint(Stream stream, StreamCut streamCut);
+
+    /**
      * Closes the reader group, freeing any resources associated with it.
      */
     @Override

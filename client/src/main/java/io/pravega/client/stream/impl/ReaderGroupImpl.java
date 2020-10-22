@@ -376,6 +376,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                       .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
     }
 
+    @Override
+    public void updateTruncationCheckpoint(Stream stream, StreamCut streamCut) {
+        controller.truncateStream(stream.getScope(), stream.getStreamName(), streamCut);
+    }
+
     /**
      * Generate an internal Checkpoint Id. It is appended with a suffix {@link ReaderGroupImpl#SILENT} which ensures
      * that the readers do not generate an event where {@link io.pravega.client.stream.EventRead#isCheckpoint()} is true.
