@@ -61,7 +61,6 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
         org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
-        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
 
         if (Utils.AUTH_ENABLED) {
             HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic("admin", "1111_aaaa");
