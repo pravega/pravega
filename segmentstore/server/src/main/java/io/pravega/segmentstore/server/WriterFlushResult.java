@@ -97,10 +97,20 @@ public class WriterFlushResult {
 
     /**
      * Gets a value indicating the number of attributes flushed.
+     *
      * @return The number of attributes flushed.
      */
     public int getFlushedAttributes() {
         return this.flushedAttributes.get();
+    }
+
+    /**
+     * Gets a value indicating whether anything was flushed (data, attributes, etc.).
+     *
+     * @return True if anything was flushed, false otherwise.
+     */
+    public boolean isAnythingFlushed() {
+        return getFlushedAttributes() > 0 || getFlushedBytes() > 0 || getMergedBytes() > 0;
     }
 
     @Override

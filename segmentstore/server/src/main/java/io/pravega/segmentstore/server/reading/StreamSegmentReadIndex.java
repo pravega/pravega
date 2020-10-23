@@ -897,8 +897,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             result = new TruncatedReadResultEntry(resultStartOffset, maxLength, this.metadata.getStartOffset(), this.metadata.getName());
         } else {
             // Look up an entry in the index that contains our requested start offset.
+            ReadIndexEntry indexEntry;
+            boolean redirect = false;
             synchronized (this.lock) {
-                ReadIndexEntry indexEntry = this.indexEntries.getFloor(resultStartOffset);
+                indexEntry = this.indexEntries.getFloor(resultStartOffset);
                 if (indexEntry == null) {
                     // No data in the index or we have at least one entry and the ResultStartOffset is before the Start Offset
                     // of the first entry in the index. Use the metadata to figure out whether to return a Storage or Future Read.
@@ -916,9 +918,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     } else if (indexEntry instanceof RedirectIndexEntry) {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry, but this
                         // is a Redirect; reissue the request to the appropriate index.
-                        result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry, makeCopy);
+                        // This requires reaching out to another StreamSegmentReadIndex instance. We shouldn't be doing
+                        // this while holding this lock as we risk deadlocking (via the Cache Manager).
+                        redirect = true;
                     }
                 }
+            }
+            if (redirect) {
+                result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry, makeCopy);
             }
         }
 
@@ -997,10 +1004,28 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return null;
     }
 
+    /**
+     * Creates a {@link CompletableReadResultEntry} that is fetched from a different {@link StreamSegmentReadIndex}
+     * (one for a Segment that was merged into this one.
+     *
+     * NOTE: This method is not (and should not be) executed while holding the {@link #lock}. While other sibling methods
+     * do hold that {@link #lock} this one needs to reach out to another {@link StreamSegmentReadIndex} to get data, and
+     * will implicitly acquire that index' lock. To prevent a possible deadlock situation (via Storage Reads and Cache
+     * Manager), this method is not executed while under the lock. As such:
+     * - This method is not allowed to query this Segment's index.
+     * - This method is not allowed to modify Cache stats about this index' cache entries.
+     * - All information it relies on must be immutable (passed via parameters).
+     *
+     * @param streamSegmentOffset This Segment's offset.
+     * @param maxLength           Maximum read length.
+     * @param entry               {@link RedirectIndexEntry} to read from.
+     * @param makeCopy            Whether to make a copy or not.
+     * @return a {@link CompletableReadResultEntry}.
+     */
     private CompletableReadResultEntry createRedirectedRead(long streamSegmentOffset, int maxLength, RedirectIndexEntry entry, boolean makeCopy) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
-        long entryLength = entry.getLength();
+        long entryLength = entry.getLength(); // This is the source segment length - immutable since the segment must be sealed.
         assert redirectOffset >= 0 && redirectOffset < entryLength :
                 String.format("Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
                         streamSegmentOffset,
@@ -1013,10 +1038,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             maxLength = (int) entryLength;
         }
 
+        // Fetch the result from the other index - this method will acquire the other index' lock while executing.
         CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
         if (result != null) {
             // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
-            // invokes the requestContent() on the entry the Transaction may be fully merged (in Tier2). If that's the
+            // invokes the requestContent() on the entry the Transaction may be fully merged (in Storage). If that's the
             // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
             // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
