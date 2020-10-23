@@ -17,6 +17,7 @@ import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,6 +100,24 @@ class MetadataCleaner extends AbstractThreadPoolService {
     }
 
     //endregion
+
+    /**
+     * Persists the metadata of all active Segments from the Container's metadata into the {@link MetadataStore}.
+     * This method does not evict or otherwise perform any cleanup tasks on the Container or its Metadata, nor does it
+     * interfere with the regular operation of {@link #runOnce()}.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, indicates that the operation completed.
+     */
+    CompletableFuture<Void> persistAll(Duration timeout) {
+        val tasks = this.metadata.getAllStreamSegmentIds().stream()
+                .map(this.metadata::getStreamSegmentMetadata)
+                .filter(Objects::nonNull)
+                .filter(sm -> !sm.isDeleted() && !sm.isMerged())
+                .map(sm -> this.metadataStore.updateSegmentInfo(sm, timeout))
+                .collect(Collectors.toList());
+        return Futures.allOf(tasks);
+    }
 
     /**
      * Executes one iteration of the MetadataCleaner. This ensures that there cannot be more than one concurrent executions of
