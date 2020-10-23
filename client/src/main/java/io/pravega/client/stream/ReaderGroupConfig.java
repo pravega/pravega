@@ -59,8 +59,8 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private boolean isSubscriber = false; //default value
-       private boolean autoTruncateAtLastCheckpoint = false; //default value
+       private boolean subscribedForRetention = false; //default value
+       private boolean autoPublishLastCheckpoint = false; //default value
 
        /**
         * Makes the reader group a subscriber reader group. During CBR (Consumption Based Retention),
@@ -69,8 +69,8 @@ public class ReaderGroupConfig implements Serializable {
         *
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder isSubscriber() {
-           this.isSubscriber = true;
+       public ReaderGroupConfigBuilder isSubscribedForRetention() {
+           this.subscribedForRetention = true;
            return this;
        }
 
@@ -80,8 +80,8 @@ public class ReaderGroupConfig implements Serializable {
         *
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder autoTruncateAtLastCheckpoint() {
-           this.autoTruncateAtLastCheckpoint = true;
+       public ReaderGroupConfigBuilder autoPublishCheckpoint() {
+           this.autoPublishLastCheckpoint = true;
            return this;
        }
 
@@ -229,13 +229,13 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            //basic check to make sure autoTruncateAtLastCheckpoint is not true while isSubscriber is false
-           if (!isSubscriber) {
-               Preconditions.checkArgument(!autoTruncateAtLastCheckpoint,
+           if (!subscribedForRetention) {
+               Preconditions.checkArgument(!autoPublishLastCheckpoint,
                        "ReaderGroup should be subscriber to be able to auto-truncate");
            }
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, isSubscriber, autoTruncateAtLastCheckpoint);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, subscribedForRetention, autoPublishLastCheckpoint);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -351,10 +351,10 @@ public class ReaderGroupConfig implements Serializable {
             builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
             builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
             if (revisionDataInput.readBoolean()) {
-                builder.isSubscriber();
+                builder.isSubscribedForRetention();
             }
             if (revisionDataInput.readBoolean()) {
-                builder.autoTruncateAtLastCheckpoint();
+                builder.autoPublishCheckpoint();
             }
         }
 

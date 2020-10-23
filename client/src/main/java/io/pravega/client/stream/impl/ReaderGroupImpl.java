@@ -377,7 +377,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void updateTruncationCheckpoint(Stream stream, StreamCut streamCut) {
+    public void updateTruncationStreamCut(Stream stream, StreamCut streamCut) {
         controller.truncateStream(stream.getScope(), stream.getStreamName(), streamCut);
     }
 

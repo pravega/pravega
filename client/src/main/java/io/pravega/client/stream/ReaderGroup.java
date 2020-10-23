@@ -178,13 +178,14 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     ReaderSegmentDistribution getReaderSegmentDistribution();
 
     /**
-     * Publishes the given stream-cut to the controller in order to truncate the given stream if
-     * the reader group is a subscriber
+     * The {@link StreamCut} provided to this API indicates that the stream has consumed data upto
+     * that point. Hence, it is safe for Pravega to truncate the stream using this {@link StreamCut} for this
+     * {@link ReaderGroup}.
      *
      * @param stream the stream to be truncated.
      * @param streamCut the stream-cut with which truncation should be done.
      */
-    void updateTruncationCheckpoint(Stream stream, StreamCut streamCut);
+    void updateTruncationStreamCut(Stream stream, StreamCut streamCut);
 
     /**
      * Closes the reader group, freeing any resources associated with it.
