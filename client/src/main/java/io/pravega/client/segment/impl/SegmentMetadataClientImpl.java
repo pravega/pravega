@@ -61,8 +61,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private RawClient client = null;
     private final DelegationTokenProvider tokenProvider;
 
+    @VisibleForTesting
     public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionPool connectionPool,
                                      String delegationToken) {
+        // The current constructor is used only for testing. Therefore, hard-coding the access operation.
         this(segment, controller, connectionPool,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ));
     }
