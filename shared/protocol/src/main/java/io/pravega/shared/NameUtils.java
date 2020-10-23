@@ -284,6 +284,18 @@ public final class NameUtils {
     }
 
     /**
+     * Checks if the given segment is a container metadata segment or not for the given container Id.
+     *
+     * @param segmentName   The name of the segment to be checked.
+     * @param containerId   The id of the Container.
+     * @return              True if the segment is a container metadata segment for that container Id, false otherwise.
+     */
+    public static boolean isMetadataSegment(String segmentName, int containerId) {
+        Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
+        return segmentName.equals(String.format(METADATA_SEGMENT_NAME_FORMAT, containerId));
+    }
+
+    /**
      * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
      * per container.
      *

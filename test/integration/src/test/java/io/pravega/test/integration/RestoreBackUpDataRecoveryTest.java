@@ -45,10 +45,8 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.watermark.WatermarkSerializer;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
@@ -89,12 +87,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.net.URI;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -482,7 +478,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
+                executorService());
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
@@ -506,29 +503,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
             log.info("Read all events again to verify that segments were recovered.");
         }
-    }
-
-    // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
-    private Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount) throws Exception {
-        String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
-
-        val futures = new ArrayList<CompletableFuture<Void>>();
-
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
-            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
-
-            int finalContainerId = containerId;
-            futures.add(Futures.exceptionallyExpecting(
-                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                            backUpMetadataSegment, backUpAttributeSegment, executorService())
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
-                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
-                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        return backUpMetadataSegments;
     }
 
     private void createBookKeeperLogFactory(PravegaRunner pravegaRunner) throws DurableDataLogException {
@@ -671,7 +645,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
+                executorService());
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -813,7 +788,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
+                executorService());
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper

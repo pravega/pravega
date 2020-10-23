@@ -2158,7 +2158,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    public static RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
+    private RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
         return new RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
     }
 
@@ -2197,7 +2197,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return transactions;
     }
 
-    static void recordAppend(String segmentName, RefCountByteArraySegment data, HashMap<String, ByteArrayOutputStream> segmentContents, ArrayList<RefCountByteArraySegment> appends) throws Exception {
+    private void recordAppend(String segmentName, RefCountByteArraySegment data, HashMap<String, ByteArrayOutputStream> segmentContents, ArrayList<RefCountByteArraySegment> appends) throws Exception {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentName, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
@@ -2632,7 +2632,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    static class RefCountByteArraySegment extends ByteArraySegment {
+    private static class RefCountByteArraySegment extends ByteArraySegment {
         private final AtomicInteger refCount = new AtomicInteger();
         private final AtomicBoolean retained = new AtomicBoolean();
 

@@ -9,13 +9,12 @@
  */
 package io.pravega.segmentstore.server.containers;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -58,13 +57,10 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -295,18 +291,18 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     /**
      * The test creates a container. Using it, some segments are created, data is written to them and their attributes are
-     * updated. After all Tier1 is flushed to the storage, the container is closed. From this storage, we recover the
-     * segments, update their attributes and then verify.
+     * updated. After all Tier1 is flushed to the storage, the container is closed. From the storage, we recover the
+     * segments, update their attributes, read data and attributes to verify the recovery process.
      */
     @Test
     public void testRestoreFromContainer() throws Exception {
-        int appendsPerSegment = 10;
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
         final UUID attributeReplace = UUID.randomUUID();
-        final long expectedAttributeValue = appendsPerSegment + attributesUpdatesPerSegment;
+        final long expectedAttributeValue = attributesUpdatesPerSegment;
         int containerId = 0;
         int containerCount = 1;
+        int maxDataSize = 1024 * 1024; // 1MB
 
         @Cleanup
         TestContext context = createContext(executorService());
@@ -330,24 +326,23 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(opFutures).join();
         opFutures.clear();
 
-        // 2. Add some appends and update some of the attributes.
+        // 2. Write data and update some of the attributes.
         HashMap<String, Long> lengths = new HashMap<>();
-        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        HashMap<String, ByteArraySegment> segmentContents = new HashMap<>();
         for (String segmentName : segmentNames) {
-            for (int i = 0; i < appendsPerSegment; i++) {
-                val attributeUpdates = Collections.singletonList(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
-                val appendData = getAppendData(segmentName, i);
-                long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
-                val append = (i % 2 == 0) ? container.append(segmentName, appendData, attributeUpdates, TIMEOUT) :
-                        container.append(segmentName, lengths.get(segmentName), appendData, attributeUpdates, TIMEOUT);
-                opFutures.add(Futures.toVoid(append));
-                lengths.put(segmentName, expectedLength);
-                StreamSegmentContainerTests.recordAppend(segmentName, appendData, segmentContents, null);
-            }
+            val dataSize = RANDOM.nextInt(maxDataSize);
+
+            byte[] writeData = populate(dataSize);
+            val appendData = new ByteArraySegment(writeData);
+
+            val append = container.append(segmentName, appendData, null, TIMEOUT);
+            opFutures.add(Futures.toVoid(append));
+            lengths.put(segmentName, (long) dataSize);
+            segmentContents.put(segmentName, appendData);
 
             for (int i = 0; i < attributesUpdatesPerSegment; i++) {
                 Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, appendsPerSegment + i + 1));
+                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }
@@ -363,7 +358,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Storage storage = context.storageFactory.createStorageAdapter();
 
         // 4. Move container metadata and its attribute segment to back up segments.
-        Map<Integer, String> backUpMetadataSegments = getBackUpMetadataSegments(storage, containerCount);
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
+                executorService());
 
         OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
                 new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
@@ -385,7 +381,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 6. Verify Segment Data.
         for (val sc : segmentContents.entrySet()) {
             // Contents.
-            byte[] expectedData = sc.getValue().toByteArray();
+            byte[] expectedData = sc.getValue().array();
             byte[] actualData = new byte[expectedData.length];
             container2.read(sc.getKey(), 0, actualData.length, TIMEOUT).join().readRemaining(actualData, TIMEOUT);
             Assert.assertArrayEquals("Unexpected contents for " + sc.getKey(), expectedData, actualData);
@@ -398,33 +394,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
             Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
         }
-    }
-
-    public static StreamSegmentContainerTests.RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
-        return new StreamSegmentContainerTests.RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
-    }
-
-    // Back up and delete container metadata segment and attributes index segment corresponding to each container Ids from the long term storage
-    private Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount) throws Exception {
-        String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-        Map<Integer, String> backUpMetadataSegments = new HashMap<>();
-
-        val futures = new ArrayList<CompletableFuture<Void>>();
-
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
-            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
-
-            int finalContainerId = containerId;
-            futures.add(Futures.exceptionallyExpecting(
-                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                            backUpMetadataSegment, backUpAttributeSegment, executorService())
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
-                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
-                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        return backUpMetadataSegments;
     }
 
     private static String getSegmentName(int i) {
