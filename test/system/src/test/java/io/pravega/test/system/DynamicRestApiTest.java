@@ -63,8 +63,8 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         clientConfig.register(JacksonJsonProvider.class);
 
         if (Utils.AUTH_ENABLED) {
-            HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic(System.getProperty("pravega.client.auth.username"),
-                    System.getProperty("pravega.client.auth.password"));
+            HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
+                    Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.password"));
             clientConfig.register(feature);
         }
 
