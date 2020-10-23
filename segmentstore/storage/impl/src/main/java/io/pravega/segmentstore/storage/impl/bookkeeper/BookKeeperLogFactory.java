@@ -143,7 +143,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 .setEnableDigestTypeAutodetection(true)
                 .setClientConnectTimeoutMillis((int) this.config.getZkConnectionTimeout().toMillis())
                 .setZkTimeout((int) this.config.getZkConnectionTimeout().toMillis())
-                .setNettyMaxFrameSizeBytes(BookKeeperConfig.MAX_APPEND_LENGTH);
+                .setNettyMaxFrameSizeBytes(BookKeeperConfig.MAX_APPEND_LENGTH)
+                .setNumChannelsPerBookie(16);
 
         if (this.config.isTLSEnabled()) {
             config = (ClientConfiguration) config.setTLSProvider("OpenSSL");
