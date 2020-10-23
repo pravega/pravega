@@ -62,8 +62,7 @@ public class ReadWithReadPermissionsTest {
         passwordInputFileEntries.put("reader", String.join(";",
                 "prn::/scope:MarketData,READ",
                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
-                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ",
-                "prn::/scope:MarketData/watermark:StockPriceUpdates,READ"
+                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ"
         ));
         log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
 
@@ -128,11 +127,10 @@ public class ReadWithReadPermissionsTest {
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",
                 // READ_UPDATE on scope needed for creating internal streams since we configure "internal writes with
-                // read permissions" to false later (during instantiation of the ClusterWarpper object).
+                // read permissions" to false later (during instantiation of the ClusterWrapper object).
                 "prn::/scope:MarketData,READ_UPDATE",
                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
-                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ_UPDATE",
-                "prn::/scope:MarketData/watermark:StockPriceUpdates,READ_UPDATE"
+                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ_UPDATE"
         ));
         log.debug("passwordInputFileEntries prepared: {}", passwordInputFileEntries);
 
