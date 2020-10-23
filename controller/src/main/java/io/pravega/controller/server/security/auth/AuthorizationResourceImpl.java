@@ -62,13 +62,6 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     }
 
     @Override
-    public String ofWatermarkInScope(String scopeName, String watermarkName) {
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        Exceptions.checkNotNullOrEmpty(watermarkName, "watermarkName");
-        return String.format("%s/%s:%s", ofScope(scopeName), TAG_WATERMARK, watermarkName);
-    }
-
-    @Override
     public String ofKeyValueTableInScope(String scopeName, String keyValueTableName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");

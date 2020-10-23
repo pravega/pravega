@@ -10,6 +10,8 @@
 package io.pravega.controller.server.security.auth;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
@@ -60,6 +62,27 @@ public class StreamAuthParamsTest {
     }
 
     @Test
+    public void requestedPermissionEmpty() {
+        assertTrue(new StreamAuthParams("scope", "stream", "", false).isRequestedPermissionEmpty());
+        assertFalse(new StreamAuthParams("scope", "stream", "READ", false).isRequestedPermissionEmpty());
+    }
+
+    @Test
+    public void requestedPermissionForWatermarkStream() {
+        StreamAuthParams params1 = new StreamAuthParams("testScope", NameUtils.getMarkStreamForStream("testStream"),
+                "", false);
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, params1.requiredPermissionForWrites());
+
+        StreamAuthParams params2 = new StreamAuthParams("testscope", "_MARKteststream",
+                AccessOperation.READ.name(), false);
+        assertEquals(AuthHandler.Permissions.READ, params2.requiredPermissionForWrites());
+
+        StreamAuthParams params3 = new StreamAuthParams("testscope", "_MARKteststream",
+                AccessOperation.READ_UPDATE.name(), false);
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, params3.requiredPermissionForWrites());
+    }
+
+    @Test
     public void returnsReadUpdatePermissionForExternalStreams() {
         assertEquals(AuthHandler.Permissions.READ_UPDATE,
                 new StreamAuthParams("scope", "externalStream", true).requiredPermissionForWrites());
@@ -85,5 +108,16 @@ public class StreamAuthParamsTest {
                 new StreamAuthParams("testScope", "_requeststream").streamResourceString());
         assertEquals("prn::/scope:testScope/stream:_RGtestRg",
                 new StreamAuthParams("testScope", "_RGtestRg").streamResourceString());
+    }
+
+    @Test
+    public void requestedPermissionReturnsSpecifiedOrDefault() {
+        // Default
+        assertEquals(AuthHandler.Permissions.READ, new StreamAuthParams("testScope", "testExternalStream",
+                "", true).requestedPermission());
+
+        // Specified
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, new StreamAuthParams("testScope", "testExternalStream",
+                "READ_UPDATE", true).requestedPermission());
     }
 }

@@ -12,6 +12,7 @@ package io.pravega.controller.server.security.auth;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.PermissionsHelper;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ public class StreamAuthParams {
 
     private final String scope;
     private final String stream;
+    private final String requestedPermission;
     private final boolean isInternalWritesWithReadPermEnabled;
 
     @VisibleForTesting
@@ -34,30 +36,51 @@ public class StreamAuthParams {
 
     @VisibleForTesting
     StreamAuthParams(@NonNull String scope, @NonNull String stream) {
-        this(scope, stream, true);
+        this(scope, stream, "READ", true);
     }
 
     public StreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isInternalWritesWithReadPermEnabled) {
+        this(scope, stream, "", isInternalWritesWithReadPermEnabled);
+    }
+
+    public StreamAuthParams(@NonNull String scope, @NonNull String stream, @NonNull String requestedPermission,
+                            boolean isInternalWritesWithReadPermEnabled) {
         this.scope = scope;
         this.stream = stream;
         this.isInternalWritesWithReadPermEnabled = isInternalWritesWithReadPermEnabled;
+        this.requestedPermission = requestedPermission;
         this.isInternalStream = stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ? true : false;
     }
 
+    public AuthHandler.Permissions requestedPermission() {
+        return PermissionsHelper.parse(requestedPermission, AuthHandler.Permissions.READ);
+    }
+
+    private AuthHandler.Permissions requestedPermission(AuthHandler.Permissions defaultValue) {
+        return PermissionsHelper.parse(requestedPermission, defaultValue);
+    }
+
     public AuthHandler.Permissions requiredPermissionForWrites() {
-        if (this.isInternalStream) {
+        if (this.isStreamUserDefined()) {
+            return AuthHandler.Permissions.READ_UPDATE;
+        } else {
             if (this.isInternalWritesWithReadPermEnabled) {
                 return AuthHandler.Permissions.READ;
             } else {
+                if (stream.startsWith(NameUtils.getMARK_PREFIX())) {
+                    return this.requestedPermission(AuthHandler.Permissions.READ_UPDATE);
+                }
                 return AuthHandler.Permissions.READ_UPDATE;
             }
-        } else {
-            return AuthHandler.Permissions.READ_UPDATE;
         }
     }
 
     public String resourceString() {
         return toResourceString(this.scope, this.stream);
+    }
+
+    public boolean isRequestedPermissionEmpty() {
+        return this.requestedPermission.equals("");
     }
 
     public String streamResourceString() {

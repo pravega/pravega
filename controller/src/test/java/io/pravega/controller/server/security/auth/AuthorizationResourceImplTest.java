@@ -80,7 +80,7 @@ public class AuthorizationResourceImplTest {
         assertEquals("prn::/scope:testScopeName/reader-group:testReaderGroup",
                 objectUnderTest.ofInternalStream("testScopeName", "_RGtestReaderGroup"));
 
-        assertEquals("prn::/scope:testScopeName/watermark:targetStream",
+        assertEquals("prn::/scope:testScopeName/stream:targetStream",
                 objectUnderTest.ofInternalStream("testScopeName", "_MARKtargetStream"));
 
         assertEquals("prn::/scope:_system/stream:_requeststream",

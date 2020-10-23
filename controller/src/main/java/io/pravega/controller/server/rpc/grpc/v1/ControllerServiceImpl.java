@@ -29,7 +29,6 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.server.security.auth.StreamAuthParams;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
 import io.pravega.shared.security.auth.AccessOperation;
-import io.pravega.shared.security.auth.PermissionsHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -331,8 +330,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             if (!this.isAuthEnabled()) {
                 return "";
             }
+
             StreamAuthParams authParams = new StreamAuthParams(request.getScope(), request.getStream(),
-                    this.isInternalWritesWithReadPermEnabled);
+                    request.getRequestedPermission(), this.isInternalWritesWithReadPermEnabled);
 
             // StreamResource will be a stream representation (ex: "prn:://scope:myScope/stream:_RGmyApp") of the
             // reader group (ex: "prn:://scope:myScope/reader-group:myApp). We use stream representation in claims
@@ -341,7 +341,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             String streamResource = authParams.streamResourceString();
             String resource = authParams.resourceString();
 
-            if (request.getRequestedPermission().equals("")) {
+            if (authParams.isRequestedPermissionEmpty()) {
                 // For backward compatibility: Older clients will not populate requested permission.
                 log.info("Requested permission was empty for request with scope {} and stream {}", request.getScope(),
                         request.getStream());
@@ -358,8 +358,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 final AuthHandler.Permissions tokenPermission;
 
                 // This is the permission that the client is requesting to be assigned on the delegation token.
-                AuthHandler.Permissions requestedPermissions = PermissionsHelper.parse(request.getRequestedPermission(),
-                        AuthHandler.Permissions.READ);
+                AuthHandler.Permissions requestedPermissions = authParams.requestedPermission();
 
                 if (authParams.isStreamUserDefined()) {
                     // The operation itself requires the caller to possess read permissions.
@@ -381,13 +380,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         tokenPermission = requestedPermissions;
                     }
                 } else {
-                    final AuthHandler.Permissions targetPermission;
-
-                    if (request.getStream().startsWith("_MARK")) {
-                        targetPermission = requestedPermissions;
-                    } else {
-                        targetPermission = authParams.requiredPermissionForWrites();
-                    }
+                    AuthHandler.Permissions targetPermission = authParams.requiredPermissionForWrites();
 
                     // Internal streams will be qualified as non-stream resources. For example
                     // "prn:://scope:myScope/reader-group:myApp" and "prn:://scope:myScope/watermark:myStream".
