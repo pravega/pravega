@@ -78,7 +78,7 @@ public class StreamAuthParamsTest {
         assertEquals(AuthHandler.Permissions.READ, params2.requiredPermissionForWrites());
 
         StreamAuthParams params3 = new StreamAuthParams("testscope", "_MARKteststream",
-                AccessOperation.READ_UPDATE.name(), false);
+                AccessOperation.READ_WRITE.name(), false);
         assertEquals(AuthHandler.Permissions.READ_UPDATE, params3.requiredPermissionForWrites());
     }
 

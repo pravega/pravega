@@ -27,8 +27,7 @@ public class PermissionsHelper {
     public static AuthHandler.Permissions toAuthHandlerPermissions(@NonNull AccessOperation accessOperation) {
         if (accessOperation.equals(AccessOperation.READ)) {
             return AuthHandler.Permissions.READ;
-        } else if (accessOperation.equals(AccessOperation.WRITE) ||
-                accessOperation.equals(AccessOperation.READ_UPDATE)) {
+        } else if (accessOperation.equals(AccessOperation.WRITE) || accessOperation.equals(AccessOperation.READ_WRITE)) {
             return AuthHandler.Permissions.READ_UPDATE;
         } else {
             throw new IllegalArgumentException("Cannot translate access operation " + accessOperation.name());
