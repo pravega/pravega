@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
@@ -254,21 +253,6 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         int length = Math.min(this.length, target.remaining());
         collect(target::put, length);
         return length;
-    }
-
-    @Override
-    public List<ByteBuffer> getContents() {
-        ArrayList<ByteBuffer> result = new ArrayList<>();
-        for (int i = 0; i < this.arrays.length; i++) {
-            byte[] a = getArray(i, false);
-            if (a == null) {
-                int size = i == this.arrays.length - 1 ? this.length % this.arraySize : this.arraySize;
-                result.add(ByteBuffer.allocate(size));
-            } else {
-                result.add(ByteBuffer.wrap(a));
-            }
-        }
-        return result;
     }
 
     //endregion

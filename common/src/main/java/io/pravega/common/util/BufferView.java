@@ -128,13 +128,6 @@ public interface BufferView {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
     }
 
-    /**
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}. These buffer point
-     * directly to the data contained within this buffer (i.e., they are not copies of the data).
-     *
-     * @return A List of {@link ByteBuffer}.
-     */
-    List<ByteBuffer> getContents();
 
     /**
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given

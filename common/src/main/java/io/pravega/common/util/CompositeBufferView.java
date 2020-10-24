@@ -138,16 +138,6 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     }
 
     @Override
-    public List<ByteBuffer> getContents() {
-        ArrayList<ByteBuffer> result = new ArrayList<>(this.components.size());
-        for (BufferView c : this.components) {
-            result.addAll(c.getContents());
-        }
-
-        return result;
-    }
-
-    @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         for (BufferView bv : this.components) {
             bv.collect(bufferCollector);

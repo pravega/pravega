@@ -17,7 +17,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import lombok.Getter;
 
 /**
@@ -194,11 +193,6 @@ public abstract class AbstractBufferView implements BufferView {
         @Override
         public int copyTo(ByteBuffer byteBuffer) {
             return 0; // Nothing to copy.
-        }
-
-        @Override
-        public List<ByteBuffer> getContents() {
-            return Collections.emptyList();
         }
 
         @Override
