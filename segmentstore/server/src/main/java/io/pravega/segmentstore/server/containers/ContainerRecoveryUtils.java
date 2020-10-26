@@ -292,18 +292,13 @@ public class ContainerRecoveryUtils {
      */
     public static void updateCoreAttributes(Map<Integer, String> backUpMetadataSegments,
                                             Map<Integer, DebugStreamSegmentContainer> containersMap,
-                                            ExecutorService executorService) throws InterruptedException, ExecutionException,
+                                            ExecutorService executorService,
+                                            Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
-        // If there are no back up metadata segments, no updating will be done.
-        if (backUpMetadataSegments.size() == 0) {
-            return;
-        }
+        Preconditions.checkState(backUpMetadataSegments.size() == containersMap.size(), "The number of " +
+                "back-up metadata segments and containers should match.");
 
-        // If there are metadata segments, then at least one container should be present.
-        Preconditions.checkState(containersMap.size() > 0, "There should be at least one container.");
-
-        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
+        val args = IteratorArgs.builder().fetchTimeout(timeout).build();
 
         // Iterate through all back up metadata segments
         for (val backUpMetadataSegmentEntry : backUpMetadataSegments.entrySet()) {
@@ -313,16 +308,15 @@ public class ContainerRecoveryUtils {
             // Get the name of back up metadata segment
             val backUpMetadataSegment = backUpMetadataSegmentEntry.getValue();
 
-            // Get the new container assignment for back up metadata segment
-            val containerForBackUpMetadataSegment = containersMap.get(segToConMapper.getContainerId(
-                    backUpMetadataSegment));
+            // Get the container for back up metadata segment
+            val container = containersMap.get(backUpMetadataSegmentEntry.getKey());
             log.info("Back up container metadata segment name: {} and its container id: {}", backUpMetadataSegment,
-                    containerForBackUpMetadataSegment.getId());
+                    container.getId());
 
             // Get the iterator to iterate through all segments in the back up metadata segment
-            val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
+            val tableExtension = container.getExtension(ContainerTableExtension.class);
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -344,19 +338,15 @@ public class ContainerRecoveryUtils {
                             .collect(Collectors.toList());
                     log.info("Segment Name: {} Attributes Updates: {}", properties.getName(), attributeUpdates);
 
-                    // Get the container for the current segment
-                    val container = containersMap.get(segToConMapper.getContainerId(
-                            properties.getName()));
-
                     // Update attributes for the current segment
                     futures.add(Futures.exceptionallyExpecting(
-                            container.updateAttributes(properties.getName(), attributeUpdates, TIMEOUT),
+                            container.updateAttributes(properties.getName(), attributeUpdates, timeout),
                             ex -> ex instanceof StreamSegmentNotExistsException, null));
                 }
+            }, executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
-                // Waiting for update attributes for all segments in each back up metadata segment.
-                Futures.allOf(futures).join();
-            }, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            // Waiting for update attributes for all segments in each back up metadata segment.
+            Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -407,7 +397,8 @@ public class ContainerRecoveryUtils {
      * @throws TimeoutException         If the timeout expired prior to being able to complete the operation.
      * @throws ExecutionException       When execution of the opreations encountered an error.
      */
-    public static Map<Integer, String> getBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService)
+    public static Map<Integer, String> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
+                                                                 Duration timeOut)
             throws InterruptedException, ExecutionException, TimeoutException {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
@@ -427,7 +418,7 @@ public class ContainerRecoveryUtils {
                                     .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
                             ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(futures).get(timeOut.toMillis(), TimeUnit.MILLISECONDS);
         return backUpMetadataSegments;
     }
 }
