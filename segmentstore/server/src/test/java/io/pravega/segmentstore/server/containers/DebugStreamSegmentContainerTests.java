@@ -87,7 +87,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
-    private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -283,10 +282,9 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 executorService()).join();
 
         // back up metadata segment should exist
-        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, null).join());
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, TIMEOUT).join());
         // back up attribute segment should exist
-        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpAttributeSegment, null).join());
-
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpAttributeSegment, TIMEOUT).join());
     }
 
     /**
@@ -359,8 +357,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Storage storage = context.storageFactory.createStorageAdapter();
 
         // 4. Move container metadata and its attribute segment to back up segments.
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
-                executorService());
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
+                executorService(), TIMEOUT);
 
         OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
                 new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
@@ -377,7 +375,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService());
 
         // 5. Update core attributes using back up segments.
-        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService());
+        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
 
         // 6. Verify Segment Data.
         for (val sc : segmentContents.entrySet()) {

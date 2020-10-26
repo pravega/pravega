@@ -478,8 +478,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
-                executorService());
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
+                executorService(), TIMEOUT);
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
@@ -645,8 +645,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
-                executorService());
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
+                executorService(), TIMEOUT);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -707,7 +707,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
 
         // Update core attributes from the backUp Metadata segments
-        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService());
+        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
@@ -788,8 +788,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
 
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
-                executorService());
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
+                executorService(), TIMEOUT);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
