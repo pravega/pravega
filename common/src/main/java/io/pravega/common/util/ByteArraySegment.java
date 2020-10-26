@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -177,7 +178,9 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             return false;
         } else if (other instanceof ArrayView) {
             // ByteBuffer-optimized equality check.
-            return this.asByteBuffer().equals(((ArrayView) other).asByteBuffer());
+            ArrayView otherArray = (ArrayView) other;
+            return Arrays.equals(this.array, this.startOffset, this.startOffset + this.length,
+                    otherArray.array(), otherArray.arrayOffset(), otherArray.arrayOffset() + this.length);
         }
 
         // No good optimization available; default to AbstractBufferView.equals().
