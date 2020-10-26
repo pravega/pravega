@@ -178,9 +178,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             return false;
         } else if (other instanceof ArrayView) {
             // ByteBuffer-optimized equality check.
-            ArrayView otherArray = (ArrayView) other;
-            return Arrays.equals(this.array, this.startOffset, this.startOffset + this.length,
-                    otherArray.array(), otherArray.arrayOffset(), otherArray.arrayOffset() + this.length);
+            return this.asByteBuffer().equals(((ArrayView) other).asByteBuffer());
         }
 
         // No good optimization available; default to AbstractBufferView.equals().
