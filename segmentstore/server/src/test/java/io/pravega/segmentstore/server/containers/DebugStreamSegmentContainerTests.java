@@ -11,6 +11,9 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -41,6 +44,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -55,16 +59,20 @@ import org.junit.rules.Timeout;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
+import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
 
 /**
  * Tests for DebugStreamSegmentContainer class.
@@ -176,7 +184,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * segment container. Once registered, segment's properties are matched to verify if the test was successful or not.
      */
     @Test
-    public void testEndToEnd() throws Exception {
+    public void testDataRecoveryStorageLevel() throws Exception {
         // Segments are mapped to four different containers.
         int containerCount = 4;
         int segmentsToCreateCount = 50;
@@ -248,6 +256,149 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
             debugStreamSegmentContainerMap.get(containerId).close();
         }
+    }
+
+    /**
+     * The test create a dummy metadata segment and its attribute segment using a storage instance. The method under the
+     * test creates copies of the segments. After that, it is verified if the new segments exist.
+     */
+    @Test
+    public void testBackUpMetadataAndAttributeSegments() {
+        // Create a storage.
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
+        @Cleanup
+        Storage s = storageFactory.createStorageAdapter();
+        s.initialize(1);
+        log.info("Created a storage instance");
+
+        String metadataSegment = NameUtils.getMetadataSegmentName(CONTAINER_ID);
+        String attributeSegment = NameUtils.getAttributeSegmentName(metadataSegment);
+        String backUpMetadataSegment = "segment-" + RANDOM.nextInt();
+        String backUpAttributeSegment = "segment-" + RANDOM.nextInt();
+
+        s.create(metadataSegment, TIMEOUT).join();
+        s.create(attributeSegment, TIMEOUT).join();
+
+        ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(s, CONTAINER_ID, backUpMetadataSegment, backUpAttributeSegment,
+                executorService()).join();
+
+        // back up metadata segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, null).join());
+        // back up attribute segment should exist
+        Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpAttributeSegment, null).join());
+
+    }
+
+    /**
+     * The test creates a container. Using it, some segments are created, data is written to them and their attributes are
+     * updated. After Tier1 is flushed to the storage, the container is closed. From the storage, we recover the
+     * segments and update their attributes. The data and attributes for each of the segment are verified to validate the
+     * recovery process.
+     */
+    @Test
+    public void testDataRecoveryContainerLevel() throws Exception {
+        int attributesUpdatesPerSegment = 50;
+        int segmentsCount = 10;
+        final UUID attributeReplace = UUID.randomUUID();
+        final long expectedAttributeValue = attributesUpdatesPerSegment;
+        int containerId = 0;
+        int containerCount = 1;
+        int maxDataSize = 1024 * 1024; // 1MB
+
+        @Cleanup
+        TestContext context = createContext(executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer container = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container.startAsync().awaitRunning();
+
+        // 1. Create segments.
+        ArrayList<String> segmentNames = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (int i = 0; i < segmentsCount; i++) {
+            String segmentName = getSegmentName(i);
+            segmentNames.add(segmentName);
+            opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+        }
+
+        // 1.1 Wait for all segments to be created prior to using them.
+        Futures.allOf(opFutures).join();
+        opFutures.clear();
+
+        // 2. Write data and update some of the attributes.
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArraySegment> segmentContents = new HashMap<>();
+        for (String segmentName : segmentNames) {
+            val dataSize = RANDOM.nextInt(maxDataSize);
+
+            byte[] writeData = populate(dataSize);
+            val appendData = new ByteArraySegment(writeData);
+
+            val append = container.append(segmentName, appendData, null, TIMEOUT);
+            opFutures.add(Futures.toVoid(append));
+            lengths.put(segmentName, (long) dataSize);
+            segmentContents.put(segmentName, appendData);
+
+            for (int i = 0; i < attributesUpdatesPerSegment; i++) {
+                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
+            }
+        }
+
+        // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
+        // operations have been applied to Storage.
+        val forceFlush = container.flushToStorage(TIMEOUT);
+        forceFlush.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        container.close();
+
+        // Get the storage instance
+        @Cleanup
+        Storage storage = context.storageFactory.createStorageAdapter();
+
+        // 4. Move container metadata and its attribute segment to back up segments.
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, containerCount,
+                executorService());
+
+        OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
+                new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
+        // Starts a DebugSegmentContainer with new Durable Log
+        @Cleanup
+        MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container2.startAsync().awaitRunning();
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
+        debugStreamSegmentContainersMap.put(containerId, container2);
+
+        // 4. Recover all segments.
+        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService());
+
+        // 5. Update core attributes using back up segments.
+        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService());
+
+        // 6. Verify Segment Data.
+        for (val sc : segmentContents.entrySet()) {
+            // Contents.
+            byte[] expectedData = sc.getValue().array();
+            byte[] actualData = new byte[expectedData.length];
+            container2.read(sc.getKey(), 0, actualData.length, TIMEOUT).join().readRemaining(actualData, TIMEOUT);
+            Assert.assertArrayEquals("Unexpected contents for " + sc.getKey(), expectedData, actualData);
+
+            // Length.
+            val si = container2.getStreamSegmentInfo(sc.getKey(), TIMEOUT).join();
+            Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
+
+            // Attributes.
+            val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
+            Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
+        }
+    }
+
+    private static String getSegmentName(int i) {
+        return "Segment_" + i;
     }
 
     /**

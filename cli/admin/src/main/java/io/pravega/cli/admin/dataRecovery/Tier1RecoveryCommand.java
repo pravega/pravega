@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -197,7 +198,7 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         return new CommandDescriptor(COMPONENT, "Tier1-recovery", "Recover Tier1 state from the storage.");
     }
 
-    public static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
+    private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;
 
         public MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
