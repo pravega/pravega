@@ -286,6 +286,7 @@ public class ContainerRecoveryUtils {
      * @param backUpMetadataSegments    A map of back copies of metadata segments along with their container Ids.
      * @param containersMap             A map of {@link DebugStreamSegmentContainer} instances with their container Ids.
      * @param executorService           A thread pool for execution.
+     * @param timeout                   Timeout for the operation.
      * @throws InterruptedException     If the operation was interrupted while waiting.
      * @throws TimeoutException         If the timeout expired prior to being able to complete update attributes for all segments.
      * @throws ExecutionException       When execution of update attributes to all segments encountered an error.
@@ -392,13 +393,14 @@ public class ContainerRecoveryUtils {
      * @param containerCount            The number of containers for which renaming of container metadata segment and its
      *                                  attributes segment has to be performed.
      * @param executorService           A thread pool for execution.
+     * @param timeout                   Timeout for the operation.
      * @return                          A Map of Container Ids to new container metadata segment names.
      * @throws InterruptedException     If the operation was interrupted while waiting.
      * @throws TimeoutException         If the timeout expired prior to being able to complete the operation.
      * @throws ExecutionException       When execution of the opreations encountered an error.
      */
     public static Map<Integer, String> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
-                                                                 Duration timeOut)
+                                                                 Duration timeout)
             throws InterruptedException, ExecutionException, TimeoutException {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
@@ -418,7 +420,7 @@ public class ContainerRecoveryUtils {
                                     .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
                             ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }
-        Futures.allOf(futures).get(timeOut.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         return backUpMetadataSegments;
     }
 }
