@@ -116,7 +116,8 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(controllerGRPCUri)
-                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                .credentials(new DefaultCredentials(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
+                        Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username")))
                 .build();
         // Create a scope.
         @Cleanup
