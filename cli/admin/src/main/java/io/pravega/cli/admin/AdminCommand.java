@@ -28,6 +28,8 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
+import io.pravega.cli.admin.disasterRecovery.StorageListSegmentsCommand;
+import io.pravega.cli.admin.disasterRecovery.Tier1RecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
 import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
@@ -36,6 +38,7 @@ import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -54,6 +57,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -62,6 +66,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 /**
  * Base class for any command to execute from the Admin tool.
  */
+@Slf4j
 public abstract class AdminCommand {
     //region Private
 
@@ -105,6 +110,13 @@ public abstract class AdminCommand {
      */
     protected ServiceConfig getServiceConfig() {
         return getCommandArgs().getState().getConfigBuilder().build().getConfig(ServiceConfig::builder);
+    }
+
+    /**
+     * Creates a new instance of the ServiceConfig class from the shared AdminCommandState.
+     */
+    protected ServiceBuilderConfig getServiceBuilderConfig() {
+        return getCommandArgs().getState().getConfigBuilder().build();
     }
 
     /**
@@ -154,6 +166,9 @@ public abstract class AdminCommand {
     //endregion
 
     //region Arguments
+    protected int getArgCount() {
+        return this.commandArgs.getArgs().size();
+    }
 
     protected void ensureArgCount(int expectedCount) {
         Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount, "Incorrect argument count.");
@@ -232,6 +247,8 @@ public abstract class AdminCommand {
                         .put(ListContainersCommand::descriptor, ListContainersCommand::new)
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
+                        .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
+                        .put(Tier1RecoveryCommand::descriptor, Tier1RecoveryCommand::new)
                         .build());
 
         /**
