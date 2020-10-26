@@ -37,12 +37,10 @@ class IoBuffer {
     
     private ByteArraySegment sliceOut(int size) {
         ByteArraySegment result = buffer.slice(0, size);
-        if (buffer.getLength() > size) {
-            buffer = new ByteArraySegment(buffer.array(), buffer.arrayOffset() + size, buffer.getLength());            
-        } else if (buffer.getLength() == size) {
+        if (buffer.getLength() == size) {
             buffer = null;
         } else {
-            throw new IllegalStateException("Attempted to read more from the buffer than was available.");
+            buffer = buffer.slice(size, buffer.getLength() - size);            
         }
         return result;
     }

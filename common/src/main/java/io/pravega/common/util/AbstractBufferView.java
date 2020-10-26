@@ -156,6 +156,9 @@ public abstract class AbstractBufferView implements BufferView {
         }
         
 
+        /**
+         * This is copied (with minor modifications for accessors) from DataInputStream.
+         */
         @Override
         public String readUTF() throws UTFDataFormatException {
             int utflen = readShort() & 0x0000FFFF;

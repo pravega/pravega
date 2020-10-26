@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -69,19 +70,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
      * @param components The components to wrap.
      */
     CompositeBufferView(BufferView... components) {
-        this.components = new ArrayList<>();
-        int length = 0;
-        for (BufferView c : components) {
-            if (c instanceof CompositeBufferView) {
-                for (BufferView b : ((CompositeBufferView) c).components) {
-                    this.components.add(b.slice());
-                }
-            } else {
-                this.components.add(c.slice());
-            }
-            length += c.getLength();
-        }
-        this.length = length;
+        this(Arrays.asList(components));
     }
 
     //endregion
