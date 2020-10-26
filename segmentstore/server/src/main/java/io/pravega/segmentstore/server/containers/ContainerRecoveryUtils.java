@@ -394,8 +394,8 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * This method creates a back up segment with new name of container metadata segment and its attribute segment for
-     * the each container Id. The original metadata segments and its attribute segments are deleted and the back up copy
+     * This method creates a back up segment of container metadata segment and its attribute segment for each
+     * container Id. The original metadata segments and its attribute segments are deleted and the back up copy
      * of original metadata segments are stored in a map and returned.
      *
      * @param storage                   A {@link Storage} instance to get the segments from.
@@ -417,7 +417,7 @@ public class ContainerRecoveryUtils {
         for (int containerId = 0; containerId < containerCount; containerId++) {
             String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
             String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
-            log.debug("Created '{}' as a back for metadata segment of container Id '{}'", backUpAttributeSegment, containerId);
+            log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpAttributeSegment, containerId);
 
             int finalContainerId = containerId;
             futures.add(Futures.exceptionallyExpecting(

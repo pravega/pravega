@@ -184,7 +184,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * segment container. Once registered, segment's properties are matched to verify if the test was successful or not.
      */
     @Test
-    public void testRestoreFromStorage() throws Exception {
+    public void testDataRecoveryStorageLevel() throws Exception {
         // Segments are mapped to four different containers.
         int containerCount = 4;
         int segmentsToCreateCount = 50;
@@ -291,11 +291,12 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     /**
      * The test creates a container. Using it, some segments are created, data is written to them and their attributes are
-     * updated. After all Tier1 is flushed to the storage, the container is closed. From the storage, we recover the
-     * segments, update their attributes, read data and attributes to verify the recovery process.
+     * updated. After Tier1 is flushed to the storage, the container is closed. From the storage, we recover the
+     * segments and update their attributes. The data and attributes for each of the segment are verified to validate the
+     * recovery process.
      */
     @Test
-    public void testRestoreFromContainer() throws Exception {
+    public void testDataRecoveryContainerLevel() throws Exception {
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
         final UUID attributeReplace = UUID.randomUUID();
