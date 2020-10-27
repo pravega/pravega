@@ -103,15 +103,16 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
      *
      * @param args The arguments for the command.
      */
-    public Tier1RecoveryCommand(CommandArgs args) throws Exception {
+    public Tier1RecoveryCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.storageFactory = createStorageFactory(ExecutorServiceHelpers.newScheduledThreadPool(1, "storageProcessor"));
-        setLogging(descriptor().getName());
     }
 
     @Override
     public void execute() throws Exception {
+        // set up logging
+        setLogging(descriptor().getName());
         output(Level.INFO, "Container Count = %d", this.containerCount);
 
         @Cleanup

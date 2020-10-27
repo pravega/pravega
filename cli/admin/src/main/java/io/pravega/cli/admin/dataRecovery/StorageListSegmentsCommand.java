@@ -27,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Level;
 
 /**
- * Loads the storage instance and lists all non-shadow segments from there.
+ * Lists all non-shadow segments from there from the storage. The storage is loaded using the config properties.
  */
 public class StorageListSegmentsCommand extends DataRecoveryCommand {
     /**
@@ -40,21 +40,20 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
             "listSegmentsProcessor");
     private final SegmentToContainerMapper segToConMapper;
     private final StorageFactory storageFactory;
-    private final String filePath;
     private final FileWriter[] csvWriters;
+    private String filePath;
 
     /**
      * Creates an instance of StorageListSegmentsCommand class.
      *
      * @param args The arguments for the command.
      */
-    public StorageListSegmentsCommand(CommandArgs args) throws Exception {
+    public StorageListSegmentsCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.segToConMapper = new SegmentToContainerMapper(this.containerCount);
         this.storageFactory = createStorageFactory(scheduledExecutorService);
         this.csvWriters = new FileWriter[this.containerCount];
-        this.filePath = setLogging(descriptor().getName());
     }
 
     /**
@@ -86,6 +85,9 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
+        // set up logging
+        this.filePath = setLogging(descriptor().getName());
+
         output(Level.INFO, "Container Count = %d", this.containerCount);
         // Get the storage using the config.
         @Cleanup

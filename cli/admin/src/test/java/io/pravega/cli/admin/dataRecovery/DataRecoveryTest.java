@@ -88,15 +88,22 @@ public class DataRecoveryTest {
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(600, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "tier1 recovery test pool");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "Data recovery test pool");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
+    /**
+     * A directory for FILESYSTEM storage as LTS.
+     */
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
     private StorageFactory storageFactory = null;
+
+    /**
+     * A directory for storing logs and CSV files generated during the test..
+     */
     private File logsDir = null;
     private BookKeeperLogFactory factory = null;
 
@@ -126,6 +133,10 @@ public class DataRecoveryTest {
         }
     }
 
+    /**
+     * Tests Tier1 recovery command.
+     * @throws Exception    In case of any exception thrown while execution.
+     */
     @Test
     public void testDataRecoveryCommand() throws Exception {
         int instanceId = 0;
@@ -133,7 +144,7 @@ public class DataRecoveryTest {
         int containerCount = 1;
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
-        String streamName = "testTier1RecoveryCommand";
+        String streamName = "testDataRecoveryCommand";
 
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, streamName);
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
@@ -184,6 +195,10 @@ public class DataRecoveryTest {
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
 
+    /**
+     * Tests list segments command.
+     * @throws Exception    In case of any exception thrown while execution.
+     */
     @Test
     public void testListSegmentsCommand() throws Exception {
         int instanceId = 0;
@@ -191,7 +206,7 @@ public class DataRecoveryTest {
         int containerCount = 1;
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
-        String streamName = "testTier1RecoveryCommand";
+        String streamName = "testListSegmentsCommand";
 
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, streamName);
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
@@ -239,7 +254,7 @@ public class DataRecoveryTest {
         FileHelpers.deleteFileOrDirectory(this.logsDir);
     }
 
-
+    // write events to the given stream
     private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
@@ -252,6 +267,7 @@ public class DataRecoveryTest {
         writer.close();
     }
 
+    // read all events from the given stream
     private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
                                String readerGroupName, String readerName) {
         readerGroupManager.createReaderGroup(readerGroupName,
@@ -273,7 +289,9 @@ public class DataRecoveryTest {
         reader.close();
     }
 
-
+    /**
+     * Sets up a new BookKeeper & ZooKeeper.
+     */
     private static class BookKeeperRunner implements AutoCloseable {
         private final int bkPort;
         private final BookKeeperServiceRunner bookKeeperServiceRunner;
