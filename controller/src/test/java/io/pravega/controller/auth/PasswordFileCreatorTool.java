@@ -10,7 +10,7 @@
 package io.pravega.controller.auth;
 
 import com.google.common.base.Strings;
-import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class PasswordFileCreatorTool {
                 if (Strings.isNullOrEmpty(s)) {
                     break;
                 }
-                String[] lists = s.split(":");
+                String[] lists = s.split(":", 3);
                 String toWrite = lists[0] + ":" + passwordEncryptor.encryptPassword(lists[1])
                         + ":" + lists[2];
                 writer.write(toWrite + "\n");

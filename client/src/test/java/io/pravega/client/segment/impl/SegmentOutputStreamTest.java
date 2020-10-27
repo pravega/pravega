@@ -27,6 +27,7 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.Append;
 import io.pravega.shared.protocol.ConnectionFailedException;
 import io.pravega.shared.protocol.PravegaNodeUri;
+import io.pravega.shared.protocol.ReplyProcessor;
 import io.pravega.shared.protocol.WireCommands;
 import io.pravega.shared.protocol.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.WireCommands.SetupAppend;
@@ -100,6 +101,28 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
     }
+
+    @Test(timeout = 10000)
+    public void testRecvErrorMessage() throws SegmentSealedException, ConnectionFailedException {
+        int requestId = 0;
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+
+        ReplyProcessor processor = cf.getProcessor(uri);
+
+        WireCommands.ErrorMessage reply = new WireCommands.ErrorMessage(requestId, "segment", "error.", WireCommands.ErrorMessage.ErrorCode.ILLEGAL_ARGUMENT_EXCEPTION);
+        processor.process(reply);
+        verify(connection).close();
+    }
+
 
     @Test(timeout = 10000)
     public void testReconnectWorksWithTokenTaskInInternalExecutor() {

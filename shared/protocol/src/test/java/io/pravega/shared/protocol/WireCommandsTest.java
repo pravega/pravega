@@ -886,6 +886,22 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
                 l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
     }
+    
+    @Test
+    public void testErrorMessage() throws IOException {
+        for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
+            Class exceptionType = code.getExceptionType();
+            WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
+            testCommand(cmd);
+            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
+            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+
+            RuntimeException exception = cmd.getThrowableException();
+            AssertExtensions.assertThrows(exceptionType, () -> {
+                throw exception;
+            });
+        }
+    }
 
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(
             Supplier<T> fromBuf, WireCommands.Constructor fromStream, Function<T, Integer> getRefCnt) throws IOException {

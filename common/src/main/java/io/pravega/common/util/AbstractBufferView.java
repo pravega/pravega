@@ -234,7 +234,7 @@ public abstract class AbstractBufferView implements BufferView {
     /**
      * Simulates an empty {@link BufferView}.
      */
-    private static class EmptyBufferView extends AbstractBufferView {
+    static class EmptyBufferView extends AbstractBufferView implements ArrayView {
         @Getter
         private final Reader bufferViewReader = new EmptyReader();
         @Getter
@@ -251,7 +251,7 @@ public abstract class AbstractBufferView implements BufferView {
         }
 
         @Override
-        public BufferView slice(int offset, int length) {
+        public EmptyBufferView slice(int offset, int length) {
             if (offset != 0 || length != 0) {
                 throw new IndexOutOfBoundsException("Cannot slice empty BufferView.");
             }
@@ -327,6 +327,30 @@ public abstract class AbstractBufferView implements BufferView {
                     throw new OutOfBoundsException("Cannot skip in an Empty BufferView.");
                 }
             }
+        }
+
+        @Override
+        public byte get(int index) {
+            // TODO Auto-generated method stub
+            return 0;
+        }
+
+        @Override
+        public byte[] array() {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        @Override
+        public int arrayOffset() {
+            // TODO Auto-generated method stub
+            return 0;
+        }
+
+        @Override
+        public void copyTo(byte[] target, int targetOffset, int length) {
+            // TODO Auto-generated method stub
+            
         }
     }
 

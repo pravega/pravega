@@ -124,7 +124,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             WireCommands.AuthTokenCheckFailed authTokenCheckReply = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckReply.isTokenExpired()) {
                 log.info("Delegation token expired");
-                // We want to have the request retried by the client in this case.
+                // We want to have the request retried by the client in this case, with a renewed token.
+                this.tokenProvider.signalTokenExpired();
                 throw new ConnectionFailedException(new TokenExpiredException(authTokenCheckReply.toString()));
             } else {
                 log.info("Delegation token invalid");

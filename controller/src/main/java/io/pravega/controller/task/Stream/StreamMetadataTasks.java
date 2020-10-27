@@ -30,7 +30,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
@@ -329,8 +329,8 @@ public class StreamMetadataTasks extends TaskBase {
             log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
             return CompletableFuture.completedFuture(null);
         }
-        log.info("Found truncation record for stream {}/{} newRecord time/size: {}/{}", scope, stream,
-                                                                                newRecord.getRecordingTime(), newRecord.getRecordingSize());
+        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
+                truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
         return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
                    .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
                    .thenCompose(started -> {
@@ -486,6 +486,11 @@ public class StreamMetadataTasks extends TaskBase {
      * @return update status.
      */
     public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
+        return sealStream(scope, stream, contextOpt, 10);
+    }
+
+    @VisibleForTesting
+    CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt, int retryCount) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("sealStream", scope, stream);
 
@@ -493,14 +498,14 @@ public class StreamMetadataTasks extends TaskBase {
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
         return eventHelper.addIndexAndSubmitTask(event,
                 // 2. set state to sealing
-                () -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                () -> RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(state -> {
                     if (state.getObject().equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(state);
                     } else {
                         return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
-                }))
+                }), RetryHelper.RETRYABLE_PREDICATE.or(e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException), retryCount, executor))
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {

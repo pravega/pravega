@@ -284,7 +284,7 @@ class SegmentMock implements DirectSegmentAccess {
     //region TruncateableReadResultMock
 
     private class TruncateableReadResultMock extends ReadResultMock {
-        TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
+        private TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
             super(streamSegmentStartOffset, data, maxResultLength, entryLength);
         }
 

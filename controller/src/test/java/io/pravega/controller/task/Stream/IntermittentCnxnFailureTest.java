@@ -23,7 +23,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -99,6 +99,7 @@ public class IntermittentCnxnFailureTest {
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));

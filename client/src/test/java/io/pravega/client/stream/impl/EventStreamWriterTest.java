@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -73,6 +74,25 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         } catch (IllegalStateException e) {
             // expected.
         }
+    }
+
+    @Test
+    public void testWriteEvents() {
+        String scope = "scope1";
+        String streamName = "stream1";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
+        MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment, null);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
+                new JavaSerializer<>(), config, executorService(), executorService());
+        writer.writeEvents("1", Lists.newArrayList("Foo", "Bar")).join();
+        writer.writeEvent("1", "Foo2").join();
+        writer.close();
     }
 
     private StreamSegments getSegments(Segment segment) {

@@ -186,6 +186,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
+    @Synchronized
     public void close() {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {

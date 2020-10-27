@@ -9,6 +9,8 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
@@ -26,6 +28,8 @@ import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+
+import lombok.SneakyThrows;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -159,6 +163,99 @@ public class ConditionalOutputStreamTest {
             }
         }).when(mock).send(any(ConditionalAppend.class));
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> cOut.write(data, 0));
+    }
+
+    @SneakyThrows
+    @Test(timeout = 10000)
+    public void testRetriesOnTokenExpiry() {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        final AtomicLong retryCounter = new AtomicLong(0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+
+                if (retryCounter.getAndIncrement() < 2) {
+                    processor.process(new WireCommands.AuthTokenCheckFailed(argument.getRequestId(), "SomeException",
+                            WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
+                } else {
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(),
+                            argument.getWriterId(), argument.getEventNumber(), 0, -1));
+                }
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        assertTrue(objectUnderTest.write(data, 0));
+        assertEquals(3, retryCounter.get());
+    }
+
+    @Test(timeout = 10000)
+    public void testNonExpiryTokenCheckFailure() throws ConnectionFailedException {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+                processor.process(new WireCommands.AuthTokenCheckFailed(argument.getRequestId(), "SomeException",
+                                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        AssertExtensions.assertThrows(AuthenticationException.class, () -> objectUnderTest.write(data, 0));
+    }
+
+    @Test
+    public void handleUnexpectedReplythrowsAppropriateTokenExceptions() {
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        ConditionalOutputStreamImpl objectUnderTest = (ConditionalOutputStreamImpl) factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment),
+                EventWriterConfig.builder().build());
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED)),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.UNSPECIFIED)),
+                e -> e instanceof AuthenticationException);
+
+        AssertExtensions.assertThrows("TokenExpiredException wasn't thrown",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED)),
+                e -> e instanceof TokenExpiredException);
     }
     
     /**

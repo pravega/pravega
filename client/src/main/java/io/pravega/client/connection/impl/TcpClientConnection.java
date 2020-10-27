@@ -60,6 +60,7 @@ public class TcpClientConnection implements ClientConnection {
 
     static final int CONNECTION_TIMEOUT = 5000;
     static final int TCP_BUFFER_SIZE = 256 * 1024;
+    static final int SOCKET_TIMEOUT_MS = 3 * 60 * 1000;
     
     private final Socket socket;
     private final CommandEncoder encoder;
@@ -159,7 +160,9 @@ public class TcpClientConnection implements ClientConnection {
         }
         
         public void stop() {
-            stop.set(true);
+            if (stop.getAndSet(true)) {
+                return;
+            }
             closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
             callback.connectionDropped();
         }
@@ -181,7 +184,7 @@ public class TcpClientConnection implements ClientConnection {
      * @param location Location to connect to.
      * @param clientConfig config for socket.
      * @param callback ReplyProcessor for replies from the server.
-     * @param executor Thread pool to perfrom the connect in.
+     * @param executor Thread pool to perform the connect in.
      * @param onClose A callback to be notified when this connection closes.
      * @return A future for a new connection. If the connect attempt fails the future will be failed with a {@link ConnectionFailedException}
      */
@@ -256,6 +259,7 @@ public class TcpClientConnection implements ClientConnection {
             result.setReceiveBufferSize(TCP_BUFFER_SIZE);
             result.setTcpNoDelay(true);
             result.connect(new InetSocketAddress(location.getEndpoint(), location.getPort()), CONNECTION_TIMEOUT);
+            result.setSoTimeout(SOCKET_TIMEOUT_MS);
             return result;
         } catch (Exception e) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(e));

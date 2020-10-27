@@ -22,10 +22,13 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
+
+import java.util.Map;
 
 /**
  * Implementation for {@link ByteStreamClientFactory}.
@@ -48,7 +51,11 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
 
     @Override
     public ByteStreamReader createByteStreamReader(String streamName) {
-        return createByteStreamReaders(new Segment(scope, streamName, 0));
+        // Fetch the segments pointing to the current HEAD of the stream.
+        Map<Segment, Long> segments = Futures.getThrowingException(controller.getSegmentsAtTime(Stream.of(scope, streamName), 0L));
+        Preconditions.checkState(segments.size() == 1, "ByteStreamReader supports single segment stream. Provided stream contains %s segments", segments.size());
+        Segment segment = segments.keySet().iterator().next();
+        return createByteStreamReaders(segment);
     }
 
     private ByteStreamReader createByteStreamReaders(Segment segment) {
@@ -71,8 +78,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
         Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
-        String delegationToken = segments.getDelegationToken();
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, segment);
         return new BufferedByteStreamWriterImpl(
                 new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config, tokenProvider),
                 metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider)));

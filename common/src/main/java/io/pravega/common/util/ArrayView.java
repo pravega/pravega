@@ -17,6 +17,9 @@ import java.util.List;
  * Defines a generic read-only view of an index-based, array-like structure.
  */
 public interface ArrayView extends BufferView {
+    
+    public static final ArrayView empty = new AbstractBufferView.EmptyBufferView();
+    
     /**
      * Gets the value at the specified index.
      *
