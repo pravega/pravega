@@ -300,6 +300,7 @@ public class ContainerRecoveryUtils {
                 "back-up metadata segments and containers should match.");
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
 
         // Iterate through all back up metadata segments
         for (val backUpMetadataSegmentEntry : backUpMetadataSegments.entrySet()) {
@@ -310,12 +311,16 @@ public class ContainerRecoveryUtils {
             val backUpMetadataSegment = backUpMetadataSegmentEntry.getValue();
 
             // Get the container for back up metadata segment
-            val container = containersMap.get(backUpMetadataSegmentEntry.getKey());
+            val containerForBackUpMetadataSegment = containersMap.get(segToConMapper.getContainerId(
+                    backUpMetadataSegment));
             log.info("Back up container metadata segment name: {} and its container id: {}", backUpMetadataSegment,
-                    container.getId());
+                    containerForBackUpMetadataSegment.getId());
+
+            // Get the container for segments inside back up metadata segment
+            val container = containersMap.get(backUpMetadataSegmentEntry.getKey());
 
             // Get the iterator to iterate through all segments in the back up metadata segment
-            val tableExtension = container.getExtension(ContainerTableExtension.class);
+            val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
