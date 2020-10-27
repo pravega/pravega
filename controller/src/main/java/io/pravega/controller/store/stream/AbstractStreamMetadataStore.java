@@ -886,9 +886,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(String scope, String streamName, Map<Long, Long> streamCut,
-                                                                   OperationContext context, Executor executor) {
-        return Futures.completeOn(getStream(scope, streamName, context).findStreamCutReferenceRecordBefore(streamCut), executor);
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(String scope, String streamName, 
+                                                                                          Map<Long, Long> streamCut, 
+                                                                                          final RetentionSet retentionSet, 
+                                                                                          OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).findStreamCutReferenceRecordBefore(streamCut, retentionSet), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {

@@ -698,5 +698,5 @@ interface Stream {
      * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
      * is strictly before the supplied streamcut. 
      */
-    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut);
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut, RetentionSet retentionSet);
 }

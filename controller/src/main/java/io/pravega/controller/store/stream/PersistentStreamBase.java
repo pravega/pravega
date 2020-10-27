@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,9 +60,12 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -179,7 +183,7 @@ public abstract class PersistentStreamBase implements Stream {
                         });
                 });
     }
-    
+
     private boolean greaterThan(Map<Long, Long> cut1, Map<StreamSegmentRecord, Integer> span1,
                                 Map<Long, Long> cut2, Map<StreamSegmentRecord, Integer> span2) {
         // find overlapping segments in map2 for all segments in span1 compare epochs. 
@@ -248,14 +252,85 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut) {
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut, RetentionSet retentionSet) {
+        Map<Set<Long>, ImmutableMap<StreamSegmentRecord, Integer>> fetched = new HashMap<>();
+        int size = retentionSet.getRetentionRecords().size();
+        
         return computeStreamCutSpan(streamCut)
                 .thenCompose(span1 -> {
+                    fetched.put(streamCut.keySet(), span1);
+                    BiFunction<StreamCutReferenceRecord, Boolean, CompletableFuture<Integer>> fn = (refRecord, comparison) -> {
+                        return getStreamCutRecord(refRecord)
+                                .thenCompose(record -> {
+                                    if (record.getStreamCut().equals(streamCut)) {
+                                        return CompletableFuture.completedFuture(0);
+                                    }
+                                    ImmutableMap<StreamSegmentRecord, Integer> sc = fetched.get(record.getStreamCut().keySet());
+                                    CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> future;
+                                    if (sc != null) {
+                                        future = CompletableFuture.completedFuture(sc);
+                                    } else {
+                                        future = computeStreamCutSpan(record.getStreamCut())
+                                                .thenApply(span2 -> {
+                                                    fetched.put(record.getStreamCut().keySet(), span2);
+                                                    return span2;
+                                                });
+                                    }
+                                    return future.thenApply(span2 -> {
+                                        boolean compare = comparison ? greaterThan(streamCut, span1, record.getStreamCut(), span2) :
+                                                greaterThan(record.getStreamCut(), span2, streamCut, span1);
+                                        if (compare) {
+                                            return 1;
+                                        } else {
+                                            return -1;
+                                        }
+                                    });
+                                });
+                    };
+
                     // binary search retention set. 
-                    
+                    return binarySearch(0, size, index -> {
+                        StreamCutReferenceRecord refRecord = retentionSet.getRetentionRecords().get(index);
+                        return fn.apply(refRecord, true)
+                                 .thenCompose(compared -> {
+                                     if (compared == 1 && index < size) {
+                                         StreamCutReferenceRecord next = retentionSet.getRetentionRecords().get(index + 1);
+
+                                         return fn.apply(next, false)
+                                                 .thenApply(r -> r == 1 ? 1 : 0);
+                                     } else {
+                                         return CompletableFuture.completedFuture(compared);
+                                     }
+                                 });
+                    });
+                }).thenApply(refIndex -> {
+                    if (refIndex == null) {
+                        return null;
+                    } else {
+                        return retentionSet.getRetentionRecords().get(refIndex);
+                    }
                 });
     }
 
+    private CompletableFuture<Integer> binarySearch(int start, int end, Function<Integer, CompletableFuture<Integer>> find) {
+        if (end >= start) {
+            int mid = (end + start) / 2;
+            return find.apply(mid)
+                    .thenCompose(found -> {
+                        // if its greater than 
+                        if (found < 0) {
+                            return binarySearch(start, mid -1, find);
+                        } else if (found == 0) {
+                            return CompletableFuture.completedFuture(mid);
+                        } else {
+                            return binarySearch(mid + 1, end, find);
+                        }
+                    });
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+    
     /**
      * Update configuration at configurationPath.
      *
@@ -633,8 +708,7 @@ public abstract class PersistentStreamBase implements Stream {
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
         int epochLow = NameUtils.getEpoch(oldest);
         int epochHigh = NameUtils.getEpoch(mostRecent);
-        // TODO: cache the computed span so that it can be reused. 
-         
+
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
             ImmutableMap.Builder<StreamSegmentRecord, Integer> resultSet = ImmutableMap.builder();

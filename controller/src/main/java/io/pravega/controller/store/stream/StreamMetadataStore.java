@@ -1296,7 +1296,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                             final OperationContext context, final Executor executor);
 
     /**
-     * Finds the latest streamcutreference record from retentionset that is strictly before than supplied streamcut.    
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    
      *
      * @param scope      stream scope.
      * @param streamName stream name.
@@ -1308,5 +1308,6 @@ public interface StreamMetadataStore extends AutoCloseable {
      * is strictly before the supplied streamcut. 
      */
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(final String scope, final String streamName,
-                                                            Map<Long, Long> streamCut, final OperationContext context, final Executor executor);
+                                                                                   Map<Long, Long> streamCut, final RetentionSet retentionSet,
+                                                                                   final OperationContext context, final Executor executor);
 }
