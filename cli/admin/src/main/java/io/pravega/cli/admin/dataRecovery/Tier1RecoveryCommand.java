@@ -105,7 +105,7 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
     public Tier1RecoveryCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
-        this.storageFactory = getStorageFactory(ExecutorServiceHelpers.newScheduledThreadPool(1, "storageProcessor"));
+        this.storageFactory = createStorageFactory(ExecutorServiceHelpers.newScheduledThreadPool(1, "storageProcessor"));
     }
 
     @Override
@@ -135,7 +135,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         }
 
         output(Level.INFO, "Starting recovery...");
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.getBackUpMetadataSegments(storage, this.containerCount, executorService);
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, this.containerCount, executorService,
+                TIMEOUT);
 
         @Cleanup
         ContainerContext context = createContainerContext(executorService);
@@ -149,7 +150,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
 
         // Update core attributes from the backUp Metadata segments
         output(Level.INFO, "Updating core attributes for segments registered.");
-        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService);
+        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService,
+                TIMEOUT);
 
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(debugStreamSegmentContainerMap);

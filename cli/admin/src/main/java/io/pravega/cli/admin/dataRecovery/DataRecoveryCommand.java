@@ -18,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.event.Level;
 
 import java.io.File;
-import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,7 +28,6 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 public abstract class DataRecoveryCommand extends AdminCommand {
     protected final static String COMPONENT = "storage";
-    private PrintStream out = System.out;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -40,13 +38,27 @@ public abstract class DataRecoveryCommand extends AdminCommand {
         super(args);
     }
 
-    StorageFactory getStorageFactory(ScheduledExecutorService executorService) {
+    /**
+     * Creates the {@link StorageFactory} instance by reading the config values.
+     *
+     * @param executorService   A thread pool for execution.
+     * @return                  A newly created {@link StorageFactory} instance.
+     */
+    StorageFactory createStorageFactory(ScheduledExecutorService executorService) {
         ServiceBuilder.ConfigSetupHelper configSetupHelper = new ServiceBuilder.ConfigSetupHelper(getServiceBuilderConfig());
         StorageLoader loader = new StorageLoader();
         return loader.load(configSetupHelper, getServiceConfig().getStorageImplementation().toString(),
                 getServiceConfig().getStorageLayout(), executorService);
     }
 
+    /**
+     * Creates logging directory and file for the command to be run. The path to the directory can be supplied on the
+     * command run. By default, the path is set as current user path.
+     *
+     * @param commandName   The name of the command to be run.
+     * @return              The path to the directory created.
+     * @throws Exception    In case of a failure in creating the directory or the file.
+     */
     String setLogging(String commandName) throws Exception {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String fileName = commandName + fileSuffix + ".log";
@@ -83,6 +95,12 @@ public abstract class DataRecoveryCommand extends AdminCommand {
         return filePath;
     }
 
+    /**
+     * Outputs the message to the
+     * @param level
+     * @param messageTemplate
+     * @param args
+     */
     protected void output(Level level, String messageTemplate, Object... args) {
         switch (level) {
             case INFO:

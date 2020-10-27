@@ -722,7 +722,6 @@ project('cli:admin') {
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion, classifier: 'tests'
         testCompile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, classifier: 'tests'
         testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
-        testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
 
     javadoc {

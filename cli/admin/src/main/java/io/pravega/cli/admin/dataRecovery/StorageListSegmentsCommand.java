@@ -52,7 +52,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.segToConMapper = new SegmentToContainerMapper(this.containerCount);
-        this.storageFactory = getStorageFactory(scheduledExecutorService);
+        this.storageFactory = createStorageFactory(scheduledExecutorService);
         this.csvWriters = new FileWriter[this.containerCount];
     }
 
