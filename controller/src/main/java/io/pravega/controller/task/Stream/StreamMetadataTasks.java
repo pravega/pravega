@@ -92,6 +92,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -520,7 +521,6 @@ public class StreamMetadataTasks extends TaskBase {
             }
             log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
                     truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
-            return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
 
             return truncateStream(scope, stream, context, requestId, truncationRecord.get());
         }
@@ -543,7 +543,16 @@ public class StreamMetadataTasks extends TaskBase {
                                            y -> getSegmentWithRange(scope, stream, context, y.getKey()), Map.Entry::getValue)));
                                }).collect(Collectors.toList()));
                            })
-                           .thenApply(this::computeSubscribersLowerBound);
+                           .thenApply(this::computeSubscribersLowerBound)
+                .thenCompose(x -> startTruncation(scope, stream, x, context, requestId)
+                        .thenCompose(started -> {
+                            if (started) {
+                                // todo: limits
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, limits.getKey(), context, executor);
+                            } else {
+                                throw new RuntimeException("Could not start truncation");
+                            }
+                        }))
 //                           .thenCompose(lowerBound -> {
 //                               // in case we have holes in the ranges, put segments from the lowest epoch. 
 //                               // worst case scenario we will end up including all segments from the lowest epoch. 
@@ -567,7 +576,7 @@ public class StreamMetadataTasks extends TaskBase {
 //                           });
     }
 
-    private Map<SegmentWithRange, Long> computeSubscribersLowerBound(List<Map<SegmentWithRange, Long>> subscribers) {
+    private Map<Long, Long> computeSubscribersLowerBound(List<Map<SegmentWithRange, Long>> subscribers) {
         // loop over all streamcuts and for each segment in new streamcut: 
         // if new segment is predecessor of any segment in the bound then replace the successor segment with
         // this segment. 
@@ -590,7 +599,7 @@ public class StreamMetadataTasks extends TaskBase {
                 }
             });
         });
-        return lowerBound;
+        return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 
     private List<Map.Entry<SegmentWithRange, Long>> overlaps(SegmentWithRange segment, Map<SegmentWithRange, Long> bound) {
@@ -685,9 +694,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                                       StreamCutRecord newRecord, long recordingTime) {
         Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> range;
         if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.SIZE)) {
-            range = streamcutBySize(policy.getRetentionParam(), retentionSet, newRecord);
+            range = streamcutBySize(policy.getConsumptionLimits().getMaxValue(), policy.getConsumptionLimits().getMinValue(), retentionSet, newRecord);
         } else if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.TIME)) {
-            range = streamcutByTime(policy.getRetentionParam(), retentionSet, recordingTime);
+            range = streamcutByTime(policy.getConsumptionLimits().getMaxValue(), policy.getConsumptionLimits().getMinValue(), retentionSet, newRecord);
         } else {
             throw new IllegalArgumentException("illegal policy");
         }
@@ -695,13 +704,22 @@ public class StreamMetadataTasks extends TaskBase {
         return range;
     }
 
-    private Optional<StreamCutReferenceRecord> streamcutBySize(long size, RetentionSet retentionSet, StreamCutRecord newRecord) {
-        return Optional.ofNullable(newRecord).flatMap(latest ->
-                retentionSet.getRetentionRecords().stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > size)
-                        .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime)));
+    private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> streamcutBySize(long maxSize, long minSize, 
+                                                                                          RetentionSet retentionSet, StreamCutRecord newRecord) {
+        AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
+        StreamCutReferenceRecord min;
+        long maxSoFar = Long.MAX_VALUE;
+        Optional<StreamCutReferenceRecord> ret = Optional.ofNullable(newRecord).flatMap(latest -> {
+            retentionSet.getRetentionRecords().stream().forEach(x -> {
+                long size = latest.getRecordingSize() - x.getRecordingSize();
+                if (size > maxSize && size < maxSoFar) {
+                    max.set(x);
+                }
+            });
+        });
     }
 
-    private Optional<StreamCutReferenceRecord> streamcutByTime(long time, RetentionSet retentionSet, long recordingTime) {
+    private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> streamcutByTime(long max, long min, RetentionSet retentionSet, long recordingTime) {
         return retentionSet.getRetentionRecords().stream().filter(x -> x.getRecordingTime() < recordingTime - time)
                 .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
     }
