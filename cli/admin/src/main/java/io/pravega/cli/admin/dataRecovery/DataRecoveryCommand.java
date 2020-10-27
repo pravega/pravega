@@ -14,20 +14,30 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.segmentstore.server.host.StorageLoader;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.storage.StorageFactory;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.event.Level;
 
 import java.io.File;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.logging.FileHandler;
+import java.util.logging.Formatter;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
+
+import static java.util.logging.Level.FINE;
+import static java.util.logging.Level.FINER;
+import static java.util.logging.Level.INFO;
+import static java.util.logging.Level.SEVERE;
 
 /**
  * Base for any data recovery related commands.
  */
-@Slf4j
 public abstract class DataRecoveryCommand extends AdminCommand {
     protected final static String COMPONENT = "storage";
+    protected static Logger LOGGER;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -60,6 +70,9 @@ public abstract class DataRecoveryCommand extends AdminCommand {
      * @throws Exception    In case of a failure in creating the directory or the file.
      */
     String setLogging(String commandName) throws Exception {
+        LOGGER = Logger.getLogger(commandName);
+        LOGGER.setUseParentHandlers(false);
+
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String fileName = commandName + fileSuffix + ".log";
 
@@ -77,44 +90,65 @@ public abstract class DataRecoveryCommand extends AdminCommand {
             dir.mkdir();
         }
 
-        File f = new File(filePath + "/" + fileName);
-        if (f.exists()) {
-            output(Level.INFO, "Logging File '%s' already exists.", f.getAbsolutePath());
-            if (!f.delete()) {
-                output(Level.ERROR, "Failed to delete the file '%s'.", f.getAbsolutePath());
-                throw new Exception("Failed to delete the file " + f.getAbsolutePath());
-            }
-        }
-        if (!f.createNewFile()) {
-            output(Level.ERROR, "Failed to create file '%s'.", f.getAbsolutePath());
-            throw new Exception("Failed to create file " + f.getAbsolutePath());
-        }
+        FileHandler fh = new FileHandler(filePath + "/" + commandName + fileSuffix + ".log");
+        fh.setLevel(FINER);
+        DataRecoveryLogFormatter drFormatter = new DataRecoveryLogFormatter();
+        fh.setFormatter(drFormatter);
+        LOGGER.addHandler(fh);
 
-        output(Level.DEBUG, "Logs are written to file '%s'", filePath + "/" + fileName);
-        System.setProperty("logFilename", filePath + "/" + fileName);
+        output(FINER, "Logs are written to file '%s'", filePath + "/" + fileName);
         return filePath;
     }
 
     /**
-     * Outputs the message to the
-     * @param level
-     * @param messageTemplate
-     * @param args
+     * Outputs the message to the console as well as to the log file.
+     *
+     * @param level             The log level of the message.
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
      */
     protected void output(Level level, String messageTemplate, Object... args) {
-        switch (level) {
-            case INFO:
-                System.out.println(String.format(messageTemplate, args));
-                log.info(String.format(messageTemplate, args));
-                break;
-            case DEBUG:
-                System.out.println(String.format(messageTemplate, args));
-                log.debug(String.format(messageTemplate, args));
-                break;
-            case ERROR:
-                System.err.println(String.format(messageTemplate, args));
-                log.error(String.format(messageTemplate, args));
-                break;
+        if (INFO.equals(level)) {
+            System.out.println(String.format(messageTemplate, args));
+            LOGGER.log(INFO, String.format(messageTemplate, args));
+        } else if (FINE.equals(level)) {
+            System.out.println(String.format(messageTemplate, args));
+            LOGGER.log(FINE, String.format(messageTemplate, args));
+        } else if (SEVERE.equals(level)) {
+            System.err.println(String.format(messageTemplate, args));
+            LOGGER.log(SEVERE, String.format(messageTemplate, args));
+        }
+    }
+
+    /**
+     * A log formatting class for writing log to the file.
+     */
+    public class DataRecoveryLogFormatter extends Formatter {
+        private final DateFormat df = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+
+        public String format(LogRecord record) {
+            StringBuilder builder = new StringBuilder(1000);
+            builder.append(df.format(new Date(record.getMillis()))).append(" - ");
+            String source = "";
+            try {
+                source = Class.forName(record.getSourceClassName()).getSimpleName();
+            } catch (ClassNotFoundException e) {
+                source = record.getLoggerName();
+            }
+            builder.append("[").append(source).append(".");
+            builder.append(record.getSourceMethodName()).append("] - ");
+            builder.append("[").append(record.getLevel()).append("] - ");
+            builder.append(formatMessage(record));
+            builder.append("\n");
+            return builder.toString();
+        }
+
+        public String getHead(Handler h) {
+            return super.getHead(h);
+        }
+
+        public String getTail(Handler h) {
+            return super.getTail(h);
         }
     }
 }

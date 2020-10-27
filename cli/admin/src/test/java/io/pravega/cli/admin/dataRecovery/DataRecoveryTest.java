@@ -88,7 +88,7 @@ public class DataRecoveryTest {
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(600, TimeUnit.SECONDS);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "tier1 recovery test pool");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
@@ -171,9 +171,9 @@ public class DataRecoveryTest {
         TestUtils.executeCommand("storage Tier1-recovery " + this.logsDir.getAbsolutePath(), STATE.get());
 
         // Start a new segment store and controller
-        factory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(), pravegaRunner.bookKeeperRunner.zkClient.get(),
+        this.factory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(), pravegaRunner.bookKeeperRunner.zkClient.get(),
                 executor);
-        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, factory);
+        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.factory);
         log.info("Started a controller and segment store.");
         // Create the client with new controller.
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
@@ -221,9 +221,9 @@ public class DataRecoveryTest {
         // Execute the command for list segments
         TestUtils.executeCommand("storage list-segments " + this.logsDir.getAbsolutePath(), STATE.get());
         // There should be a csv file created for storing segments in Container 0
-        Assert.assertTrue(new File(logsDir.getAbsolutePath(), "Container_0.csv").exists());
+        Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "Container_0.csv").exists());
         // Check if the file has segments listed in it
-        Path path = Paths.get(logsDir.getAbsolutePath() + "/Container_0.csv");
+        Path path = Paths.get(this.logsDir.getAbsolutePath() + "/Container_0.csv");
         long lines = Files.lines(path).count();
         AssertExtensions.assertGreaterThan("There should be at least one segment.", lines, 1);
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
@@ -232,11 +232,11 @@ public class DataRecoveryTest {
     @After
     public void tearDown() {
         STATE.get().close();
-        if (factory != null) {
-            factory.close();
+        if (this.factory != null) {
+            this.factory.close();
         }
-        FileHelpers.deleteFileOrDirectory(baseDir);
-        FileHelpers.deleteFileOrDirectory(logsDir);
+        FileHelpers.deleteFileOrDirectory(this.baseDir);
+        FileHelpers.deleteFileOrDirectory(this.logsDir);
     }
 
 
@@ -284,8 +284,8 @@ public class DataRecoveryTest {
         private final String logMetaNamespace;
         private final String baseNamespace;
         BookKeeperRunner(int instanceId, int bookieCount) throws Exception {
-            ledgerPath = "/pravega/bookkeeper/ledgers" + instanceId;
-            bkPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
+            this.ledgerPath = "/pravega/bookkeeper/ledgers" + instanceId;
+            this.bkPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
             val bookiePorts = new ArrayList<Integer>();
             for (int i = 0; i < bookieCount; i++) {
                 bookiePorts.add(io.pravega.test.common.TestUtils.getAvailableListenPort());
@@ -303,10 +303,10 @@ public class DataRecoveryTest {
                 this.close();
                 throw e;
             }
-            bkService.set(this.bookKeeperServiceRunner);
+            this.bkService.set(this.bookKeeperServiceRunner);
 
             // Create a ZKClient with a unique namespace.
-            baseNamespace = "pravega" + instanceId;
+            this.baseNamespace = "pravega" + instanceId;
             this.zkClient.set(CuratorFrameworkFactory
                     .builder()
                     .connectString("localhost:" + bkPort)

@@ -42,7 +42,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
 import lombok.val;
-import org.slf4j.event.Level;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -50,6 +49,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 /**
  * Loads the storage instance, recovers all segments from there.
@@ -69,7 +69,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(
+            ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
             .builder()
@@ -102,15 +103,15 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
      *
      * @param args The arguments for the command.
      */
-    public Tier1RecoveryCommand(CommandArgs args) {
+    public Tier1RecoveryCommand(CommandArgs args) throws Exception {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.storageFactory = createStorageFactory(ExecutorServiceHelpers.newScheduledThreadPool(1, "storageProcessor"));
+        setLogging(descriptor().getName());
     }
 
     @Override
     public void execute() throws Exception {
-        setLogging(descriptor().getName());
         output(Level.INFO, "Container Count = %d", this.containerCount);
 
         @Cleanup
@@ -118,11 +119,11 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         storage.initialize(CONTAINER_EPOCH);
         output(Level.INFO, "Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
+        // Start a zk client and create a bookKeeperLogFactory
         val serviceConfig = getServiceConfig();
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
                 .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, serviceConfig.getZkURL()))
                 .build().getConfig(BookKeeperConfig::builder);
-
         @Cleanup
         val zkClient = createZKClient();
         @Cleanup
@@ -135,12 +136,14 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         }
 
         output(Level.INFO, "Starting recovery...");
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, this.containerCount, executorService,
-                TIMEOUT);
+        // create back up of metadata segments
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
+                this.containerCount, executorService, TIMEOUT);
 
+        // Start debug segment containers
         @Cleanup
         ContainerContext context = createContainerContext(executorService);
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = getContainers(context, this.containerCount, factory,
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = createContainers(context, this.containerCount, factory,
                 this.storageFactory);
         output(Level.INFO, "Debug segment containers started.");
 
@@ -164,18 +167,20 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
     private void stopDebugSegmentContainersPostFlush(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
             throws Exception {
         for (val debugSegmentContainer : debugStreamSegmentContainerMap.values()) {
-            output(Level.DEBUG, "Waiting for metadata segment of container %d to be flushed to the Long-Term storage.", debugSegmentContainer.getId());
+            output(Level.FINE, "Waiting for metadata segment of container %d to be flushed to the Long-Term storage.", debugSegmentContainer.getId());
             debugSegmentContainer.flushToStorage(TIMEOUT).join();
             Services.stopAsync(debugSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            output(Level.DEBUG, "Stopping debug segment container %d.", debugSegmentContainer.getId());
+            output(Level.FINE, "Stopping debug segment container %d.", debugSegmentContainer.getId());
             debugSegmentContainer.close();
         }
     }
 
-
+    public static CommandDescriptor descriptor() {
+        return new CommandDescriptor(COMPONENT, "Tier1-recovery", "Recover Tier1 state from the storage.");
+    }
 
     // Creates debug segment container instances, puts them in a map and returns it.
-    private Map<Integer, DebugStreamSegmentContainer> getContainers(ContainerContext context, int containerCount,
+    private Map<Integer, DebugStreamSegmentContainer> createContainers(ContainerContext context, int containerCount,
                                                                     BookKeeperLogFactory dataLogFactory,
                                                                     StorageFactory storageFactory) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
@@ -190,13 +195,9 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
 
             Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
-            output(Level.DEBUG, "Container %d started.", containerId);
+            output(Level.FINE, "Container %d started.", containerId);
         }
         return debugStreamSegmentContainerMap;
-    }
-
-    public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "Tier1-recovery", "Recover Tier1 state from the storage.");
     }
 
     private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {

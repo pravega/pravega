@@ -17,7 +17,6 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.Cleanup;
-import org.slf4j.event.Level;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -25,6 +24,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.logging.Level;
 
 /**
  * Loads the storage instance and lists all non-shadow segments from there.
@@ -40,7 +40,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
             "listSegmentsProcessor");
     private final SegmentToContainerMapper segToConMapper;
     private final StorageFactory storageFactory;
-    private String filePath;
+    private final String filePath;
     private final FileWriter[] csvWriters;
 
     /**
@@ -48,32 +48,33 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
      *
      * @param args The arguments for the command.
      */
-    public StorageListSegmentsCommand(CommandArgs args) {
+    public StorageListSegmentsCommand(CommandArgs args) throws Exception {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.segToConMapper = new SegmentToContainerMapper(this.containerCount);
         this.storageFactory = createStorageFactory(scheduledExecutorService);
         this.csvWriters = new FileWriter[this.containerCount];
+        this.filePath = setLogging(descriptor().getName());
     }
 
     /**
      * Creates a csv file for each container. All segments belonging to a containerId have their details written to the
      * csv file for that container.
      *
-     * @throws Exception
+     * @throws Exception   When failed to create/delete file(s).
      */
     private void createCSVFiles() throws Exception {
         for (int containerId = 0; containerId < this.containerCount; containerId++) {
             File f = new File(this.filePath + "/" + "Container_" + containerId + ".csv");
             if (f.exists()) {
-                output(Level.INFO, "File '%s' already exists.", f.getAbsolutePath());
+                output(Level.FINE, "File '%s' already exists.", f.getAbsolutePath());
                 if (!f.delete()) {
-                    output(Level.ERROR, "Failed to delete the file '%s'.", f.getAbsolutePath());
+                    output(Level.SEVERE, "Failed to delete the file '%s'.", f.getAbsolutePath());
                     throw new Exception("Failed to delete the file " + f.getAbsolutePath());
                 }
             }
             if (!f.createNewFile()) {
-                output(Level.ERROR, "Failed to create file '%s'.", f.getAbsolutePath());
+                output(Level.SEVERE, "Failed to create file '%s'.", f.getAbsolutePath());
                 throw new Exception("Failed to create file " + f.getAbsolutePath());
             }
             this.csvWriters[containerId] = new FileWriter(f.getName());
@@ -85,7 +86,6 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
     @Override
     public void execute() throws Exception {
-        filePath = setLogging(descriptor().getName());
         output(Level.INFO, "Container Count = %d", this.containerCount);
         // Get the storage using the config.
         @Cleanup
@@ -110,20 +110,20 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
             segmentsCount++;
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
-            output(Level.DEBUG, containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
+            output(Level.FINE, containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
                     currentSegment.getName());
             csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
                     currentSegment.getName() + "\n");
         }
 
-        output(Level.DEBUG, "Closing all csv files...");
+        output(Level.FINE, "Closing all csv files...");
         for (int containerId = 0; containerId < containerCount; containerId++) {
             csvWriters[containerId].flush();
             csvWriters[containerId].close();
         }
 
         output(Level.INFO, "All non-shadow segments' details have been written to the csv files.");
-        output(Level.DEBUG, "Path to the csv files: '%s'", filePath);
+        output(Level.FINE, "Path to the csv files: '%s'", filePath);
         output(Level.INFO, "Total number of segments found = %d", segmentsCount);
         output(Level.INFO, "Done listing the segments!");
     }
