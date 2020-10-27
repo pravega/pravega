@@ -123,7 +123,7 @@ public abstract class DataRecoveryCommand extends AdminCommand {
     /**
      * A log formatting class for writing log to the file.
      */
-    public class DataRecoveryLogFormatter extends Formatter {
+    private static class DataRecoveryLogFormatter extends Formatter {
         private final DateFormat df = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
 
         public String format(LogRecord record) {
