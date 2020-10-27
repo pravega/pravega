@@ -60,7 +60,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -252,10 +251,10 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut, RetentionSet retentionSet) {
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet) {
         Map<Set<Long>, ImmutableMap<StreamSegmentRecord, Integer>> fetched = new HashMap<>();
         int size = retentionSet.getRetentionRecords().size();
-        
+
         return computeStreamCutSpan(streamCut)
                 .thenCompose(span1 -> {
                     fetched.put(streamCut.keySet(), span1);
@@ -297,7 +296,7 @@ public abstract class PersistentStreamBase implements Stream {
                                          StreamCutReferenceRecord next = retentionSet.getRetentionRecords().get(index + 1);
 
                                          return fn.apply(next, false)
-                                                 .thenApply(r -> r == 1 ? 1 : 0);
+                                                  .thenApply(r -> r == 1 ? 1 : 0);
                                      } else {
                                          return CompletableFuture.completedFuture(compared);
                                      }

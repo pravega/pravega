@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -1301,6 +1300,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope      stream scope.
      * @param streamName stream name.
      * @param streamCut Stream cut to check.
+     * @param retentionSet Retention set
      * @param context    operation context.
      * @param executor   callers executor.
      *

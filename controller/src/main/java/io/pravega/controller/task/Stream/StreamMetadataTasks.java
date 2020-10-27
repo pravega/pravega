@@ -523,8 +523,33 @@ public class StreamMetadataTasks extends TaskBase {
             log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
                     truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
 
-            return truncateStream(scope, stream, context, requestId, truncationRecord.get());
+            return truncate(scope, stream, context, requestId, truncationRecord.get());
         }
+    }
+
+    private CompletableFuture<Void> truncate(String scope, String stream, OperationContext context, long requestId,
+                                                   StreamCutReferenceRecord truncationRecord) {
+        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
+                truncationRecord.getRecordingTime(), truncationRecord.getRecordingSize());
+        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord, context, executor)
+                                  .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
+                                  .thenCompose(started -> {
+                                      if (started) {
+                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord, context, executor);
+                                      } else {
+                                          throw new RuntimeException("Could not start truncation");
+                                      }
+                                  })
+                                  .exceptionally(e -> {
+                                      if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                          // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                          log.debug(requestId, "Cannot truncate at given " +
+                                                  "streamCut because it intersects with existing truncation point");
+                                          return null;
+                                      } else {
+                                          throw new CompletionException(e);
+                                      }
+                                  });
     }
 
     private CompletableFuture<Void> subscriberBasedTruncation(String scope, String stream, OperationContext context,
@@ -643,24 +668,23 @@ public class StreamMetadataTasks extends TaskBase {
         // if new segment is predecessor of any segment in the bound then replace the successor segment with
         // this segment. 
         Map<SegmentWithRange, Long> lowerBound = new HashMap<>();
-        subscribers.forEach(streamCut -> {
-            streamCut.forEach((segment, offset) -> {
-                if (lowerBound.containsKey(segment) && lowerBound.get(segment) > offset) {
+        subscribers.forEach(streamCut -> streamCut.forEach((segment, offset) -> {
+            if (lowerBound.containsKey(segment) && lowerBound.get(segment) > offset) {
+                lowerBound.put(segment, offset);
+            } else {
+                List<Map.Entry<SegmentWithRange, Long>> overlaps = overlaps(segment, lowerBound);
+                if (!overlaps.isEmpty()) {
+                    overlaps.forEach(z -> {
+                        if (z.getKey().getSegmentId() > segment.getSegmentId()) {
+                            lowerBound.remove(z.getKey());
+                        }
+                    });
                     lowerBound.put(segment, offset);
                 } else {
-                    List<Map.Entry<SegmentWithRange, Long>> overlaps = overlaps(segment, lowerBound);
-                    if (!overlaps.isEmpty()) {
-                        overlaps.forEach(z -> {
-                            if (z.getKey().getSegmentId() > segment.getSegmentId())
-                            lowerBound.remove(z.getKey());
-                        });
-                        lowerBound.put(segment, offset);
-                    } else {
-                        lowerBound.put(segment, offset);
-                    }
+                    lowerBound.put(segment, offset);
                 }
-            });
-        });
+            }
+        }));
         return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 
@@ -675,31 +699,6 @@ public class StreamMetadataTasks extends TaskBase {
                                                   .rangeLow(segment.getKeyStart()).rangeHigh(segment.getKeyEnd()).build());
     }
     
-    private CompletableFuture<Void> truncateStream(String scope, String stream, OperationContext context, long requestId, 
-                                                   StreamCutReferenceRecord truncationRecord) {
-        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
-                truncationRecord.getRecordingTime(), truncationRecord.getRecordingSize());
-        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord, context, executor)
-                                  .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                                  .thenCompose(started -> {
-                                      if (started) {
-                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord, context, executor);
-                                      } else {
-                                          throw new RuntimeException("Could not start truncation");
-                                      }
-                                  })
-                                  .exceptionally(e -> {
-                                      if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                          // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                          log.debug(requestId, "Cannot truncate at given " +
-                                                  "streamCut because it intersects with existing truncation point");
-                                          return null;
-                                      } else {
-                                          throw new CompletionException(e);
-                                      }
-                                  });
-    }
-
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
                                                            StreamCutRecord newRecord, long recordingTime) {
         switch (policy.getRetentionType()) {

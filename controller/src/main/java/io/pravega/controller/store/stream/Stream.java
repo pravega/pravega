@@ -692,11 +692,11 @@ interface Stream {
     CompletableFuture<Boolean> streamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
-     * Finds the latest streamcutreference record from retentionset that is strictly before than supplied streamcut.
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.
      * 
      * @param streamCut streamcut to check
      * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
      * is strictly before the supplied streamcut. 
      */
-    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut, RetentionSet retentionSet);
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
 }
