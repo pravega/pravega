@@ -251,7 +251,7 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut) {
         return computeStreamCutSpan(streamCut)
                 .thenCompose(span1 -> {
-                   // binary search retention set. 
+                    // binary search retention set. 
                     
                 });
     }
@@ -633,7 +633,8 @@ public abstract class PersistentStreamBase implements Stream {
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
         int epochLow = NameUtils.getEpoch(oldest);
         int epochHigh = NameUtils.getEpoch(mostRecent);
-
+        // TODO: cache the computed span so that it can be reused. 
+         
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
             ImmutableMap.Builder<StreamSegmentRecord, Integer> resultSet = ImmutableMap.builder();
