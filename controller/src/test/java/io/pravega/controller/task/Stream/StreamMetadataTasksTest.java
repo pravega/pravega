@@ -377,15 +377,15 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber
-        RemoveSubscriberStatus.Status removeStatus = streamMetadataTasks.removeSubscriber(SCOPE, stream1, subscriber2, null).get();
+        RemoveSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, null).get();
         assertEquals(RemoveSubscriberStatus.Status.SUCCESS, removeStatus);
 
         // Remove subscriber from non-existing stream
-        removeStatus = streamMetadataTasks.removeSubscriber(SCOPE, "nostream", subscriber2, null).get();
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber2, null).get();
         assertEquals(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
 
         // Remove non-existing subscriber from stream
-        removeStatus = streamMetadataTasks.removeSubscriber(SCOPE, stream1, "subscriber4", null).get();
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, "subscriber4", null).get();
         assertEquals(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
     }
 

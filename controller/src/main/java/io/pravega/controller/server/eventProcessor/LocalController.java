@@ -211,7 +211,7 @@ public class LocalController implements Controller {
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
-                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                    return false;
                 case SUCCESS:
                     return true;
                 default:

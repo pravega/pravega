@@ -672,6 +672,20 @@ public abstract class PersistentStreamBase implements Stream {
                       });
     }
 
+    @Override
+    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, Map<Long, Long> previousStreamCut) {
+        return isStreamCutValid(streamCut)
+            .thenCompose(isValid -> {
+               if (!isValid) {
+                  return CompletableFuture.completedFuture(Boolean.valueOf(false));
+               }
+             return computeStreamCutSpan(streamCut)
+                .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
+                  .thenApply(previousSpan ->
+                      greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+            });
+    }
+
     /**
      * This method attempts to start a new scale workflow. For this it first computes epoch transition and stores it in the metadastore.
      * This method can be called by manual scale or during the processing of auto-scale event. Which means there could be

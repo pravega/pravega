@@ -187,7 +187,7 @@ public class ControllerService {
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.removeSubscriber(scope, stream, subscriber, null)
+        return streamMetadataTasks.deleteSubscriber(scope, stream, subscriber, null)
                 .thenApplyAsync(status -> {
                     reportRemoveSubscriberMetrics(scope, stream, status, timer.getElapsed());
                     return RemoveSubscriberStatus.newBuilder().setStatus(status).build();

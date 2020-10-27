@@ -247,6 +247,13 @@ interface Stream {
     CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
 
     /**
+     * Method to validate is a StreamCut is a valid truncation StreamCut.
+     * @param streamCut stream cut to validate.
+     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
+     */
+    CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, final Map<Long, Long> previousStreamCut);
+
+    /**
      * Method to get segments at the current tail of the stream.
      * 
      * @return Future which when completed will contain currently active segments

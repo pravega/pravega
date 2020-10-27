@@ -429,6 +429,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.completeOn(stream.isStreamCutValid(streamCut), executor);
     }
 
+    @Override
+    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final String scope,
+                                                       final String streamName,
+                                                       final Map<Long, Long> streamCut,
+                                                       final Map<Long, Long> previousStreamCut,
+                                                       final OperationContext context,
+                                                       final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return Futures.completeOn(stream.isStreamCutValidForTruncation(streamCut, previousStreamCut), executor);
+    }
 
     @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final String scope,
@@ -541,11 +551,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(final String scope,
-                                                     final String name,
-                                                     final String subscriber,
-                                                     final OperationContext context,
-                                                     final Executor executor) {
+    public CompletableFuture<Void> deleteSubscriber(final String scope,
+                                                    final String name,
+                                                    final String subscriber,
+                                                    final OperationContext context,
+                                                    final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context).removeSubscriber(subscriber), executor);
     }
 
