@@ -118,6 +118,6 @@ public class StreamAuthParamsTest {
 
         // Specified
         assertEquals(AuthHandler.Permissions.READ_UPDATE, new StreamAuthParams("testScope", "testExternalStream",
-                "READ_UPDATE", true).requestedPermission());
+                AccessOperation.READ_WRITE.name(), true).requestedPermission());
     }
 }
