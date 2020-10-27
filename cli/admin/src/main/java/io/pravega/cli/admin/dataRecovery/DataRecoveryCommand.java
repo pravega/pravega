@@ -37,7 +37,7 @@ import static java.util.logging.Level.SEVERE;
  */
 public abstract class DataRecoveryCommand extends AdminCommand {
     protected final static String COMPONENT = "storage";
-    protected static Logger LOGGER;
+    protected Logger logger;
 
     /**
      * Creates a new instance of the DataRecoveryCommand class.
@@ -70,8 +70,8 @@ public abstract class DataRecoveryCommand extends AdminCommand {
      * @throws Exception    In case of a failure in creating the directory or the file.
      */
     String setLogging(String commandName) throws Exception {
-        LOGGER = Logger.getLogger(commandName);
-        LOGGER.setUseParentHandlers(false);
+        logger = Logger.getLogger(commandName);
+        logger.setUseParentHandlers(false);
 
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String fileName = commandName + fileSuffix + ".log";
@@ -94,7 +94,7 @@ public abstract class DataRecoveryCommand extends AdminCommand {
         fh.setLevel(FINER);
         DataRecoveryLogFormatter drFormatter = new DataRecoveryLogFormatter();
         fh.setFormatter(drFormatter);
-        LOGGER.addHandler(fh);
+        logger.addHandler(fh);
 
         output(FINER, "Logs are written to file '%s'", filePath + "/" + fileName);
         return filePath;
@@ -110,13 +110,13 @@ public abstract class DataRecoveryCommand extends AdminCommand {
     protected void output(Level level, String messageTemplate, Object... args) {
         if (INFO.equals(level)) {
             System.out.println(String.format(messageTemplate, args));
-            LOGGER.log(INFO, String.format(messageTemplate, args));
+            logger.log(INFO, String.format(messageTemplate, args));
         } else if (FINE.equals(level)) {
             System.out.println(String.format(messageTemplate, args));
-            LOGGER.log(FINE, String.format(messageTemplate, args));
+            logger.log(FINE, String.format(messageTemplate, args));
         } else if (SEVERE.equals(level)) {
             System.err.println(String.format(messageTemplate, args));
-            LOGGER.log(SEVERE, String.format(messageTemplate, args));
+            logger.log(SEVERE, String.format(messageTemplate, args));
         }
     }
 
