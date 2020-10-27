@@ -179,7 +179,7 @@ public abstract class PersistentStreamBase implements Stream {
                         });
                 });
     }
-
+    
     private boolean greaterThan(Map<Long, Long> cut1, Map<StreamSegmentRecord, Integer> span1,
                                 Map<Long, Long> cut2, Map<StreamSegmentRecord, Integer> span2) {
         // find overlapping segments in map2 for all segments in span1 compare epochs. 
@@ -237,6 +237,22 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenApply(data -> {
                     StreamTruncationRecord truncationRecord = data.getObject();
                     return new VersionedMetadata<>(truncationRecord, data.getVersion());
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+        return computeStreamCutSpan(streamcut1)
+                .thenCompose(span1 -> computeStreamCutSpan(streamcut2)
+                    .thenApply(span2 -> greaterThan(streamcut1, span1, streamcut2, span2)));
+    }
+
+    @Override
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long,Long> streamCut) {
+        return computeStreamCutSpan(streamCut)
+                .thenCompose(span1 -> {
+                   // binary search retention set. 
+                    
                 });
     }
 

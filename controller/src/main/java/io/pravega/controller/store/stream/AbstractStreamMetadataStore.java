@@ -879,6 +879,18 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.completeOn(getStream(scope, streamName, context).getSegmentSealedEpoch(segmentId), executor);
     }
 
+    @Override
+    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(String scope, String streamName, Map<Long, Long> streamCut1,
+                                                                   Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).streamCutStrictlyGreaterThan(streamCut1, streamCut2), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(String scope, String streamName, Map<Long, Long> streamCut,
+                                                                   OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).findStreamCutReferenceRecordBefore(streamCut), executor);
+    }
+
     protected Stream getStream(String scope, final String name, OperationContext context) {
         Stream stream;
         if (context != null) {
