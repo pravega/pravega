@@ -836,15 +836,16 @@ project('test:system') {
     apply plugin: 'maven'
 
     // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
-    compileJava {
+    tasks.withType(JavaCompile) {
         options.compilerArgs.remove("-Werror")
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
     }
 
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
@@ -854,6 +855,9 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        runtime group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
     }
     //disable the default test task.
     test {
