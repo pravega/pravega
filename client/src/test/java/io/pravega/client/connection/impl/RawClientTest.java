@@ -8,21 +8,21 @@
  */
 package io.pravega.client.connection.impl;
 
-import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
-import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
-import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
+import io.pravega.common.util.ArrayView;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.PravegaNodeUri;
+import io.pravega.shared.protocol.Reply;
+import io.pravega.shared.protocol.ReplyProcessor;
+import io.pravega.shared.protocol.WireCommands;
+import io.pravega.shared.protocol.WireCommands.ConditionalAppend;
+import io.pravega.shared.protocol.WireCommands.DataAppended;
+import io.pravega.shared.protocol.WireCommands.ErrorMessage;
+import io.pravega.shared.protocol.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -69,7 +69,7 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         UUID id = UUID.randomUUID();
-        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
+        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(ArrayView.empty), requestId);
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
         Mockito.verify(connection).send(Mockito.eq(request));
         assertFalse(future.isDone());

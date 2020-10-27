@@ -11,8 +11,8 @@
 package io.pravega.client.segment.impl;
 
 
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommandType;
+import io.pravega.shared.protocol.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import org.junit.Rule;

@@ -26,7 +26,7 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.PravegaNodeUri;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

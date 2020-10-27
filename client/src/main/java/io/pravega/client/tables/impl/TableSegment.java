@@ -16,7 +16,7 @@ import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

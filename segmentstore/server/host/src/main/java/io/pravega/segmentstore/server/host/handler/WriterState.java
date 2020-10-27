@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;

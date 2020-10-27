@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -60,6 +61,16 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             length += c.getLength();
         }
         this.length = length;
+    }
+    
+    /**
+     * Creates a new instance of the {@link CompositeBufferView} class. It is recommended to use {@link BufferView#wrap}
+     * instead.
+     *
+     * @param components The components to wrap.
+     */
+    CompositeBufferView(BufferView... components) {
+        this(Arrays.asList(components));
     }
 
     //endregion
@@ -200,6 +211,21 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
             return 0;
         }
 
+        @Override
+        public void skipBytes(int numBytes) {
+            if (numBytes > available()) {
+                throw new OutOfBoundsException();
+            }
+            int remaining = numBytes;
+            while (remaining > 0) {
+                BufferView.Reader current = getCurrent();
+                int toSkip = Math.min(current.available(), remaining);
+                this.available -= toSkip;
+                remaining -= toSkip;
+                current.skipBytes(toSkip);         
+            }
+        }
+        
         @Override
         public byte readByte() {
             BufferView.Reader current = getCurrent();

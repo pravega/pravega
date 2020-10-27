@@ -10,9 +10,9 @@
 package io.pravega.client.connection.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.Append;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.AccessLevel;

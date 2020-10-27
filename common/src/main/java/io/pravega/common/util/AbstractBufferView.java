@@ -14,6 +14,7 @@ import io.pravega.common.hash.HashHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UTFDataFormatException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -77,6 +78,26 @@ public abstract class AbstractBufferView implements BufferView {
      * own {@link BufferView.Reader} instances based on this class.
      */
     protected static abstract class AbstractReader implements BufferView.Reader {
+        
+        @Override
+        public boolean readBoolean() {
+            return readByte() != 0;
+        }
+        
+        /**
+         * {@inheritDoc}
+         * Default implementation for {@link BufferView.Reader#readShort()}. Derived classes should make every effort to
+         * override this implementation with one that is as efficient as possible (if the {@link BufferView}
+         * implementation allows it).
+         *
+         * @return The read short.
+         * @throws BufferView.Reader.OutOfBoundsException If {@link #available()} is less than {@link Short#BYTES}.
+         */
+        @Override
+        public short readShort() {
+            return BitConverter.makeShort(readByte(), readByte());
+        }
+        
         /**
          * {@inheritDoc}
          * Default implementation for {@link BufferView.Reader#readInt()}. Derived classes should make every effort to
@@ -104,6 +125,21 @@ public abstract class AbstractBufferView implements BufferView {
         public long readLong() {
             return BitConverter.makeLong(readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte(), readByte());
         }
+        
+        @Override
+        public char readChar() {
+            return (char) readShort();
+        }
+        
+        @Override
+        public float readFloat() {
+            return Float.intBitsToFloat(readInt());
+        }
+        
+        @Override
+        public double readDouble() {
+            return Double.longBitsToDouble(readLong());
+        }
 
         @Override
         public ArrayView readFully(int bufferSize) {
@@ -118,6 +154,77 @@ public abstract class AbstractBufferView implements BufferView {
             assert available() == 0;
             return readBuffer;
         }
+        
+
+        /**
+         * This is copied (with minor modifications for accessors) from DataInputStream.
+         */
+        @Override
+        public String readUTF() throws UTFDataFormatException {
+            int utflen = readShort() & 0x0000FFFF;
+            char[] chararr = new char[2 * utflen];
+
+            int c, char2, char3;
+            int count = 0;
+            int chararr_count=0;
+
+            ArrayView byteview = readFully(utflen);
+            count += byteview.arrayOffset();
+            utflen += byteview.arrayOffset();
+            byte[] bytearr = byteview.array();
+
+            while (count < utflen) {
+                c = (int) bytearr[count] & 0xff;
+                if (c > 127) break;
+                count++;
+                chararr[chararr_count++]=(char)c;
+            }
+
+            while (count < utflen) {
+                c = (int) bytearr[count] & 0xff;
+                switch (c >> 4) {
+                    case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+                        /* 0xxxxxxx*/
+                        count++;
+                        chararr[chararr_count++]=(char)c;
+                        break;
+                    case 12: case 13:
+                        /* 110x xxxx   10xx xxxx*/
+                        count += 2;
+                        if (count > utflen)
+                            throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                        char2 = (int) bytearr[count-1];
+                        if ((char2 & 0xC0) != 0x80)
+                            throw new UTFDataFormatException(
+                                "malformed input around byte " + count);
+                        chararr[chararr_count++]=(char)(((c & 0x1F) << 6) |
+                                                        (char2 & 0x3F));
+                        break;
+                    case 14:
+                        /* 1110 xxxx  10xx xxxx  10xx xxxx */
+                        count += 3;
+                        if (count > utflen)
+                            throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                        char2 = (int) bytearr[count-2];
+                        char3 = (int) bytearr[count-1];
+                        if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80))
+                            throw new UTFDataFormatException(
+                                "malformed input around byte " + (count-1));
+                        chararr[chararr_count++]=(char)(((c     & 0x0F) << 12) |
+                                                        ((char2 & 0x3F) << 6)  |
+                                                        ((char3 & 0x3F) << 0));
+                        break;
+                    default:
+                        /* 10xx xxxx,  1111 xxxx */
+                        throw new UTFDataFormatException(
+                            "malformed input around byte " + count);
+                }
+            }
+            // The number of chars produced may be less than utflen
+            return new String(chararr, 0, chararr_count);
+        }
     }
 
     //endregion
@@ -127,7 +234,7 @@ public abstract class AbstractBufferView implements BufferView {
     /**
      * Simulates an empty {@link BufferView}.
      */
-    private static class EmptyBufferView extends AbstractBufferView {
+    static class EmptyBufferView extends AbstractBufferView implements ArrayView {
         @Getter
         private final Reader bufferViewReader = new EmptyReader();
         @Getter
@@ -144,7 +251,7 @@ public abstract class AbstractBufferView implements BufferView {
         }
 
         @Override
-        public BufferView slice(int offset, int length) {
+        public EmptyBufferView slice(int offset, int length) {
             if (offset != 0 || length != 0) {
                 throw new IndexOutOfBoundsException("Cannot slice empty BufferView.");
             }
@@ -208,6 +315,42 @@ public abstract class AbstractBufferView implements BufferView {
 
                 throw new OutOfBoundsException("Cannot read from Empty BufferView.");
             }
+
+            @Override
+            public String readUTF() throws UTFDataFormatException {
+                throw new OutOfBoundsException("Cannot read from Empty BufferView.");
+            }
+
+            @Override
+            public void skipBytes(int num) {
+                if (num != 0) {
+                    throw new OutOfBoundsException("Cannot skip in an Empty BufferView.");
+                }
+            }
+        }
+
+        @Override
+        public byte get(int index) {
+            // TODO Auto-generated method stub
+            return 0;
+        }
+
+        @Override
+        public byte[] array() {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        @Override
+        public int arrayOffset() {
+            // TODO Auto-generated method stub
+            return 0;
+        }
+
+        @Override
+        public void copyTo(byte[] target, int targetOffset, int length) {
+            // TODO Auto-generated method stub
+            
         }
     }
 

@@ -16,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UTFDataFormatException;
 import java.nio.ByteBuffer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -228,6 +229,32 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     }
 
     /**
+     * Writes an integer at the specified index.
+     * The integer is written using 4 bytes in bigEndian order.
+     * This is equivalent to:
+     * <pre>{@code
+     * set(index, (byte)(0xff & (v >> 24)));
+     * set(index+1, (byte)(0xff & (v >> 16)));
+     * set(index+2, (byte)(0xff & (v >>  8)));
+     * set(index+3, (byte)(0xff & v));
+     * }</pre>
+     * 
+     *
+     * @param index The index to set the value at.
+     * @param value The value to set.
+     * @throws IllegalStateException          If the ByteArraySegment is readonly.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid.
+     */
+    public void setInt(int index, int value) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Preconditions.checkElementIndex(index + 3, this.length, "index");
+        this.array[index + this.startOffset] = (byte) ((value >>> 24) & 0xFF);
+        this.array[index + this.startOffset + 1] = (byte) ((value >>> 16) & 0xFF);
+        this.array[index + this.startOffset + 2] = (byte) ((value >>> 8) & 0xFF);
+        this.array[index + this.startOffset + 3] = (byte) ((value >>> 0) & 0xFF);
+    }
+    
+    /**
      * Gets a value indicating whether the ByteArraySegment is read-only.
      *
      * @return The value.
@@ -331,6 +358,14 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             this.position += len;
             return len;
         }
+        
+        @Override
+        public void skipBytes(int numBytes) {
+            if (position + numBytes >= ByteArraySegment.this.length) {
+                throw new OutOfBoundsException();
+            }
+            this.position += numBytes;
+        }
 
         @Override
         public byte readByte() {
@@ -341,6 +376,17 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             byte result = ByteArraySegment.this.array[ByteArraySegment.this.startOffset + this.position];
             this.position++;
             return result;
+        }
+
+        @Override
+        public short readShort() {
+            int nextPos = this.position + Short.BYTES;
+            if (nextPos > ByteArraySegment.this.length) {
+                throw new OutOfBoundsException();
+            }
+            short r = BitConverter.readShort(ByteArraySegment.this.array, ByteArraySegment.this.startOffset + this.position);
+            this.position = nextPos;
+            return r;
         }
 
         @Override
@@ -375,6 +421,75 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
             } catch (IndexOutOfBoundsException ex) {
                 throw new OutOfBoundsException();
             }
+        }
+
+        
+        /**
+         * Copied from DataInputStream.
+         * @throws UTFDataFormatException 
+         */
+        @Override
+        public String readUTF() throws UTFDataFormatException {
+            int utflen = readShort() & 0x0000FFFF;
+            char[] chararr = new char[2 * utflen];
+
+            int c, char2, char3;
+            int index = ByteArraySegment.this.startOffset + this.position;
+            int endPos = index + utflen;
+            int chararr_count=0;
+
+            while (index < endPos) {
+                c = array[index] & 0xff;
+                if (c > 127) break;
+                index++;
+                chararr[chararr_count++]=(char)c;
+            }
+
+            while (index < endPos) {
+                c = array[index] & 0xff;
+                switch (c >> 4) {
+                    case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+                        /* 0xxxxxxx*/
+                        index++;
+                        chararr[chararr_count++]=(char)c;
+                        break;
+                    case 12: case 13:
+                        /* 110x xxxx   10xx xxxx*/
+                        index += 2;
+                        if (index > endPos)
+                            throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                        char2 = array[index-1];
+                        if ((char2 & 0xC0) != 0x80)
+                            throw new UTFDataFormatException(
+                                "malformed input around byte " + index);
+                        chararr[chararr_count++]=(char)(((c & 0x1F) << 6) |
+                                                        (char2 & 0x3F));
+                        break;
+                    case 14:
+                        /* 1110 xxxx  10xx xxxx  10xx xxxx */
+                        index += 3;
+                        if (index > endPos)
+                            throw new UTFDataFormatException(
+                                "malformed input: partial character at end");
+                        char2 = array[index-2];
+                        char3 = array[index-1];
+                        if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80))
+                            throw new UTFDataFormatException(
+                                "malformed input around byte " + (index-1));
+                        chararr[chararr_count++]=(char)(((c     & 0x0F) << 12) |
+                                                        ((char2 & 0x3F) << 6)  |
+                                                        ((char3 & 0x3F) << 0));
+                        break;
+                    default:
+                        /* 10xx xxxx,  1111 xxxx */
+                        throw new UTFDataFormatException(
+                            "malformed input around byte " + index);
+                }
+            }
+            this.position += utflen;
+            // The number of chars produced may be less than utflen
+            return new String(chararr, 0, chararr_count);
         }
     }
 

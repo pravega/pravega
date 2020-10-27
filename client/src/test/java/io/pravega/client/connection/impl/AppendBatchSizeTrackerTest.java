@@ -10,7 +10,7 @@
 package io.pravega.client.connection.impl;
 
 import io.pravega.common.AbstractTimer;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

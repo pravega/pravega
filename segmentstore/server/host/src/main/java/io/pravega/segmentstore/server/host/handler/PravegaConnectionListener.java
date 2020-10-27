@@ -56,7 +56,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
-import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.shared.protocol.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import io.pravega.shared.protocol.WireCommands.SegmentRead;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

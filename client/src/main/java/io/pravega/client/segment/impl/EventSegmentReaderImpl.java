@@ -11,9 +11,9 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.InvalidMessageException;
+import io.pravega.shared.protocol.WireCommandType;
+import io.pravega.shared.protocol.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;

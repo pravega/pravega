@@ -28,7 +28,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;

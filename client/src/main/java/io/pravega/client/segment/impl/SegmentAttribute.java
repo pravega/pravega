@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.common.hash.HashHelper;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.WireCommands;
 import java.util.UUID;
 import lombok.Getter;
 

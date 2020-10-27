@@ -15,17 +15,17 @@ import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.Append;
+import io.pravega.shared.protocol.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.ConnectionFailedException;
+import io.pravega.shared.protocol.EnhancedByteBufInputStream;
+import io.pravega.shared.protocol.InvalidMessageException;
+import io.pravega.shared.protocol.PravegaNodeUri;
+import io.pravega.shared.protocol.Reply;
+import io.pravega.shared.protocol.ReplyProcessor;
+import io.pravega.shared.protocol.WireCommand;
+import io.pravega.shared.protocol.WireCommandType;
+import io.pravega.shared.protocol.WireCommands;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,7 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.io.StreamHelpers.closeQuietly;
-import static io.pravega.shared.protocol.netty.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
+import static io.pravega.shared.protocol.AppendBatchSizeTracker.MAX_BATCH_TIME_MILLIS;
 
 @Slf4j
 public class TcpClientConnection implements ClientConnection {
