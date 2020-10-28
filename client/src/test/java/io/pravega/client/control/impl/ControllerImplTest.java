@@ -77,7 +77,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
@@ -354,31 +354,31 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void removeSubscriber(StreamSubscriberInfo request,
-                                     StreamObserver<RemoveSubscriberStatus> responseObserver) {
+            public void deleteSubscriber(StreamSubscriberInfo request,
+                                     StreamObserver<DeleteSubscriberStatus> responseObserver) {
                 if (request.getStream().equals("stream1")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.SUCCESS)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.FAILURE)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream3")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream4")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream5")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.UNRECOGNIZED)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.UNRECOGNIZED)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
