@@ -256,6 +256,9 @@ public abstract class PersistentStreamBase implements Stream {
         Map<Set<Long>, ImmutableMap<StreamSegmentRecord, Integer>> fetched = new HashMap<>();
         int size = retentionSet.getRetentionRecords().size();
 
+        if (retentionSet.getRetentionRecords().isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
         return computeStreamCutSpan(streamCut)
                 .thenCompose(span1 -> {
                     fetched.put(streamCut.keySet(), span1);

@@ -603,21 +603,27 @@ public class StreamMetadataTasks extends TaskBase {
                         toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
                     }
 
-                    return toTruncateAt.thenCompose(truncationStreamCut -> startTruncation(scope, stream, truncationStreamCut, context, requestId)
-                            .thenCompose(started -> {
-                                if (started) {
-                                    return streamMetadataStore.findStreamCutReferenceRecordBefore(scope, stream, truncationStreamCut, retentionSet, context, executor)
-                                            .thenCompose(ref -> {
-                                                if (ref != null) {
-                                                    return streamMetadataStore.deleteStreamCutBefore(scope, stream, ref, context, executor);
-                                                } else {
-                                                    return CompletableFuture.completedFuture(null);
-                                                }
-                                            });
-                                } else {
-                                    throw new RuntimeException("Could not start truncation");
-                                }
-                            }));
+                    return toTruncateAt.thenCompose(truncationStreamCut -> {
+                        if (truncationStreamCut == null) {
+                            log.debug("no truncation record could be compute that satisfied retention policy");
+                            return CompletableFuture.completedFuture(null);
+                        } 
+                        return startTruncation(scope, stream, truncationStreamCut, context, requestId)
+                                .thenCompose(started -> {
+                                    if (started) {
+                                        return streamMetadataStore.findStreamCutReferenceRecordBefore(scope, stream, truncationStreamCut, retentionSet, context, executor)
+                                                                  .thenCompose(ref -> {
+                                                                      if (ref != null) {
+                                                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, ref, context, executor);
+                                                                      } else {
+                                                                          return CompletableFuture.completedFuture(null);
+                                                                      }
+                                                                  });
+                                    } else {
+                                        throw new RuntimeException("Could not start truncation");
+                                    }
+                                });
+                    });
                 });
     }
 
@@ -696,8 +702,10 @@ public class StreamMetadataTasks extends TaskBase {
         // this segment. 
         Map<SegmentWithRange, Long> lowerBound = new HashMap<>();
         subscribers.forEach(streamCut -> streamCut.forEach((segment, offset) -> {
-            if (lowerBound.containsKey(segment) && lowerBound.get(segment) > offset) {
-                lowerBound.put(segment, offset);
+            if (lowerBound.containsKey(segment)) {
+                if (lowerBound.get(segment) > offset) {
+                    lowerBound.put(segment, offset);
+                }
             } else {
                 List<Map.Entry<SegmentWithRange, Long>> overlaps = overlaps(segment, lowerBound);
                 if (!overlaps.isEmpty()) {
