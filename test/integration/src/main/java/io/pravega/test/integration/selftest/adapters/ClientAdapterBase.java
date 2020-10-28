@@ -440,9 +440,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
     private static class BufferViewSerializer implements Serializer<BufferView> {
         @Override
         public ByteBuffer serialize(BufferView value) {
-            val contents = value.getContents();
-            if (contents.size() == 1) {
-                return contents.get(0);
+            val contents = value.iterateBuffers();
+            val first = contents.hasNext() ? contents.next() : null;
+            if (first != null && !contents.hasNext()) {
+                return first;
             }
 
             return ByteBuffer.wrap(value.getCopy());
