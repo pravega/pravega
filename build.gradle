@@ -168,6 +168,19 @@ project('shared:authplugin') {
     }
 }
 
+project('shared:password-authplugin') {
+    dependencies {
+        compile project(':shared:authplugin')
+    }
+
+    javadoc {
+        title = "Password-Based Auth Plugin for Pravega"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('shared:security') {
     dependencies {
         compile project(':common')
