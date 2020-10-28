@@ -86,7 +86,7 @@ public class AbstractBufferViewTests {
         AssertExtensions.assertThrows("", () -> e.slice(0, 1), ex -> ex instanceof IndexOutOfBoundsException);
         AssertExtensions.assertThrows("", () -> e.getReader(0, 1), ex -> ex instanceof IndexOutOfBoundsException);
         Assert.assertEquals(0, e.copyTo(ByteBuffer.allocate(1)));
-        Assert.assertTrue(e.getContents().isEmpty());
+        Assert.assertFalse(e.iterateBuffers().hasNext());
 
         val reader = e.getBufferViewReader();
         Assert.assertEquals(0, reader.available());

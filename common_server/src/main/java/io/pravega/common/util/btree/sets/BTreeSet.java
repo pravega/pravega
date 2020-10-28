@@ -15,7 +15,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * A B+Tree-backed Set. Stores all items in a B+Tree Structure using a {@link ByteArrayComparator} for ordering them.
+ * A B+Tree-backed Set. Stores all items in a B+Tree Structure using a {@link BufferViewComparator} for ordering them.
  *
  * NOTE: This component is in {@link Beta}. There are no guarantees about data or API compatibility with future versions.
  * Any component that is directly dependent on this one should either be in {@link Beta} as well.
@@ -48,7 +48,7 @@ import lombok.val;
 public class BTreeSet {
     //region Members
 
-    public static final Comparator<ArrayView> COMPARATOR = new ByteArrayComparator()::compare;
+    public static final Comparator<ArrayView> COMPARATOR = BufferViewComparator.create()::compare;
     private static final Comparator<PagePointer> POINTER_COMPARATOR = PagePointer.getComparator(COMPARATOR);
 
     private final int maxPageSize;
@@ -290,7 +290,7 @@ public class BTreeSet {
     /**
      * Returns an {@link AsyncIterator} that will iterate through all the items in this {@link BTreeSet} within the
      * specified bounds. All iterated items will be returned in lexicographic order (smallest to largest).
-     * See {@link ByteArrayComparator} for ordering details.
+     * See {@link BufferViewComparator} for ordering details.
      *
      * @param firstItem          An {@link ArrayView} indicating the first Item to iterate from. If null, the iteration
      *                           will begin with the first item in the index.

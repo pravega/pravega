@@ -193,6 +193,7 @@ public class AssertExtensions {
      * @param length  The number of elements to check.
      */
     public static void assertArrayEquals(String message, byte[] array1, int offset1, byte[] array2, int offset2, int length) {
+        // TODO: This method could be reduced to a single line (and execute faster) if we could compile this project with JDK11.
         // We could do argument checks here, but the array access below will throw the appropriate exceptions if any of these args are out of bounds.
         for (int i = 0; i < length; i++) {
             if (array1[i + offset1] != array2[i + offset2]) {
