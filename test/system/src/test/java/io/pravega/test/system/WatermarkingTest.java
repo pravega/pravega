@@ -38,10 +38,8 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
@@ -152,13 +150,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         // scale the stream several times so that we get complex positions
         Stream streamObj = Stream.of(SCOPE, STREAM);
         scale(controller, streamObj);
-
-        // wait until mark stream is created
-        AtomicBoolean markStreamCreated = new AtomicBoolean(false);
-        Futures.loop(() -> !markStreamCreated.get(), 
-                () -> Futures.exceptionallyExpecting(controller.getCurrentSegments(SCOPE, NameUtils.getMarkStreamForStream(STREAM)), 
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenAccept(v -> markStreamCreated.set(v != null)), executorService);
 
         @Cleanup
         ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(SCOPE,
