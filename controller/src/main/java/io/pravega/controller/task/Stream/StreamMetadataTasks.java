@@ -570,7 +570,7 @@ public class StreamMetadataTasks extends TaskBase {
                            .thenApply(this::computeSubscribersLowerBound)
                 .thenCompose(lowerBound -> {
                     CompletableFuture<Map<Long, Long>> toTruncateAt; 
-                    if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.SIZE)) {
+                    if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.SIZE_KB)) {
                         toTruncateAt = getTruncationStreamCutBySizeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
                     } else {
                         toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
@@ -720,7 +720,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy.ConsumptionLimits policy,
                                                                                              RetentionSet retentionSet, StreamCutRecord newRecord) {
-        boolean byTime = RetentionPolicy.ConsumptionLimits.Type.TIME.equals(policy.getType());
+        boolean byTime = RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
         AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
         AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
 

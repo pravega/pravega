@@ -84,8 +84,8 @@ public class RetentionPolicy implements Serializable {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static class ConsumptionLimits {
         public enum Type {
-            TIME,
-            SIZE
+            TIME_MILLIS,
+            SIZE_KB
         }
 
         private final Type type;
