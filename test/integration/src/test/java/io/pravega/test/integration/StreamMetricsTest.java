@@ -183,7 +183,7 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().deleteScope(scopeName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
-
+        
         // Exercise the metrics for failed stream and scope creation/deletion.
         StreamMetrics.getInstance().createScopeFailed("failedScope");
         StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
@@ -193,7 +193,7 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().addSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().removeSubscriberFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().deleteSubscriberFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().updateTruncationSCFailed("failedScope", "failedStream");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());

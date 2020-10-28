@@ -282,35 +282,35 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testRemoveSubscriber() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
-                        .setStatus(Controller.RemoveSubscriberStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.removeSubscriber("scope", "stream", "subscriber").join());
+        when(this.mockControllerService.deleteSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
+                        .setStatus(Controller.DeleteSubscriberStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteSubscriber("scope", "stream", "subscriber").join());
 
-        when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
-                        .setStatus(Controller.RemoveSubscriberStatus.Status.FAILURE).build()));
+        when(this.mockControllerService.deleteSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
+                        .setStatus(Controller.DeleteSubscriberStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.removeSubscriber("scope", "stream", "subscriber").join(),
+                () -> this.testController.deleteSubscriber("scope", "stream", "subscriber").join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
-                        .setStatus(Controller.RemoveSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
+        when(this.mockControllerService.deleteSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
+                        .setStatus(Controller.DeleteSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.removeSubscriber("scope", "stream", "subscriber").join(),
+                () -> this.testController.deleteSubscriber("scope", "stream", "subscriber").join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
-                        .setStatus(Controller.RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
-        Assert.assertFalse(this.testController.removeSubscriber("scope", "stream", "subscriber").join());
+        when(this.mockControllerService.deleteSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
+                        .setStatus(Controller.DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
+        Assert.assertFalse(this.testController.deleteSubscriber("scope", "stream", "subscriber").join());
         
-        when(this.mockControllerService.removeSubscriber(any(), any(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.RemoveSubscriberStatus.newBuilder()
+        when(this.mockControllerService.deleteSubscriber(any(), any(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.removeSubscriber("scope", "stream", "subscriber").join(),
+                () -> this.testController.deleteSubscriber("scope", "stream", "subscriber").join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 

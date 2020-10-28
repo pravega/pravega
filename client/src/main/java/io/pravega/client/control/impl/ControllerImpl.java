@@ -569,25 +569,25 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> removeSubscriber(String scope, String streamName, String subscriber) {
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
         Preconditions.checkNotNull(subscriber, "subscriber");
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "removeSubscriber", subscriber, requestId);
+        long traceId = LoggerHelpers.traceEnter(log, "deleteSubscriber", subscriber, requestId);
 
-        final CompletableFuture<RemoveSubscriberStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<RemoveSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "removeSubscriber", scope, streamName, subscriber);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "removeSubscriber", scope, streamName)
-                    .removeSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
+        final CompletableFuture<DeleteSubscriberStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "deleteSubscriber", scope, streamName, subscriber);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteSubscriber", scope, streamName)
+                    .deleteSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to remove subscriber: {} to stream {}/{}", subscriber, scope, streamName);
-                    throw new ControllerFailureException("Failed to remove subscriber: " + subscriber);
+                    log.warn(requestId, "Failed to delete subscriber: {} to stream {}/{}", subscriber, scope, streamName);
+                    throw new ControllerFailureException("Failed to delete subscriber: " + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
@@ -595,18 +595,18 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
                     return false;
                 case SUCCESS:
-                    log.info(requestId, "Successfully removed subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    log.info(requestId, "Successfully delete subscriber {} from stream: {}/{}", subscriber, scope, streamName);
                     return true;
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status remove subscriber " + subscriber
+                    throw new ControllerFailureException("Unknown return status delete subscriber " + subscriber
                             + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "removeSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
+                log.warn(requestId, "deleteSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
             }
-            LoggerHelpers.traceLeave(log, "removeSubscriber", traceId, subscriber, requestId);
+            LoggerHelpers.traceLeave(log, "deleteSubscriber", traceId, subscriber, requestId);
         });
     }
 
@@ -1732,9 +1732,9 @@ public class ControllerImpl implements Controller {
                     .addSubscriber(streamSubscriberInfo, callback);
         }
 
-        public void removeSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<RemoveSubscriberStatus> callback) {
+        public void deleteSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<DeleteSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .removeSubscriber(streamSubscriberInfo, callback);
+                    .deleteSubscriber(streamSubscriberInfo, callback);
         }
 
         public void updateTruncationStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {

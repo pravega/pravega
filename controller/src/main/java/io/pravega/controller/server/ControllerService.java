@@ -49,7 +49,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
@@ -182,15 +182,15 @@ public class ControllerService {
 
     }
 
-    public CompletableFuture<RemoveSubscriberStatus> removeSubscriber(String scope, String stream, final String subscriber) {
+    public CompletableFuture<DeleteSubscriberStatus> deleteSubscriber(String scope, String stream, final String subscriber) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
         Timer timer = new Timer();
         return streamMetadataTasks.deleteSubscriber(scope, stream, subscriber, null)
                 .thenApplyAsync(status -> {
-                    reportRemoveSubscriberMetrics(scope, stream, status, timer.getElapsed());
-                    return RemoveSubscriberStatus.newBuilder().setStatus(status).build();
+                    reportDeleteSubscriberMetrics(scope, stream, status, timer.getElapsed());
+                    return DeleteSubscriberStatus.newBuilder().setStatus(status).build();
                 }, executor);
     }
 
@@ -670,11 +670,11 @@ public class ControllerService {
         }
     }
 
-    private void reportRemoveSubscriberMetrics(String scope, String streamName, RemoveSubscriberStatus.Status status, Duration latency) {
-        if (status.equals(RemoveSubscriberStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().removeSubscriber(scope, streamName, latency);
-        } else if (status.equals(RemoveSubscriberStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().removeSubscriberFailed(scope, streamName);
+    private void reportDeleteSubscriberMetrics(String scope, String streamName, DeleteSubscriberStatus.Status status, Duration latency) {
+        if (status.equals(DeleteSubscriberStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteSubscriber(scope, streamName, latency);
+        } else if (status.equals(DeleteSubscriberStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteSubscriberFailed(scope, streamName);
         }
     }
 

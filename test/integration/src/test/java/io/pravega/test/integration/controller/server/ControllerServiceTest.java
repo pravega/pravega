@@ -33,7 +33,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -324,7 +323,7 @@ public class ControllerServiceTest {
         assertTrue(subscribers.contains(subscriber1));
         assertTrue(subscribers.contains(subscriber2));
 
-        assertTrue(controller.removeSubscriber(scope, stream, subscriber2).get());
+        assertTrue(controller.deleteSubscriber(scope, stream, subscriber2).get());
         List<String> subscribersNow = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersNow.size() == 1);
         assertTrue(subscribersNow.contains(subscriber1));

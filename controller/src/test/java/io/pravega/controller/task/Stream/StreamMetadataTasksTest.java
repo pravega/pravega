@@ -64,7 +64,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
@@ -377,16 +377,16 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber
-        RemoveSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, null).get();
-        assertEquals(RemoveSubscriberStatus.Status.SUCCESS, removeStatus);
+        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, null).get();
+        assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
 
         // Remove subscriber from non-existing stream
         removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber2, null).get();
-        assertEquals(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
+        assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
 
         // Remove non-existing subscriber from stream
         removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, "subscriber4", null).get();
-        assertEquals(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
+        assertEquals(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
     }
 
     @Test(timeout = 30000)

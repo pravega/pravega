@@ -138,7 +138,7 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> removeSubscriber(final String scope, final String streamName, final String subscriber);
+    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber);
 
     /**
      * Get list of Subscribers for the Stream.

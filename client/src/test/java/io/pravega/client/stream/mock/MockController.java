@@ -245,7 +245,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> removeSubscriber(String scope, String streamName, String readerGroupId) {
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String readerGroupId) {
         throw new UnsupportedOperationException();
     }
 

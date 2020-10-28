@@ -53,7 +53,7 @@ service ControllerService {
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
-    rpc removeSubscriber(StreamSubscriberInfo) returns (RemoveSubscriberStatus);
+    rpc deleteSubscriber(StreamSubscriberInfo) returns (DeleteSubscriberStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateTruncationStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
 }
@@ -144,7 +144,7 @@ message AddSubscriberStatus {
     Status status = 1;
 }
 
-message RemoveSubscriberStatus {
+message DeleteSubscriberStatus {
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;

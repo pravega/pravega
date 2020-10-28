@@ -60,7 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
@@ -341,7 +341,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<RemoveSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
+    public CompletableFuture<DeleteSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
                                                                              String subscriber,
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -351,21 +351,21 @@ public class StreamMetadataTasks extends TaskBase {
            .thenCompose(exists -> {
                // 1. check Stream exists
                if (!exists) {
-                   return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND);
+                   return CompletableFuture.completedFuture(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND);
                }
                // 2. remove subscriber
                return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, context, executor)
-                       .thenApply(x -> RemoveSubscriberStatus.Status.SUCCESS)
+                       .thenApply(x -> DeleteSubscriberStatus.Status.SUCCESS)
                        .exceptionally(ex -> {
                            log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
                            Throwable cause = Exceptions.unwrap(ex);
                            if (cause instanceof StoreException.DataNotFoundException) {
-                               return RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
+                               return DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
                            } else if (cause instanceof TimeoutException) {
                                throw new CompletionException(cause);
                            } else {
                                log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
-                               return RemoveSubscriberStatus.Status.FAILURE;
+                               return DeleteSubscriberStatus.Status.FAILURE;
                            }
                        });
            }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);

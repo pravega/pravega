@@ -1477,21 +1477,21 @@ public class ControllerImplTest {
     @Test
     public void testRemoveSubscriber() throws Exception {
         CompletableFuture<Boolean> removeSubscriberStatus;
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream1", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream1", "subscriber1");
         assertTrue(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream2", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream2", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream3", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream3", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream4", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream4", "subscriber1");
         assertFalse(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream5", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream5", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 removeSubscriberStatus, Throwable -> true);
     }

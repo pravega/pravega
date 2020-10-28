@@ -203,8 +203,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> removeSubscriber(final String scope, final String streamName, final String subscriber) {
-        return this.controller.removeSubscriber(scope, streamName, subscriber).thenApply(x -> {
+    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber) {
+        return this.controller.deleteSubscriber(scope, streamName, subscriber).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
@@ -215,7 +215,7 @@ public class LocalController implements Controller {
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status removing subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                    throw new ControllerFailureException("Unknown return status deleting subscriber " + subscriber + "on stream " + scope + "/" + streamName
                             + " " + x.getStatus());
             }
         });

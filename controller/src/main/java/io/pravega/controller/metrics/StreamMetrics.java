@@ -343,7 +343,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param streamName    Name of the Stream.
      * @param latency       Latency of the removeSubscriber operation.
      */
-    public void removeSubscriber(String scope, String streamName, Duration latency) {
+    public void deleteSubscriber(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER), 1);
         DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER, 1, streamTags(scope, streamName));
         removeSubscriberLatency.reportSuccessValue(latency.toMillis());
@@ -355,7 +355,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param scope         Scope Name.
      * @param streamName    Stream Name.
      */
-    public void removeSubscriberFailed(String scope, String streamName) {
+    public void deleteSubscriberFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
     }
