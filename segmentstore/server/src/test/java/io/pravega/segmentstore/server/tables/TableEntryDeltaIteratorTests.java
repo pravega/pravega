@@ -158,10 +158,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
                 (t1, t2) -> compareKeys(t1, t2) &&  t1.getValue().equals(t2.getValue()));
     }
 
-    private static boolean isDeletion(TableEntry entry) {
-        return entry.getValue().getContents().isEmpty();
-    }
-
     private TestData createTestData(int numEntriesToGenerate) {
         TestData data = TestData.builder()
                 .context(new TableContext(COMPACTION_SIZE, executorService()))

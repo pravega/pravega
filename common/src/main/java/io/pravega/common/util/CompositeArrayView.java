@@ -9,9 +9,6 @@
  */
 package io.pravega.common.util;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
 /**
  * Defines a generic view of a composite, index-based, array-like structure that is made up of one or more individual
  * arrays.
@@ -59,19 +56,7 @@ public interface CompositeArrayView extends BufferView {
     /**
      * Gets the number of components in this {@link CompositeArrayView} instance.
      *
-     * @return The number of components. This is equivalent to retrieving {@link #getContents()}{@link List#size()} and
-     * is the exact number of argument invocations for {@link #collect(Collector)}.
+     * @return The number of components. This is the exact number of argument invocations for {@link #collect(Collector)}.
      */
     int getComponentCount();
-
-    /**
-     * {@inheritDoc}
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link CompositeArrayView}. Since the
-     * {@link CompositeArrayView} is a sparse array implementation, any "gaps" that are not allocated within this object
-     * will be returned as {@link ByteBuffer}s containing zeroes.
-     *
-     * @return A List of {@link ByteBuffer}.
-     */
-    @Override
-    List<ByteBuffer> getContents();
 }

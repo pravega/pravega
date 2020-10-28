@@ -16,7 +16,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
 import lombok.Getter;
 
 /**
@@ -55,18 +55,46 @@ public abstract class AbstractBufferView implements BufferView {
         int l = getLength();
         if (l != other.getLength()) {
             return false;
+        } else if (l == 0) {
+            return true;
         }
 
-        if (l > 0) {
-            BufferView.Reader thisReader = getBufferViewReader();
-            BufferView.Reader otherReader = other.getBufferViewReader();
-            for (int i = 0; i < l; i++) {
-                if (thisReader.readByte() != otherReader.readByte()) {
-                    return false;
-                }
+        Iterator<ByteBuffer> i1 = this.iterateBuffers();
+        Iterator<ByteBuffer> i2 = other.iterateBuffers();
+
+        ByteBuffer b1 = i1.next();
+        ByteBuffer b2 = i2.next();
+        while (b1 != null && b2 != null) {
+            int lengthDiff = b1.remaining() - b2.remaining();
+            boolean equals;
+            if (lengthDiff == 0) {
+                equals = b1.equals(b2);
+                b1 = null;
+                b2 = null;
+            } else if (lengthDiff < 0) {
+                equals = b1.equals(ByteBufferUtils.slice(b2, b2.position(), b1.remaining()));
+                b1 = null;
+                b2.position(b2.limit() + lengthDiff);
+            } else {
+                equals = b2.equals(ByteBufferUtils.slice(b1, b1.position(), b2.remaining()));
+                b1.position(b1.limit() - lengthDiff);
+                b2 = null;
+            }
+
+            if (!equals) {
+                return false;
+            }
+
+            if (b1 == null && i1.hasNext()) {
+                b1 = i1.next();
+            }
+
+            if (b2 == null && i2.hasNext()) {
+                b2 = i2.next();
             }
         }
 
+        assert b1 == null && b2 == null;
         return true;
     }
 
@@ -168,13 +196,13 @@ public abstract class AbstractBufferView implements BufferView {
         }
 
         @Override
-        public List<ByteBuffer> getContents() {
-            return Collections.emptyList();
+        public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) {
+            // This method intentionally left blank (nothing to do).
         }
 
         @Override
-        public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) {
-            // This method intentionally left blank (nothing to do).
+        public Iterator<ByteBuffer> iterateBuffers() {
+            return Collections.emptyIterator();
         }
 
         private static class EmptyInputStream extends InputStream {

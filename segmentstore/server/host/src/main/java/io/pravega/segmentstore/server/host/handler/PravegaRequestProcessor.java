@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenException;
@@ -321,16 +322,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Collect all the data from the given contents into a {@link ByteBuf}.
      */
     private ByteBuf toByteBuf(List<BufferView> contents) {
-        val buffers = contents.stream()
-                .flatMap(bv -> bv.getContents().stream())
-                .map(Unpooled::wrappedBuffer)
-                .toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.concat(Iterators.transform(contents.iterator(), BufferView::iterateBuffers));
+        val b = Iterators.transform(iterators, Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(b, ByteBuf.class));
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.transform(bufferView.iterateBuffers(), Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(iterators, ByteBuf.class));
     }
 
     @Override
