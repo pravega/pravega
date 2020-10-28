@@ -16,6 +16,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import lombok.Cleanup;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,11 +32,18 @@ public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTes
         super.setUp();
     }
 
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+    }
+
 
     @Test
     public void testListScopesCommand() throws Exception {
         String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
         assertTrue(commandResult.contains("_system"));
+        assertNotNull(ControllerListScopesCommand.descriptor());
     }
 
     @Test
@@ -63,17 +71,20 @@ public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTes
 
         String commandResult = TestUtils.executeCommand("controller list-streams " + scope, STATE.get());
         assertTrue(commandResult.contains(testStream));
+        assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
     }
 
     @Test
     public void testListReaderGroupsCommand() throws Exception {
         String commandResult = TestUtils.executeCommand("controller list-readergroups _system", STATE.get());
         assertTrue(commandResult.contains("commitStreamReaders"));
+        assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
     }
 
     @Test
     public void testDescribeScopeCommand() throws Exception {
         String commandResult = TestUtils.executeCommand("controller describe-scope _system", STATE.get());
         assertTrue(commandResult.contains("_system"));
+        assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }
 }

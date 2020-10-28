@@ -39,7 +39,7 @@ public abstract class AbstractUserCommandTest {
         interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(SETUP_UTILS.isTlsEnabled());
-        interactiveConfig.setTruststore("../../config" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
         CONFIG.set(interactiveConfig);
     }
 

@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.cli.admin;
+package io.pravega.cli.user;
 
+import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.local.LocalPravegaEmulator;
@@ -19,21 +20,20 @@ import org.junit.Rule;
 import org.junit.rules.Timeout;
 
 import java.net.URI;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class AbstractTlsAdminCommandTest {
+public abstract class AbstractTlsUserCommandTest {
 
     // Security related flags and instantiate local pravega server.
-    protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+    protected static final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
 
     private static final Integer CONTROLLER_PORT = 9090;
     private static final Integer SEGMENT_STORE_PORT = 6000;
     private static final Integer REST_SERVER_PORT = 9091;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(80, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
@@ -73,30 +73,22 @@ public abstract class AbstractTlsAdminCommandTest {
         }
 
         localPravega = emulatorBuilder.build();
-
-        // The uri returned by LocalPravegaEmulator is in the form tcp://localhost:9090 (protocol + domain + port)
-        // but for the CLI we need to set the GRPC uri as localhost:9090 (domain + port). Because the protocol
-        // is decided based on whether security is enabled or not.
-
-        // Set the CLI properties.
-        STATE.set(new AdminCommandState());
-        Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("cli.controller.rest.uri", "localhost:" + REST_SERVER_PORT.toString());
-        pravegaProperties.setProperty("cli.controller.grpc.uri", "localhost:" + CONTROLLER_PORT.toString());
-        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", localPravega.getInProcPravegaCluster().getZkUrl());
-        pravegaProperties.setProperty("pravegaservice.container.count", "4");
-        pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(authEnabled));
-        pravegaProperties.setProperty("cli.security.auth.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-        pravegaProperties.setProperty("cli.security.auth.credentials.password", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-        pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
-        pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME);
-
-        STATE.get().getConfigBuilder().include(pravegaProperties);
-
         localPravega.start();
 
         // Wait for the server to complete start-up.
         TimeUnit.SECONDS.sleep(20);
+
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        interactiveConfig.setControllerUri("localhost:" + CONTROLLER_PORT.toString());
+        interactiveConfig.setDefaultSegmentCount(4);
+        interactiveConfig.setMaxListItems(100);
+        interactiveConfig.setTimeoutMillis(10000);
+        interactiveConfig.setAuthEnabled(authEnabled);
+        interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+        interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        interactiveConfig.setTlsEnabled(tlsEnabled);
+        interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        CONFIG.set(interactiveConfig);
     }
 
     @After
