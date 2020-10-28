@@ -635,9 +635,16 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
                           .thenCompose(sizeTill -> {
                                long retainedSize = currentSize - sizeTill;
+                               Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
+                                      .getRetentionRecords().stream()
+                                      .filter(x -> currentSize - x.getRecordingSize() > policy.getConsumptionLimits().getMaxValue())
+                                      .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
+
                                // if retainedSize is less than min size then do not truncate the stream. 
                                if (retainedSize < policy.getConsumptionLimits().getMinValue()) {
-                                   return CompletableFuture.completedFuture(null);
+                                   return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                                                               .thenApply(StreamCutRecord::getStreamCut))
+                                                  .orElse(CompletableFuture.completedFuture(null));
                                } else {
                                    // if retained size is less than max allowed, then truncate the stream at subscriber lower bound. 
                                    if (retainedSize < policy.getConsumptionLimits().getMaxValue()) {
@@ -645,16 +652,20 @@ public class StreamMetadataTasks extends TaskBase {
                                    } else {
                                        // if retained size is greater than max allowed, then truncate the stream at streamcut
                                        // from retention set that matches the retention policy size bound. 
-                                       Optional<StreamCutReferenceRecord> maxBound = retentionSet.getRetentionRecords().stream()
-                                                                                .filter(x -> currentSize - x.getRecordingSize() > policy.getConsumptionLimits().getMaxValue())
-                                                           .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
-                                       if (maxBound.isPresent()) {
-                                           return streamMetadataStore.getStreamCutRecord(scope, stream, maxBound.get(), context, executor)
-                                                   .thenApply(StreamCutRecord::getStreamCut);
-                                       } else {
-                                           // if we cannot find a streamcut that satisfies the max bound then we will return null. 
-                                           return CompletableFuture.completedFuture(null);   
-                                       }
+                                       return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                                   .thenApply(StreamCutRecord::getStreamCut)
+                                                   .thenCompose(maxRecord -> {
+                                                       // if max record is strictly greater than lowerbound then we can truncate at max record
+                                                       return streamMetadataStore.streamCutStrictlyGreaterThan(
+                                                               scope, stream, maxRecord, lowerBound, context, executor)
+                                                                                 .thenApply(gt -> {
+                                                                                     if (gt) {
+                                                                                         return maxRecord;
+                                                                                     } else {
+                                                                                         return lowerBound;
+                                                                                     }
+                                                                                 });
+                                                   })).orElse(CompletableFuture.completedFuture(null));   
                                    }
                                }
                            });
@@ -1433,5 +1444,10 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     public void setCompletionTimeoutMillis(long timeoutMillis) {
         eventHelper.setCompletionTimeoutMillis(timeoutMillis);
+    }
+    
+    @VisibleForTesting
+    void setRetentionFrequencyMillis(long timeoutMillis) {
+        retentionFrequencyMillis.set(timeoutMillis);
     }
 }
