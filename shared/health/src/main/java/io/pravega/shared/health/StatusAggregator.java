@@ -9,5 +9,5 @@
  */
 package io.pravega.shared.health;
 
-public interface  StatusAggregator {
+public interface StatusAggregator {
 }
