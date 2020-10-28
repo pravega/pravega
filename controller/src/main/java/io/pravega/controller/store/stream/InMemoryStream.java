@@ -313,6 +313,12 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<Void> createSubscribersRecordIfAbsent() {
+        Preconditions.checkNotNull(streamSubscribers);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     CompletableFuture<Version> setStateData(VersionedMetadata<StateRecord> newState) {
         Preconditions.checkNotNull(newState);
 

@@ -551,7 +551,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("Stream does not exist: " + scope + "/" + streamName);
                 case SUBSCRIBER_EXISTS:
                     log.warn(requestId, "Subscriber {} for stream {}/{} already exists {}.", subscriber, scope, streamName);
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                    return false;
                 case SUCCESS:
                     log.info(requestId, "Successfully updated stream: {}", streamName);
                     return true;
@@ -593,7 +593,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
                     log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
-                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                    return false;
                 case SUCCESS:
                     log.info(requestId, "Successfully removed subscriber {} from stream: {}/{}", subscriber, scope, streamName);
                     return true;

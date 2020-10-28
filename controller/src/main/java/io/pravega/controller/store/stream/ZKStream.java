@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -33,6 +34,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.SubscriberSet;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -441,6 +443,12 @@ class ZKStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> createStateIfAbsent(final StateRecord state) {
         return Futures.toVoid(store.createZNodeIfNotExist(statePath, state.toBytes()));
+    }
+
+    @Override
+    CompletableFuture<Void> createSubscribersRecordIfAbsent() {
+        SubscriberSet subscribersSetRecord = new SubscriberSet(ImmutableList.of());
+        return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersSetRecord.toBytes()));
     }
 
     @Override

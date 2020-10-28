@@ -1471,8 +1471,7 @@ public class ControllerImplTest {
                 addSubscriberStatus, Throwable -> true);
 
         addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream5", "subscriber1");
-        AssertExtensions.assertFutureThrows("Server should throw exception",
-                addSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+        assertFalse(addSubscriberStatus.get());
     }
 
     @Test
@@ -1490,8 +1489,7 @@ public class ControllerImplTest {
                 removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
         removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream4", "subscriber1");
-        AssertExtensions.assertFutureThrows("Server should throw exception",
-                removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+        assertFalse(removeSubscriberStatus.get());
 
         removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream5", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw exception",

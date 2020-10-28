@@ -190,7 +190,7 @@ public class LocalController implements Controller {
                     throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
                                                                               scope + "/" + streamName);
                 case SUBSCRIBER_EXISTS:
-                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Subscriber already exists: ");
+                    return false;
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
                 case SUCCESS:
@@ -211,7 +211,7 @@ public class LocalController implements Controller {
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
-                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                    return false;
                 case SUCCESS:
                     return true;
                 default:
