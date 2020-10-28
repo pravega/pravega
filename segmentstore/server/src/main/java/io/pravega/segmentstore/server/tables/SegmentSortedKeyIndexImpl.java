@@ -17,7 +17,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.btree.sets.BTreeSet;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -180,7 +180,7 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
             fromKeyExclusive = prefix;
         }
 
-        val lastKeyExclusive = prefix == null ? null : ByteArrayComparator.getNextItemOfSameLength(prefix);
+        val lastKeyExclusive = prefix == null ? null : BufferViewComparator.getNextItemOfSameLength(prefix);
         return new IteratorRange(fromKeyExclusive, lastKeyExclusive);
     }
 

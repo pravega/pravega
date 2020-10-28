@@ -10,7 +10,7 @@
 package io.pravega.common.util.btree;
 
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import org.junit.Test;
 public class BTreePageTests {
     private static final int ITEM_COUNT = 1000;
     private static final BTreePage.Config CONFIG = new BTreePage.Config(Integer.BYTES, Long.BYTES, 512, true);
-    private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+    private static final BufferViewComparator KEY_COMPARATOR = BufferViewComparator.create();
     private final Random rnd = new Random(0);
 
     /**

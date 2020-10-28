@@ -171,7 +171,7 @@ public abstract class MarathonBasedService implements Service {
         return listString;
     }
 
-    String setSystemProperty(final String propertyName, final String propertyValue) {
+    String buildSystemProperty(final String propertyName, final String propertyValue) {
         return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
     }
 
