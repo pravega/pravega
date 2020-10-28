@@ -33,7 +33,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

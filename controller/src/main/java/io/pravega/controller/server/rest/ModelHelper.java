@@ -29,6 +29,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class ModelHelper {
 
+    public static final int MILLIS_TO_MINUTES = 60 * 1000;
+    public static final int KB_TO_MB = 1024;
+
     /**
      * This method translates the REST request object CreateStreamRequest into internal object StreamConfiguration.
      *
@@ -63,6 +66,7 @@ public class ModelHelper {
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                             createStreamRequest.getRetentionPolicy().getValue());
+                    break;
                 case CONSUMPTION:
                     retentionPolicy = getConsumptionRetentionPolicy(createStreamRequest.getRetentionPolicy().getConsumptionLimits());
                     break;
@@ -87,8 +91,9 @@ public class ModelHelper {
             case TIME_MINUTES:
                 type = RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS;
                 multiplier = 60 * 1000;
-                default:
-                    throw new NotImplementedException("Consumption limit type not supported");
+                break;
+            default:
+                throw new NotImplementedException("Consumption limit type not supported");
         }
         return RetentionPolicy.byConsumption(type, consumptionLimits.getMin() * multiplier, consumptionLimits.getMax() * multiplier);
     }
@@ -198,10 +203,10 @@ public class ModelHelper {
                     switch (cl.getType()) {
                         case SIZE_KB:
                             consumptionLimits.setType(ConsumptionLimits.TypeEnum.SIZE_MB);
-                            divider = 1024;
+                            divider = KB_TO_MB;
                             break;
                         case TIME_MILLIS:
-                            divider = 60 * 1000;
+                            divider = MILLIS_TO_MINUTES;
                             consumptionLimits.setType(ConsumptionLimits.TypeEnum.TIME_MINUTES);
                             break;
                         default:
@@ -210,6 +215,7 @@ public class ModelHelper {
                     consumptionLimits.setMax(cl.getMaxValue() / divider);
                     consumptionLimits.setMin(cl.getMinValue() / divider);
                     retentionConfig.consumptionLimits(consumptionLimits);
+                    break;
                 default:
                     throw new NotImplementedException("consumption type not supported");
             }
