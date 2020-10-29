@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -403,7 +403,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
     private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
         val expectedKeys = new ArrayList<>(existingEntries.keySet());
-        expectedKeys.sort(new ByteArrayComparator()::compare);
+        expectedKeys.sort(BufferViewComparator.create()::compare);
         val actualKeys = new ArrayList<BufferView>();
         context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
                 .forEachRemaining(actualKeys::addAll, executorService()).join();

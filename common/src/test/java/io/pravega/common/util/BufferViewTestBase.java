@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.collect.Lists;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
@@ -125,22 +126,23 @@ public abstract class BufferViewTestBase {
     }
 
     /**
-     * Tests {@link BufferView#collect} and {@link BufferView#getContents()}.
+     * Tests {@link BufferView#collect} and {@link BufferView#iterateBuffers()}.
      */
     @Test
-    public void testCollect() {
+    public void testCollectAndIterateBuffers() {
         val data = newData();
         @Cleanup("release")
         val bufferView = toBufferView(data);
-        val getContents = bufferView.getContents();
-        val getContentsData = getData(getContents);
-        Assert.assertEquals("getContents().", data, getContentsData);
 
         val collectedContents = new ArrayList<ByteBuffer>();
         bufferView.collect(collectedContents::add);
         val collectedContentsData = getData(collectedContents);
         Assert.assertEquals("collect().", data, collectedContentsData);
-        AssertExtensions.assertListEquals("", getContents, collectedContents, ByteBuffer::equals);
+
+        val iteratedContents = new ArrayList<ByteBuffer>();
+        bufferView.iterateBuffers().forEachRemaining(iteratedContents::add);
+        val iteratedContentsData = getData(iteratedContents);
+        Assert.assertEquals("iterateBuffers().", data, iteratedContentsData);
     }
 
     /**
@@ -312,6 +314,10 @@ public abstract class BufferViewTestBase {
         }
 
         return os.getData();
+    }
+
+    protected List<ByteBuffer> getContents(BufferView bufferView) {
+        return Lists.newArrayList(bufferView.iterateBuffers());
     }
 
     protected abstract BufferView toBufferView(ArrayView data);
