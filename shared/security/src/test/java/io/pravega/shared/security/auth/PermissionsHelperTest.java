@@ -21,6 +21,7 @@ public class PermissionsHelperTest {
     public void translatesValidPermissions() {
         assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.toAuthHandlerPermissions(AccessOperation.READ));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.toAuthHandlerPermissions(AccessOperation.WRITE));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.toAuthHandlerPermissions(AccessOperation.READ_WRITE));
     }
 
     @Test

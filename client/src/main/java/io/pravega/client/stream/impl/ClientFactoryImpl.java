@@ -215,7 +215,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment,
-                AccessOperation.READ);
+                AccessOperation.READ_WRITE);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
