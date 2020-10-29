@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -127,13 +128,6 @@ public interface BufferView {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
     }
 
-    /**
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}. These buffer point
-     * directly to the data contained within this buffer (i.e., they are not copies of the data).
-     *
-     * @return A List of {@link ByteBuffer}.
-     */
-    List<ByteBuffer> getContents();
 
     /**
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
@@ -147,6 +141,13 @@ public interface BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
+
+    /**
+     * Gets an {@link Iterator} through each of the {@link ByteBuffer}s that make up this {@link BufferView}, in order.
+     *
+     * @return A {@link Iterator}.
+     */
+    Iterator<ByteBuffer> iterateBuffers();
 
     /**
      * Wraps the given {@link BufferView} into a single instance.

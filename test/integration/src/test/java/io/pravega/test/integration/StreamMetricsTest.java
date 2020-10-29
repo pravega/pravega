@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventWriterConfig;
@@ -163,7 +164,7 @@ public class StreamMetricsTest {
 
         controllerWrapper.getControllerService().createScope(scopeName).get();
         if (!controller.createStream(scopeName, streamName, config).get()) {
-            log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + scopeName);
+            log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + streamName);
             return;
         }
         // Check that the new scope and stream are accounted in metrics.
@@ -177,6 +178,14 @@ public class StreamMetricsTest {
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
+
+        controllerWrapper.getControllerService().addSubscriber(scopeName, streamName, "subscriber1").get();
+        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, "subscriber1", streamCut1).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
+        controllerWrapper.getControllerService().deleteSubscriber(scopeName, streamName, "subscriber1").get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.REMOVE_SUBSCRIBER).count());
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
@@ -193,7 +202,7 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().addSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().removeSubscriberFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().deleteSubscriberFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().updateTruncationSCFailed("failedScope", "failedStream");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());

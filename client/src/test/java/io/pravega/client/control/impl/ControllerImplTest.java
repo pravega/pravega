@@ -77,7 +77,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
@@ -354,31 +354,31 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void removeSubscriber(StreamSubscriberInfo request,
-                                     StreamObserver<RemoveSubscriberStatus> responseObserver) {
+            public void deleteSubscriber(StreamSubscriberInfo request,
+                                     StreamObserver<DeleteSubscriberStatus> responseObserver) {
                 if (request.getStream().equals("stream1")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.SUCCESS)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.FAILURE)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream3")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream4")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream5")) {
-                    responseObserver.onNext(RemoveSubscriberStatus.newBuilder()
-                            .setStatus(RemoveSubscriberStatus.Status.UNRECOGNIZED)
+                    responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
+                            .setStatus(DeleteSubscriberStatus.Status.UNRECOGNIZED)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
@@ -398,7 +398,8 @@ public class ControllerImplTest {
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(SubscribersResponse.newBuilder().build());
+                    responseObserver.onNext(SubscribersResponse.newBuilder()
+                            .setStatus(SubscribersResponse.Status.STREAM_NOT_FOUND).build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
                     // dont send any response
@@ -408,7 +409,7 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void updateTruncationStreamCut(SubscriberStreamCut request,
+            public void updateSubscriberStreamCut(SubscriberStreamCut request,
                                      StreamObserver<UpdateSubscriberStatus> responseObserver) {
                 if (request.getStreamCut().getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
@@ -1477,21 +1478,21 @@ public class ControllerImplTest {
     @Test
     public void testRemoveSubscriber() throws Exception {
         CompletableFuture<Boolean> removeSubscriberStatus;
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream1", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream1", "subscriber1");
         assertTrue(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream2", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream2", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream3", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream3", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream4", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream4", "subscriber1");
         assertFalse(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.removeSubscriber("scope1", "stream5", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream5", "subscriber1");
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 removeSubscriberStatus, Throwable -> true);
     }
@@ -1502,7 +1503,8 @@ public class ControllerImplTest {
         assertEquals(3, getSubscribersList.get().size());
 
         getSubscribersList = controllerClient.listSubscribers("scope1", "stream2");
-        assertEquals(0, getSubscribersList.get().size());
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                getSubscribersList, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test

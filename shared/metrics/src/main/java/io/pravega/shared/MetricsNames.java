@@ -216,6 +216,9 @@ public final class MetricsNames {
     public static final String REMOVE_SUBSCRIBER = PREFIX + "controller.stream.remove_subscriber";                     // Counter and Per-stream Counter
     public static final String REMOVE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.remove_subscriber_latency_ms";  // Histogram
     public static final String REMOVE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.remove_subscriber_failed";        // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER = PREFIX + "controller.stream.update_subscriber";                     // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.update_subscriber_latency_ms";  // Histogram
+    public static final String UPDATE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.update_subscriber_failed";        // Counter and Per-stream Counter
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter

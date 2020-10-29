@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
@@ -1277,8 +1278,8 @@ public class PravegaRequestProcessorTest {
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.transform(bufferView.iterateBuffers(), Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(iterators, ByteBuf.class));
     }
 
     //endregion

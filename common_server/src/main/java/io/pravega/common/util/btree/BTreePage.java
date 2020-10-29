@@ -11,7 +11,7 @@ package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import java.util.AbstractMap;
@@ -96,7 +96,7 @@ class BTreePage {
 
     //region Members
 
-    private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+    private static final BufferViewComparator KEY_COMPARATOR = BufferViewComparator.create();
     private static final Random ID_GENERATOR = new Random();
 
     /**

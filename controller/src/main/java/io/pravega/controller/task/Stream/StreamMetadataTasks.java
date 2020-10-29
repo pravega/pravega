@@ -61,7 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
@@ -314,8 +314,8 @@ public class StreamMetadataTasks extends TaskBase {
                     .thenCompose(subscribersData -> {
                     //4. If SubscriberRecord does not exist create one...
                     if (subscribersData == null) {
-                        streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor);
-                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
+                        return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor)
+                                .thenApply(v -> AddSubscriberStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
                     }
@@ -324,9 +324,7 @@ public class StreamMetadataTasks extends TaskBase {
                         log.warn(requestId, "Exception thrown in trying to add subscriber {}",
                                     ex.getMessage());
                         Throwable cause = Exceptions.unwrap(ex);
-                        if (cause instanceof StoreException.DataNotFoundException) {
-                           return AddSubscriberStatus.Status.STREAM_NOT_FOUND;
-                        } else if (cause instanceof TimeoutException) {
+                        if (cause instanceof TimeoutException) {
                            throw new CompletionException(cause);
                         } else {
                            log.warn(requestId, "Add subscriber {} failed due to {}", newSubscriber, cause);
@@ -346,7 +344,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<RemoveSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
+    public CompletableFuture<DeleteSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
                                                                              String subscriber,
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -356,21 +354,21 @@ public class StreamMetadataTasks extends TaskBase {
            .thenCompose(exists -> {
                // 1. check Stream exists
                if (!exists) {
-                   return CompletableFuture.completedFuture(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND);
+                   return CompletableFuture.completedFuture(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND);
                }
                // 2. remove subscriber
                return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, context, executor)
-                       .thenApply(x -> RemoveSubscriberStatus.Status.SUCCESS)
+                       .thenApply(x -> DeleteSubscriberStatus.Status.SUCCESS)
                        .exceptionally(ex -> {
                            log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
                            Throwable cause = Exceptions.unwrap(ex);
                            if (cause instanceof StoreException.DataNotFoundException) {
-                               return RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
+                               return DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
                            } else if (cause instanceof TimeoutException) {
                                throw new CompletionException(cause);
                            } else {
                                log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
-                               return RemoveSubscriberStatus.Status.FAILURE;
+                               return DeleteSubscriberStatus.Status.FAILURE;
                            }
                        });
            }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
@@ -401,7 +399,7 @@ public class StreamMetadataTasks extends TaskBase {
                                      .setStatus(SubscribersResponse.Status.SUCCESS)
                                      .addAllSubscribers(result).build())
                             .exceptionally(ex -> {
-                                log.warn(requestId, "Exception thrown in trying to get list of Stream subscribers. {}",
+                                log.warn(requestId, "Exception trying to get list of Stream subscribers. {}",
                                         ex.getMessage());
                                 Throwable cause = Exceptions.unwrap(ex);
                                 if (cause instanceof TimeoutException) {
@@ -477,14 +475,12 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, context, executor)
                 .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
+                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
                     Throwable cause = Exceptions.unwrap(ex);
-                    if (cause instanceof StoreException.DataNotFoundException) {
-                        return UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
-                    } else if (cause instanceof TimeoutException) {
+                    if (cause instanceof TimeoutException) {
                         throw new CompletionException(cause);
                     } else {
-                        log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
+                        log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
                         return UpdateSubscriberStatus.Status.FAILURE;
                     }
                 });

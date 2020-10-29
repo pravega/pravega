@@ -65,7 +65,7 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
             Assert.assertEquals("Unexpected value via getReader() at index " + i, expectedValue, getReaderContents[i]);
         }
 
-        val buffers = s.getContents();
+        val buffers = getContents(s);
         Assert.assertEquals("Unexpected number of buffers.", ARRAY_COUNT, buffers.size());
         for (int i = 0; i < buffers.size(); i++) {
             val b = buffers.get(i);

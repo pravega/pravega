@@ -323,7 +323,7 @@ public class ControllerServiceTest {
         assertTrue(subscribers.contains(subscriber1));
         assertTrue(subscribers.contains(subscriber2));
 
-        assertTrue(controller.removeSubscriber(scope, stream, subscriber2).get());
+        assertTrue(controller.deleteSubscriber(scope, stream, subscriber2).get());
         List<String> subscribersNow = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersNow.size() == 1);
         assertTrue(subscribersNow.contains(subscriber1));

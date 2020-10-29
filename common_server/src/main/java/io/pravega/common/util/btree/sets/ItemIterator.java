@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import java.time.Duration;
 import java.util.Collections;
@@ -67,7 +67,7 @@ class ItemIterator implements AsyncIterator<List<ArrayView>> {
                  @NonNull LocatePage locatePage, @NonNull Duration fetchTimeout) {
         if (firstItem == null) {
             // FirstItem is used to bootstrap the iterator, so if it's missing we need to replace it with our Min Value.
-            this.firstItem = new ByteArraySegment(ByteArrayComparator.getMinValue());
+            this.firstItem = new ByteArraySegment(BufferViewComparator.getMinValue());
             this.firstItemInclusive = true;
         } else {
             this.firstItem = firstItem;
