@@ -15,6 +15,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.state.InitialUpdate;
@@ -43,6 +44,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -101,12 +103,15 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriber()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
-                            .exceptionally(e -> {
-                                System.err.println("Failed to add subscriber" + e);
-                                throw Exceptions.sneakyThrow(e);
-                            }),
-                    RuntimeException::new));
+            streams.forEach(s -> {
+                CompletableFuture<Boolean> result = controller.addSubscriber(scope, s.getStreamName(), groupName);
+                try {
+                    result.join();
+                } catch (Exception e) {
+                    log.warn("Failed to add subscriber reader group: ", e);
+                    throw e;
+                }
+            });
         }
     }
 
