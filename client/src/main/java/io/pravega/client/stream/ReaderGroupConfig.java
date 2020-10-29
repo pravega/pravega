@@ -69,7 +69,7 @@ public class ReaderGroupConfig implements Serializable {
         *
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder isSubscribedForRetention() {
+       public ReaderGroupConfigBuilder subscribeForRetention() {
            this.subscribedForRetention = true;
            return this;
        }
@@ -80,7 +80,7 @@ public class ReaderGroupConfig implements Serializable {
         *
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder autoPublishCheckpoint() {
+       public ReaderGroupConfigBuilder autoPublishLastCheckpoint() {
            this.autoPublishLastCheckpoint = true;
            return this;
        }
@@ -228,7 +228,7 @@ public class ReaderGroupConfig implements Serializable {
            Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
                    "Outstanding checkpoint request should be greater than zero");
 
-           //basic check to make sure autoTruncateAtLastCheckpoint is not true while isSubscriber is false
+           //basic check to make sure autoPublishLastCheckpoint is not true while subscribedForRetention is false
            if (!subscribedForRetention) {
                Preconditions.checkArgument(!autoPublishLastCheckpoint,
                        "ReaderGroup should be subscriber to be able to auto-truncate");
@@ -351,10 +351,10 @@ public class ReaderGroupConfig implements Serializable {
             builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
             builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
             if (revisionDataInput.readBoolean()) {
-                builder.isSubscribedForRetention();
+                builder.subscribeForRetention();
             }
             if (revisionDataInput.readBoolean()) {
-                builder.autoPublishCheckpoint();
+                builder.autoPublishLastCheckpoint();
             }
         }
 

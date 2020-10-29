@@ -187,24 +187,26 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         ReaderGroupConfig oldConfig = synchronizer.getState().getConfig();
-        Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
         Set<Stream> newStreams = config.getStartingStreamCuts().keySet();
-        // If it were a subscriber, unsubscribe from all old streams
-        if (oldConfig.isSubscriber()) {
-            oldStreams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
-                            .exceptionally(e -> {
-                                System.err.println("Failed to delete subscriber" + e);
-                                throw Exceptions.sneakyThrow(e);
-                            }),
-                    RuntimeException::new));
+        if (oldConfig != null) {
+            Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
+            // If it were a subscriber, unsubscribe from all old streams
+            if (oldConfig.isSubscriber()) {
+                oldStreams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
+                                .exceptionally(e -> {
+                                    System.err.println("Failed to delete subscriber" + e);
+                                    throw Exceptions.sneakyThrow(e);
+                                }),
+                        RuntimeException::new));
+            }
         }
         // If its going to be a subscriber, subscribe to all new streams
         if (config.isSubscriber()) {
             newStreams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
-                            .exceptionally(e -> {
-                                System.err.println("Failed to add subscriber" + e);
-                                throw Exceptions.sneakyThrow(e);
-                            }),
+                                .exceptionally(e -> {
+                                    System.err.println("Failed to add subscriber" + e);
+                                    throw Exceptions.sneakyThrow(e);
+                                }),
                     RuntimeException::new));
         }
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);

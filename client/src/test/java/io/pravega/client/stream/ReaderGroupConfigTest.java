@@ -92,7 +92,7 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .isSubscribedForRetention()
+                .subscribeForRetention()
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
@@ -109,8 +109,8 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .isSubscribedForRetention()
-                .autoPublishCheckpoint()
+                .subscribeForRetention()
+                .autoPublishLastCheckpoint()
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
@@ -157,7 +157,7 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .autoPublishCheckpoint()
+                .autoPublishLastCheckpoint()
                 .build();
     }
 
