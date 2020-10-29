@@ -324,7 +324,7 @@ public class ContainerRecoveryUtils {
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
-            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+            val futures = new ArrayList<CompletableFuture<Void>>();
 
             // Iterating through all segments in the back up metadata segment
             entryIterator.forEachRemaining(item -> {
@@ -417,7 +417,7 @@ public class ContainerRecoveryUtils {
             String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
             log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpAttributeSegment, containerId);
 
-            int finalContainerId = containerId;
+            val finalContainerId = containerId;
             futures.add(Futures.exceptionallyExpecting(
                     ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
                             backUpMetadataSegment, backUpAttributeSegment, executorService)
