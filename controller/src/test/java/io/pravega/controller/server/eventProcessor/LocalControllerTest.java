@@ -368,6 +368,15 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(result));
         returnedSubscribers = this.testController.listSubscribers("scope", "stream").join();
         Assert.assertEquals(0, returnedSubscribers.size());
+
+        result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(emptyList).setStatus(Controller.SubscribersResponse.Status.STREAM_NOT_FOUND).build();
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.listSubscribers("scope", "unknownstream").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     @Test

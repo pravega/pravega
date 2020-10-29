@@ -398,7 +398,8 @@ public class ControllerImplTest {
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream2")) {
-                    responseObserver.onNext(SubscribersResponse.newBuilder().build());
+                    responseObserver.onNext(SubscribersResponse.newBuilder()
+                            .setStatus(SubscribersResponse.Status.STREAM_NOT_FOUND).build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
                     // dont send any response
@@ -1502,7 +1503,8 @@ public class ControllerImplTest {
         assertEquals(3, getSubscribersList.get().size());
 
         getSubscribersList = controllerClient.listSubscribers("scope1", "stream2");
-        assertEquals(0, getSubscribersList.get().size());
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
+                getSubscribersList, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test

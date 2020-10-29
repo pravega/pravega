@@ -227,6 +227,7 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStorePartialMock.close();
+        streamStorePartialMock.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -441,6 +442,18 @@ public abstract class StreamMetadataTasksTest {
 
         updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 20L, 1L, 30L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut2, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut3 = ImmutableMap.of(0L, 20L, 1L, 1L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut3, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut4 = ImmutableMap.of(0L, 25L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut4, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
 
         // update non-existing stream
         updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();

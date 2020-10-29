@@ -466,6 +466,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
             INSTANCE.get().truncateStreamLatency.close();
             INSTANCE.get().addSubscriberLatency.close();
             INSTANCE.get().removeSubscriberLatency.close();
+            INSTANCE.get().updateSubscriberLatency.close();
             INSTANCE.get().createScopeLatency.close();
             INSTANCE.get().deleteScopeLatency.close();
             INSTANCE.set(null);
