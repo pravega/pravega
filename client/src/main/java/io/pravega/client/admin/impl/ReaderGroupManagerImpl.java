@@ -130,17 +130,22 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                          }),
                                RuntimeException::new);
 
-        AsyncIterator<Stream> streamIter = controller.listStreams(scope);
-        while (streamIter.getNext() != null) {
-            String streamName = streamIter.getNext().join().getStreamName();
-            controller.listSubscribers(scope, streamName)
-                    .thenApply(ls -> ls.contains(groupName))
-                    .thenApply(b -> {
-                        if (b) {
-                            return controller.deleteSubscriber(scope, streamName, groupName);
-                        }
-                        return null;
-                    });
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        ReaderGroupConfig config = synchronizer.getState().getConfig();
+
+        if (config.isSubscriber()) {
+            Set<Stream> streams = config.getStartingStreamCuts().keySet();
+            streams.forEach(s -> {
+                CompletableFuture<Boolean> result = controller.deleteSubscriber(scope, s.getStreamName(), groupName);
+                try {
+                    result.join();
+                } catch (Exception e) {
+                    log.warn("Failed to delete subscriber reader group: ", e);
+                    throw e;
+                }
+            });
         }
     }
 
