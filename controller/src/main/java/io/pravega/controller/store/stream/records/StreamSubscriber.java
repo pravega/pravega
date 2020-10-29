@@ -35,14 +35,14 @@ public class StreamSubscriber {
     private final String subscriber;
 
     /**
-     * Time when this record was last created/updated.
-     */
-    private final long updateTime;
-
-    /**
      * Truncation Stream cut published by this subscriber
      */
     private final ImmutableMap<Long, Long> truncationStreamCut;
+
+    /**
+     * Time when this record was last created/updated.
+     */
+    private final long updateTime;
 
     @Builder
     public StreamSubscriber(@NonNull final String subscriber, @NonNull ImmutableMap<Long, Long> truncationStreamCut, final long updationTime) {

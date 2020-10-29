@@ -1406,7 +1406,6 @@ public abstract class PersistentStreamBase implements Stream {
         return getRetentionSetData()
                 .thenCompose(data -> {
                     RetentionSet retention = data.getObject();
-
                     RetentionSet update = RetentionSet.addReferenceToStreamCutIfLatest(retention, record);
                     return createStreamCutRecordData(record.getRecordingTime(), record)
                             .thenCompose(v -> Futures.toVoid(updateRetentionSetData(new VersionedMetadata<>(update, data.getVersion()))));

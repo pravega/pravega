@@ -893,14 +893,17 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(final String subscriber, final ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Void> updateSubscriberStreamCut(final StreamSubscriber subscriberData) {
         synchronized (subscribersLock) {
-            return getSubscriberRecord(subscriber)
-                    .thenApply(s -> updatedCopy(new VersionedMetadata<>(new StreamSubscriber(subscriber,
-                            streamCut, System.currentTimeMillis()), s.getVersion())))
-            .thenApply(x -> null);
+            getSubscriberRecord(subscriberData.getSubscriber())
+                .thenCompose(subscriberRecord -> {
+                    VersionedMetadata<StreamSubscriber> updatedSubscriber = updatedCopy(new VersionedMetadata<>(subscriberData, subscriberRecord.getVersion()));
+                    streamSubscribers.remove(subscriberRecord);
+                    streamSubscribers.add(updatedSubscriber);
+                    return null;
+               });
         }
-
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
