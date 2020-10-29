@@ -35,12 +35,13 @@ import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Map;
+import java.util.*;
+
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -95,6 +96,16 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+
+        if (config.isSubscriber()) {
+            Set<Stream> streams = config.getStartingStreamCuts().keySet();
+            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
+                            .exceptionally(e -> {
+                                System.err.println("Failed to add subscriber" + e);
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new));
+        }
     }
 
     @Override
@@ -111,7 +122,19 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                              throw Exceptions.sneakyThrow(e);
                                          }),
                                RuntimeException::new);
-        
+
+        AsyncIterator<Stream> streamIter = controller.listStreams(scope);
+        while (streamIter.getNext() != null) {
+            String streamName = streamIter.getNext().join().getStreamName();
+            controller.listSubscribers(scope, streamName)
+                    .thenApply(ls -> ls.contains(groupName))
+                    .thenApply(b -> {
+                        if (b) {
+                            return controller.deleteSubscriber(scope, streamName, groupName);
+                        }
+                        return null;
+                    });
+        }
     }
 
     @Override

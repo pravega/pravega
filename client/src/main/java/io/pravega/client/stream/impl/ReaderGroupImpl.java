@@ -43,6 +43,7 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -185,6 +186,27 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
+        ReaderGroupConfig oldConfig = synchronizer.getState().getConfig();
+        Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
+        Set<Stream> newStreams = config.getStartingStreamCuts().keySet();
+        // If it were a subscriber, unsubscribe from all old streams
+        if (oldConfig.isSubscriber()) {
+            oldStreams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
+                            .exceptionally(e -> {
+                                System.err.println("Failed to delete subscriber" + e);
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new));
+        }
+        // If its going to be a subscriber, subscribe to all new streams
+        if (config.isSubscriber()) {
+            newStreams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
+                            .exceptionally(e -> {
+                                System.err.println("Failed to add subscriber" + e);
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new));
+        }
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
