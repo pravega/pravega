@@ -1223,7 +1223,8 @@ public abstract class StreamMetadataTasksTest {
 
         VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
-        assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 1L);
+        assertEquals(truncationRecord.getObject().getStreamCut().get(2L).longValue(), 1L);
+        assertEquals(truncationRecord.getObject().getStreamCut().get(five).longValue(), -1L);
         assertTrue(truncationRecord.getObject().isUpdating());
         streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
     }

@@ -720,7 +720,7 @@ public class StreamMetadataTasks extends TaskBase {
             } else {
                 List<Map.Entry<StreamSegmentRecord, Long>> overlaps = overlaps(segment, lowerBound);
                 if (!overlaps.isEmpty()) {
-                    AtomicBoolean toAdd = new AtomicBoolean(false);
+                    AtomicBoolean toAdd = new AtomicBoolean(true);
                     overlaps.forEach(z -> {
                         if (z.getKey().segmentId() > segment.segmentId()) {
                             // if this segment is predecessor of some segment in lowerbound then remove the successor 
@@ -731,8 +731,8 @@ public class StreamMetadataTasks extends TaskBase {
                                 lowerBound.remove(z.getKey());
                             }
                         } else {
-                            // if there is a predecessor for this segment then do not include it. 
-                            toAdd.set(false);
+                            // if there is a predecessor for this segment then do not include it, unless its a future segment. 
+                            toAdd.set(z.getValue() >= 0 || !streamCut.containsKey(z.getKey()));
                         }
                     });
                     if (toAdd.get()) {
