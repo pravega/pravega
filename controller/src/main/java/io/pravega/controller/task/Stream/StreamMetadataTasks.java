@@ -92,6 +92,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -716,17 +717,36 @@ public class StreamMetadataTasks extends TaskBase {
             } else {
                 List<Map.Entry<SegmentWithRange, Long>> overlaps = overlaps(segment, lowerBound);
                 if (!overlaps.isEmpty()) {
+                    AtomicBoolean toAdd = new AtomicBoolean(false);
                     overlaps.forEach(z -> {
                         if (z.getKey().getSegmentId() > segment.getSegmentId()) {
+                            // if this segment is predecessor of some segment in lowerbound then remove the predecessor. 
                             lowerBound.remove(z.getKey());
+                        } else {
+                            // if there is a predecessor for this segment then do not include it. 
+                            toAdd.set(false);
                         }
                     });
-                    lowerBound.put(segment, offset);
+                    if (toAdd.get()) {
+                        lowerBound.put(segment, offset);
+                    }
                 } else {
                     lowerBound.put(segment, offset);
                 }
             }
         }));
+        // example::
+        // | s0 | s3      |
+        // |    | s4 |    | s6
+        // | s1      | s5 |
+        // | s2      |    |
+        // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }
+        // lower bound = { s0/off, s2/off } // note: s5 is removed because it had a predecessor in either s0 or s2. 
+        // but s5 is a logical future segment because of absence of s1. we can collect and reinclude future segments in 
+        // second pass. 
+        // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }, { s0/off, s1/off, s2/off }
+        // lower bound = { s0/off, s1/off, s2/off }
+        // TODO: add future segments. 
         return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
     }
 

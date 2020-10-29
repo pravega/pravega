@@ -691,16 +691,20 @@ public abstract class PersistentStreamBase implements Stream {
                           AtomicLong sizeTill = new AtomicLong(0L);
                           sizes.forEach((segment, value) -> {
                               // segments in both.. to.offset - from.offset
-                              Long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
-                              Long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
                               if (streamCutTo.containsKey(segment.segmentId()) && streamCutFrom.containsKey(segment.segmentId())) {
+                                  long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
+                                  long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
                                   sizeTill.addAndGet(sizeFrom - sizeTo);
                               } else if (streamCutTo.containsKey(segment.segmentId())) {
+                                  long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
+
                                   // segments only in streamcutTo: take their offsets in streamcut
                                   sizeTill.addAndGet(sizeFrom);
                               } else if (streamCutFrom.containsKey(segment.segmentId())) {
                                   // segments only in from: take their total size - offset in from
                                   assert value >= 0;
+                                  long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
+
                                   sizeTill.addAndGet(value - sizeTo);
                               } else {
                                   assert value >= 0;
@@ -753,10 +757,11 @@ public abstract class PersistentStreamBase implements Stream {
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs -> isStreamCutValidInternal(streamCut, epochLow, epochs));
     }
 
-    private Boolean isStreamCutValidInternal(Map<Long, Long> streamCut, int epochLow, List<EpochRecord> epochs) {
+    private boolean isStreamCutValidInternal(Map<Long, Long> streamCut, int epochLow, List<EpochRecord> epochs) {
         Set<StreamSegmentRecord> segmentsInStreamCut = new HashSet<>();
         Set<StreamSegmentRecord> futureSegment = new HashSet<>();
 
+        boolean isValid = true;
         // for each segment get its epoch and the segment record
         streamCut.forEach((key, value) -> {
             int epoch = NameUtils.getEpoch(key);
@@ -770,101 +775,114 @@ public abstract class PersistentStreamBase implements Stream {
             }
         });
 
-        boolean isValid = futureSegment.stream().allMatch(x -> 
+        isValid = futureSegment.stream().allMatch(x -> 
                 segmentsInStreamCut.stream().filter(y -> y.overlaps(x)).allMatch(y -> y.segmentId() < x.segmentId()));
 
-        if (!isValid) {
-            return false;
-        }
-        List<StreamSegmentRecord> sorted = segmentsInStreamCut
-                .stream().sorted(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart)).collect(Collectors.toList());
+        if (isValid) {
+            List<StreamSegmentRecord> sorted = segmentsInStreamCut
+                    .stream().sorted(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart)).collect(Collectors.toList());
 
-        // all future segments should have a predecessor and all missing ranges should be covered by a future segment. 
-        Map<Double, Double> missingRanges = new HashMap<>();
+            // all future segments should have a predecessor and all missing ranges should be covered by a future segment. 
+            Map<Double, Double> missingRanges = new HashMap<>();
 
-        StreamSegmentRecord previous = sorted.get(0);
-        BiFunction<Double, Double, Boolean> validate = (start, end) -> futureSegment.stream().anyMatch(x -> x.overlaps(start, end));
+            StreamSegmentRecord previous = sorted.get(0);
+            BiFunction<Double, Double, Boolean> validate = (start, end) -> futureSegment.stream().anyMatch(x -> x.overlaps(start, end));
 
-        if (previous.getKeyStart() > 0.0) {
-            double start = 0.0;
-            double end = previous.getKeyStart();
-            missingRanges.put(start, end);
-            // missing range should be covered by a future segment
-            if (!validate.apply(start, end)) {
-                return false;
-            }
-        }
-
-        for (int i = 1; i < sorted.size(); i++) {
-            StreamSegmentRecord next = sorted.get(i);
-            if (previous.getKeyEnd() < next.getKeyStart()) {
-                double start = previous.getKeyEnd();
-                double end = next.getKeyStart();
+            if (previous.getKeyStart() > 0.0) {
+                double start = 0.0;
+                double end = previous.getKeyStart();
                 missingRanges.put(start, end);
-                //  missing range should be covered by a future segment
-                if (!validate.apply(start, end)) {
-                    return false;
+                // missing range should be covered by a future segment
+                isValid = validate.apply(start, end);
+            }
+
+            for (int i = 1; i < sorted.size(); i++) {
+                StreamSegmentRecord next = sorted.get(i);
+                if (previous.getKeyEnd() < next.getKeyStart()) {
+                    double start = previous.getKeyEnd();
+                    double end = next.getKeyStart();
+                    missingRanges.put(start, end);
+                    //  missing range should be covered by a future segment
+                    isValid = validate.apply(start, end);
+                    if (!isValid) {
+                        break;
+                    }
+                } else if (previous.getKeyEnd() > next.getKeyStart()) {
+                    isValid = false;
+                    break;
                 }
-            } else if (previous.getKeyEnd() > next.getKeyStart()) {
-                return false;
+                previous = next;
             }
-            previous = next;
-        }
 
-        if (previous.getKeyEnd() < 1.0) {
-            double start = previous.getKeyEnd();
-            double end = 1.0;
-            missingRanges.put(start, end);
-            if (!validate.apply(start, end)) {
-                return false;
+            if (previous.getKeyEnd() < 1.0) {
+                double start = previous.getKeyEnd();
+                double end = 1.0;
+                missingRanges.put(start, end);
+                isValid = validate.apply(start, end);
             }
-        }
 
-        List<StreamSegmentRecord> toCheck = new ArrayList<>();
-        Set<StreamSegmentRecord> fullyReadFrom = new HashSet<>();
+            if (isValid) {
+                List<StreamSegmentRecord> toCheck = new ArrayList<>();
+                Set<StreamSegmentRecord> fullyReadFrom = new HashSet<>();
 
-        // now traverse the stream for missing ranges and verify that we can reach those future segments 
-        // in logically consistent fashion for the missing ranges. 
-        missingRanges.entrySet().forEach(x -> toCheck.addAll(findSegmentsForMissingRange(epochs.get(0), x)));
-        while (!toCheck.isEmpty()) {
-            StreamSegmentRecord segmentRecord = toCheck.get(0);
-            if (!(fullyReadFrom.contains(segmentRecord) || segmentsInStreamCut.contains(segmentRecord) || 
-                    futureSegment.contains(segmentRecord))) {
-                for (StreamSegmentRecord s : segmentsInStreamCut) {
-                    if (s.overlaps(segmentRecord)) {
-                        if (s.segmentId() < segmentRecord.segmentId()) {
-                            // if segment record has a predecessor, then it should have been in future segment.  
-                            if (!futureSegment.contains(segmentRecord)) {
-                                return false;
-                            } else {
-                                // segment record is a predecessor of a previous segment. 
-                                fullyReadFrom.add(segmentRecord);
-                            }
-                        } else {
-                            // if segment is predecessor of another segment in the stream cut then it has to be 
-                            // fully read 
-                            fullyReadFrom.add(segmentRecord);
-                            // find successors of segmentRecord and add it to tocheck list
-                            int segmentEpoch = NameUtils.getEpoch(segmentRecord.segmentId());
-                            int index = segmentEpoch - epochLow;
-                            for (int i = index; i < epochs.size(); i++) {
-                                if (!epochs.get(i).containsSegment(segmentRecord.segmentId())) {
-                                    epochs.get(i).getSegments().forEach(x -> {
-                                        if (x.overlaps(segmentRecord)) {
-                                            toCheck.add(x);
+                // now traverse the stream for missing ranges and verify that we can reach those future segments 
+                // in logically consistent fashion for the missing ranges. 
+                missingRanges.entrySet().forEach(x -> toCheck.addAll(findSegmentsForMissingRange(epochs.get(0), x)));
+                while (!toCheck.isEmpty()) {
+                    StreamSegmentRecord segmentRecord = toCheck.get(0);
+                    if (!(fullyReadFrom.contains(segmentRecord) || segmentsInStreamCut.contains(segmentRecord) ||
+                            futureSegment.contains(segmentRecord))) {
+                        for (StreamSegmentRecord s : segmentsInStreamCut) {
+                            if (s.overlaps(segmentRecord)) {
+                                if (s.segmentId() < segmentRecord.segmentId()) {
+                                    // if segment record has a predecessor, then it should have been in future segment.  
+                                    if (!futureSegment.contains(segmentRecord)) {
+                                        return false;
+                                    } else {
+                                        // segment record is a predecessor of a previous segment. 
+                                        fullyReadFrom.add(segmentRecord);
+                                    }
+                                } else {
+                                    // if segment is predecessor of another segment in the stream cut then it has to be 
+                                    // fully read 
+                                    fullyReadFrom.add(segmentRecord);
+                                    // find successors of segmentRecord and add it to tocheck list
+                                    int segmentEpoch = NameUtils.getEpoch(segmentRecord.segmentId());
+                                    int index = segmentEpoch - epochLow;
+                                    for (int i = index; i < epochs.size(); i++) {
+                                        if (!epochs.get(i).containsSegment(segmentRecord.segmentId())) {
+                                            epochs.get(i).getSegments().forEach(x -> {
+                                                if (x.overlaps(segmentRecord)) {
+                                                    toCheck.add(x);
+                                                }
+                                            });
+                                            break;
                                         }
-                                    });
-                                    break;
+                                    }
                                 }
                             }
-                            
                         }
                     }
+
+                    toCheck.remove(segmentRecord);
                 }
             }
-            toCheck.remove(segmentRecord);
         }
-        return true;
+        return isValid;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, Map<Long, Long> previousStreamCut) {
+        return isStreamCutValid(streamCut)
+            .thenCompose(isValid -> {
+               if (!isValid) {
+                  return CompletableFuture.completedFuture(false);
+               }
+             return computeStreamCutSpan(streamCut)
+                .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
+                  .thenApply(previousSpan ->
+                      greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+            });
     }
 
     private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
