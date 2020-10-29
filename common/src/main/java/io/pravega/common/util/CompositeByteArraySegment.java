@@ -21,8 +21,10 @@ import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -184,6 +186,31 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     }
 
     @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        if (this.length == 0) {
+            return Collections.emptyIterator();
+        }
+
+        AtomicInteger arrayOffset = new AtomicInteger(getArrayOffset(0));
+        AtomicInteger length = new AtomicInteger(this.length);
+        return Arrays.stream(this.arrays, getArrayId(0), getArrayId(this.length - 1) + 1)
+                .map(o -> {
+                    int arrayLength = Math.min(length.get(), this.arraySize - arrayOffset.get());
+                    byte[] b;
+                    if (o == null) {
+                        b = new byte[arrayLength];
+                    } else {
+                        b = (byte[]) o;
+                    }
+                    ByteBuffer bb = ByteBuffer.wrap(b, arrayOffset.get(), arrayLength);
+                    arrayOffset.set(0);
+                    length.addAndGet(-arrayLength);
+                    return bb;
+                })
+                .iterator();
+    }
+
+    @Override
     public int getComponentCount() {
         return this.length == 0 ? 0 : (this.startOffset + this.length - 1) / this.arraySize - this.startOffset / this.arraySize + 1;
     }
@@ -226,21 +253,6 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         int length = Math.min(this.length, target.remaining());
         collect(target::put, length);
         return length;
-    }
-
-    @Override
-    public List<ByteBuffer> getContents() {
-        ArrayList<ByteBuffer> result = new ArrayList<>();
-        for (int i = 0; i < this.arrays.length; i++) {
-            byte[] a = getArray(i, false);
-            if (a == null) {
-                int size = i == this.arrays.length - 1 ? this.length % this.arraySize : this.arraySize;
-                result.add(ByteBuffer.allocate(size));
-            } else {
-                result.add(ByteBuffer.wrap(a));
-            }
-        }
-        return result;
     }
 
     //endregion
