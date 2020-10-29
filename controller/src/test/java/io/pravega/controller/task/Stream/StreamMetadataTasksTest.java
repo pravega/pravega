@@ -64,7 +64,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.task.EventHelper;
@@ -227,6 +227,7 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStorePartialMock.close();
+        streamStorePartialMock.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -377,16 +378,16 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber
-        RemoveSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, null).get();
-        assertEquals(RemoveSubscriberStatus.Status.SUCCESS, removeStatus);
+        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, null).get();
+        assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
 
         // Remove subscriber from non-existing stream
         removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber2, null).get();
-        assertEquals(RemoveSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
+        assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
 
         // Remove non-existing subscriber from stream
         removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, "subscriber4", null).get();
-        assertEquals(RemoveSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
+        assertEquals(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
     }
 
     @Test(timeout = 30000)
@@ -441,6 +442,18 @@ public abstract class StreamMetadataTasksTest {
 
         updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 20L, 1L, 30L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut2, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut3 = ImmutableMap.of(0L, 20L, 1L, 1L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut3, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
+
+        ImmutableMap<Long, Long> streamCut4 = ImmutableMap.of(0L, 25L);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut4, null).get();
+        assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
 
         // update non-existing stream
         updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();

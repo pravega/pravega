@@ -187,14 +187,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     private String getWritersTableName(String id) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(WRITERS_POSITIONS_TABLE, id));
     }
-
-    private CompletableFuture<String> getSubscribersTable() {
-        return getId().thenApply(this::getSubscribersTableName);
-    }
-
-    private String getSubscribersTableName(String id) {
-        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(SUBSCRIBERS_TABLE, id));
-    }
     // region overrides
 
     @Override

@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.btree.SearchResult;
@@ -741,7 +741,7 @@ abstract class BTreeSetPage {
             // Index pages need to have their first item point to Min-Value. Otherwise we will not be able to include
             // items that are between this page's pointer to this page and this pages's first item.
             if (getItemCount() > 0) {
-                super.setItemAt(0, new ByteArraySegment(ByteArrayComparator.getMinValue()));
+                super.setItemAt(0, new ByteArraySegment(BufferViewComparator.getMinValue()));
             }
         }
 
