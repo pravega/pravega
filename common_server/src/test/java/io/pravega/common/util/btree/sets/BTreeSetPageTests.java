@@ -10,7 +10,7 @@
 package io.pravega.common.util.btree.sets;
 
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.test.common.AssertExtensions;
@@ -457,7 +457,7 @@ public class BTreeSetPageTests {
                     Assert.assertEquals("Unexpected Pointer Key.", 0,
                             COMPARATOR.compare(s.getPagePointer().getKey(), expectedItem.getKey()));
                     Assert.assertEquals("First item must be COMPARATOR.MIN_KEY.", 0,
-                            COMPARATOR.compare(new ByteArraySegment(ByteArrayComparator.getMinValue()), item.getKey()));
+                            COMPARATOR.compare(new ByteArraySegment(BufferViewComparator.getMinValue()), item.getKey()));
                     Assert.assertEquals("Unexpected PageId for first item.", 0,
                             expectedItem.getPageId(), item.getPageId());
                 } else {

@@ -49,8 +49,8 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
         AssertExtensions.assertStreamEquals("",
                 new SequenceInputStream(b1.getReader(), b2.getReader()), composite.getReader(), composite.getLength());
 
-        val contentBufs = composite.getContents();
-        val expectedContentBufs = Stream.of(b1, b2).flatMap(b -> b.getContents().stream()).collect(Collectors.toList());
+        val contentBufs = getContents(composite);
+        val expectedContentBufs = Stream.of(b1, b2).flatMap(b -> getContents(b).stream()).collect(Collectors.toList());
         AssertExtensions.assertListEquals("", expectedContentBufs, contentBufs, ByteBuffer::equals);
     }
 
@@ -70,8 +70,8 @@ public class CompositeBufferViewTests extends BufferViewTestBase {
                 new SequenceInputStream(Iterators.asEnumeration(Arrays.asList(b1.getReader(), b2.getReader(), b3.getReader()).iterator())),
                 c2.getReader(), c2.getLength());
 
-        val contentBufs = c2.getContents();
-        val expectedContentBufs = Stream.of(b1, b2, b3).flatMap(b -> b.getContents().stream()).collect(Collectors.toList());
+        val contentBufs = getContents(c2);
+        val expectedContentBufs = Stream.of(b1, b2, b3).flatMap(b -> getContents(b).stream()).collect(Collectors.toList());
         AssertExtensions.assertListEquals("", expectedContentBufs, contentBufs, ByteBuffer::equals);
     }
 
