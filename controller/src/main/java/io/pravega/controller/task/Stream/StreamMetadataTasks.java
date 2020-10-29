@@ -83,10 +83,13 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -588,7 +591,7 @@ public class StreamMetadataTasks extends TaskBase {
                                    ImmutableSet<Map.Entry<Long, Long>> entries = x.getObject().getTruncationStreamCut().entrySet();
 
                                    return Futures.keysAllOfWithResults(entries.stream().collect(Collectors.toMap(
-                                           y -> getSegmentWithRange(scope, stream, context, y.getKey()), Map.Entry::getValue)));
+                                           y -> streamMetadataStore.getSegment(scope, stream, y.getKey(), context, executor), Map.Entry::getValue)));
                                }).collect(Collectors.toList()));
                            })
                            .thenApply(this::computeSubscribersLowerBound)
@@ -704,24 +707,29 @@ public class StreamMetadataTasks extends TaskBase {
                          });
     }
 
-    private Map<Long, Long> computeSubscribersLowerBound(List<Map<SegmentWithRange, Long>> subscribers) {
+    private Map<Long, Long> computeSubscribersLowerBound(List<Map<StreamSegmentRecord, Long>> subscribers) {
         // loop over all streamcuts and for each segment in new streamcut: 
         // if new segment is predecessor of any segment in the bound then replace the successor segment with
         // this segment. 
-        Map<SegmentWithRange, Long> lowerBound = new HashMap<>();
+        TreeMap<StreamSegmentRecord, Long> lowerBound = new TreeMap<>(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart));
         subscribers.forEach(streamCut -> streamCut.forEach((segment, offset) -> {
             if (lowerBound.containsKey(segment)) {
                 if (lowerBound.get(segment) > offset) {
                     lowerBound.put(segment, offset);
                 }
             } else {
-                List<Map.Entry<SegmentWithRange, Long>> overlaps = overlaps(segment, lowerBound);
+                List<Map.Entry<StreamSegmentRecord, Long>> overlaps = overlaps(segment, lowerBound);
                 if (!overlaps.isEmpty()) {
                     AtomicBoolean toAdd = new AtomicBoolean(false);
                     overlaps.forEach(z -> {
-                        if (z.getKey().getSegmentId() > segment.getSegmentId()) {
-                            // if this segment is predecessor of some segment in lowerbound then remove the predecessor. 
-                            lowerBound.remove(z.getKey());
+                        if (z.getKey().segmentId() > segment.segmentId()) {
+                            // if this segment is predecessor of some segment in lowerbound then remove the successor 
+                            // segment from lower bound. 
+                            // if successor was a future segment which is also present in current subscriber's 
+                            // streamcut as a future segment then dont remove
+                            if (z.getValue() >= 0 || !streamCut.containsKey(z.getKey())) {
+                                lowerBound.remove(z.getKey());
+                            }
                         } else {
                             // if there is a predecessor for this segment then do not include it. 
                             toAdd.set(false);
@@ -741,26 +749,17 @@ public class StreamMetadataTasks extends TaskBase {
         // | s1      | s5 |
         // | s2      |    |
         // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }
-        // lower bound = { s0/off, s2/off } // note: s5 is removed because it had a predecessor in either s0 or s2. 
-        // but s5 is a logical future segment because of absence of s1. we can collect and reinclude future segments in 
-        // second pass. 
+        // lower bound = { s0/off, s2/off, s5/-1 }  
         // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }, { s0/off, s1/off, s2/off }
         // lower bound = { s0/off, s1/off, s2/off }
-        // TODO: add future segments. 
-        return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+        return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
     }
 
-    private List<Map.Entry<SegmentWithRange, Long>> overlaps(SegmentWithRange segment, Map<SegmentWithRange, Long> bound) {
-        return bound.entrySet().stream().filter(x -> segment.overlaps(x.getKey()) && segment.getSegmentId() > x.getKey().getSegmentId())
+    private List<Map.Entry<StreamSegmentRecord, Long>> overlaps(StreamSegmentRecord segment, Map<StreamSegmentRecord, Long> bound) {
+        return bound.entrySet().stream().filter(x -> segment.overlaps(x.getKey()))
                     .collect(Collectors.toList());
     }
 
-    private CompletableFuture<SegmentWithRange> getSegmentWithRange(String scope, String streamName, OperationContext context, long segmentId) {
-        return streamMetadataStore.getSegment(scope, streamName, segmentId, context, executor)
-                                  .thenApply(segment -> SegmentWithRange.builder().segmentId(segment.segmentId())
-                                                  .rangeLow(segment.getKeyStart()).rangeHigh(segment.getKeyEnd()).build());
-    }
-    
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
                                                            StreamCutRecord newRecord, long recordingTime) {
         switch (policy.getRetentionType()) {
