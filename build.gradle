@@ -148,6 +148,27 @@ project('common') {
     }
 }
 
+/**
+ * common_server is the same as 'common' except that it is meant for server-side consumption only (Segment Store or
+ * Controller). This should never be used by the Client (or any of its dependencies) since the Client must compile with
+ * JDK8, while the Server may use newer versions of the JDK.
+ */
+project('common_server') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        //Do NOT add any additional dependencies here.
+    }
+
+    javadoc {
+        title = "Pravega Common Libraries for Server-Side use Only"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
@@ -377,6 +398,7 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
