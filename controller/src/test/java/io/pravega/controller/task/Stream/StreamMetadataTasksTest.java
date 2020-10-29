@@ -420,7 +420,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber3));
     }
 
-    @Test(timeout = 50000)
+    @Test(timeout = 30000)
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
         String subscriber1 = "subscriber1";
         AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, null).get();
