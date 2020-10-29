@@ -315,28 +315,28 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
-    public void testUpdateTruncationStreamCut() throws ExecutionException, InterruptedException {
+    public void testUpdateSubscriberStreamCut() throws ExecutionException, InterruptedException {
         StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap());
-        when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.updateSubscriberStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join());
 
-        when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.updateSubscriberStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.updateSubscriberStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", streamCut).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.updateTruncationStreamCut(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.updateSubscriberStreamCut(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",

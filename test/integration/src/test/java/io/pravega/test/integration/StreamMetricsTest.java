@@ -181,7 +181,7 @@ public class StreamMetricsTest {
 
         controllerWrapper.getControllerService().addSubscriber(scopeName, streamName, "subscriber1").get();
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
-        controllerWrapper.getControllerService().updateTruncationStreamCut(scopeName, streamName, "subscriber1", streamCut1).get();
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, "subscriber1", streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
         controllerWrapper.getControllerService().deleteSubscriber(scopeName, streamName, "subscriber1").get();

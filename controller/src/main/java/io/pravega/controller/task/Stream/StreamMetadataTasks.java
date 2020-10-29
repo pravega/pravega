@@ -309,8 +309,8 @@ public class StreamMetadataTasks extends TaskBase {
                     .thenCompose(subscribersData -> {
                     //4. If SubscriberRecord does not exist create one...
                     if (subscribersData == null) {
-                        streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor);
-                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUCCESS);
+                        return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor)
+                                .thenApply(v -> AddSubscriberStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
                     }

@@ -55,7 +55,7 @@ service ControllerService {
     rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
     rpc deleteSubscriber(StreamSubscriberInfo) returns (DeleteSubscriberStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
-    rpc updateTruncationStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
+    rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
 }
 
 message ServerRequest {

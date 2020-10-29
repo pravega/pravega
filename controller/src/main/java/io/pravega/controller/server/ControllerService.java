@@ -194,9 +194,9 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<UpdateSubscriberStatus> updateTruncationStreamCut(String scope, String stream,
-                                                                                 final String subscriber,
-                                                                                 final ImmutableMap<Long, Long> truncationStreamCut) {
+    public CompletableFuture<UpdateSubscriberStatus> updateSubscriberStreamCut(String scope, String stream,
+                                                                               final String subscriber,
+                                                                               final ImmutableMap<Long, Long> truncationStreamCut) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");

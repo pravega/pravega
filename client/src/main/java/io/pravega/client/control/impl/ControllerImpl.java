@@ -659,7 +659,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "updateTruncationStreamCut", scope, streamName, subscriber, streamCut);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateTruncationStreamCut", scope, streamName)
-                    .updateTruncationStreamCut(ModelHelper.decode(scope, streamName, subscriber, getStreamCutMap(streamCut)), callback);
+                    .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, getStreamCutMap(streamCut)), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -1737,9 +1737,9 @@ public class ControllerImpl implements Controller {
                     .deleteSubscriber(streamSubscriberInfo, callback);
         }
 
-        public void updateTruncationStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {
+        public void updateSubscriberStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .updateTruncationStreamCut(subscriberStreamCut, callback);
+                    .updateSubscriberStreamCut(subscriberStreamCut, callback);
         }
 
         public void listSubscribers(StreamInfo request,

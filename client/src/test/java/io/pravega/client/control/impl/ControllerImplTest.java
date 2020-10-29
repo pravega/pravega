@@ -408,7 +408,7 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void updateTruncationStreamCut(SubscriberStreamCut request,
+            public void updateSubscriberStreamCut(SubscriberStreamCut request,
                                      StreamObserver<UpdateSubscriberStatus> responseObserver) {
                 if (request.getStreamCut().getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
