@@ -691,15 +691,17 @@ public abstract class PersistentStreamBase implements Stream {
                           AtomicLong sizeTill = new AtomicLong(0L);
                           sizes.forEach((segment, value) -> {
                               // segments in both.. to.offset - from.offset
+                              Long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
+                              Long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
                               if (streamCutTo.containsKey(segment.segmentId()) && streamCutFrom.containsKey(segment.segmentId())) {
-                                  sizeTill.addAndGet(streamCutTo.get(segment.segmentId()) - streamCutFrom.get(segment.segmentId()));
+                                  sizeTill.addAndGet(sizeFrom - sizeTo);
                               } else if (streamCutTo.containsKey(segment.segmentId())) {
                                   // segments only in streamcutTo: take their offsets in streamcut
-                                  sizeTill.addAndGet(streamCutTo.get(segment.segmentId()));
+                                  sizeTill.addAndGet(sizeFrom);
                               } else if (streamCutFrom.containsKey(segment.segmentId())) {
                                   // segments only in from: take their total size - offset in from
                                   assert value >= 0;
-                                  sizeTill.addAndGet(value - streamCutFrom.get(segment.segmentId()));
+                                  sizeTill.addAndGet(value - sizeTo);
                               } else {
                                   assert value >= 0;
                                   sizeTill.addAndGet(value);
