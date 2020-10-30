@@ -768,6 +768,7 @@ public abstract class PersistentStreamBase implements Stream {
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs -> isStreamCutValidInternal(streamCut, epochLow, epochs));
     }
 
+<<<<<<< HEAD
     private boolean isStreamCutValidInternal(Map<Long, Long> streamCut, int epochLow, List<EpochRecord> epochs) {
         Set<StreamSegmentRecord> segmentsInStreamCut = new HashSet<>();
         Set<StreamSegmentRecord> futureSegment = new HashSet<>();
