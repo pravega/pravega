@@ -30,11 +30,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.List;
@@ -321,6 +323,43 @@ public final class ModelHelper {
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriber Id of the subscriber for this stream.
+     * @return StreamSubscriberInfo instance.
+     */
+    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
+                .setScope(scope).setStream(streamName).setSubscriber(subscriber);
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriber subscriber for this stream.
+     * @param streamCut truncationStreamCut for this subscriber for this stream.
+     * @return SubscriberStreamCut instance.
+     */
+    public static final SubscriberStreamCut decode(String scope, String streamName,
+                                                   final String subscriber, Map<Long, Long> streamCut) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
+                .setSubscriber(subscriber).setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 

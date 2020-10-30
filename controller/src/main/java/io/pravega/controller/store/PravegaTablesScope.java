@@ -73,7 +73,7 @@ public class PravegaTablesScope implements Scope {
                 DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
-                                     log.debug("table for streams created {}", SCOPES_TABLE);
+                                     log.debug("table for scopes created {}", SCOPES_TABLE);
                                      return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
                                  })), (r, e) -> {
             if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {

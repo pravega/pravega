@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.grpc.v1;
 
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
@@ -64,6 +65,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.ArrayList;
@@ -225,6 +233,63 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void addSubscriber(StreamSubscriberInfo request, StreamObserver<AddSubscriberStatus> responseObserver) {
+        String scope = request.getScope();
+        String stream = request.getStream();
+        String subscriber = request.getSubscriber();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "addSubscriber",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "addSubscriber called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.addSubscriber(scope, stream, subscriber),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void listSubscribers(StreamInfo request, StreamObserver<SubscribersResponse> responseObserver) {
+        String scope = request.getScope();
+        String stream = request.getStream();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listSubscriber",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "listSubscribers called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.listSubscribers(scope, stream),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void deleteSubscriber(StreamSubscriberInfo request, StreamObserver<DeleteSubscriberStatus> responseObserver) {
+        String scope = request.getScope();
+        String stream = request.getStream();
+        String subscriber = request.getSubscriber();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteSubscriber",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "deleteSubscriber called for stream {}/{} and subscriber {}.", scope, stream, subscriber);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.deleteSubscriber(scope, stream, subscriber),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void updateSubscriberStreamCut(SubscriberStreamCut request, StreamObserver<UpdateSubscriberStatus> responseObserver) {
+        String scope = request.getStreamCut().getStreamInfo().getScope();
+        String stream = request.getStreamCut().getStreamInfo().getStream();
+        String subscriber = request.getSubscriber();
+        StreamCut streamCut = request.getStreamCut();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateSubscriberStreamCut",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "updateSubscriberStreamCut called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.updateSubscriberStreamCut(scope, stream, subscriber,
+                        ImmutableMap.copyOf(ModelHelper.encode(streamCut))),
+                responseObserver, requestTag);
+    }
+
+    @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
@@ -233,9 +298,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
-                                             delegationToken -> controllerService.updateStream(scope, stream,
-                                                                                               ModelHelper.encode(request)),
-                                             responseObserver, requestTag);
+                delegationToken -> controllerService.updateStream(scope, stream,
+                        ModelHelper.encode(request)),
+                responseObserver, requestTag);
     }
 
     @Override
