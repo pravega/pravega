@@ -172,6 +172,9 @@ project('common_server') {
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
+def withoutJaxb = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
+                    exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime' }
+
 project('shared:authplugin') {
     dependencies {
     }
@@ -194,6 +197,12 @@ project('shared:security') {
         compile project(':common')
         compile project(':shared:authplugin')
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
+
+        // Adding JAXB API and the reference implementation as a dependency here, since they are not available
+        // in newer Java SE versions (9 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+
         testCompile project(':test:testcommon')
     }
 
@@ -270,8 +279,7 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-        compile project(":shared:security")
-
+        compile project(":shared:security"), withoutJaxb
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
