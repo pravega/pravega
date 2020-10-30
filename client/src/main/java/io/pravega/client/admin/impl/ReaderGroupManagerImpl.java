@@ -101,15 +101,12 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> {
-                CompletableFuture<Boolean> result = controller.addSubscriber(scope, s.getStreamName(), groupName);
-                try {
-                    result.join();
-                } catch (Exception e) {
-                    log.warn("Failed to add subscriber reader group: ", e);
-                    throw e;
-                }
-            });
+            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
+                            .exceptionally(e -> {
+                                log.warn("Failed to add subscriber" + e);
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new));
         }
     }
 
@@ -120,15 +117,12 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> {
-                CompletableFuture<Boolean> result = controller.deleteSubscriber(scope, s.getStreamName(), groupName);
-                try {
-                    result.join();
-                } catch (Exception e) {
-                    log.warn("Failed to delete subscriber reader group: ", e);
-                    throw e;
-                }
-            });
+            streams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
+                            .exceptionally(e -> {
+                                log.warn("Failed to delete subscriber" + e);
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new));
         }
 
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))

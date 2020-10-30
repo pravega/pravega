@@ -566,6 +566,51 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
     }
 
+    @Test
+    public void testResetSubscriberReaderGroupStreams() throws InterruptedException, ExecutionException {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test1", config).get();
+        controller.createStream("test", "test2", config).get();
+        controller.createStream("test", "test3", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a Non subscriber ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test1")
+                .stream("test/test2")
+                .subscribeForRetention()
+                .build());
+        List<String> subs = controller.listSubscribers("test", "test1").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        subs = controller.listSubscribers("test", "test2").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        subs = controller.listSubscribers("test", "test3").get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+
+        ReaderGroup subGroup = groupManager.getReaderGroup("group");
+        // Reset to Subscriber
+        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test2")
+                .stream("test/test3")
+                .subscribeForRetention()
+                .build());
+        subs = controller.listSubscribers("test", "test1").get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        subs = controller.listSubscribers("test", "test2").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        subs = controller.listSubscribers("test", "test3").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+    }
+
     private StreamConfiguration getStreamConfig() {
         return StreamConfiguration.builder()
                                   .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))

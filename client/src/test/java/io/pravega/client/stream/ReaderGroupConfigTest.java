@@ -294,7 +294,7 @@ public class ReaderGroupConfigTest {
     }
 
 
-    // Versioned serializer to simulate version 0 of ReaderGroupConfigSerializerV0
+    // Versioned serializer to simulate revision 0 of ReaderGroupConfigSerializerV0
     private static class ReaderGroupConfigSerializerV0 extends VersionedSerializer.Direct<ReaderGroupConfig> {
 
         @Override
@@ -321,17 +321,48 @@ public class ReaderGroupConfigTest {
         }
     }
 
+    // Versioned serializer to simulate revision 1 of ReaderGroupConfigSerializerV1
+    private static class ReaderGroupConfigSerializerV1 extends VersionedSerializer.Direct<ReaderGroupConfig> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write01, this::read01);
+        }
+
+        private void read01(RevisionDataInput revisionDataInput, ReaderGroupConfig builder) throws IOException {
+            //NOP
+        }
+
+        private void write01(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            RevisionDataOutput.ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            RevisionDataOutput.ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.getStartingStreamCuts(), keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.getEndingStreamCuts(), keySerializer, valueSerializer);
+            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
+        }
+    }
+
     @Test
-    public void testReaderGroupConfigSerializationCompatabilityV0() throws Exception {
+    public void testReaderGroupConfigSerializationBackwardsCompatabilityV0AndV1() throws Exception {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
                 .build();
 
-        // Obtain version 0 serialized data
+        // Obtain revision 0 and 1 serialized data
         final ByteBuffer bufV0 = ByteBuffer.wrap(new ReaderGroupConfigSerializerV0().serialize(cfg).array());
-        // deserialize it using current version 1 serialization and ensure compatibility.
+        final ByteBuffer bufV1 = ByteBuffer.wrap(new ReaderGroupConfigSerializerV1().serialize(cfg).array());
+
+        // deserialize it using current revision(2) serialization and ensure compatibility.
         assertEquals(cfg, ReaderGroupConfig.fromBytes(bufV0));
+        assertEquals(cfg, ReaderGroupConfig.fromBytes(bufV1));
     }
 }

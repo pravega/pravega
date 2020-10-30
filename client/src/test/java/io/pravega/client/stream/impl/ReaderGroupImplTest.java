@@ -213,7 +213,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test
-    public void resetReadersFromSubscriberToSubscriber() {
+    public void resetReadersSubscriberStreams() {
         // Setup mocks
         when(controller.addSubscriber(SCOPE, "s1", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.addSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));

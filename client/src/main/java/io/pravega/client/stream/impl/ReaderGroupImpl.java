@@ -193,32 +193,33 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        ReaderGroupConfig oldConfig = getReaderGroupConfig();
-        Set<Stream> newStreams = config.getStartingStreamCuts().keySet();
-        Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
+        manageSubscriptions(config);
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+    }
 
-        Set<Stream> streamsToSub = Sets.difference(config.isSubscriberForRetention() ? newStreams : Collections.emptySet(),
-                oldConfig.isSubscriberForRetention() ? oldStreams : Collections.emptySet());
-        Set<Stream> streamsToUnsub = Sets.difference(oldConfig.isSubscriberForRetention() ? oldStreams : Collections.emptySet(),
-                config.isSubscriberForRetention() ? newStreams : Collections.emptySet());
+    private void manageSubscriptions(ReaderGroupConfig config) {
+        ReaderGroupConfig oldConfig = getReaderGroupConfig();
+        Set<Stream> newStreams = config.isSubscriberForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> oldStreams = oldConfig.isSubscriberForRetention() ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+
+        Set<Stream> streamsToSub = Sets.difference(newStreams, oldStreams);
+        Set<Stream> streamsToUnsub = Sets.difference(oldStreams, newStreams);
 
         // Unsubscribe to older streams
         streamsToUnsub.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
                         .exceptionally(e -> {
-                            System.err.println("Failed to delete subscriber" + e);
+                            log.warn("Failed to delete subscriber" + e);
                             throw Exceptions.sneakyThrow(e);
                         }),
                 RuntimeException::new));
         // Subscribe to newer streams
         streamsToSub.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
                         .exceptionally(e -> {
-                            System.err.println("Failed to add subscriber" + e);
+                            log.warn("Failed to add subscriber" + e);
                             throw Exceptions.sneakyThrow(e);
                         }),
                 RuntimeException::new));
-
-        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     @Override
@@ -410,7 +411,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateTruncationStreamCut(Stream stream, StreamCut streamCut) {
-        controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut);
+        getAndHandleExceptions(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut)
+                        .exceptionally(e -> {
+                            log.warn("Failed to add subscriber" + e);
+                            throw Exceptions.sneakyThrow(e);
+                        }),
+                RuntimeException::new);
     }
 
     /**
