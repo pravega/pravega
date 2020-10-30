@@ -115,10 +115,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        ReaderGroupConfig config = synchronizer.getState().getConfig();
+        ReaderGroup group = getReaderGroup(groupName);
+        ReaderGroupConfig config = group.getReaderGroupConfig();
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
@@ -132,21 +130,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 }
             });
         }
-
-//        AsyncIterator<Stream> streamIter = controller.listStreams(scope);
-//        while (streamIter.getNext().join() != null) {
-//            System.out.println("\n\n\n\n\n");
-//            System.out.println(streamIter.getNext());
-//            String streamName = streamIter.getNext().join().getStreamName();
-//            controller.listSubscribers(scope, streamName)
-//                    .thenApply(ls -> ls.contains(groupName))
-//                    .thenApply(b -> {
-//                        if (b) {
-//                            return controller.deleteSubscriber(scope, streamName, groupName);
-//                        }
-//                        return null;
-//                    });
-//        }
 
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
                                          .thenCompose(b -> controller.deleteStream(scope,

@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
@@ -118,6 +119,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
+    public ReaderGroupConfig getReaderGroupConfig() {
+        synchronizer.fetchUpdates();
+        return synchronizer.getState().getConfig();
+    }
+
+    @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
 
         String rejectMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit";
@@ -186,29 +193,30 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        ReaderGroupConfig oldConfig = synchronizer.getState().getConfig();
+        ReaderGroupConfig oldConfig = getReaderGroupConfig();
         Set<Stream> newStreams = config.getStartingStreamCuts().keySet();
-        if (oldConfig != null) {
-            Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
-            // If it were a subscriber, unsubscribe from all old streams
-            if (oldConfig.isSubscriberForRetention()) {
-                oldStreams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
-                                .exceptionally(e -> {
-                                    System.err.println("Failed to delete subscriber" + e);
-                                    throw Exceptions.sneakyThrow(e);
-                                }),
-                        RuntimeException::new));
-            }
-        }
-        // If its going to be a subscriber, subscribe to all new streams
-        if (config.isSubscriberForRetention()) {
-            newStreams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
-                                .exceptionally(e -> {
-                                    System.err.println("Failed to add subscriber" + e);
-                                    throw Exceptions.sneakyThrow(e);
-                                }),
-                    RuntimeException::new));
-        }
+        Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
+
+        Set<Stream> streamsToSub = Sets.difference(config.isSubscriberForRetention() ? newStreams : Collections.emptySet(),
+                oldConfig.isSubscriberForRetention() ? oldStreams : Collections.emptySet());
+        Set<Stream> streamsToUnsub = Sets.difference(oldConfig.isSubscriberForRetention() ? oldStreams : Collections.emptySet(),
+                config.isSubscriberForRetention() ? newStreams : Collections.emptySet());
+
+        // Unsubscribe to older streams
+        streamsToUnsub.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
+                        .exceptionally(e -> {
+                            System.err.println("Failed to delete subscriber" + e);
+                            throw Exceptions.sneakyThrow(e);
+                        }),
+                RuntimeException::new));
+        // Subscribe to newer streams
+        streamsToSub.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
+                        .exceptionally(e -> {
+                            System.err.println("Failed to add subscriber" + e);
+                            throw Exceptions.sneakyThrow(e);
+                        }),
+                RuntimeException::new));
+
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
