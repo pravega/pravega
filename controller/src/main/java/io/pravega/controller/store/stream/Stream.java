@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -136,7 +137,8 @@ interface Stream {
      * @param streamCut  truncation streamcut for subscriber to be added/updated.
      * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscriberStreamCut(final String subscriber, final ImmutableMap<Long, Long> streamCut);
+    CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String subscriber, 
+                                                                                          final ImmutableMap<Long, Long> streamCut);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
@@ -245,13 +247,6 @@ interface Stream {
      * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
      */
     CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
-
-    /**
-     * Method to validate is a StreamCut is a valid truncation StreamCut.
-     * @param streamCut stream cut to validate.
-     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
-     */
-    CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, final Map<Long, Long> previousStreamCut);
 
     /**
      * Method to get segments at the current tail of the stream.

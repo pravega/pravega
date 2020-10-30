@@ -15,6 +15,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -33,6 +34,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -51,6 +53,7 @@ import java.util.UUID;
 import java.util.Optional;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -893,14 +896,28 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(final String subscriber, final ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String subscriber, 
+                                                                                                 final ImmutableMap<Long, Long> streamCut) {
         synchronized (subscribersLock) {
             return getSubscriberRecord(subscriber)
-                    .thenApply(s -> updatedCopy(new VersionedMetadata<>(new StreamSubscriber(subscriber,
-                            streamCut, System.currentTimeMillis()), s.getVersion())))
-            .thenApply(x -> null);
+                    .thenCompose(s -> isSubscriberProgressing(streamCut, s.getObject().getTruncationStreamCut())
+                            .thenApply(isProgressing -> {
+                                if (isProgressing) {
+                                    updatedCopy(new VersionedMetadata<>(new StreamSubscriber(subscriber,
+                                            streamCut, System.currentTimeMillis()), s.getVersion()));
+                                    return Controller.UpdateSubscriberStatus.Status.SUCCESS;
+                                } else {
+                                    return Controller.UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID;
+                                }
+                            }))
+                    .exceptionally(e -> {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            return Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    });
         }
-
     }
 
     @Override

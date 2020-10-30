@@ -442,34 +442,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
                             }
                             // 2. check if StreamCut is valid
-                            return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
-                                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                                    .thenCompose(subscriberRecord -> {
-                                        if (subscriberRecord == null) {
-                                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
-                                        } else {
-                                            if (subscriberRecord.getObject().getTruncationStreamCut().isEmpty()) {
-                                                return streamMetadataStore.isStreamCutValid(scope, stream, truncationStreamCut, context, executor)
-                                                        .thenCompose( isValid -> {
-                                                         if (isValid) {
-                                                           return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
-                                                         } else {
-                                                           return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
-                                                         }
-                                                 });
-                                            } else {
-                                                return streamMetadataStore.isStreamCutValidForTruncation(scope, stream, truncationStreamCut,
-                                                        subscriberRecord.getObject().getTruncationStreamCut(), context, executor)
-                                                        .thenCompose(isValid -> {
-                                                            if (isValid) {
-                                                                return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
-                                                            } else {
-                                                                return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
-                                                            }
-                                                        });
-                                            }
-                                    }
-                            });
+                    return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
@@ -478,7 +451,6 @@ public class StreamMetadataTasks extends TaskBase {
                                                                              OperationContext context, long requestId) {
         // 3. Update the StreamCut
         return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, context, executor)
-                .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
                 .exceptionally(ex -> {
                     log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
                     Throwable cause = Exceptions.unwrap(ex);
@@ -605,7 +577,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
 
                     return toTruncateAt.thenCompose(truncationStreamCut -> {
-                        if (truncationStreamCut == null) {
+                        if (truncationStreamCut == null || truncationStreamCut.isEmpty()) {
                             log.debug("no truncation record could be compute that satisfied retention policy");
                             return CompletableFuture.completedFuture(null);
                         } 
@@ -783,8 +755,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private boolean checkCoverage(double keyStart, double keyEnd, TreeMap<Double, Double> range) {
-        return range.entrySet().stream().reduce((x, y) -> new AbstractMap.SimpleEntry<>(Math.max(x.getKey(), y.getKey()), Math.max(x.getValue(), y.getValue())))
-             .map(x -> x.getKey() <= keyStart && x.getValue() >= keyEnd).orElse(false);
+        Optional<Map.Entry<Double, Double>> reduce = range
+                .entrySet().stream().reduce((x, y) -> new AbstractMap.SimpleEntry<>(
+                        Math.min(x.getKey(), y.getKey()), Math.max(x.getValue(), y.getValue())));
+        return reduce.map(x -> x.getKey() <= keyStart && x.getValue() >= keyEnd).orElse(false);
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,

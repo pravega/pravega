@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.SubscriberSet;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
@@ -315,13 +316,29 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
         StreamSubscriber sub = new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis());
-        return Futures.toVoid(getSubscriberRecord(subscriber)
-                      .thenCompose(record -> getMetadataTable().thenCompose(table ->
-                           storeHelper.updateEntry(table, getKeyForSubscriber(subscriber), sub.toBytes(), record.getVersion())
-                             .thenAccept( v -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))))));
-
+        return getSubscriberRecord(subscriber)
+                .thenCompose(record -> {
+                    return isSubscriberProgressing(streamCut, record.getObject().getTruncationStreamCut())
+                            .thenCompose(progressing -> {
+                                if (progressing) {
+                                    return getMetadataTable().thenCompose(table ->
+                                            storeHelper.updateEntry(table, getKeyForSubscriber(subscriber), sub.toBytes(), record.getVersion())
+                                                       .thenAccept(v -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))))
+                                                             .thenApply(v -> Controller.UpdateSubscriberStatus.Status.SUCCESS);
+                                } else {
+                                    return CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
+                                }
+                            });
+                })
+                .exceptionally(e -> {
+                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                        return Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                });
     }
 
     @Override

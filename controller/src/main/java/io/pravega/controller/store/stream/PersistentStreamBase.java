@@ -60,7 +60,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -702,13 +701,11 @@ public abstract class PersistentStreamBase implements Stream {
                                   sizeTill.addAndGet(sizeFrom);
                               } else if (streamCutFrom.containsKey(segment.segmentId())) {
                                   // segments only in from: take their total size - offset in from
-                                  assert value >= 0;
                                   long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
-
-                                  sizeTill.addAndGet(value - sizeTo);
+                                
+                                  sizeTill.addAndGet(Math.max(value, 0) - sizeTo);
                               } else {
-                                  assert value >= 0;
-                                  sizeTill.addAndGet(value);
+                                  sizeTill.addAndGet(Math.max(value, 0));
                               }
                           });
                           return sizeTill.get();
@@ -871,18 +868,17 @@ public abstract class PersistentStreamBase implements Stream {
         return isValid;
     }
 
-    @Override
-    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, Map<Long, Long> previousStreamCut) {
-        return isStreamCutValid(streamCut)
-            .thenCompose(isValid -> {
-               if (!isValid) {
-                  return CompletableFuture.completedFuture(false);
-               }
-             return computeStreamCutSpan(streamCut)
-                .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
-                  .thenApply(previousSpan ->
-                      greaterThan(streamCut, span, previousStreamCut, previousSpan)));
-            });
+    CompletableFuture<Boolean> isSubscriberProgressing(final Map<Long, Long> streamCut, Map<Long, Long> previousStreamCut) {
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1 = computeStreamCutSpan(streamCut);
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2 = previousStreamCut.isEmpty() ? 
+                CompletableFuture.completedFuture(ImmutableMap.of()) : computeStreamCutSpan(previousStreamCut);
+        return CompletableFuture.allOf(span1, span2)
+                                .thenApply(v -> {
+                                    ImmutableMap<StreamSegmentRecord, Integer> span = span1.join();
+                                    ImmutableMap<StreamSegmentRecord, Integer> previousSpan = span2.join();
+
+                                    return greaterThan(streamCut, span, previousStreamCut, previousSpan);
+                                });
     }
 
     private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {

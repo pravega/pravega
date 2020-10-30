@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.SubscriberSet;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -260,7 +261,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
         throw new UnsupportedOperationException();
     }
 

@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -430,17 +431,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final String scope,
-                                                       final String streamName,
-                                                       final Map<Long, Long> streamCut,
-                                                       final Map<Long, Long> previousStreamCut,
-                                                       final OperationContext context,
-                                                       final Executor executor) {
-        Stream stream = getStream(scope, streamName, context);
-        return Futures.completeOn(stream.isStreamCutValidForTruncation(streamCut, previousStreamCut), executor);
-    }
-
-    @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final String scope,
                                                                                    final String name,
                                                                                    final List<Long> sealedSegments,
@@ -541,12 +531,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
-                                                            final String name,
-                                                            final String subscriber,
-                                                            final ImmutableMap<Long, Long> streamCut,
-                                                            final OperationContext context,
-                                                            final Executor executor) {
+    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String scope,
+                                                                                                 final String name,
+                                                                                                 final String subscriber,
+                                                                                                 final ImmutableMap<Long, Long> streamCut,
+                                                                                                 final OperationContext context,
+                                                                                                 final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context).updateSubscriberStreamCut(subscriber, streamCut), executor);
     }
 
