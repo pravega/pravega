@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import io.pravega.common.concurrent.Futures;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -34,7 +35,7 @@ public class MultiKeyReaderWriterScheduler {
     private static class SchedulerData {
         int count;
         CompletableFuture blockingFuture = CompletableFuture.completedFuture(null);
-        ArrayList<CompletableFuture> readerFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> readerFutures = new ArrayList<>();
     }
 
     /**
@@ -72,6 +73,7 @@ public class MultiKeyReaderWriterScheduler {
 
         /**
          * Returns a CompletableFuture that will be completed when the lock is obtained.
+         *
          * @return CompletableFuture which will be complete when the lock is obtained.
          */
         CompletableFuture<Void> lock() {
@@ -139,56 +141,60 @@ public class MultiKeyReaderWriterScheduler {
     /**
      * Schedules the lock for read.
      */
-    private synchronized CompletableFuture<Void> scheduleForRead(MultiKeyReaderWriterAsyncLock lock) {
-        val futuresToBlockOn = new CompletableFuture[lock.getKeys().length];
-        for (int i = 0; i < lock.getKeys().length; i++) {
-            val key = lock.getKeys()[i];
-            SchedulerData schedulerData = addReference(key);
+    private CompletableFuture<Void> scheduleForRead(MultiKeyReaderWriterAsyncLock lock) {
+        synchronized (keyToDataMap) {
+            val futuresToBlockOn = new CompletableFuture[lock.getKeys().length];
+            for (int i = 0; i < lock.getKeys().length; i++) {
+                val key = lock.getKeys()[i];
+                SchedulerData schedulerData = addReference(key);
 
-            futuresToBlockOn[i] = schedulerData.blockingFuture;
-            // Add this as reader
-            schedulerData.readerFutures.add(lock.doneFuture);
+                futuresToBlockOn[i] = schedulerData.blockingFuture;
+                // Add this as reader
+                schedulerData.readerFutures.add(lock.doneFuture);
+            }
+            lock.readyFuture = CompletableFuture.allOf(futuresToBlockOn);
+            return lock.readyFuture;
         }
-        lock.readyFuture = CompletableFuture.allOf(futuresToBlockOn);
-        return lock.readyFuture;
     }
 
     /**
      * Schedules the lock for write.
      */
-    private synchronized CompletableFuture<Void> scheduleForWrite(MultiKeyReaderWriterAsyncLock lock) {
-        val futuresToBlockOn = new CompletableFuture[lock.getKeys().length];
-        for (int i = 0; i < lock.getKeys().length; i++) {
-            val key = lock.getKeys()[i];
-            // Get existing data.
-            SchedulerData schedulerData = addReference(key);
+    private CompletableFuture<Void> scheduleForWrite(MultiKeyReaderWriterAsyncLock lock) {
+        synchronized (keyToDataMap) {
+            val futuresToBlockOn = new CompletableFuture[lock.getKeys().length];
+            for (int i = 0; i < lock.getKeys().length; i++) {
+                val key = lock.getKeys()[i];
+                // Get existing data.
+                SchedulerData schedulerData = addReference(key);
 
-            // If there are outstanding readers then first "drain" all readers by making this write wait on them.
-            if (schedulerData.readerFutures.size() > 0) {
-                CompletableFuture[] readFutures = schedulerData.readerFutures.toArray(new CompletableFuture[schedulerData.readerFutures.size()]);
-                schedulerData.blockingFuture = CompletableFuture.allOf(readFutures);
-                // Empty readers
-                schedulerData.readerFutures = new ArrayList<>();
+                // If there are outstanding readers then first "drain" all readers by making this write wait on them.
+                if (schedulerData.readerFutures.size() > 0) {
+                    schedulerData.blockingFuture = Futures.allOf(schedulerData.readerFutures);
+                    // Empty readers
+                    schedulerData.readerFutures = new ArrayList<>();
+                }
+
+                // Add it to list of futures to block on.
+                futuresToBlockOn[i] = schedulerData.blockingFuture;
+
+                // Make completion of this lock's release as future on which all new requests on this key will be waiting/blocking.
+                schedulerData.blockingFuture = lock.doneFuture;
             }
+            // The code in lock is run when all pending futures are complete.
+            lock.readyFuture = CompletableFuture.allOf(futuresToBlockOn);
 
-            // Add it to list of futures to block on.
-            futuresToBlockOn[i] = schedulerData.blockingFuture;
-
-            // Make completion of this lock's release as future on which all new requests on this key will be waiting/blocking.
-            schedulerData.blockingFuture = lock.doneFuture;
+            return lock.readyFuture;
         }
-        // The code in lock is run when all pending futures are complete.
-        lock.readyFuture = CompletableFuture.allOf(futuresToBlockOn);
-
-        return lock.readyFuture;
     }
 
     /**
      * Releases the lock.
+     *
      * @param lock Lock to release.
      */
     void release(MultiKeyReaderWriterAsyncLock lock) {
-        for (val key: lock.getKeys()) {
+        for (val key : lock.getKeys()) {
             releaseReference(key);
         }
         lock.doneFuture.complete(null);

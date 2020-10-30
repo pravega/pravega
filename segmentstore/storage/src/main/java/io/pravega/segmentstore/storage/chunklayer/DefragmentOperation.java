@@ -24,14 +24,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Defragments the list of chunks for a given segment.
  * It finds eligible consecutive chunks that can be merged together.
- * The sublist such elgible chunks is replaced with single new chunk record corresponding to new large chunk.
- * Conceptually this is like deleting nodes from middle of the list of chunks.
- *
+ * The sublist of such eligible chunks is replaced with single new large chunk.
+ * Conceptually this is like deleting nodes from middle of the list of chunks and replacing them with one or more nodes.
+ * <ul>
  * <Ul>
  * <li> In the absence of defragmentation, the number of chunks for individual segments keeps on increasing.
  * When we have too many small chunks (say because many transactions with little data on some segments), the segment
  * is fragmented - this may impact both the read throughput and the performance of the metadata store.
- * This problem is further intensified when we have stores that do not support append semantics (e.g., stock S3) and
+ * This problem is further intensified when we have stores that do not support append semantics (e.g., non-extended S3) and
  * each write becomes a separate chunk.
  * </li>
  * <li>
@@ -51,15 +51,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * We might be able to give more knobs to tune its parameters (Eg. threshold on number of chunks).
  * </li>
  * <li>
- * <li>
  * Defrag operation will respect max rolling size and will not create chunks greater than that size.
  * </li>
  * </ul>
- *
+ * <ul>
  * What controls whether we invoke concat or simulate through appends?
  * There are a few different capabilities that ChunkStorage needs to provide.
- * <ul>
- * <li>Does ChunkStorage support appending to existing chunks? For vanilla S3 compatible this would return false.
+ *
+ * <li>Does ChunkStorage support appending to existing chunks? For non-extended S3 compatible this would return false.
  * This is indicated by supportsAppend.</li>
  * <li>Does ChunkStorage support for concatenating chunks ? This is indicated by supportsConcat.
  * If this is true then concat operation will be invoked otherwise chunks will be appended.</li>
@@ -69,14 +68,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * depending on size of target and source chunks. (Eg. ECS)</li>
  * </ul>
  *
- * <li>
+ * <ul>
  * What controls defrag?
  * There are two additional parameters that control when concat
  * <li>minSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered a small object.
  * For small source objects, append is used instead of using concat. (For really small txn it is rather efficient to use append than MPU).</li>
  * <li>maxSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered for concat. (Eg S3 might have max limit on chunk size).</li>
  * In short there is a size beyond which using append is not advisable. Conversely there is a size below which concat is not efficient.(minSizeLimitForConcat )
- * Then there is limit which concating does not make sense maxSizeLimitForConcat
+ * Then there is limit which concatenating does not make sense maxSizeLimitForConcat
  * </li>
  * <li>
  * What is the defrag algorithm
@@ -147,7 +146,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                 f = CompletableFuture.completedFuture(null);
                             }
                             return f.thenApplyAsync(vv -> {
-                                // Move on to next place in list where we can concat if we are done with append based concats.
+                                // Move on to next place in list where we can concat if we are done with append based concatenations.
                                 if (!useAppend) {
                                     targetChunkName = nextChunkName;
                                 }

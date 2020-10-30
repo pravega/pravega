@@ -44,9 +44,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final String sourceSegment;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final ArrayList<String> chunksToDelete = new ArrayList<>();
+    private final Timer timer;
 
-    private volatile Timer timer;
-    private volatile String targetSegmentName;
     private volatile SegmentMetadata targetSegmentMetadata;
     private volatile SegmentMetadata sourceSegmentMetadata;
     private volatile ChunkMetadata targetLastChunk;
@@ -57,19 +56,17 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         this.offset = offset;
         this.sourceSegment = sourceSegment;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        timer = new Timer();
         traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle, offset, sourceSegment);
     }
 
     public CompletableFuture<Void> call() {
-        timer = new Timer();
         checkPreconditions();
         log.debug("{} concat - started op={}, target={}, source={}, offset={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset);
 
-        targetSegmentName = targetHandle.getSegmentName();
-
         return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(targetHandle.getSegmentName(), sourceSegment),
-                txn -> txn.get(targetSegmentName)
+                txn -> txn.get(targetHandle.getSegmentName())
                         .thenComposeAsync(storageMetadata1 -> {
                             targetSegmentMetadata = (SegmentMetadata) storageMetadata1;
                             return txn.get(sourceSegment)
@@ -109,7 +106,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset);
         val ex = Exceptions.unwrap(e);
         if (ex instanceof StorageMetadataWritesFencedOutException) {
-            throw new CompletionException(new StorageNotPrimaryException(targetSegmentName, ex));
+            throw new CompletionException(new StorageNotPrimaryException(targetHandle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
     }
@@ -117,11 +114,10 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private CompletionStage<Void> postCommit() {
         // Collect garbage.
         return chunkedSegmentStorage.collectGarbage(chunksToDelete)
-                .thenApplyAsync(v4 -> {
+                .thenAcceptAsync(v4 -> {
                     // Update the read index.
                     chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
                     logEnd();
-                    return null;
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -174,9 +170,9 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkState() {
-        chunkedSegmentStorage.checkSegmentExists(targetSegmentName, targetSegmentMetadata);
+        chunkedSegmentStorage.checkSegmentExists(targetHandle.getSegmentName(), targetSegmentMetadata);
         targetSegmentMetadata.checkInvariants();
-        chunkedSegmentStorage.checkNotSealed(targetSegmentName, targetSegmentMetadata);
+        chunkedSegmentStorage.checkNotSealed(targetHandle.getSegmentName(), targetSegmentMetadata);
 
         chunkedSegmentStorage.checkSegmentExists(sourceSegment, sourceSegmentMetadata);
         sourceSegmentMetadata.checkInvariants();

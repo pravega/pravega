@@ -73,9 +73,9 @@ public interface ChunkStorage extends AutoCloseable {
      * Determines whether named file/object exists in underlying storage.
      *
      * @param chunkName Name of the storage object to check.
-     * @return True if the object exists, false otherwise.
+     * @return A CompletableFuture that, when completed, will contain True if the object exists, false otherwise.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     *                             {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Boolean> exists(String chunkName);
 
@@ -83,8 +83,8 @@ public interface ChunkStorage extends AutoCloseable {
      * Creates a new file.
      *
      * @param chunkName String name of the storage object to create.
-     * @return ChunkHandle A writable handle for the recently created chunk.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
+     * If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<ChunkHandle> create(String chunkName);
@@ -93,7 +93,8 @@ public interface ChunkStorage extends AutoCloseable {
      * Deletes a file.
      *
      * @param handle ChunkHandle of the storage object to delete.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Void> delete(ChunkHandle handle);
@@ -102,32 +103,35 @@ public interface ChunkStorage extends AutoCloseable {
      * Opens storage object for Read.
      *
      * @param chunkName String name of the storage object to read from.
-     * @return ChunkHandle A readable handle for the given chunk.
+     * @return A CompletableFuture that, when completed, will contain readable handle for the given chunk.
+     * If the operation failed, it will be completed with the appropriate exception.
      * @throws IllegalArgumentException If argument is invalid.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException      If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                  {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    CompletableFuture<ChunkHandle>  openRead(String chunkName);
+    CompletableFuture<ChunkHandle> openRead(String chunkName);
 
     /**
      * Opens storage object for Write (or modifications).
      *
      * @param chunkName String name of the storage object to write to or modify.
-     * @return ChunkHandle A writable handle for the given chunk.
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the given chunk.
+     * If the operation failed, it will be completed with the appropriate exception.
      * @throws IllegalArgumentException If argument is invalid.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException      If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                  {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    CompletableFuture<ChunkHandle>  openWrite(String chunkName);
+    CompletableFuture<ChunkHandle> openWrite(String chunkName);
 
     /**
      * Retrieves the ChunkInfo for given name.
      *
      * @param chunkName String name of the storage object to read from.
-     * @return ChunkInfo Information about the given chunk.
+     * @return A CompletableFuture that, when completed, will contain information about the given chunk.
+     * If the operation failed, it will be completed with the appropriate exception.
      * @throws IllegalArgumentException If argument is invalid.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException      If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                  {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<ChunkInfo> getInfo(String chunkName);
 
@@ -139,12 +143,13 @@ public interface ChunkStorage extends AutoCloseable {
      * @param length       Number of bytes to read.
      * @param buffer       Byte buffer to which data is copied.
      * @param bufferOffset Offset in the buffer at which to start copying read data.
-     * @return int Number of bytes read.
+     * @return A CompletableFuture that, when completed, will contain number of bytes read.
+     * If the operation failed, it will be completed with the appropriate exception.
      * @throws IllegalArgumentException  If argument is invalid.
      * @throws NullPointerException      If the parameter is null.
      * @throws IndexOutOfBoundsException If the index is out of bounds or offset is not a valid offset in the underlying file/object.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException       If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                   {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset);
 
@@ -163,10 +168,10 @@ public interface ChunkStorage extends AutoCloseable {
      * @param offset Offset in the file to start writing.
      * @param length Number of bytes to write.
      * @param data   An InputStream representing the data to write.
-     * @return int Number of bytes written.
+     * @return A CompletableFuture that, when completed, will contain number of bytes written.
      * @throws IndexOutOfBoundsException When data can not be written at given offset.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException       If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                   {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Integer> write(ChunkHandle handle, long offset, int length, InputStream data);
 
@@ -175,10 +180,10 @@ public interface ChunkStorage extends AutoCloseable {
      *
      * @param chunks Array of ConcatArgument objects containing info about existing chunks to be appended together.
      *               The chunks must be concatenated in the same sequence the arguments are provided.
-     * @return int Number of bytes concatenated.
+     * @return A CompletableFuture that, when completed, will contain number of bytes concatenated.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Integer> concat(ConcatArgument[] chunks);
 
@@ -187,10 +192,10 @@ public interface ChunkStorage extends AutoCloseable {
      *
      * @param handle ChunkHandle of the storage object to truncate.
      * @param offset Offset to truncate to.
-     * @return True if the object was truncated, false otherwise.
+     * @return A CompletableFuture that, when completed, will contain True if the object was truncated, false otherwise.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Boolean> truncate(ChunkHandle handle, long offset);
 
@@ -199,9 +204,11 @@ public interface ChunkStorage extends AutoCloseable {
      *
      * @param handle     ChunkHandle of the storage object.
      * @param isReadonly True if chunk is set to be readonly.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link ChunkStorageException} In case of I/O related exceptions.
+     * @throws CompletionException           If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                       {@link ChunkStorageException} In case of I/O related exceptions.
      */
     CompletableFuture<Void> setReadOnly(ChunkHandle handle, boolean isReadonly);
 }

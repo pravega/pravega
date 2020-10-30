@@ -39,36 +39,33 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentHandle handle;
     private final long offset;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
+    private final ArrayList<String> chunksToDelete = new ArrayList<>();
+    private final long traceId;
+    private final Timer timer;
 
     private volatile String currentChunkName;
     private volatile ChunkMetadata currentMetadata;
     private volatile long oldLength;
     private volatile long startOffset;
-    private final ArrayList<String> chunksToDelete = new ArrayList<>();
     private volatile SegmentMetadata segmentMetadata;
-    private volatile String streamSegmentName;
-
     private volatile boolean isLoopExited;
-    private volatile long traceId;
-    private volatile Timer timer;
 
     TruncateOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset) {
         this.handle = handle;
         this.offset = offset;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        traceId = LoggerHelpers.traceEnter(log, "truncate", handle, offset);
+        timer = new Timer();
     }
 
     public CompletableFuture<Void> call() {
-        traceId = LoggerHelpers.traceEnter(log, "truncate", handle, offset);
-        timer = new Timer();
-
         checkPreconditions();
         log.debug("{} truncate - started op={}, segment={}, offset={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset);
 
-        streamSegmentName = handle.getSegmentName();
+        val streamSegmentName = handle.getSegmentName();
         return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(streamSegmentName), txn ->
-                txn.get(streamSegmentName)
+                    txn.get(streamSegmentName)
                         .thenComposeAsync(storageMetadata -> {
                             segmentMetadata = (SegmentMetadata) storageMetadata;
                             // Check preconditions
@@ -105,7 +102,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
     private void postCommit() {
         // Update the read index by removing all entries below truncate offset.
-        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(streamSegmentName, segmentMetadata.getStartOffset());
+        chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset());
 
         logEnd();
     }
@@ -130,7 +127,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset);
             val ex = Exceptions.unwrap(e);
             if (ex instanceof StorageMetadataWritesFencedOutException) {
-                throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
+                throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
             }
             throw new CompletionException(ex);
         }
@@ -144,7 +141,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
             txn.setExternalCommitStep(() -> {
                 chunkedSegmentStorage.getSystemJournal().commitRecord(
                         SystemJournal.TruncationRecord.builder()
-                                .segmentName(streamSegmentName)
+                                .segmentName(handle.getSegmentName())
                                 .offset(offset)
                                 .firstChunkName(segmentMetadata.getFirstChunk())
                                 .startOffset(finalStartOffset)

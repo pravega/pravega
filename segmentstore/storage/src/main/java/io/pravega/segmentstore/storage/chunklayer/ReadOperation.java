@@ -40,9 +40,8 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private final int bufferOffset;
     private final int length;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private volatile long traceId;
-    private volatile Timer timer;
-    private volatile String streamSegmentName;
+    private final long traceId;
+    private final Timer timer;
     private volatile SegmentMetadata segmentMetadata;
     private volatile int bytesRemaining;
     private volatile int currentBufferOffset;
@@ -62,17 +61,16 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         this.bufferOffset = bufferOffset;
         this.length = length;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
+        timer = new Timer();
     }
 
     public CompletableFuture<Integer> call() {
-        traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
-        timer = new Timer();
-
         // Validate preconditions.
         checkPreconditions();
         log.debug("{} read - started op={}, segment={}, offset={}, bytesRead={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
-        streamSegmentName = handle.getSegmentName();
+        val streamSegmentName = handle.getSegmentName();
         return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(streamSegmentName),
                 txn -> txn.get(streamSegmentName)
                         .thenComposeAsync(storageMetadata -> {
@@ -133,7 +131,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                             return txn.get(currentChunkName)
                                     .thenApplyAsync(storageMetadata -> {
                                         chunkToReadFrom = (ChunkMetadata) storageMetadata;
-                                        log.debug("{} read - reading from next chunk - segment={}, chunk={}", chunkedSegmentStorage.getLogPrefix(), streamSegmentName, chunkToReadFrom);
+                                        log.debug("{} read - reading from next chunk - segment={}, chunk={}", chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), chunkToReadFrom);
                                         return null;
                                     }, chunkedSegmentStorage.getExecutor());
                         }
@@ -176,7 +174,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         startOffsetForCurrentChunk = segmentMetadata.getFirstChunkStartOffset();
         val readIndexTimer = new Timer();
         // Find the name of the chunk in the cached read index that is floor to required offset.
-        val floorEntry = chunkedSegmentStorage.getReadIndexCache().findFloor(streamSegmentName, offset);
+        val floorEntry = chunkedSegmentStorage.getReadIndexCache().findFloor(handle.getSegmentName(), offset);
         if (null != floorEntry) {
             startOffsetForCurrentChunk = floorEntry.getOffset();
             currentChunkName = floorEntry.getChunkName();
@@ -193,7 +191,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                     && startOffsetForCurrentChunk + chunkToReadFrom.getLength() > currentOffset) {
                                 // we have found a chunk that contains first byte we want to read
                                 log.debug("{} read - found chunk to read - segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
-                                        chunkedSegmentStorage.getLogPrefix(), streamSegmentName, chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
+                                        chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
                                 isLoopExited = true;
                                 return null;
                             }
@@ -202,7 +200,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
                             // Update read index with newly visited chunk.
                             if (null != currentChunkName) {
-                                chunkedSegmentStorage.getReadIndexCache().addIndexEntry(streamSegmentName, currentChunkName, startOffsetForCurrentChunk);
+                                chunkedSegmentStorage.getReadIndexCache().addIndexEntry(handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk);
                             }
                             cntScanned.incrementAndGet();
                             return null;
@@ -218,15 +216,15 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     }
 
     private void checkState() {
-        chunkedSegmentStorage.checkSegmentExists(streamSegmentName, segmentMetadata);
+        chunkedSegmentStorage.checkSegmentExists(handle.getSegmentName(), segmentMetadata);
 
         segmentMetadata.checkInvariants();
 
         Preconditions.checkArgument(offset < segmentMetadata.getLength(), "Offset %s is beyond the last offset %s of the segment %s.",
-                offset, segmentMetadata.getLength(), streamSegmentName);
+                offset, segmentMetadata.getLength(), handle.getSegmentName());
 
         if (offset < segmentMetadata.getStartOffset()) {
-            throw new CompletionException(new StreamSegmentTruncatedException(streamSegmentName, segmentMetadata.getStartOffset(), offset));
+            throw new CompletionException(new StreamSegmentTruncatedException(handle.getSegmentName(), segmentMetadata.getStartOffset(), offset));
         }
     }
 

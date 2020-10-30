@@ -17,6 +17,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ConcurrentHashMultiset;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
@@ -226,7 +227,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
-     *                  throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be committed.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
     public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite) {
@@ -237,7 +240,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Commits given transaction.
      *
      * @param txn transaction to commit.
-     *            throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be committed.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
     public CompletableFuture<Void> commit(MetadataTransaction txn) {
@@ -249,7 +254,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
-     *                  throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be committed.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
     public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) {
@@ -260,17 +267,17 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         val modifiedValues = new ArrayList<TransactionData>();
         val t = new Timer();
         val retValue = CompletableFuture.runAsync(() -> {
-                    if (fenced.get()) {
-                        throw new CompletionException(new StorageMetadataWritesFencedOutException("Transaction writer is fenced off."));
-                    }
-                }, executor)
+            if (fenced.get()) {
+                throw new CompletionException(new StorageMetadataWritesFencedOutException("Transaction writer is fenced off."));
+            }
+        }, executor)
                 .thenComposeAsync(v -> {
                     // Mark keys in transaction as active to prevent their eviction.
                     txn.getData().keySet().forEach(this::addToActiveKeySet);
 
                     // Acquire a write lock over segment.
                     val tLock = new Timer();
-                    log.debug("Acquiring write lock for {}", String.join( ", ", txn.getKeysToLock()));
+                    log.debug("Acquiring write lock for {}", String.join(", ", txn.getKeysToLock()));
                     val writeLock = scheduler.getWriteLock(txn.getKeysToLock());
                     return writeLock.lock()
                             .thenComposeAsync(v0 -> {
@@ -279,7 +286,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                                 val elapsed = tLock.getElapsed();
                                 WRITE_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
                                 log.debug("Acquired write lock for {}, wait time: {} ms",
-                                        String.join( ", ", txn.getKeysToLock()), elapsed.toMillis());
+                                        String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
                                 return loadMissingKeys(txn, skipStoreCheck, txnData);
                             }, executor)
                             .thenComposeAsync(v1 -> {
@@ -299,13 +306,13 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     COMMIT_LATENCY.reportSuccessEvent(t.getElapsed());
                 }, executor);
 
-                // Trigger evict
-                retValue.thenComposeAsync(v4 -> {
-                    //  Step 6 : evict if required.
-                    return evictIfNeeded();
-                }, executor);
+        // Trigger evict
+        retValue.thenComposeAsync(v4 -> {
+            //  Step 6 : evict if required.
+            return evictIfNeeded();
+        }, executor);
 
-                return retValue;
+        return retValue;
     }
 
     /**
@@ -326,7 +333,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 }
             }
         }
-        return CompletableFuture.allOf(loadFutures.toArray(new CompletableFuture[loadFutures.size()]))
+        return Futures.allOf(loadFutures)
                 .thenApplyAsync(v4 -> {
                     // validate everything is alright.
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
@@ -344,20 +351,20 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     /**
-     *  Performs commit.
+     * Performs commit.
      */
     private CompletableFuture<Void> performCommit(MetadataTransaction txn, boolean lazyWrite, Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys, ArrayList<TransactionData> modifiedValues) {
         return CompletableFuture.runAsync(() -> {
-                    // Step 2 : Check whether transaction is safe to commit.
-                    validateCommit(txn, txnData, modifiedKeys, modifiedValues);
-                }, executor)
+            // Step 2 : Check whether transaction is safe to commit.
+            validateCommit(txn, txnData, modifiedKeys, modifiedValues);
+        }, executor)
                 .thenComposeAsync(v -> {
                     // Step 3: Commit externally.
                     // This operation may call external storage.
                     return writeToMetadataStore(lazyWrite, modifiedValues);
                 }, executor)
                 .thenComposeAsync(v ->
-                        executeExternalCommitAction(txn),
+                                executeExternalCommitAction(txn),
                         executor)
                 .thenRunAsync(() -> {
                     // If we reach here then it means transaction is safe to commit.
@@ -375,7 +382,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     /**
-     *  Writes modified values to the metadata store.
+     * Writes modified values to the metadata store.
      */
     private CompletionStage<Void> writeToMetadataStore(boolean lazyWrite, ArrayList<TransactionData> modifiedValues) {
         if (!lazyWrite || (bufferCount.get() > maxEntriesInTxnBuffer)) {
@@ -502,9 +509,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @return Metadata for given key. Null if key was not found.
+     * @return A CompletableFuture that, when completed, will contain metadata for given key. Null if key was not found.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     *                             {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     @Override
     public CompletableFuture<StorageMetadata> get(MetadataTransaction txn, String key) {
@@ -534,7 +541,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     val elapsed = tLock.getElapsed();
                     READ_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
                     log.debug("Acquired read lock for {}, wait time: {} ms",
-                            String.join( ", ", txn.getKeysToLock()), elapsed.toMillis());
+                            String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
                     return bufferedTxnData.get(key);
                 }, executor)
                 .thenApplyAsync(dataFromBuffer -> {
@@ -597,7 +604,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     Preconditions.checkState(null != copyForBuffer.getDbObject());
                     if (!isReenterant) {
                         val t = new Timer();
-                        log.debug("Acquiring write lock for {}", String.join( ", ", txn.getKeysToLock()));
+                        log.debug("Acquiring write lock for {}", String.join(", ", txn.getKeysToLock()));
                         val writeLock = scheduler.getWriteLock(txn.getKeysToLock());
                         // Put this value in bufferedTxnData buffer.
                         return writeLock.lock()
@@ -605,7 +612,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                                     val elapsed = t.getElapsed();
                                     WRITE_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
                                     log.debug("Acquired write lock for {}, wait time: {} ms",
-                                            String.join( ", ", txn.getKeysToLock()), elapsed.toMillis());
+                                            String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
                                     return insertInBuffer(key, copyForBuffer);
                                 }, executor)
                                 .whenCompleteAsync((v, ex) -> writeLock.unlock(), executor);
