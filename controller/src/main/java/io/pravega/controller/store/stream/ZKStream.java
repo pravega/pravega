@@ -261,7 +261,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
         throw new UnsupportedOperationException();
     }
 

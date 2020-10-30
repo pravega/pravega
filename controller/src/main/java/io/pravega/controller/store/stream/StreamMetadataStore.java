@@ -310,17 +310,19 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param subscriber new stream subscriber.
-     * @param streamCut     new truncation streamcut for subscriber.
+     * @param streamCut     new truncation streamcut of subscriber.
+     * @param previousRecord previous truncation streamcut of subscriber.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
      */
-    CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String scope,
-                                                                                          final String name,
-                                                                                          final String subscriber,
-                                                                                          final ImmutableMap<Long, Long> streamCut,
-                                                                                          final OperationContext context,
-                                                                                          final Executor executor);
+    CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
+                                                     final String name,
+                                                     final String subscriber,
+                                                     final ImmutableMap<Long, Long> streamCut,
+                                                     final VersionedMetadata<StreamSubscriber> previousRecord,
+                                                     final OperationContext context,
+                                                     final Executor executor);
 
     /**
      * Updates the subscribers metadata for an existing stream.

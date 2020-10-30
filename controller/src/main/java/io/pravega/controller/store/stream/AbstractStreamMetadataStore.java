@@ -483,7 +483,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                         StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
         ));
-
         return future;
     }
 
@@ -531,14 +530,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String scope,
-                                                                                                 final String name,
-                                                                                                 final String subscriber,
-                                                                                                 final ImmutableMap<Long, Long> streamCut,
-                                                                                                 final OperationContext context,
-                                                                                                 final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).updateSubscriberStreamCut(subscriber, streamCut), executor);
+    public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
+                                                            final String name,
+                                                            final String subscriber,
+                                                            final ImmutableMap<Long, Long> streamCut,
+                                                            final VersionedMetadata<StreamSubscriber> previousRecord,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context)
+                .updateSubscriberStreamCut(previousRecord, new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
     }
+
 
     @Override
     public CompletableFuture<Void> deleteSubscriber(final String scope,

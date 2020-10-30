@@ -93,6 +93,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -432,30 +433,35 @@ public class StreamMetadataTasks extends TaskBase {
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
-                    // 1. check Stream exists
-                    if (!exists) {
+                     // 1. check Stream exists
+                     if (!exists) {
                         return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
-                    }
-                    // 2. check if StreamCut is valid
-                    return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
-                }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
-    }
-
-    private CompletableFuture<UpdateSubscriberStatus.Status> updateStreamCut(String scope, String stream, String subscriber,
-                                                                             ImmutableMap<Long, Long> truncationStreamCut,
-                                                                             OperationContext context, long requestId) {
-        // 3. Update the StreamCut
-        return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, context, executor)
-                .exceptionally(ex -> {
-                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
-                    Throwable cause = Exceptions.unwrap(ex);
-                    if (cause instanceof TimeoutException) {
-                        throw new CompletionException(cause);
-                    } else {
-                        log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
-                        return UpdateSubscriberStatus.Status.FAILURE;
-                    }
-                });
+                     }
+                     // 2. updateStreamCut
+                     return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
+                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                                .thenCompose(subscriberRecord -> {
+                                if (subscriberRecord == null) {
+                                   return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
+                                } else {
+                                   return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, subscriberRecord, context, executor)
+                                          .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
+                                             .exceptionally(ex -> {
+                                                 log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
+                                                 Throwable cause = Exceptions.unwrap(ex);
+                                                 if (cause instanceof StoreException.OperationNotAllowedException) {
+                                                     log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                     return UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID;
+                                                 } else if (cause instanceof TimeoutException) {
+                                                     throw new CompletionException(cause);
+                                                 } else {
+                                                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                    return UpdateSubscriberStatus.Status.FAILURE;
+                                                 }
+                                          });
+                                    }
+                            });
+        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
     /**
@@ -750,10 +756,40 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private boolean checkCoverage(double keyStart, double keyEnd, TreeMap<Double, Double> range) {
-        Optional<Map.Entry<Double, Double>> reduce = range
-                .entrySet().stream().reduce((x, y) -> new AbstractMap.SimpleEntry<>(
-                        Math.min(x.getKey(), y.getKey()), Math.max(x.getValue(), y.getValue())));
-        return reduce.map(x -> x.getKey() <= keyStart && x.getValue() >= keyEnd).orElse(false);
+        // range covered
+        AtomicReference<Double> previous = new AtomicReference<>();
+        AtomicReference<Double> toCheckStart = new AtomicReference<>(keyStart);
+        AtomicBoolean covered = new AtomicBoolean(true);
+        for (Map.Entry<Double, Double> entry : range.entrySet()) {
+            if (toCheckStart.get() >= keyEnd) {
+                covered.set(true);
+                break;
+            }
+            if (previous.get() == null) {
+                previous.set(entry.getValue());
+                if (keyStart < entry.getKey()) {
+                    covered.set(false);
+                    break;
+                } else {
+                    // we have atleast covered till "end" of this range.
+                    toCheckStart.set(entry.getValue());
+                }
+            } else {
+                if (previous.get() < entry.getKey()) {
+                    // if this gap is part of range we are looking for then this cannot be covered.
+                    if (StreamSegmentRecord.overlaps(new AbstractMap.SimpleEntry<>(previous.get(), entry.getKey()),
+                            new AbstractMap.SimpleEntry<>(toCheckStart.get(), keyEnd))) {
+                        covered.set(false);
+                        break;
+                    }
+                } else {
+                    // move to check start to the end of the range. 
+                    toCheckStart.set(Math.max(previous.get(), entry.getValue()));
+                }
+            }
+        }
+        covered.compareAndSet(true, toCheckStart.get() >= keyEnd);
+        return covered.get();
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,

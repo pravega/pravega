@@ -896,28 +896,17 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String subscriber, 
-                                                                                                 final ImmutableMap<Long, Long> streamCut) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriberData) {
+        VersionedMetadata<StreamSubscriber> updatedSubscriber = updatedCopy(subscriberData);
         synchronized (subscribersLock) {
-            return getSubscriberRecord(subscriber)
-                    .thenCompose(s -> isSubscriberProgressing(streamCut, s.getObject().getTruncationStreamCut())
-                            .thenApply(isProgressing -> {
-                                if (isProgressing) {
-                                    updatedCopy(new VersionedMetadata<>(new StreamSubscriber(subscriber,
-                                            streamCut, System.currentTimeMillis()), s.getVersion()));
-                                    return Controller.UpdateSubscriberStatus.Status.SUCCESS;
-                                } else {
-                                    return Controller.UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID;
-                                }
-                            }))
-                    .exceptionally(e -> {
-                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                            return Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
-                        } else {
-                            throw new CompletionException(e);
-                        }
-                    });
+            Optional<VersionedMetadata<StreamSubscriber>> previousSubscriber = streamSubscribers.stream()
+                    .filter(s -> s.getObject().getSubscriber().equals(subscriberData.getObject().getSubscriber())).findAny();
+            if (previousSubscriber.isPresent()) {
+                streamSubscribers.remove(previousSubscriber.get());
+            }
+            streamSubscribers.add(updatedSubscriber);
         }
+        return CompletableFuture.completedFuture(updatedSubscriber.getVersion());
     }
 
     @Override

@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -133,12 +132,11 @@ interface Stream {
 
     /**
      * Update subscribers record for the Stream.
-     * @param subscriber  subscriber to be added/updated.
-     * @param streamCut  truncation streamcut for subscriber to be added/updated.
+     * @param previous - Subscriber Record that would be replaced by this update API
+     * @param subscriberData  new Subscriber Record that would replace the previous one.
      * @return future of operation.
      */
-    CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(final String subscriber, 
-                                                                                          final ImmutableMap<Long, Long> streamCut);
+    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber subscriberData);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.

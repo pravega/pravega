@@ -316,29 +316,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Controller.UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
-        StreamSubscriber sub = new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis());
-        return getSubscriberRecord(subscriber)
-                .thenCompose(record -> {
-                    return isSubscriberProgressing(streamCut, record.getObject().getTruncationStreamCut())
-                            .thenCompose(progressing -> {
-                                if (progressing) {
-                                    return getMetadataTable().thenCompose(table ->
-                                            storeHelper.updateEntry(table, getKeyForSubscriber(subscriber), sub.toBytes(), record.getVersion())
-                                                       .thenAccept(v -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))))
-                                                             .thenApply(v -> Controller.UpdateSubscriberStatus.Status.SUCCESS);
-                                } else {
-                                    return CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
-                                }
-                            });
-                })
-                .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                        return Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND;
-                    } else {
-                        throw new CompletionException(e);
-                    }
-                });
+    CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> streamSubscriber) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, getKeyForSubscriber(streamSubscriber.getObject().getSubscriber()),
+                        streamSubscriber.getObject().toBytes(), streamSubscriber.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, getKeyForSubscriber(streamSubscriber.getObject().getSubscriber()));
+                            return r;
+                        }));
     }
 
     @Override

@@ -1156,7 +1156,7 @@ public abstract class StreamMetadataTasksTest {
         // endregion
     }
 
-    @Test(timeout = 30000)
+    @Test//(timeout = 30000)
     public void consumptionBasedRetentionWithScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(3);
         final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_KB, 0, 1000);
