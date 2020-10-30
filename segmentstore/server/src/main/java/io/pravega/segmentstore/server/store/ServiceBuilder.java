@@ -454,7 +454,7 @@ public class ServiceBuilder implements AutoCloseable {
     public static class ComponentSetup implements ConfigSetup {
         private final ServiceBuilder builder;
 
-        private ComponentSetup(ServiceBuilder builder) {
+        public ComponentSetup(ServiceBuilder builder) {
             this.builder = builder;
         }
 
