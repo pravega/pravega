@@ -21,6 +21,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.mockito.Mockito.mock;
@@ -57,7 +58,7 @@ public class InMemorySimpleStorageFactoryTests {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
         Assert.assertTrue(factory1 instanceof InMemorySimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -77,8 +78,8 @@ public class InMemorySimpleStorageFactoryTests {
     public void testReuse() {
         val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), true);
 
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter();
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
 
         Assert.assertEquals(s1.getChunkStorage(), s2.getChunkStorage());
     }
@@ -87,8 +88,8 @@ public class InMemorySimpleStorageFactoryTests {
     public void testNoReuse() {
         val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), false);
 
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter();
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter();
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
 
         Assert.assertNotEquals(s1.getChunkStorage(), s2.getChunkStorage());
     }

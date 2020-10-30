@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
+    private static final int CONTAINER_ID = 42;
 
     @Test
     public void testStorageMetadataWritesFencedOutExceptionDuringCommit() throws Exception {
@@ -68,7 +69,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
 
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -211,7 +212,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         spyMetadataStore.setMaxEntriesInTxnBuffer(0);
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
 
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -298,7 +299,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -330,7 +331,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
         // Step 1: Create segment and write some data.
@@ -356,7 +357,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(spyChunkStorage, spyMetadataStore, executorService(), config);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
 
         // Step 1: Create segment and write some data.

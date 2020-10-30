@@ -69,10 +69,10 @@ public class ChunkedSegmentStorage implements Storage {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(int, ChunkMetadataStore)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
      */
     @Getter
-    private ChunkMetadataStore metadataStore;
+    private final ChunkMetadataStore metadataStore;
 
     /**
      * Underlying {@link ChunkStorage} to use to read and write data.
@@ -96,20 +96,20 @@ public class ChunkedSegmentStorage implements Storage {
      * Initialized by segment container via {@link ChunkedSegmentStorage#initialize(long)}.
      */
     @Getter
-    private long epoch;
+    private volatile long epoch;
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(int, ChunkMetadataStore)}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
      */
     @Getter
-    private int containerId;
+    private final int containerId;
 
     /**
      * {@link SystemJournal} that logs all changes to system segment layout so that they can be are used during system bootstrap.
      */
     @Getter
-    private SystemJournal systemJournal;
+    private final SystemJournal systemJournal;
 
     /**
      * {@link ReadIndexCache} that has index of chunks by start offset
@@ -130,31 +130,16 @@ public class ChunkedSegmentStorage implements Storage {
     private String logPrefix;
 
     /**
-     * Creates a new instance of the {@link ChunkedSegmentStorage} class.
-     *
-     * @param chunkStorage ChunkStorage instance.
-     * @param executor     An Executor for async operations.
-     * @param config       Configuration options for this ChunkedSegmentStorage instance.
-     */
-    public ChunkedSegmentStorage(ChunkStorage chunkStorage, Executor executor, ChunkedSegmentStorageConfig config) {
-        this.config = Preconditions.checkNotNull(config, "config");
-        this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
-        this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
-                config.getMaxIndexedChunksPerSegment(),
-                config.getMaxIndexedChunks());
-        this.closed = new AtomicBoolean(false);
-    }
-
-    /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
+     * @param containerId   container id.
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
      * @param executor      An Executor for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+        this.containerId = containerId;
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
@@ -162,29 +147,26 @@ public class ChunkedSegmentStorage implements Storage {
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
                 config.getMaxIndexedChunksPerSegment(),
                 config.getMaxIndexedChunks());
+        this.systemJournal = new SystemJournal(containerId,
+                chunkStorage,
+                metadataStore,
+                config);
+
         this.closed = new AtomicBoolean(false);
     }
 
     /**
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
-     * @param metadataStore Metadata store.
-     * @param containerId   container id.
      * @throws Exception In case of any errors.
      */
-    public CompletableFuture<Void> bootstrap(int containerId, ChunkMetadataStore metadataStore) throws Exception {
-        this.containerId = containerId;
+    public CompletableFuture<Void> bootstrap() throws Exception {
+
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
-        this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
-        this.systemJournal = new SystemJournal(containerId,
-                epoch,
-                chunkStorage,
-                metadataStore,
-                config);
 
         // Now bootstrap
         log.info("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap().thenApplyAsync(v -> {
+        return this.systemJournal.bootstrap(epoch).thenApplyAsync(v -> {
             log.info("{} STORAGE BOOT: Ended.", logPrefix);
             return null;
         }, executor);

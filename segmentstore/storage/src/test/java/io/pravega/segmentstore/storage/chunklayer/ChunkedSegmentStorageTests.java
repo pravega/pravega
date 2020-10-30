@@ -101,7 +101,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testSupportsTruncate() throws Exception {
         val chunkStorage = createChunkStorage();
-        val chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        val metadataStore = createMetadataStore();
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         Assert.assertTrue(chunkedSegmentStorage.supportsTruncation());
     }
 
@@ -116,19 +117,19 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
-        val chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
-        val systemJournal = new SystemJournal(CONTAINER_ID, 1, chunkStorage, metadataStore, config);
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
+        val systemJournal = new SystemJournal(CONTAINER_ID, chunkStorage, metadataStore, config);
 
         testUninitialized(chunkedSegmentStorage);
 
         chunkedSegmentStorage.initialize(1);
 
-        Assert.assertNull(chunkedSegmentStorage.getMetadataStore());
+        Assert.assertNotNull(chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
         Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
         Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
 
-        chunkedSegmentStorage.bootstrap(CONTAINER_ID, metadataStore).join();
+        chunkedSegmentStorage.bootstrap().join();
         Assert.assertEquals(metadataStore, chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
         Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
@@ -2086,7 +2087,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             this.config = config;
             chunkStorage = createChunkStorage();
             metadataStore = createMetadataStore();
-            chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, metadataStore, this.executor, config);
+            chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, this.executor, config);
             chunkedSegmentStorage.initialize(1);
         }
 
@@ -2104,7 +2105,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
             // Use the same same chunk storage, but different metadata store to simulate multiple zombie instances
             // writing to the same underlying storage.
-            forkedContext.chunkedSegmentStorage = new ChunkedSegmentStorage(this.chunkStorage,
+            forkedContext.chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID,
+                    this.chunkStorage,
                     forkedContext.metadataStore,
                     this.executor,
                     this.config);

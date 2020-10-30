@@ -84,7 +84,7 @@ public class SystemJournal {
      * Epoch of the current instance.
      */
     @Getter
-    private final long epoch;
+    private volatile long epoch;
 
     /**
      * Container id of the owner container.
@@ -115,13 +115,13 @@ public class SystemJournal {
      * Offset at which next log will be written.
      */
     @GuardedBy("lock")
-    private long systemJournalOffset;
+    private volatile long systemJournalOffset;
 
     /**
      * Handle to current journal file.
      */
     @GuardedBy("lock")
-    private ChunkHandle currentHandle;
+    private volatile ChunkHandle currentHandle;
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -135,22 +135,17 @@ public class SystemJournal {
      * Constructs an instance of {@link SystemJournal}.
      *
      * @param containerId   Container id of the owner container.
-     * @param epoch         Epoch of the current container instance.
      * @param chunkStorage  ChunkStorage instance to use for writing all logs.
      * @param metadataStore ChunkMetadataStore for owner container.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
-     * @throws Exception In case of any errors.
      */
-    public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkedSegmentStorageConfig config) throws Exception {
+    public SystemJournal(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkedSegmentStorageConfig config) {
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.config = Preconditions.checkNotNull(config, "config");
         this.containerId = containerId;
-        this.epoch = epoch;
         this.systemSegments = getChunkStorageSystemSegments(containerId);
         this.systemSegmentsPrefix = NameUtils.INTERNAL_SCOPE_NAME;
-
-        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()).get());
     }
 
     /**
@@ -165,10 +160,13 @@ public class SystemJournal {
     /**
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
+     * @param epoch      Epoch of the current container instance.
      * @throws Exception Exception in case of any error.
      */
-    public CompletableFuture<Void> bootstrap() throws Exception {
+    public CompletableFuture<Void> bootstrap(long epoch) throws Exception {
+        this.epoch = epoch;
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
+        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()).get());
         try (val txn = metadataStore.beginTransaction(getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
             val chunkStartOffsets = new HashMap<String, Long>();

@@ -2571,7 +2571,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             super(executor);
         }
 
-        @Override
         public Storage createStorageAdapter() {
             return new WatchableAsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
         }

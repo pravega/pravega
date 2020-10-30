@@ -74,12 +74,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Init
-        SystemJournal journal = new SystemJournal(containerId, epoch, chunkStorage, metadataStore, config);
+        SystemJournal journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
 
-        Assert.assertEquals(epoch, journal.getEpoch());
+        //Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(containerId, journal.getContainerId());
         Assert.assertEquals(policy.getMaxLength(), journal.getConfig().getDefaultRollingPolicy().getMaxLength());
-        Assert.assertEquals(epoch, journal.getEpoch());
+        //Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(0, journal.getCurrentFileIndex());
 
         Assert.assertEquals(NameUtils.INTERNAL_SCOPE_NAME, journal.getSystemSegmentsPrefix());
@@ -98,15 +98,15 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         AssertExtensions.assertThrows("Should not allow null chunkStorage",
-                () -> new SystemJournal(containerId, epoch, null, metadataStore, config),
+                () -> new SystemJournal(containerId, null, metadataStore, config),
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null metadataStore",
-                () -> new SystemJournal(containerId, epoch, chunkStorage, null, config),
+                () -> new SystemJournal(containerId, chunkStorage, null, config),
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null policy",
-                () -> new SystemJournal(containerId, epoch, chunkStorage, metadataStore, null),
+                () -> new SystemJournal(containerId, chunkStorage, metadataStore, null),
                 ex -> ex instanceof NullPointerException);
 
     }
@@ -120,7 +120,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
-        val journal = new SystemJournal(containerId, epoch, chunkStorage, metadataStore, config);
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
         Assert.assertFalse(journal.isStorageSystemSegment("foo"));
 
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getStorageMetadataSegmentName(containerId)));
@@ -154,12 +154,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Start container with epoch 1
-        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash).join();
+        segmentStorage1.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
@@ -175,11 +175,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Start container with epoch 2
         epoch++;
 
-        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
         // Bootstrap
-        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash).join();
+        segmentStorage2.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage2);
 
         // Validate
@@ -213,12 +213,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash).join();
+        segmentStorage1.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
@@ -232,11 +232,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Epoch 2
         epoch++;
 
-        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
         // Bootstrap
-        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash).join();
+        segmentStorage2.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage2);
 
         val h2 = segmentStorage2.openWrite(systemSegmentName).join();
@@ -282,10 +282,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             // Epoch 2
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
             segmentStorageInLoop.initialize(epoch);
 
-            segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash).join();
+            segmentStorageInLoop.bootstrap().join();
             checkSystemSegmentsLayout(segmentStorageInLoop);
 
             val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
@@ -308,10 +308,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         epoch++;
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
-        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
         segmentStorageFinal.initialize(epoch);
 
-        segmentStorageFinal.bootstrap(containerId, metadataStoreFinal).join();
+        segmentStorageFinal.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorageFinal);
 
         val info = segmentStorageFinal.getStreamSegmentInfo(systemSegmentName, null).join();
@@ -353,10 +353,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
-            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+            ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
             segmentStorageInLoop.initialize(epoch);
 
-            segmentStorageInLoop.bootstrap(containerId, metadataStoreAfterCrash).join();
+            segmentStorageInLoop.bootstrap().join();
             checkSystemSegmentsLayout(segmentStorageInLoop);
 
             val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
@@ -404,10 +404,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         epoch++;
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
-        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
         segmentStorageFinal.initialize(epoch);
 
-        segmentStorageFinal.bootstrap(containerId, metadataStoreFinal).join();
+        segmentStorageFinal.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorageFinal);
 
         val info = segmentStorageFinal.getStreamSegmentInfo(systemSegmentName, null).join();
@@ -489,11 +489,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
 
         // Bootstrap
-        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash).join();
+        segmentStorage1.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
@@ -510,10 +510,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Epoch 2
         epoch++;
 
-        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
-        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash).join();
+        segmentStorage2.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage2);
 
         val h2 = segmentStorage2.openWrite(systemSegmentName).join();
@@ -557,10 +557,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
-        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
         // Bootstrap
-        segmentStorage1.bootstrap(containerId, metadataStoreBeforeCrash).join();
+        segmentStorage1.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage1);
 
         // Simulate some writes to system segment, this should cause some new chunks being added.
@@ -575,10 +575,10 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Epoch 2
         epoch++;
 
-        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
-        segmentStorage2.bootstrap(containerId, metadataStoreAfterCrash).join();
+        segmentStorage2.bootstrap().join();
         checkSystemSegmentsLayout(segmentStorage2);
 
         val h2 = segmentStorage2.openWrite(systemSegmentName).join();
@@ -619,9 +619,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Inital set of additions
-        SystemJournal systemJournalBefore = new SystemJournal(containerId, epoch, chunkStorage, metadataStoreBeforeCrash, config);
+        SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, config);
 
-        systemJournalBefore.bootstrap().join();
+        systemJournalBefore.bootstrap(epoch).join();
 
         String lastChunk = null;
         long totalBytesWritten = 0;
@@ -643,17 +643,17 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Failover
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-        SystemJournal systemJournalAfter = new SystemJournal(containerId, epoch + 1, chunkStorage, metadataStoreAfterCrash, config);
+        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, config);
 
-        systemJournalAfter.bootstrap().join();
+        systemJournalAfter.bootstrap(epoch + 1).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
 
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
-        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, epoch + 2, chunkStorage, metadataStoreAfterCrash2, config);
+        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, config);
 
-        systemJournalAfter2.bootstrap().join();
+        systemJournalAfter2.bootstrap(epoch + 2).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 10);
     }
@@ -676,8 +676,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Step 1: Initial set of additions
-        SystemJournal systemJournalBefore = new SystemJournal(containerId, epoch, chunkStorage, metadataStoreBeforeCrash, config);
-        systemJournalBefore.bootstrap().join();
+        SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, config);
+        systemJournalBefore.bootstrap(epoch).join();
 
         String lastChunk = null;
         long totalBytesWritten = 0;
@@ -699,9 +699,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Step 2: First failover, truncate first 5 chunks.
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
-        SystemJournal systemJournalAfter = new SystemJournal(containerId, 2, chunkStorage, metadataStoreAfterCrash, config);
+        SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, config);
 
-        systemJournalAfter.bootstrap().join();
+        systemJournalAfter.bootstrap(2).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
@@ -719,9 +719,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Step 3: Second failover, truncate last 5 chunks.
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
-        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, 3, chunkStorage, metadataStoreAfterCrash2, config);
+        SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, config);
 
-        systemJournalAfter2.bootstrap().join();
+        systemJournalAfter2.bootstrap(3).join();
 
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash2, systemSegmentName, policy.getMaxLength(), 5);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash2, systemSegmentName, 10, 20);
@@ -739,9 +739,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Step 4: third failover validate.
         ChunkMetadataStore metadataStoreAfterCrash3 = getMetadataStore();
-        SystemJournal systemJournalAfter3 = new SystemJournal(containerId, 4, chunkStorage, metadataStoreAfterCrash3, config);
+        SystemJournal systemJournalAfter3 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash3, config);
 
-        systemJournalAfter3.bootstrap().join();
+        systemJournalAfter3.bootstrap(4).join();
 
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash3, systemSegmentName, 20, 20);
     }
