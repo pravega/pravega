@@ -1188,10 +1188,10 @@ public abstract class StreamMetadataTasksTest {
         long six = NameUtils.computeSegmentId(6, 3);
         // 0 split to 3 and 4
         scale(SCOPE, stream1, ImmutableMap.of(0L, 1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0 / 6), 
-                new AbstractMap.SimpleEntry<>(1.0 / 6, 1.0/ 3)));
+                new AbstractMap.SimpleEntry<>(1.0 / 6, 1.0 / 3)));
         // 4, 1, 2 merged to 5
         scale(SCOPE, stream1, ImmutableMap.of(1L, 1L, 2L, 2L, four, 1L), 
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(1.0/ 6, 1.0)));
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(1.0 / 6, 1.0)));
         // merge 3, 5 to 6
         scale(SCOPE, stream1, ImmutableMap.of(three, 1L, five, 2L), 
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)));
