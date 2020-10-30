@@ -309,7 +309,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param subscriber new stream subscriber.
-     * @param streamCut     new truncation streamcut for subscriber.
+     * @param streamCut     new truncation streamcut of subscriber.
+     * @param previousRecord previous truncation streamcut of subscriber.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
@@ -318,6 +319,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final String name,
                                                      final String subscriber,
                                                      final ImmutableMap<Long, Long> streamCut,
+                                                     final VersionedMetadata<StreamSubscriber> previousRecord,
                                                      final OperationContext context,
                                                      final Executor executor);
 
@@ -549,28 +551,6 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                 final Map<Long, Long> streamCut,
                                                 final OperationContext context,
                                                 final Executor executor);
-
-    /**
-     * Method to validate if stream cut is a valid Streamcut for truncation.
-     * This includes 2 validations:
-     * 1. The Stream-Cut is a valid StreamCut (validation done by isStreamCutValid API)
-     * 2. The Stream-Cut is greater than the previous truncation StreamCut.
-     *
-     * @param scope scope name
-     * @param streamName stream name
-     * @param streamCut stream cut to validate
-     * @param previousStreamCut stream cut to validate
-     * @param context execution context
-     * @param executor executor
-     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
-     */
-    CompletableFuture<Boolean> isStreamCutValidForTruncation(final String scope,
-                                                final String streamName,
-                                                final Map<Long, Long> streamCut,
-                                                final Map<Long, Long> previousStreamCut,
-                                                final OperationContext context,
-                                                final Executor executor);
-
 
     /**
      * Api to get Versioned epoch transition record.

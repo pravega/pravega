@@ -430,17 +430,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final String scope,
-                                                       final String streamName,
-                                                       final Map<Long, Long> streamCut,
-                                                       final Map<Long, Long> previousStreamCut,
-                                                       final OperationContext context,
-                                                       final Executor executor) {
-        Stream stream = getStream(scope, streamName, context);
-        return Futures.completeOn(stream.isStreamCutValidForTruncation(streamCut, previousStreamCut), executor);
-    }
-
-    @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final String scope,
                                                                                    final String name,
                                                                                    final List<Long> sealedSegments,
@@ -493,7 +482,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                         StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
         ));
-
         return future;
     }
 
@@ -545,10 +533,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                             final String name,
                                                             final String subscriber,
                                                             final ImmutableMap<Long, Long> streamCut,
+                                                            final VersionedMetadata<StreamSubscriber> previousRecord,
                                                             final OperationContext context,
                                                             final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context)
-                .updateSubscriberStreamCut(new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
+                .updateSubscriberStreamCut(previousRecord, new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
     }
 
 

@@ -131,10 +131,11 @@ interface Stream {
 
     /**
      * Update subscribers record for the Stream.
-     * @param subscriberData  subscriber data.
+     * @param previous - Subscriber Record that would be replaced by this update API
+     * @param subscriberData  new Subscriber Record that would replace the previous one.
      * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscriberStreamCut(final StreamSubscriber subscriberData);
+    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber subscriberData);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
@@ -243,13 +244,6 @@ interface Stream {
      * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
      */
     CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
-
-    /**
-     * Method to validate is a StreamCut is a valid truncation StreamCut.
-     * @param streamCut stream cut to validate.
-     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
-     */
-    CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, final Map<Long, Long> previousStreamCut);
 
     /**
      * Method to get segments at the current tail of the stream.

@@ -427,58 +427,35 @@ public class StreamMetadataTasks extends TaskBase {
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
-                            // 1. check Stream exists
-                            if (!exists) {
-                                return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
-                            }
-                            // 2. check if StreamCut is valid
-                            return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
-                                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                                    .thenCompose(subscriberRecord -> {
-                                        if (subscriberRecord == null) {
-                                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
-                                        } else {
-                                            if (subscriberRecord.getObject().getTruncationStreamCut().isEmpty()) {
-                                                return streamMetadataStore.isStreamCutValid(scope, stream, truncationStreamCut, context, executor)
-                                                        .thenCompose( isValid -> {
-                                                         if (isValid) {
-                                                           return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
-                                                         } else {
-                                                           return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
-                                                         }
-                                                 });
-                                            } else {
-                                                return streamMetadataStore.isStreamCutValidForTruncation(scope, stream, truncationStreamCut,
-                                                        subscriberRecord.getObject().getTruncationStreamCut(), context, executor)
-                                                        .thenCompose(isValid -> {
-                                                            if (isValid) {
-                                                                return updateStreamCut(scope, stream, subscriber, truncationStreamCut, context, requestId);
-                                                            } else {
-                                                                return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
-                                                            }
-                                                        });
-                                            }
+                     // 1. check Stream exists
+                     if (!exists) {
+                        return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
+                     }
+                     // 2. updateStreamCut
+                     return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
+                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                                .thenCompose(subscriberRecord -> {
+                                if (subscriberRecord == null) {
+                                   return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
+                                } else {
+                                   return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, subscriberRecord, context, executor)
+                                          .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
+                                             .exceptionally(ex -> {
+                                                 log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
+                                                 Throwable cause = Exceptions.unwrap(ex);
+                                                 if (cause instanceof StoreException.OperationNotAllowedException) {
+                                                     log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                     return UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID;
+                                                 } else if (cause instanceof TimeoutException) {
+                                                     throw new CompletionException(cause);
+                                                 } else {
+                                                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                    return UpdateSubscriberStatus.Status.FAILURE;
+                                                 }
+                                          });
                                     }
                             });
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
-    }
-
-    private CompletableFuture<UpdateSubscriberStatus.Status> updateStreamCut(String scope, String stream, String subscriber,
-                                                                             ImmutableMap<Long, Long> truncationStreamCut,
-                                                                             OperationContext context, long requestId) {
-        // 3. Update the StreamCut
-        return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, context, executor)
-                .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
-                .exceptionally(ex -> {
-                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
-                    Throwable cause = Exceptions.unwrap(ex);
-                    if (cause instanceof TimeoutException) {
-                        throw new CompletionException(cause);
-                    } else {
-                        log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
-                        return UpdateSubscriberStatus.Status.FAILURE;
-                    }
-                });
     }
 
     /**
