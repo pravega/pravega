@@ -104,6 +104,7 @@ import java.util.stream.IntStream;
 
 import io.pravega.shared.watermarks.SegmentWithRange;
 import lombok.Synchronized;
+import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
@@ -711,36 +712,62 @@ public class StreamMetadataTasks extends TaskBase {
         // loop over all streamcuts and for each segment in new streamcut: 
         // if new segment is predecessor of any segment in the bound then replace the successor segment with
         // this segment. 
-        TreeMap<StreamSegmentRecord, Long> lowerBound = new TreeMap<>(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart));
+        Map<StreamSegmentRecord, Long> lowerBound = new HashMap<>();
         subscribers.forEach(streamCut -> streamCut.forEach((segment, offset) -> {
             if (lowerBound.containsKey(segment)) {
                 if (lowerBound.get(segment) > offset) {
                     lowerBound.put(segment, offset);
                 }
             } else {
-                List<Map.Entry<StreamSegmentRecord, Long>> overlaps = overlaps(segment, lowerBound);
-                if (!overlaps.isEmpty()) {
-                    AtomicBoolean toAdd = new AtomicBoolean(true);
-                    overlaps.forEach(z -> {
-                        if (z.getKey().segmentId() > segment.segmentId()) {
-                            // if this segment is predecessor of some segment in lowerbound then remove the successor 
-                            // segment from lower bound. 
-                            // if successor was a future segment which is also present in current subscriber's 
-                            // streamcut as a future segment then dont remove
-                            if (z.getValue() >= 0 || !streamCut.containsKey(z.getKey())) {
-                                lowerBound.remove(z.getKey());
-                            }
+                Map<StreamSegmentRecord, Long> predecessors = new HashMap<>();
+                Map<StreamSegmentRecord, Long> successors = new HashMap<>();
+                lowerBound.forEach((s, o) -> {
+                    if (s.overlaps(segment)) {
+                        if (s.segmentId() < segment.segmentId()) {
+                            predecessors.put(s, o);
                         } else {
-                            // if there is a predecessor for this segment then do not include it, unless its a future segment. 
-                            toAdd.set(z.getValue() >= 0 || !streamCut.containsKey(z.getKey()));
+                            successors.put(s, o);
                         }
-                    });
-                    if (toAdd.get()) {
-                        lowerBound.put(segment, offset);
                     }
-                } else {
+                });
+
+                if (successors.isEmpty() && predecessors.isEmpty()) {
                     lowerBound.put(segment, offset);
-                }
+                } else {
+                    if (offset < 0) {
+                        // 1. if it is a future segment and its predecessors dont cover entire range, add it to lowerbound
+                        // union of all predecessors of segment < segment.range
+                        TreeMap<Double, Double> range = new TreeMap<>();
+                        predecessors.keySet().forEach(x -> {
+                            range.put(x.getKeyStart(), x.getKeyEnd());
+                        });
+                        if (!checkCoverage(segment.getKeyStart(), segment.getKeyEnd(), range)) {
+                            lowerBound.put(segment, offset);
+                        }
+                    } else if (predecessors.isEmpty()) {
+                        // since its a non future segment, its predecessors cannot be present. 
+                        lowerBound.put(segment, offset);
+                        // include this segment. then remove its affected successors from lower bound. 
+                        // 1. remove its non future segment successors
+                        // 2. remove its future segment successors if their entire range is covered by inclusion of this segment.
+                        successors.forEach((s, o) -> {
+                            if (o >= 0) {
+                                lowerBound.remove(s);
+                            } else {
+                                // union of all predecessors of `s` and `segment` >= s.range
+                                TreeMap<Double, Double> range = new TreeMap<>();
+                                lowerBound.keySet().forEach(x -> {
+                                    if (x.overlaps(s) && x.segmentId() < s.segmentId()) {
+                                        range.put(x.getKeyStart(), x.getKeyEnd());
+                                    }
+                                });
+                                if (checkCoverage(s.getKeyStart(), s.getKeyEnd(), range)) {
+                                    lowerBound.remove(s);
+                                }
+                            }
+                        });
+                    }
+                } 
             }
         }));
         // example::
@@ -755,9 +782,9 @@ public class StreamMetadataTasks extends TaskBase {
         return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
     }
 
-    private List<Map.Entry<StreamSegmentRecord, Long>> overlaps(StreamSegmentRecord segment, Map<StreamSegmentRecord, Long> bound) {
-        return bound.entrySet().stream().filter(x -> segment.overlaps(x.getKey()))
-                    .collect(Collectors.toList());
+    private boolean checkCoverage(double keyStart, double keyEnd, TreeMap<Double, Double> range) {
+        return range.entrySet().stream().reduce((x, y) -> new AbstractMap.SimpleEntry<>(Math.max(x.getKey(), y.getKey()), Math.max(x.getValue(), y.getValue())))
+             .map(x -> x.getKey() <= keyStart && x.getValue() >= keyEnd).orElse(false);
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
