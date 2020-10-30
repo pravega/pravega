@@ -315,13 +315,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(String subscriber, ImmutableMap<Long, Long> streamCut) {
-        StreamSubscriber sub = new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis());
-        return Futures.toVoid(getSubscriberRecord(subscriber)
-                      .thenCompose(record -> getMetadataTable().thenCompose(table ->
-                           storeHelper.updateEntry(table, getKeyForSubscriber(subscriber), sub.toBytes(), record.getVersion())
-                             .thenAccept( v -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))))));
-
+    CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> streamSubscriber) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, getKeyForSubscriber(streamSubscriber.getObject().getSubscriber()),
+                        streamSubscriber.getObject().toBytes(), streamSubscriber.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, getKeyForSubscriber(streamSubscriber.getObject().getSubscriber()));
+                            return r;
+                        }));
     }
 
     @Override

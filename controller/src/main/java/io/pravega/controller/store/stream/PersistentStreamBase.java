@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
@@ -318,6 +319,19 @@ public abstract class PersistentStreamBase implements Stream {
                     "Stream: " + getName() + " State: " + newState.name() + " current state = " +
                             previous.getObject()));
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber newSubscriberData) {
+        return isStreamCutValidForTruncation(previous.getObject().getTruncationStreamCut(), newSubscriberData.getTruncationStreamCut())
+                .thenCompose(isValid -> {
+                    if (isValid) {
+                       return Futures.toVoid(setSubscriberData(new VersionedMetadata<>(newSubscriberData, previous.getVersion())));
+                    } else {
+                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
+                                "New StreamCut is lower than the previous value."));
+                    }
+               });
     }
 
     @Override
@@ -672,18 +686,21 @@ public abstract class PersistentStreamBase implements Stream {
                       });
     }
 
-    @Override
-    public CompletableFuture<Boolean> isStreamCutValidForTruncation(final Map<Long, Long> streamCut, Map<Long, Long> previousStreamCut) {
-        return isStreamCutValid(streamCut)
-            .thenCompose(isValid -> {
-               if (!isValid) {
-                  return CompletableFuture.completedFuture(Boolean.valueOf(false));
-               }
-             return computeStreamCutSpan(streamCut)
-                .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
-                  .thenApply(previousSpan ->
-                      greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+    private CompletableFuture<Boolean> isStreamCutValidForTruncation(Map<Long, Long> previousStreamCut, final Map<Long, Long> streamCut) {
+        if (previousStreamCut.isEmpty()) {
+            return isStreamCutValid(streamCut);
+        } else {
+            return isStreamCutValid(streamCut)
+                    .thenCompose( isValidStreamCut -> {
+                        if (isValidStreamCut) {
+                            return computeStreamCutSpan(streamCut)
+                                    .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
+                                            .thenApply(previousSpan -> greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+                        } else {
+                            return CompletableFuture.completedFuture(Boolean.FALSE);
+                        }
             });
+        }
     }
 
     /**
@@ -1406,7 +1423,6 @@ public abstract class PersistentStreamBase implements Stream {
         return getRetentionSetData()
                 .thenCompose(data -> {
                     RetentionSet retention = data.getObject();
-
                     RetentionSet update = RetentionSet.addReferenceToStreamCutIfLatest(retention, record);
                     return createStreamCutRecordData(record.getRecordingTime(), record)
                             .thenCompose(v -> Futures.toVoid(updateRetentionSetData(new VersionedMetadata<>(update, data.getVersion()))));
@@ -1992,12 +2008,16 @@ public abstract class PersistentStreamBase implements Stream {
     // region state
     abstract CompletableFuture<Void> createStateIfAbsent(final StateRecord state);
 
-    // invoke this when creating a new Stream or when moving a Stream to CBR
-    abstract CompletableFuture<Void> createSubscribersRecordIfAbsent();
-
     abstract CompletableFuture<Version> setStateData(final VersionedMetadata<StateRecord> state);
 
     abstract CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached);
+    // endregion
+
+    // region subscriber
+    // invoke this when creating a new Stream or when moving a Stream to CBR Retention Policy
+    abstract CompletableFuture<Void> createSubscribersRecordIfAbsent();
+
+    abstract CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber);
     // endregion
 
     // region retention
