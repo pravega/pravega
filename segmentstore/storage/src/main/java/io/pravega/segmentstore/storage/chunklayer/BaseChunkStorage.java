@@ -46,7 +46,7 @@ import java.util.concurrent.Executor;
  * <ul>
  * <li>SimpleStorageTests</li>
  * <li>ChunkedRollingStorageTests</li>
- * <li>ChunkStorageProviderTests</li>
+ * <li>ChunkStorageTests</li>
  * <li>SystemJournalTests</li>
  * </ul>
  */

@@ -65,7 +65,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testInitialization() throws Exception {
-        ChunkStorage storageProvider = getChunkStorage();
+        ChunkStorage chunkStorage = getChunkStorage();
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
@@ -74,7 +74,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         // Init
-        SystemJournal journal = new SystemJournal(containerId, epoch, storageProvider, metadataStore, config);
+        SystemJournal journal = new SystemJournal(containerId, epoch, chunkStorage, metadataStore, config);
 
         Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(containerId, journal.getContainerId());
@@ -89,7 +89,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testInitializationInvalidArgs() throws Exception {
-        ChunkStorage storageProvider = getChunkStorage();
+        ChunkStorage chunkStorage = getChunkStorage();
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
@@ -97,30 +97,30 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(maxLength);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
-        AssertExtensions.assertThrows("Should not allow null storageProvider",
+        AssertExtensions.assertThrows("Should not allow null chunkStorage",
                 () -> new SystemJournal(containerId, epoch, null, metadataStore, config),
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null metadataStore",
-                () -> new SystemJournal(containerId, epoch, storageProvider, null, config),
+                () -> new SystemJournal(containerId, epoch, chunkStorage, null, config),
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null policy",
-                () -> new SystemJournal(containerId, epoch, storageProvider, metadataStore, null),
+                () -> new SystemJournal(containerId, epoch, chunkStorage, metadataStore, null),
                 ex -> ex instanceof NullPointerException);
 
     }
 
     @Test
     public void testIsSystemSegment() throws Exception {
-        ChunkStorage storageProvider = getChunkStorage();
+        ChunkStorage chunkStorage = getChunkStorage();
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
-        val journal = new SystemJournal(containerId, epoch, storageProvider, metadataStore, config);
+        val journal = new SystemJournal(containerId, epoch, chunkStorage, metadataStore, config);
         Assert.assertFalse(journal.isStorageSystemSegment("foo"));
 
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getStorageMetadataSegmentName(containerId)));
@@ -139,7 +139,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithOneFailover() throws Exception {
-        ChunkStorage storageProvider = getChunkStorage();
+        ChunkStorage chunkStorage = getChunkStorage();
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
@@ -154,7 +154,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Start container with epoch 1
-        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(storageProvider, executorService(), config);
+        ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
 
         segmentStorage1.initialize(epoch);
 
@@ -175,7 +175,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Start container with epoch 2
         epoch++;
 
-        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(storageProvider, executorService(), config);
+        ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
         segmentStorage2.initialize(epoch);
 
         // Bootstrap
@@ -276,7 +276,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         long offset = 0;
-        ChunkedSegmentStorage oldhunkStorageManager = null;
+        ChunkedSegmentStorage oldChunkedSegmentStorage = null;
         SegmentHandle oldHandle = null;
         for (int i = 1; i < 10; i++) {
             // Epoch 2
@@ -290,8 +290,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
             val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
-            if (null != oldhunkStorageManager) {
-                oldhunkStorageManager.write(oldHandle, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
+            if (null != oldChunkedSegmentStorage) {
+                oldChunkedSegmentStorage.write(oldHandle, offset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
             }
 
             val b1 = "Test".getBytes();
@@ -301,7 +301,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             segmentStorageInLoop.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
             offset += b2.length;
 
-            oldhunkStorageManager = segmentStorageInLoop;
+            oldChunkedSegmentStorage = segmentStorageInLoop;
             oldHandle = h;
         }
 
@@ -344,7 +344,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         long offset = 0;
         long offsetToTruncateAt = 0;
-        ChunkedSegmentStorage oldhunkStorageManager = null;
+        ChunkedSegmentStorage oldChunkedSegmentStorage = null;
         SegmentHandle oldHandle = null;
         long oldOffset = 0;
 
@@ -361,9 +361,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
             val h = segmentStorageInLoop.openWrite(systemSegmentName).join();
 
-            if (null != oldhunkStorageManager) {
+            if (null != oldChunkedSegmentStorage) {
                 // Add some junk to previous instance after failover
-                oldhunkStorageManager.write(oldHandle, oldOffset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
+                oldChunkedSegmentStorage.write(oldHandle, oldOffset, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
             } else {
                 // Only first time.
                 for (int j = 1; j < 10; j++) {
@@ -391,12 +391,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             String s = new String(readBytes);
 
             //Add some garbage
-            if (null != oldhunkStorageManager) {
-                oldhunkStorageManager.write(oldHandle, oldOffset + 4, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
+            if (null != oldChunkedSegmentStorage) {
+                oldChunkedSegmentStorage.write(oldHandle, oldOffset + 4, new ByteArrayInputStream("junk".getBytes()), 4, null).join();
             }
 
             // Save these instances so that you can write some junk after bootstrap.
-            oldhunkStorageManager = segmentStorageInLoop;
+            oldChunkedSegmentStorage = segmentStorageInLoop;
             oldHandle = h;
             oldOffset = offset;
         }
@@ -983,9 +983,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         }
 
         protected ChunkStorage getChunkStorage() throws Exception {
-            val chunkStorageProvider = new InMemoryChunkStorage(executorService());
-            chunkStorageProvider.setShouldSupportAppend(false);
-            return chunkStorageProvider;
+            val chunkStorage = new InMemoryChunkStorage(executorService());
+            chunkStorage.setShouldSupportAppend(false);
+            return chunkStorage;
         }
     }
 }

@@ -77,7 +77,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         return 1;
     }
 
-    public ChunkStorage createChunkStorageProvider() throws Exception {
+    public ChunkStorage createChunkStorage() throws Exception {
         return new NoOpChunkStorage(executorService());
     }
 
@@ -100,9 +100,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSupportsTruncate() throws Exception {
-        val storageProvider = createChunkStorageProvider();
-        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        Assert.assertTrue(storageManager.supportsTruncation());
+        val chunkStorage = createChunkStorage();
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        Assert.assertTrue(chunkedSegmentStorage.supportsTruncation());
     }
 
     /**
@@ -112,78 +112,78 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInitialization() throws Exception {
-        val storageProvider = createChunkStorageProvider();
+        val chunkStorage = createChunkStorage();
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
-        val storageManager = new ChunkedSegmentStorage(storageProvider, executorService(), config);
-        val systemJournal = new SystemJournal(CONTAINER_ID, 1, storageProvider, metadataStore, config);
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, executorService(), config);
+        val systemJournal = new SystemJournal(CONTAINER_ID, 1, chunkStorage, metadataStore, config);
 
-        testUninitialized(storageManager);
+        testUninitialized(chunkedSegmentStorage);
 
-        storageManager.initialize(1);
+        chunkedSegmentStorage.initialize(1);
 
-        Assert.assertNull(storageManager.getMetadataStore());
-        Assert.assertEquals(storageProvider, storageManager.getChunkStorage());
-        Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
-        Assert.assertEquals(1, storageManager.getEpoch());
+        Assert.assertNull(chunkedSegmentStorage.getMetadataStore());
+        Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
+        Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
+        Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
 
-        storageManager.bootstrap(CONTAINER_ID, metadataStore).join();
-        Assert.assertEquals(metadataStore, storageManager.getMetadataStore());
-        Assert.assertEquals(storageProvider, storageManager.getChunkStorage());
-        Assert.assertEquals(policy, storageManager.getConfig().getDefaultRollingPolicy());
-        Assert.assertNotNull(storageManager.getSystemJournal());
+        chunkedSegmentStorage.bootstrap(CONTAINER_ID, metadataStore).join();
+        Assert.assertEquals(metadataStore, chunkedSegmentStorage.getMetadataStore());
+        Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
+        Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
+        Assert.assertNotNull(chunkedSegmentStorage.getSystemJournal());
         Assert.assertEquals(systemJournal.getConfig().getDefaultRollingPolicy(), policy);
-        Assert.assertEquals(1, storageManager.getEpoch());
-        Assert.assertEquals(CONTAINER_ID, storageManager.getContainerId());
-        Assert.assertEquals(0, storageManager.getConfig().getMinSizeLimitForConcat());
-        Assert.assertEquals(Long.MAX_VALUE, storageManager.getConfig().getMaxSizeLimitForConcat());
-        storageManager.close();
+        Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
+        Assert.assertEquals(CONTAINER_ID, chunkedSegmentStorage.getContainerId());
+        Assert.assertEquals(0, chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat());
+        Assert.assertEquals(Long.MAX_VALUE, chunkedSegmentStorage.getConfig().getMaxSizeLimitForConcat());
+        chunkedSegmentStorage.close();
 
-        testUninitialized(storageManager);
+        testUninitialized(chunkedSegmentStorage);
 
     }
 
-    private void testUninitialized(ChunkedSegmentStorage storageManager) {
+    private void testUninitialized(ChunkedSegmentStorage chunkedSegmentStorage) {
         String testSegmentName = "foo";
         AssertExtensions.assertThrows(
                 "getStreamSegmentInfo succeeded on uninitialized instance.",
-                () -> storageManager.getStreamSegmentInfo(testSegmentName, null),
+                () -> chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "Seal  succeeded on uninitialized instance.",
-                () -> storageManager.seal(SegmentStorageHandle.writeHandle(testSegmentName), null),
+                () -> chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle(testSegmentName), null),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "openWrite succeeded on uninitialized instance.",
-                () -> storageManager.openWrite(testSegmentName),
+                () -> chunkedSegmentStorage.openWrite(testSegmentName),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "openRead succeeded on uninitialized instance.",
-                () -> storageManager.openRead(testSegmentName),
+                () -> chunkedSegmentStorage.openRead(testSegmentName),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "write succeeded on uninitialized instance.",
-                () -> storageManager.write(SegmentStorageHandle.writeHandle(testSegmentName), 0, new ByteArrayInputStream(new byte[1]), 1, null),
+                () -> chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle(testSegmentName), 0, new ByteArrayInputStream(new byte[1]), 1, null),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "read succeeded on uninitialized instance.",
-                () -> storageManager.read(SegmentStorageHandle.readHandle(testSegmentName), 0, new byte[1], 0, 1, null),
+                () -> chunkedSegmentStorage.read(SegmentStorageHandle.readHandle(testSegmentName), 0, new byte[1], 0, 1, null),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "Concat succeeded on uninitialized instance.",
-                () -> storageManager.concat(SegmentStorageHandle.readHandle(testSegmentName), 0, "inexistent", null),
+                () -> chunkedSegmentStorage.concat(SegmentStorageHandle.readHandle(testSegmentName), 0, "inexistent", null),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
                 "Concat succeeded on uninitialized instance.",
-                () -> storageManager.delete(SegmentStorageHandle.readHandle(testSegmentName), null),
+                () -> chunkedSegmentStorage.delete(SegmentStorageHandle.readHandle(testSegmentName), null),
                 ex -> ex instanceof IllegalStateException);
     }
 
@@ -1365,9 +1365,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Sealed segment
         /* This check seems wrong and should be removed.
-        testContext.storageManager.seal(h, TIMEOUT).join();
+        testContext.chunkedSegmentStorage.seal(h, TIMEOUT).join();
         AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
-                testContext.storageManager.truncate(h, 11, TIMEOUT),
+                testContext.chunkedSegmentStorage.truncate(h, 11, TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
          */
     }
@@ -2084,7 +2084,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         public TestContext(Executor executor, ChunkedSegmentStorageConfig config) throws Exception {
             this.executor = executor;
             this.config = config;
-            chunkStorage = createChunkStorageProvider();
+            chunkStorage = createChunkStorage();
             metadataStore = createMetadataStore();
             chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, metadataStore, this.executor, config);
             chunkedSegmentStorage.initialize(1);
@@ -2137,7 +2137,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         /**
          * Gets {@link ChunkStorage} to use for the tests.
          */
-        public ChunkStorage createChunkStorageProvider() throws Exception {
+        public ChunkStorage createChunkStorage() throws Exception {
             return new NoOpChunkStorage(executor);
         }
 

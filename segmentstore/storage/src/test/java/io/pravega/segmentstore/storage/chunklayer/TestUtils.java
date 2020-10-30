@@ -178,20 +178,20 @@ public class TestUtils {
     /**
      * Checks if all chunks actually exist in storage for given segment.
      *
-     * @param storageProvider {@link ChunkStorage} instance to check.
+     * @param chunkStorage {@link ChunkStorage} instance to check.
      * @param metadataStore   {@link ChunkMetadataStore} instance to check.
      * @param segmentName     Segment name to check.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
-    public static void checkChunksExistInStorage(ChunkStorage storageProvider, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
+    public static void checkChunksExistInStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
         int chunkCount = 0;
         long dataSize = 0;
         val segmentMetadata = getSegmentMetadata(metadataStore, segmentName);
         HashSet<String> visited = new HashSet<>();
         val chunkList = getChunkList(metadataStore, segmentName);
         for (ChunkMetadata chunkMetadata : chunkList) {
-            Assert.assertTrue(storageProvider.exists(chunkMetadata.getName()).get());
-            val info = storageProvider.getInfo(chunkMetadata.getName()).get();
+            Assert.assertTrue(chunkStorage.exists(chunkMetadata.getName()).get());
+            val info = chunkStorage.getInfo(chunkMetadata.getName()).get();
             Assert.assertTrue(String.format("Actual %s, Expected %d", chunkMetadata, info.getLength()),
                     chunkMetadata.getLength() <= info.getLength());
             chunkCount++;

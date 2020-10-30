@@ -38,7 +38,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
     /**
      * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkStorageTests}.
      */
-    public static class InMemorySimpleStorageProviderTests extends ChunkStorageTests {
+    public static class InMemoryChunkStorageTests extends ChunkStorageTests {
         @Override
         protected ChunkStorage createChunkStorage() {
             return new InMemoryChunkStorage(executorService());
@@ -51,7 +51,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
     public static class InMemorySimpleStorage extends ChunkedSegmentStorageTests {
 
         @Override
-        public ChunkStorage createChunkStorageProvider() {
+        public ChunkStorage createChunkStorage() {
             return new InMemoryChunkStorage(executorService());
         }
 
@@ -75,7 +75,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
             }
 
             @Override
-            public ChunkStorage createChunkStorageProvider() {
+            public ChunkStorage createChunkStorage() {
                 return new InMemoryChunkStorage(executorService());
             }
         }

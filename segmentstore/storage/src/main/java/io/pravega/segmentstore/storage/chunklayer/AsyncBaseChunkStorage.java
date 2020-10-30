@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ul>
  * <li>SimpleStorageTests</li>
  * <li>ChunkedRollingStorageTests</li>
- * <li>ChunkStorageProviderTests</li>
+ * <li>ChunkStorageTests</li>
  * <li>SystemJournalTests</li>
  * </ul>
  */
