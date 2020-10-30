@@ -47,6 +47,17 @@ import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
+import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_LATENCY;
+import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_LATENCY;
+import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER;
+import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_FAILED;
+import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER;
+import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_FAILED;
+import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER;
+import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_FAILED;
+import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
+
+
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 
@@ -61,7 +72,10 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger deleteStreamLatency;
     private final OpStatsLogger sealStreamLatency;
     private final OpStatsLogger updateStreamLatency;
+    private final OpStatsLogger addSubscriberLatency;
     private final OpStatsLogger truncateStreamLatency;
+    private final OpStatsLogger removeSubscriberLatency;
+    private final OpStatsLogger updateSubscriberLatency;
     private final OpStatsLogger createKeyValueTableLatency;
     private final OpStatsLogger deleteKeyValueTableLatency;
 
@@ -74,10 +88,13 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+        addSubscriberLatency = STATS_LOGGER.createStats(ADD_SUBSCRIBER_LATENCY);
+        removeSubscriberLatency = STATS_LOGGER.createStats(REMOVE_SUBSCRIBER_LATENCY);
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
+        updateSubscriberLatency = STATS_LOGGER.createStats(UPDATE_SUBSCRIBER_LATENCY);
     }
 
     /**
@@ -300,6 +317,81 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method increments the global and Stream-specific counters for addSubscriber operation on a Stream
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the addSubscriber operation.
+     */
+    public void addSubscriber(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER), 1);
+        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER, 1, streamTags(scope, streamName));
+        addSubscriberLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed addSubscriber operation attempts on a Stream.
+     *
+     * @param scope         Scope Name.
+     * @param streamName    Stream Name.
+     */
+    public void addSubscriberFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * This method increments the global and Stream-specific counters for removeSubscriber operation on a Stream
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the removeSubscriber operation.
+     */
+    public void deleteSubscriber(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER), 1);
+        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER, 1, streamTags(scope, streamName));
+        removeSubscriberLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     *
+     * @param scope         Scope Name.
+     * @param streamName    Stream Name.
+     */
+    public void deleteSubscriberFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * This method increments the global and Stream-specific counters for updateTruncationSC operation on a Stream
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the updateTruncationStreamCut operation.
+     */
+    public void updateTruncationSC(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_SUBSCRIBER), 1);
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER, 1, streamTags(scope, streamName));
+        updateSubscriberLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     *
+     * @param scope         Scope Name.
+     * @param streamName    Stream Name.
+     */
+    public void updateTruncationSCFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_SUBSCRIBER_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    }
+
+    /**
      * This method increments the global and Stream-specific counters of Stream truncations and reports the latency of
      * the operation.
      *
@@ -372,6 +464,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
             INSTANCE.get().sealStreamLatency.close();
             INSTANCE.get().updateStreamLatency.close();
             INSTANCE.get().truncateStreamLatency.close();
+            INSTANCE.get().addSubscriberLatency.close();
+            INSTANCE.get().removeSubscriberLatency.close();
+            INSTANCE.get().updateSubscriberLatency.close();
             INSTANCE.get().createScopeLatency.close();
             INSTANCE.get().deleteScopeLatency.close();
             INSTANCE.set(null);
