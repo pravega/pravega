@@ -35,7 +35,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.SubscriberSet;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.ByteBuffer;
