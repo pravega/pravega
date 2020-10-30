@@ -99,8 +99,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertTrue(cfg.isSubscriber());
-        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
+        assertTrue(cfg.isSubscriberForRetention());
+        assertFalse(cfg.isAutoPublishAtLastCheckpoint());
     }
 
     @Test
@@ -117,8 +117,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertTrue(cfg.isSubscriber());
-        assertTrue(cfg.isAutoTruncateAtLastCheckpoint());
+        assertTrue(cfg.isSubscriberForRetention());
+        assertTrue(cfg.isAutoPublishAtLastCheckpoint());
     }
 
     @Test
@@ -133,8 +133,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertFalse(cfg.isSubscriber());
-        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
+        assertFalse(cfg.isSubscriberForRetention());
+        assertFalse(cfg.isAutoPublishAtLastCheckpoint());
     }
 
     @Test

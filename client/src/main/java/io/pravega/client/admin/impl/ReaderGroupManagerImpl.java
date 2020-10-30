@@ -15,7 +15,6 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.state.InitialUpdate;
@@ -36,7 +35,6 @@ import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -101,7 +99,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
 
-        if (config.isSubscriber()) {
+        if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
             streams.forEach(s -> {
                 CompletableFuture<Boolean> result = controller.addSubscriber(scope, s.getStreamName(), groupName);
@@ -117,6 +115,39 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        ReaderGroupConfig config = synchronizer.getState().getConfig();
+
+        if (config.isSubscriberForRetention()) {
+            Set<Stream> streams = config.getStartingStreamCuts().keySet();
+            streams.forEach(s -> {
+                CompletableFuture<Boolean> result = controller.deleteSubscriber(scope, s.getStreamName(), groupName);
+                try {
+                    result.join();
+                } catch (Exception e) {
+                    log.warn("Failed to delete subscriber reader group: ", e);
+                    throw e;
+                }
+            });
+        }
+
+//        AsyncIterator<Stream> streamIter = controller.listStreams(scope);
+//        while (streamIter.getNext().join() != null) {
+//            System.out.println("\n\n\n\n\n");
+//            System.out.println(streamIter.getNext());
+//            String streamName = streamIter.getNext().join().getStreamName();
+//            controller.listSubscribers(scope, streamName)
+//                    .thenApply(ls -> ls.contains(groupName))
+//                    .thenApply(b -> {
+//                        if (b) {
+//                            return controller.deleteSubscriber(scope, streamName, groupName);
+//                        }
+//                        return null;
+//                    });
+//        }
+
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
                                          .thenCompose(b -> controller.deleteStream(scope,
                                                                                    getStreamForReaderGroup(groupName)))
@@ -129,24 +160,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                              throw Exceptions.sneakyThrow(e);
                                          }),
                                RuntimeException::new);
-
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        ReaderGroupConfig config = synchronizer.getState().getConfig();
-
-        if (config.isSubscriber()) {
-            Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> {
-                CompletableFuture<Boolean> result = controller.deleteSubscriber(scope, s.getStreamName(), groupName);
-                try {
-                    result.join();
-                } catch (Exception e) {
-                    log.warn("Failed to delete subscriber reader group: ", e);
-                    throw e;
-                }
-            });
-        }
     }
 
     @Override

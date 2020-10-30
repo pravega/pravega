@@ -50,9 +50,9 @@ public class ReaderGroupConfig implements Serializable {
     private final int maxOutstandingCheckpointRequest;
 
     @Getter
-    private final boolean isSubscriber;
+    private final boolean subscriberForRetention;
     @Getter
-    private final boolean autoTruncateAtLastCheckpoint;
+    private final boolean autoPublishAtLastCheckpoint;
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
@@ -366,8 +366,8 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
-            revisionDataOutput.writeBoolean(object.isSubscriber());
-            revisionDataOutput.writeBoolean(object.isAutoTruncateAtLastCheckpoint());
+            revisionDataOutput.writeBoolean(object.isSubscriberForRetention());
+            revisionDataOutput.writeBoolean(object.isAutoPublishAtLastCheckpoint());
         }
     }
 

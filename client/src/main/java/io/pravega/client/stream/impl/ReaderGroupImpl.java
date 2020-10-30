@@ -191,7 +191,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (oldConfig != null) {
             Set<Stream> oldStreams = oldConfig.getStartingStreamCuts().keySet();
             // If it were a subscriber, unsubscribe from all old streams
-            if (oldConfig.isSubscriber()) {
+            if (oldConfig.isSubscriberForRetention()) {
                 oldStreams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
                                 .exceptionally(e -> {
                                     System.err.println("Failed to delete subscriber" + e);
@@ -201,7 +201,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             }
         }
         // If its going to be a subscriber, subscribe to all new streams
-        if (config.isSubscriber()) {
+        if (config.isSubscriberForRetention()) {
             newStreams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
                                 .exceptionally(e -> {
                                     System.err.println("Failed to add subscriber" + e);

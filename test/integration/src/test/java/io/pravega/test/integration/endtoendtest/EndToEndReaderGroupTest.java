@@ -38,15 +38,18 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.InlineExecutor;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -442,6 +445,125 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         Map<Stream, StreamCut> scMap = sc.join();
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
         assertEquals(expectedSegments, scMap.get(stream).asImpl().getPositions().keySet());
+    }
+
+    @Test
+    public void testCreateSubscriberReaderGroup() throws InterruptedException, ExecutionException {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a Subscriber ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .subscribeForRetention()
+                .build());
+
+        List<String> subs = controller.listSubscribers("test", "test").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+    }
+
+    @Test
+    public void testDeleteSubscriberReaderGroup() throws InterruptedException, ExecutionException {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a Subscriber ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .subscribeForRetention()
+                .build());
+
+        List<String> subs = controller.listSubscribers("test", "test").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+
+        groupManager.deleteReaderGroup("group");
+
+        subs = controller.listSubscribers("test", "test").get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+    }
+
+    @Test
+    public void testResetSubscriberToNonSubscriberReaderGroup() throws InterruptedException, ExecutionException {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a Subscriber ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .subscribeForRetention()
+                .build());
+        List<String> subs = controller.listSubscribers("test", "test").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        ReaderGroup subGroup = groupManager.getReaderGroup("group");
+        // Reset to Non subscriber
+        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .build());
+
+        subs = controller.listSubscribers("test", "test").get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+    }
+
+    @Test
+    public void testResetNonSubscriberToSubscriberReaderGroup() throws InterruptedException, ExecutionException {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        // Create a Non subscriber ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .build());
+        List<String> subs = controller.listSubscribers("test", "test").get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+
+        ReaderGroup subGroup = groupManager.getReaderGroup("group");
+        // Reset to Subscriber
+        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test")
+                .subscribeForRetention()
+                .build());
+        subs = controller.listSubscribers("test", "test").get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
     }
 
     private StreamConfiguration getStreamConfig() {
