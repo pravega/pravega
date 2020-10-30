@@ -690,9 +690,16 @@ public abstract class PersistentStreamBase implements Stream {
         if (previousStreamCut.isEmpty()) {
             return isStreamCutValid(streamCut);
         } else {
-            return computeStreamCutSpan(streamCut)
-                    .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
-                            .thenApply(previousSpan -> greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+            return isStreamCutValid(streamCut)
+                    .thenCompose( isValidStreamCut -> {
+                        if (isValidStreamCut) {
+                            return computeStreamCutSpan(streamCut)
+                                    .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
+                                            .thenApply(previousSpan -> greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+                        } else {
+                            return CompletableFuture.completedFuture(Boolean.FALSE);
+                        }
+            });
         }
     }
 
