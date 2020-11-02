@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import io.pravega.auth.AuthHandler;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -31,6 +32,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
+import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
@@ -47,6 +49,7 @@ import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 
+import io.pravega.shared.security.auth.AccessOperation;
 import org.junit.After;
 import org.junit.Test;
 
@@ -54,7 +57,9 @@ import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -135,5 +140,70 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     @Test
     public void supplierReturnsEmptyTokenWhenAuthIsDisabled() {
         assertEquals("", this.controllerService.delegationTokenSupplier(Controller.StreamInfo.newBuilder().build()).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithRequestedReadPermission() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "testStream", AccessOperation.READ);
+
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ);
+
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithReadWritePermissionByDefault() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "testStream", null);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).checkAuthorizationAndCreateToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
+
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithReadWhenRequestedPermissionIsUnexpected() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "testStream", AccessOperation.NONE);
+
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.NONE);
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.NONE);
+
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithReadForInternalStreamsByDefault() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "_testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "_testStream",
+                AccessOperation.READ_WRITE);
+
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ);
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    private Controller.StreamInfo createStreamInfoProtobufMessage(String scope, String stream, AccessOperation accessOperation) {
+        Controller.StreamInfo.Builder builder = Controller.StreamInfo.newBuilder();
+        if (scope != null) {
+            builder.setScope(scope);
+        }
+        if (stream != null) {
+            builder.setStream(stream);
+        }
+        if (accessOperation != null) {
+            builder.setRequestedPermission(accessOperation.name());
+        }
+        return builder.build();
     }
 }

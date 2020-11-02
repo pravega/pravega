@@ -43,7 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 
 public class ConditionalOutputStreamTest {
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     public void testWrite() throws ConnectionFailedException, SegmentSealedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController("localhost", 0, connectionFactory, true);

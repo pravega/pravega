@@ -47,5 +47,7 @@ public class PermissionsHelperTest {
                 AuthHandler.Permissions.NONE));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.parse(AccessOperation.ANY.toString(),
                 AuthHandler.Permissions.READ_UPDATE));
+        assertEquals(AuthHandler.Permissions.NONE, PermissionsHelper.parse(AccessOperation.NONE.toString(),
+                AuthHandler.Permissions.READ_UPDATE));
     }
 }
