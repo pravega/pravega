@@ -127,7 +127,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
     private EventHelper eventHelper;
-
+    private final AtomicReference<Supplier<Long>> retentionClock;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -172,6 +172,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
         this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
+        this.retentionClock = new AtomicReference<>(System::currentTimeMillis);
         this.setReady();
     }
 
@@ -576,7 +577,6 @@ public class StreamMetadataTasks extends TaskBase {
                     } else {
                         toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
                     }
-
                     return toTruncateAt.thenCompose(truncationStreamCut -> {
                         if (truncationStreamCut == null || truncationStreamCut.isEmpty()) {
                             log.debug("no truncation record could be compute that satisfied retention policy");
@@ -668,11 +668,12 @@ public class StreamMetadataTasks extends TaskBase {
                                                             if (limitMax == null) {
                                                                 return CompletableFuture.completedFuture(lowerBound);
                                                             } else {
-                                                                return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMax.getStreamCut(), context, executor)
-                                                                                          .thenApply(gtMax -> gtMax ? lowerBound : limitMax.getStreamCut());
+                                                                return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMax.getStreamCut(), lowerBound, context, executor)
+                                                                                          .thenApply(gtMax -> gtMax ? limitMax.getStreamCut() : lowerBound);
                                                             }
                                                         } else {
-                                                            return CompletableFuture.completedFuture(null);
+                                                            return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
+                                                                               .thenApply(gt -> gt ? limitMin.getStreamCut() : null);
                                                         }
                                                     });
                              } else {
@@ -813,17 +814,16 @@ public class StreamMetadataTasks extends TaskBase {
 
     private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy.ConsumptionLimits policy,
                                                                                              RetentionSet retentionSet, StreamCutRecord newRecord) {
-        boolean byTime = RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
+        assert RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
         AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
         AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
 
-        AtomicLong maxSoFar = new AtomicLong(Long.MIN_VALUE);
+        AtomicLong maxSoFar = new AtomicLong(Long.MAX_VALUE);
         AtomicLong minSoFar = new AtomicLong(Long.MAX_VALUE);
-        long currentTime = System.currentTimeMillis();
-        long currentSize = newRecord != null ? newRecord.getRecordingSize() : retentionSet.getLatest().getRecordingSize();
+        long currentTime = retentionClock.get().get();
         retentionSet.getRetentionRecords().forEach(x -> {
-            long value = byTime ? currentTime - x.getRecordingTime() : currentSize - x.getRecordingSize();
-            if (value < policy.getMaxValue() && value > maxSoFar.get()) {
+            long value = currentTime - x.getRecordingTime();
+            if (value >= policy.getMaxValue() && value < maxSoFar.get()) {
                 max.set(x);
                 maxSoFar.set(value);
             }
@@ -855,7 +855,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .parallel()
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
                 .thenCompose(map -> {
-                    final long generationTime = System.currentTimeMillis();
+                    final long generationTime = retentionClock.get().get();
                     ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
                     map.forEach((key, value) -> builder.put(key.segmentId(), value));
                     ImmutableMap<Long, Long> streamCutMap = builder.build();
@@ -1496,5 +1496,10 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     void setRetentionFrequencyMillis(long timeoutMillis) {
         retentionFrequencyMillis.set(timeoutMillis);
+    }
+
+    @VisibleForTesting
+    void setRetentionClock(Supplier<Long> clock) {
+        retentionClock.set(clock);
     }
 }
