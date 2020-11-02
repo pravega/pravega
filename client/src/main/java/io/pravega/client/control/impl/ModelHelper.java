@@ -319,11 +319,14 @@ public final class ModelHelper {
      */
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
-            return Controller.RetentionPolicy.newBuilder()
-                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                    .setRetentionParam(policyModel.getRetentionParam())
-                    .setConsumptionLimits(decode(policyModel.getConsumptionLimits()))
-                    .build();
+            Controller.RetentionPolicy.Builder builder = Controller.RetentionPolicy.newBuilder()
+                                              .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                                              .setRetentionParam(policyModel.getRetentionParam());
+            if (policyModel.getConsumptionLimits() != null) {
+                builder.setConsumptionLimits(decode(policyModel.getConsumptionLimits()));
+            }
+                
+            return builder.build();
         } else {
             return null;
         }
