@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.v1;
+package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
@@ -41,15 +41,19 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 
 import org.junit.After;
+import org.junit.Test;
+
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -128,4 +132,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         TransactionMetrics.reset();
     }
 
+    @Test
+    public void supplierReturnsEmptyTokenWhenAuthIsDisabled() {
+        assertEquals("", this.controllerService.delegationTokenSupplier(Controller.StreamInfo.newBuilder().build()).get());
+    }
 }

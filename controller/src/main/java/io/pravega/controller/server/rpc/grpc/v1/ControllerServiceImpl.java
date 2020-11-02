@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
@@ -325,7 +326,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-    private Supplier<String> delegationTokenSupplier(StreamInfo request) {
+    @VisibleForTesting
+    Supplier<String> delegationTokenSupplier(StreamInfo request) {
         return () -> {
             if (!this.isAuthEnabled()) {
                 return "";
