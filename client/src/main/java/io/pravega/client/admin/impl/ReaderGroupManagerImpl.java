@@ -100,12 +100,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
-                            .exceptionally(e -> {
-                                log.warn("Failed to add subscriber" + e);
-                                throw Exceptions.sneakyThrow(e);
-                            }),
-                    RuntimeException::new));
+            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
         }
     }
 
@@ -116,12 +111,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
-                            .exceptionally(e -> {
-                                log.warn("Failed to delete subscriber" + e);
-                                throw Exceptions.sneakyThrow(e);
-                            }),
-                    RuntimeException::new));
+            streams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
         }
 
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))

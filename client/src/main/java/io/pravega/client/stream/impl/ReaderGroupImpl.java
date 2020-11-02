@@ -207,19 +207,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         Set<Stream> streamsToUnsub = Sets.difference(oldStreams, newStreams);
 
         // Unsubscribe to older streams
-        streamsToUnsub.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName)
-                        .exceptionally(e -> {
-                            log.warn("Failed to delete subscriber" + e);
-                            throw Exceptions.sneakyThrow(e);
-                        }),
-                RuntimeException::new));
+        streamsToUnsub.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
         // Subscribe to newer streams
-        streamsToSub.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName)
-                        .exceptionally(e -> {
-                            log.warn("Failed to add subscriber" + e);
-                            throw Exceptions.sneakyThrow(e);
-                        }),
-                RuntimeException::new));
+        streamsToSub.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
     }
 
     @Override
@@ -411,12 +401,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateTruncationStreamCut(Stream stream, StreamCut streamCut) {
-        getAndHandleExceptions(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut)
-                        .exceptionally(e -> {
-                            log.warn("Failed to add subscriber" + e);
-                            throw Exceptions.sneakyThrow(e);
-                        }),
-                RuntimeException::new);
+        getAndHandleExceptions(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut), RuntimeException::new);
     }
 
     /**

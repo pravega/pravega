@@ -331,7 +331,21 @@ public class ReaderGroupConfigTest {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00)
+                    .revision(1, this::write01, this::read01);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfig builder) throws IOException {
+            //NOP
+        }
+
+        private void write00(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            RevisionDataOutput.ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            RevisionDataOutput.ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.getStartingStreamCuts(), keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.getEndingStreamCuts(), keySerializer, valueSerializer);
         }
 
         private void read01(RevisionDataInput revisionDataInput, ReaderGroupConfig builder) throws IOException {

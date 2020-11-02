@@ -343,13 +343,6 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
-            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
-            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
-            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
-            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
-            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
-            builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
             if (revisionDataInput.readBoolean()) {
                 builder.subscribeForRetention();
             }
@@ -359,13 +352,6 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
-            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
-            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
-            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
-            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
-            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
             revisionDataOutput.writeBoolean(object.isSubscriberForRetention());
             revisionDataOutput.writeBoolean(object.isAutoPublishAtLastCheckpoint());
         }
