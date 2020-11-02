@@ -70,7 +70,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <ul>
  * What controls defrag?
- * There are two additional parameters that control when concat
+ * Following are two additional parameters that control while concatenating.
  * <li>minSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered a small object.
  * For small source objects, append is used instead of using concat. (For really small txn it is rather efficient to use append than MPU).</li>
  * <li>maxSizeLimitForConcat: Size of chunk in bytes above which it is no longer considered for concat. (Eg S3 might have max limit on chunk size).</li>

@@ -36,12 +36,11 @@ class ChunkIterator {
         return Futures.loop(
                 () -> currentChunkName != null,
                 () -> txn.get(currentChunkName)
-                        .thenApplyAsync(storageMetadata -> {
+                        .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;
                             consumer.accept(currentMetadata, currentChunkName);
                             // Move next
                             currentChunkName = currentMetadata.getNextChunk();
-                            return null;
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
     }

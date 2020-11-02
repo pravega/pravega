@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CompletionStage;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CONCAT_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CONCAT_LATENCY;
@@ -77,7 +76,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                         }, chunkedSegmentStorage.getExecutor()), chunkedSegmentStorage.getExecutor());
     }
 
-    private CompletionStage<Void> performConcat(MetadataTransaction txn) {
+    private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
         // Validate preconditions.
         checkState();
 
@@ -111,7 +110,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         throw new CompletionException(ex);
     }
 
-    private CompletionStage<Void> postCommit() {
+    private CompletableFuture<Void> postCommit() {
         // Collect garbage.
         return chunkedSegmentStorage.collectGarbage(chunksToDelete)
                 .thenAcceptAsync(v4 -> {

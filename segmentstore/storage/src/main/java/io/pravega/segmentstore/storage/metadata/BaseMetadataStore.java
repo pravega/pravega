@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -318,7 +317,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Loads missing keys.
      */
-    private CompletionStage<Void> loadMissingKeys(MetadataTransaction txn, boolean skipStoreCheck, Map<String, TransactionData> txnData) {
+    private CompletableFuture<Void> loadMissingKeys(MetadataTransaction txn, boolean skipStoreCheck, Map<String, TransactionData> txnData) {
         val loadFutures = new ArrayList<CompletableFuture<TransactionData>>();
         for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
             Preconditions.checkState(activeKeys.contains(entry.getKey()));
@@ -384,7 +383,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Writes modified values to the metadata store.
      */
-    private CompletionStage<Void> writeToMetadataStore(boolean lazyWrite, ArrayList<TransactionData> modifiedValues) {
+    private CompletableFuture<Void> writeToMetadataStore(boolean lazyWrite, ArrayList<TransactionData> modifiedValues) {
         if (!lazyWrite || (bufferCount.get() > maxEntriesInTxnBuffer)) {
             log.trace("Persisting all modified keys (except pinned)");
             val toWriteList = modifiedValues.stream().filter(entry -> !entry.isPinned()).collect(Collectors.toList());
