@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenException;
@@ -89,9 +90,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -100,7 +101,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.Getter;
 import lombok.Setter;
 import lombok.val;
@@ -224,7 +224,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * an appropriate message is sent back over the connection.
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
-        result.setCopyOnRead(true); // Get a copy of any data from the cache to avoid losing it due to cache eviction.
         String segment = request.getSegment();
         ArrayList<BufferView> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
@@ -319,16 +318,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Collect all the data from the given contents into a {@link ByteBuf}.
      */
     private ByteBuf toByteBuf(List<BufferView> contents) {
-        val buffers = contents.stream()
-                .flatMap(bv -> bv.getContents().stream())
-                .map(Unpooled::wrappedBuffer)
-                .toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.concat(Iterators.transform(contents.iterator(), BufferView::iterateBuffers));
+        val b = Iterators.transform(iterators, Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(b, ByteBuf.class));
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.transform(bufferView.iterateBuffers(), Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(iterators, ByteBuf.class));
     }
 
     @Override
@@ -837,7 +834,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableEntriesDelta.getFromPosition());
 
         val timer = new Timer();
-        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>, DeltaIteratorState>(
+        val result = new DeltaIteratorResult<BufferView, Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(
                 segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
@@ -974,6 +971,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof BadKeyVersionException) {
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (errorCodeExists(u)) {
+            log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
+            invokeSafely(connection::send,
+                    new WireCommands.ErrorMessage(requestId, segment, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
+                    failureHandler);
         } else {
             logError(requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
@@ -981,6 +983,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         return null;
+    }
+
+    private boolean errorCodeExists(Throwable e) {
+        val errorCode = WireCommands.ErrorMessage.ErrorCode.valueOf(e.getClass());
+        return errorCode != WireCommands.ErrorMessage.ErrorCode.UNSPECIFIED;
     }
 
     private void logError(long requestId, String segment, String operation, Throwable u) {
@@ -1065,11 +1072,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private static class DeltaIteratorResult<K, V, S> {
+    private static class DeltaIteratorResult<K, V> {
         @Getter
         @Setter
         @GuardedBy("this")
-        private S state;
+        private DeltaIteratorState state = new DeltaIteratorState();
         @GuardedBy("this")
         private final Map<K, V> items = new HashMap<>();
         @Getter

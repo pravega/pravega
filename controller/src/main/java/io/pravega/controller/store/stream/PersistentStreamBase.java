@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
@@ -115,6 +116,7 @@ public abstract class PersistentStreamBase implements Stream {
                         .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.EMPTY))
                         .thenCompose((Void v) -> createStateIfAbsent(StateRecord.builder().state(State.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createStreamResponse))
+                        .thenCompose((Void v) -> createSubscribersRecordIfAbsent())
                         .thenApply((Void v) -> createStreamResponse));
     }
 
@@ -317,6 +319,19 @@ public abstract class PersistentStreamBase implements Stream {
                     "Stream: " + getName() + " State: " + newState.name() + " current state = " +
                             previous.getObject()));
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber newSubscriberData) {
+        return isStreamCutValidForTruncation(previous.getObject().getTruncationStreamCut(), newSubscriberData.getTruncationStreamCut())
+                .thenCompose(isValid -> {
+                    if (isValid) {
+                       return Futures.toVoid(setSubscriberData(new VersionedMetadata<>(newSubscriberData, previous.getVersion())));
+                    } else {
+                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
+                                "New StreamCut is lower than the previous value."));
+                    }
+               });
     }
 
     @Override
@@ -669,6 +684,23 @@ public abstract class PersistentStreamBase implements Stream {
                               return true;
                           }
                       });
+    }
+
+    private CompletableFuture<Boolean> isStreamCutValidForTruncation(Map<Long, Long> previousStreamCut, final Map<Long, Long> streamCut) {
+        if (previousStreamCut.isEmpty()) {
+            return isStreamCutValid(streamCut);
+        } else {
+            return isStreamCutValid(streamCut)
+                    .thenCompose( isValidStreamCut -> {
+                        if (isValidStreamCut) {
+                            return computeStreamCutSpan(streamCut)
+                                    .thenCompose(span -> computeStreamCutSpan(previousStreamCut)
+                                            .thenApply(previousSpan -> greaterThan(streamCut, span, previousStreamCut, previousSpan)));
+                        } else {
+                            return CompletableFuture.completedFuture(Boolean.FALSE);
+                        }
+            });
+        }
     }
 
     /**
@@ -1391,7 +1423,6 @@ public abstract class PersistentStreamBase implements Stream {
         return getRetentionSetData()
                 .thenCompose(data -> {
                     RetentionSet retention = data.getObject();
-
                     RetentionSet update = RetentionSet.addReferenceToStreamCutIfLatest(retention, record);
                     return createStreamCutRecordData(record.getRecordingTime(), record)
                             .thenCompose(v -> Futures.toVoid(updateRetentionSetData(new VersionedMetadata<>(update, data.getVersion()))));
@@ -1422,11 +1453,11 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions() {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(int limit) {
         return getVersionedCommitTransactionsRecord()
                 .thenCompose(versioned -> {
                     if (versioned.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
-                        return getOrderedCommittingTxnInLowestEpoch()
+                        return getOrderedCommittingTxnInLowestEpoch(limit)
                                 .thenCompose(list -> {
                                     if (list.isEmpty()) {
                                         return CompletableFuture.completedFuture(versioned);
@@ -1622,7 +1653,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
     
     protected CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpochHelper(
-            ZkOrderedStore txnCommitOrderer, Executor executor) {
+            ZkOrderedStore txnCommitOrderer, int limit, Executor executor) {
         // get all transactions that have been added to commit orderer.
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
                 AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
@@ -1646,7 +1677,7 @@ public abstract class PersistentStreamBase implements Stream {
                           // smallest epoch has transactions in committing state, we should break, else continue.
                           // also remove any transaction order references which are invalid.
                           return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
-                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap);
+                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap, limit, executor);
                           }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
                                         .thenApply(v ->
                                                 transactionsMap.entrySet().stream().sorted(
@@ -1663,8 +1694,10 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
-                                                               ConcurrentSkipListSet<Long> toPurge,
-                                                               ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
+                                                             ConcurrentSkipListSet<Long> toPurge,
+                                                             ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap,
+                                                             int limit,
+                                                             Executor executor) {
         int epoch = nextEpoch.getKey();
         List<Long> orders = new ArrayList<>();
         List<String> txnIds = new ArrayList<>();
@@ -1673,7 +1706,10 @@ public abstract class PersistentStreamBase implements Stream {
             txnIds.add(x.getValue());
         });
 
-        return getTransactionRecords(epoch, txnIds).thenAccept(txns -> {
+        AtomicInteger from = new AtomicInteger(0);
+        AtomicInteger till = new AtomicInteger(Math.min(limit, txnIds.size()));
+        return Futures.loop(() -> from.get() < txnIds.size() && transactionsMap.size() < limit, 
+                () -> getTransactionRecords(epoch, txnIds.subList(from.get(), till.get())).thenAccept(txns -> {
             for (int i = 0; i < txns.size(); i++) {
                 ActiveTxnRecord txnRecord = txns.get(i);
                 UUID txnId = UUID.fromString(txnIds.get(i));
@@ -1683,6 +1719,9 @@ public abstract class PersistentStreamBase implements Stream {
                         if (txnRecord.getCommitOrder() == order) {
                             // if entry matches record's position then include it
                             transactionsMap.put(txnId, txnRecord);
+                            if (transactionsMap.size() >= limit) {
+                                break;
+                            }
                         } else {
                             log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
                             toPurge.add(order);
@@ -1703,7 +1742,9 @@ public abstract class PersistentStreamBase implements Stream {
                         break;
                 }
             }
-        });
+            from.set(till.get());
+            till.set(Math.min(from.get() + limit, txnIds.size()));
+        }), executor);
     }
 
     CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds) {
@@ -1972,6 +2013,13 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached);
     // endregion
 
+    // region subscriber
+    // invoke this when creating a new Stream or when moving a Stream to CBR Retention Policy
+    abstract CompletableFuture<Void> createSubscribersRecordIfAbsent();
+
+    abstract CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber);
+    // endregion
+
     // region retention
     abstract CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet data);
 
@@ -2051,9 +2099,10 @@ public abstract class PersistentStreamBase implements Stream {
     /**
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 
      * sorted by their order of commits. 
+     * @param limit number of txns to fetch.
      * @return CompletableFuture which when completed will return ordered list of transaction ids and records.
      */
-    abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch();
+    abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit);
     
     @VisibleForTesting
     abstract CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns();

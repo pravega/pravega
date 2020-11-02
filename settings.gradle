@@ -11,6 +11,7 @@
 rootProject.name = 'pravega'
 
 include 'common',
+        'common_server',
         'shared:cluster',
         'shared:authplugin',
         'shared:security',
@@ -25,6 +26,8 @@ include 'common',
         'segmentstore:server:host',
         'controller',
         'standalone',
+        'cli:admin',
+        'cli:user',
         'test:testcommon',
         'test:integration',
         'test:system',

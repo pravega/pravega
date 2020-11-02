@@ -84,6 +84,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -522,6 +523,173 @@ public class ControllerImpl implements Controller {
                 log.warn(requestId, "updateStream {}/{} failed: ", scope, streamName, e);
             }
             LoggerHelpers.traceLeave(log, "updateStream", traceId, streamConfig, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriber, requestId);
+
+        final CompletableFuture<AddSubscriberStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<AddSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriber);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "addSubscriber", scope, streamName)
+                    .addSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to update stream: {}", streamName);
+                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}/{}", scope, streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + scope + "/" + streamName);
+                case SUBSCRIBER_EXISTS:
+                    log.warn(requestId, "Subscriber {} for stream {}/{} already exists {}.", subscriber, scope, streamName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Successfully updated stream: {}", streamName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "addSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "addSubscriber", traceId, subscriber, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "deleteSubscriber", subscriber, requestId);
+
+        final CompletableFuture<DeleteSubscriberStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "deleteSubscriber", scope, streamName, subscriber);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteSubscriber", scope, streamName)
+                    .deleteSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete subscriber: {} to stream {}/{}", subscriber, scope, streamName);
+                    throw new ControllerFailureException("Failed to delete subscriber: " + subscriber);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}", streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_NOT_FOUND:
+                    log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
+                    return false;
+                case SUCCESS:
+                    log.info(requestId, "Successfully delete subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status delete subscriber " + subscriber
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteSubscriber", traceId, subscriber, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        long traceId = LoggerHelpers.traceEnter(log, "listSubscribers");
+        long requestId = requestIdGenerator.get();
+        final CompletableFuture<SubscribersResponse> result = this.retryConfig.runAsync(() -> {
+        RPCAsyncCallback<SubscribersResponse> callback = new RPCAsyncCallback<>(requestId, "listSubscribers");
+
+        new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "listSubscribers")
+                .listSubscribers(ModelHelper.createStreamInfo(scope, streamName), callback);
+        return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to list subscribers for stream {}/{}", scope, streamName);
+                    throw new ControllerFailureException("Failed to list subscribers for stream" + streamName);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}", streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully listed subscribers for stream: {}/{}", scope, streamName);
+                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status listing subscribers " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "listSubscribers for stream {}/{} failed: ", scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "listSubscribers", traceId, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "stream");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "updateTruncationStreamCut", subscriber, requestId);
+
+        final CompletableFuture<UpdateSubscriberStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "updateTruncationStreamCut", scope, streamName, subscriber, streamCut);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateTruncationStreamCut", scope, streamName)
+                    .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, getStreamCutMap(streamCut)), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to update stream: {}", streamName);
+                    throw new ControllerFailureException("Failed to updateTruncationStreamcut for Stream:" + scope + "/" + streamName
+                            + ": subscriber:" + subscriber);
+                case STREAM_NOT_FOUND:
+                    log.warn(requestId, "Stream does not exist: {}", streamName);
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_NOT_FOUND:
+                    log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
+                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                case STREAMCUT_NOT_VALID:
+                    log.warn(requestId, "StreamCut not valid for stream {}/{} subscriber {}.", scope, streamName, subscriber);
+                    throw new IllegalArgumentException("StreamCut not valid for stream " + scope + "/" + streamName + ": subscriber:" + subscriber);
+                case SUCCESS:
+                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status for updateTruncationStreamCut for Stream :"
+                            + scope + "/" + streamName + ": subscriber:" + subscriber + ": status=" + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "updateTruncationStreamCut for Subscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, "updateTruncationStreamCut", traceId, subscriber, requestId);
         });
     }
 
@@ -1557,6 +1725,27 @@ public class ControllerImpl implements Controller {
         public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .deleteStream(streamInfo, callback);
+        }
+
+        public void addSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<AddSubscriberStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .addSubscriber(streamSubscriberInfo, callback);
+        }
+
+        public void deleteSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<DeleteSubscriberStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteSubscriber(streamSubscriberInfo, callback);
+        }
+
+        public void updateSubscriberStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .updateSubscriberStreamCut(subscriberStreamCut, callback);
+        }
+
+        public void listSubscribers(StreamInfo request,
+                               RPCAsyncCallback<SubscribersResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .listSubscribers(request, callback);
         }
 
         public void createKeyValueTable(KeyValueTableConfig kvtConfig, RPCAsyncCallback<CreateKeyValueTableStatus> callback) {

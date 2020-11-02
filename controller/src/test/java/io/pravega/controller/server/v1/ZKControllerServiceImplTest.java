@@ -37,7 +37,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -264,5 +264,26 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void deleteKeyValueTableTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
         // Key-Value Tables are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void addSubscriberTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void deleteSubscriberTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void updateSubscriberStreamCutTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
     }
 }

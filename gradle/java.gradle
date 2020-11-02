@@ -16,7 +16,6 @@ plugins.withId('java') {
     apply plugin: 'maven'
 
     compileJava {
-        
         options.compilerArgs.addAll([
                 "-Xlint:deprecation",
                 "-Xlint:divzero",
@@ -25,8 +24,15 @@ plugins.withId('java') {
                 "-Xlint:finally",
                 "-Xlint:overrides",
                 "-Xlint:path",
-                "-Werror"
+                "-Werror",
+                "-Xlint:unchecked",
+                "--release",
+                getDefaultJavaVersion()
         ])
+    }
+
+    compileTestJava {
+        options.compilerArgs.addAll(["--release",  getDefaultJavaVersion()])
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
@@ -98,3 +104,4 @@ plugins.withId('java') {
         testCompile "org.mockito:mockito-core:${mockitoVersion}"
     }
 }
+

@@ -1,0 +1,234 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.cli.admin.bookkeeper;
+
+import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.logs.DataFrameRecord;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.storage.DataLogNotAvailableException;
+import io.pravega.segmentstore.storage.DurableDataLog;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
+import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.net.NetworkInterface;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Test basic functionality of Bookkeeper commands.
+ */
+public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
+
+    private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+    private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+    private final PrintStream originalOut = System.out;
+    private final InputStream originalIn = System.in;
+
+    public BookkeeperCommandsTest() {
+        super(1);
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
+        baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        boolean successfulSetup = false;
+        while (interfaces.hasMoreElements()) {
+            try {
+                super.setUp();
+                successfulSetup = true;
+                break;
+            } catch (Exception e) {
+                // On some environments, using default interface does not allow to resolve the host name. We keep
+                // iterating over existing interfaces to start the Bookkeeper cluster.
+                super.tearDown();
+                baseConf.setListeningInterface(interfaces.nextElement().getName());
+            }
+        }
+        assert successfulSetup;
+
+        STATE.set(new AdminCommandState());
+        Properties bkProperties = new Properties();
+        bkProperties.setProperty("pravegaservice.container.count", "4");
+        bkProperties.setProperty("pravegaservice.zk.connect.uri", zkUtil.getZooKeeperConnectString());
+        bkProperties.setProperty("bookkeeper.ledger.path", "/ledgers");
+        bkProperties.setProperty("bookkeeper.zk.metadata.path", "ledgers");
+        bkProperties.setProperty("bookkeeper.ensemble.size", "1");
+        bkProperties.setProperty("bookkeeper.ack.quorum.size", "1");
+        bkProperties.setProperty("bookkeeper.write.quorum.size", "1");
+        bkProperties.setProperty("pravegaservice.clusterName", "");
+        STATE.get().getConfigBuilder().include(bkProperties);
+
+        System.setOut(new PrintStream(outContent));
+    }
+
+    @After
+    public void tearDown() {
+        System.setOut(originalOut);
+        System.setIn(originalIn);
+        STATE.get().close();
+    }
+
+    @Test
+    public void testBookKeeperListCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        String commandResult = TestUtils.executeCommand("bk list", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_summary") && commandResult.contains("logId\": 0"));
+    }
+
+    @Test
+    public void testBookKeeperDetailsCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        String commandResult = TestUtils.executeCommand("bk details 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_summary") && commandResult.contains("logId\": 0"));
+        commandResult = TestUtils.executeCommand("bk details 100", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
+    }
+
+    @Test
+    public void testBookKeeperDisableAndEnableCommands() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        String commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("enabled\": false"));
+        // Disable an already disabled log.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk disable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("already disabled"));
+
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("enabled\": true"));
+        // Enable an already enabled log.
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk enable 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk enable 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("enabled\": true"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        commandResult = TestUtils.executeCommand("bk enable 100", STATE.get());
+        Assert.assertTrue(commandResult.contains("log_no_metadata"));
+        // Execute closing Zookeeper server.
+        this.zkUtil.killCluster();
+        AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("bk enable 0", STATE.get()));
+    }
+
+    @Test
+    public void testBookKeeperCleanupCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        String commandResult = TestUtils.executeCommand("bk cleanup", STATE.get());
+        Assert.assertTrue(commandResult.contains("no Ledgers eligible for deletion"));
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk cleanup", STATE.get());
+
+        CommandArgs args = new CommandArgs(Collections.singletonList(""), STATE.get());
+        BookKeeperCleanupCommand command = new BookKeeperCleanupCommand(args);
+        BookKeeperCommand.Context context = command.createContext();
+
+        // List one existing and one
+        command.listCandidates(Collections.singletonList(0L), context);
+        Assert.assertFalse(outContent.toString().contains("No such ledger exists"));
+        command.listCandidates(Collections.singletonList(1L), context);
+        Assert.assertTrue(outContent.toString().contains("No such ledger exists"));
+
+        // Try to exercise deletion standalone.
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(0L), context);
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(1L), context);
+        Assert.assertTrue(outContent.toString().contains("Deleted Ledger 0"));
+        command.deleteCandidates(Collections.singletonList(-1L), Collections.singletonList(0L), context);
+        command.deleteCandidates(Collections.singletonList(0L), Collections.singletonList(1L), null);
+    }
+
+    @Test
+    public void testBookKeeperRecoveryCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        String commandResult = TestUtils.executeCommand("container recover 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("Recovery complete"));
+        CommandArgs args = new CommandArgs(Collections.singletonList("0"), STATE.get());
+        ContainerRecoverCommand command = new ContainerRecoverCommand(args);
+        // Test unwrap exception options.
+        command.unwrapDataCorruptionException(new DataCorruptionException("test"));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
+        // Check that exception is thrown if ZK is not available.
+        this.zkUtil.stopCluster();
+        AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
+    }
+
+    @Test
+    public void testRecoveryState() {
+        CommandArgs args = new CommandArgs(Collections.singletonList("0"), STATE.get());
+        ContainerRecoverCommand.RecoveryState state = new ContainerRecoverCommand(args).new RecoveryState();
+        Operation op = new TestOperation();
+        List<DataFrameRecord.EntryInfo> entries = new ArrayList<>();
+        entries.add(new TestEntryInfo());
+        // Exercise RecoveryState logic.
+        state.operationComplete(op, new DataCorruptionException("Test exception"));
+        state.newOperation(op, entries);
+        state.operationComplete(op, null);
+    }
+
+    private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
+        BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
+                .with(BookKeeperConfig.ZK_ADDRESS, zkUtil.getZooKeeperConnectString()).build();
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(zkUtil.getZooKeeperConnectString(), new RetryOneTime(5000));
+        curatorFramework.start();
+        @Cleanup
+        BookKeeperLogFactory bookKeeperLogFactory = new BookKeeperLogFactory(bookKeeperConfig, curatorFramework, Executors.newSingleThreadScheduledExecutor());
+        bookKeeperLogFactory.initialize();
+        @Cleanup
+        DurableDataLog log = bookKeeperLogFactory.createDurableDataLog(logId);
+        log.initialize(Duration.ofSeconds(5));
+    }
+
+    private static class TestOperation extends Operation {
+
+    }
+
+    private static class TestEntryInfo extends DataFrameRecord.EntryInfo {
+        TestEntryInfo() {
+            super(null, 0, 0, true);
+        }
+    }
+}

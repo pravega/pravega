@@ -7,16 +7,17 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-FROM openjdk:8u212-jre-alpine3.9
+FROM openjdk:11.0.8-jre-slim
 
-RUN apk add --update \
+RUN apt-get update && apt-get install -y -q \
     rpcbind \
-    nfs-utils \
-    gcompat \
+    nfs-common \
     python \
     jq \
     curl \
-  && rm -rf /var/cache/apk/*
+    net-tools \
+    iproute2  \
+  && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 9090 9091 10000 12345
 
@@ -24,6 +25,11 @@ WORKDIR /opt/pravega
 
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
+
+# Default shell of jdk11 image is dash
+# Creating symlink to point to bash
+RUN ln -sf /bin/bash /bin/sh
+
 RUN chmod +x -R /opt/pravega/scripts/
 
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]

@@ -76,11 +76,21 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testUsingInvalidArgs() {
+        TableContext context = new TableContext(COMPACTION_SIZE, executorService());
+        val segment = context.ext.createSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
+                () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testSortedTableSegment() {
         TableContext context = new TableContext(COMPACTION_SIZE, executorService());
         val segment = context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
-                "entryDeltaIterator threw an UnsupportedOperationException on a sorted TableSegment.",
+                "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
                 ex -> ex instanceof UnsupportedOperationException);
     }
@@ -146,10 +156,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(actual.size(), expected.size());
         AssertExtensions.assertListEquals("Assert equivalency by TableKey and Value (ignoring version).", expected, actual,
                 (t1, t2) -> compareKeys(t1, t2) &&  t1.getValue().equals(t2.getValue()));
-    }
-
-    private static boolean isDeletion(TableEntry entry) {
-        return entry.getValue().getContents().isEmpty();
     }
 
     private TestData createTestData(int numEntriesToGenerate) {

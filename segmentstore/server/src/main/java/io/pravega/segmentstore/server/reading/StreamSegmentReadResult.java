@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -24,7 +25,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-class StreamSegmentReadResult implements ReadResult {
+@VisibleForTesting
+public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final String traceObjectId;
@@ -53,10 +55,11 @@ class StreamSegmentReadResult implements ReadResult {
      * @param maxResultLength          The maximum number of bytes to read.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume. The first argument
      *                                 is startOffset (long) and the second is remainingLength (int).
+     * @param traceObjectId            Used for logging.
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
+    public StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, @NonNull NextEntrySupplier getNextItem, String traceObjectId) {
         Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
         Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
         this.traceObjectId = traceObjectId;
@@ -65,6 +68,11 @@ class StreamSegmentReadResult implements ReadResult {
         this.getNextItem = getNextItem;
         this.consumedLength = 0;
         this.canRead = true;
+
+        // By default, all cache reads are to be copied into heap buffers before being served to calling code. This is
+        // to avoid situations where there upstream code has pointers to evicted (and reallocated) cache blocks. If this
+        // is not desired, then the upstream code should disable this and document WHY it is safe to do so.
+        this.copyOnRead = true;
     }
 
     //endregion
@@ -221,7 +229,7 @@ class StreamSegmentReadResult implements ReadResult {
      * cached data, returns the next entry to be consumed (CompletableReadResultEntry).
      */
     @FunctionalInterface
-    interface NextEntrySupplier {
+    public interface NextEntrySupplier {
         CompletableReadResultEntry apply(Long startOffset, Integer remainingLength, Boolean makeCopy);
     }
 

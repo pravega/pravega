@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
@@ -34,6 +35,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
+import io.pravega.segmentstore.server.reading.StreamSegmentReadResult;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -60,7 +62,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Assert;
@@ -103,14 +106,16 @@ public class PravegaRequestProcessorTest {
 
     //region Stream Segments
 
-    @Data
-    private static class TestReadResult implements ReadResult {
-        final long streamSegmentStartOffset;
-        final int maxResultLength;
-        boolean closed = false;
+    @Getter
+    @Setter
+    private static class TestReadResult extends StreamSegmentReadResult implements ReadResult {
         final List<ReadResultEntry> results;
         long currentOffset = 0;
-        boolean copyOnRead = false;
+
+        TestReadResult(long streamSegmentStartOffset, int maxResultLength, List<ReadResultEntry> results) {
+            super(streamSegmentStartOffset, maxResultLength, (l, r, i) -> null, "");
+            this.results = results;
+        }
 
         @Override
         public boolean hasNext() {
@@ -119,20 +124,15 @@ public class PravegaRequestProcessorTest {
 
         @Override
         public ReadResultEntry next() {
-            Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", this.copyOnRead);
+            Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", isCopyOnRead());
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
             return result;
         }
 
         @Override
-        public void close() {
-            closed = true;
-        }
-
-        @Override
         public int getConsumedLength() {
-            return (int) (currentOffset - streamSegmentStartOffset);
+            return (int) (currentOffset - getStreamSegmentStartOffset());
         }
     }
 
@@ -1021,6 +1021,73 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test
+    public void testReadTableEntriesDeltaEmpty() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String tableSegmentName = "testReadTableEntriesDelta";
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        val recorderMock = mock(TableSegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+                recorderMock, new PassingTokenVerifier(), false);
+
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
+        verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
+
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", 0, 3));
+        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
+        verify(recorderMock).iterateEntries(eq(tableSegmentName), eq(0), any());
+    }
+
+    @Test
+    public  void testReadTableEntriesDeltaOutOfBounds() throws  Exception {
+
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String tableSegmentName = "testReadTableEntriesDelta";
+
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        val recorderMock = mock(TableSegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
+                recorderMock, new PassingTokenVerifier(), false);
+
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
+        verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
+
+        // Generate keys.
+        ArrayList<ArrayView> keys = generateKeys(3, rnd);
+        ArrayView testValue = generateValue(rnd);
+        TableEntry e1 = TableEntry.unversioned(keys.get(0), testValue);
+        TableEntry e2 = TableEntry.unversioned(keys.get(1), testValue);
+        TableEntry e3 = TableEntry.unversioned(keys.get(2), testValue);
+
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, tableSegmentName, "",
+                getTableEntries(asList(e1, e2, e3)), WireCommands.NULL_TABLE_SEGMENT_OFFSET));
+        verify(recorderMock).updateEntries(eq(tableSegmentName), eq(3), eq(false), any());
+        long length = store.getStreamSegmentInfo(tableSegmentName, Duration.ofMinutes(1)).get().getLength();
+        processor.readTableEntriesDelta(new WireCommands.ReadTableEntriesDelta(1, tableSegmentName, "", length + 1, 3));
+        order.verify(connection).send(new WireCommands.ErrorMessage(1,
+                tableSegmentName,
+                "fromPosition can not exceed the length of the TableSegment.",
+                WireCommands.ErrorMessage.ErrorCode.valueOf(IllegalArgumentException.class)));
+        verify(recorderMock, times(0)).iterateEntries(eq(tableSegmentName), eq(3), any());
+    }
+
+    @Test
     public void testReadTableEntriesDelta() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -1211,8 +1278,8 @@ public class PravegaRequestProcessorTest {
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
-        return Unpooled.wrappedUnmodifiableBuffer(buffers);
+        val iterators = Iterators.transform(bufferView.iterateBuffers(), Unpooled::wrappedBuffer);
+        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(iterators, ByteBuf.class));
     }
 
     //endregion

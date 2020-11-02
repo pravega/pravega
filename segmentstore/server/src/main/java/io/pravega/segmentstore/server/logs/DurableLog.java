@@ -62,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
-    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
@@ -200,6 +200,10 @@ public class DurableLog extends AbstractService implements OperationLog {
                                 .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor));
     }
 
+    private CompletableFuture<Void> queueMetadataCheckpoint() {
+        return Futures.toVoid(checkpoint(DEFAULT_TIMEOUT));
+    }
+
     @SneakyThrows(Exception.class)
     private boolean performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
@@ -209,7 +213,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Timer timer = new Timer();
         try {
             // Initialize the DurableDataLog, which will acquire its lock and ensure we are the only active users of it.
-            this.durableDataLog.initialize(RECOVERY_TIMEOUT);
+            this.durableDataLog.initialize(DEFAULT_TIMEOUT);
 
             // Initiate the recovery.
             RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.memoryStateUpdater);
@@ -334,6 +338,18 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     @Override
+    public CompletableFuture<Long> checkpoint(Duration timeout) {
+        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
+        MetadataCheckpointOperation op = new MetadataCheckpointOperation();
+        return this.operationProcessor
+                .process(op)
+                .thenApply(v -> {
+                    log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId);
+                    return op.getSequenceNumber();
+                });
+    }
+
+    @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         ensureRunning();
         log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber, maxCount);
@@ -407,13 +423,6 @@ public class DurableLog extends AbstractService implements OperationLog {
             this.stopException.set(new StreamingException("OperationProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
             stopAsync();
         }
-    }
-
-    private CompletableFuture<Void> queueMetadataCheckpoint() {
-        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
-        return this.operationProcessor
-                .process(new MetadataCheckpointOperation())
-                .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));
     }
 
     private void unregisterTailRead(TailRead tailRead) {

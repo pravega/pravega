@@ -348,6 +348,11 @@ public class SegmentStoreConnectionManagerTest {
             public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
 
             }
+
+            @Override
+            public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+
+            }
         };
     }
 
