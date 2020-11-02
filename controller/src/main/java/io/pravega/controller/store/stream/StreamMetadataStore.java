@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -25,6 +26,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -253,7 +255,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param existing      versioned StreamConfigurationRecord
      * @param context       operation context
      * @param executor      callers executor
-     * @return future of opration
+     * @return future of operation
      */
     CompletableFuture<Void> completeUpdateConfiguration(final String scope,
                                                         final String name,
@@ -287,14 +289,93 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final OperationContext context,
                                                                                            final Executor executor);
 
+
+    /**
+     * Creates a new subscribers record in metadata for an existing stream.
+     *
+     * @param scopeName         stream scope name.
+     * @param streamName        stream name.
+     * @param subscriber        new stream subscriber.
+     * @param context           operation context
+     * @param executor          callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
+                                                           final OperationContext context, final Executor executor);
+
+    /**
+     * Updates the subscribers metadata for an existing stream.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param subscriber new stream subscriber.
+     * @param streamCut     new truncation streamcut of subscriber.
+     * @param previousRecord previous truncation streamcut of subscriber.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
+                                                     final String name,
+                                                     final String subscriber,
+                                                     final ImmutableMap<Long, Long> streamCut,
+                                                     final VersionedMetadata<StreamSubscriber> previousRecord,
+                                                     final OperationContext context,
+                                                     final Executor executor);
+
+    /**
+     * Updates the subscribers metadata for an existing stream.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param subscriber    subscriber to be removed.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> deleteSubscriber(final String scope,
+                                             final String name,
+                                             final String subscriber,
+                                             final OperationContext context,
+                                             final Executor executor);
+
+    /**
+     * Fetches the current stream subscribers record.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param subscriber   subscriber name.
+     * @param context      operation context.
+     * @param executor     callers executor.
+     * @return current stream configuration.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope, final String name,
+                                                                                       final String subscriber,
+                                                                                       final OperationContext context,
+                                                                                       final Executor executor);
+
+    /**
+     * List scopes with pagination. This api continues listing scopes from the supplied continuation token
+     * and returns a count limited list of scopes and a new continuation token.
+     *
+     * @param scope scope name.
+     * @param stream stream for which to list subscribers.
+     * @param context operation context.
+     * @param executor executor.
+     * @return A list of subscribers for Stream.
+     */
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String stream,
+                                                    final OperationContext context, final Executor executor);
+
+
     /**
      * Start new stream truncation.
      *
      * @param scope         stream scope
      * @param name          stream name.
      * @param streamCut     new stream cut.
-     * @param context       operation context
-     * @param executor      callers executor
+     * @param context       operation context.
+     * @param executor      callers executor.
      * @return future of operation.
      */
     CompletableFuture<Void> startTruncation(final String scope,
@@ -309,8 +390,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope               stream scope
      * @param name                stream name.
      * @param record              versioned record
-     * @param context             operation context
-     * @param executor            callers executor
+     * @param context             operation context.
+     * @param executor            callers executor.
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
