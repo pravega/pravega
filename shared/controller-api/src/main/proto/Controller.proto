@@ -308,8 +308,8 @@ message RetentionPolicy {
 message ConsumptionLimits {
     enum ConsumptionLimitType {
         UNKNOWN = 0;
-        TIME = 1;
-        SIZE = 2;
+        TIME_MILLIS = 1;
+        SIZE_BYTES = 2;
     }
     ConsumptionLimitType type = 1;
     int64 max = 2;

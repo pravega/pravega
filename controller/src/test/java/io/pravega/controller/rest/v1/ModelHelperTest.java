@@ -109,7 +109,9 @@ public class ModelHelperTest {
 
         streamConfig = getCreateStreamConfig(createStreamRequest);
         Assert.assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, streamConfig.getRetentionPolicy().getRetentionType());
-        Assert.assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_KB, streamConfig.getRetentionPolicy().getConsumptionLimits().getType());
+        Assert.assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, streamConfig.getRetentionPolicy().getConsumptionLimits().getType());
+        Assert.assertEquals(10L * 1024 * 1024, streamConfig.getRetentionPolicy().getConsumptionLimits().getMinValue());
+        Assert.assertEquals(100L * 1024 * 1024, streamConfig.getRetentionPolicy().getConsumptionLimits().getMaxValue());
 
         retentionConfig = new RetentionConfig();
         retentionConfig.setType(RetentionConfig.TypeEnum.CONSUMPTION);
@@ -125,6 +127,8 @@ public class ModelHelperTest {
         streamConfig = getCreateStreamConfig(createStreamRequest);
         Assert.assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, streamConfig.getRetentionPolicy().getConsumptionLimits().getType());
+        Assert.assertEquals(10L * 1000 * 60, streamConfig.getRetentionPolicy().getConsumptionLimits().getMinValue());
+        Assert.assertEquals(100L * 1000 * 60, streamConfig.getRetentionPolicy().getConsumptionLimits().getMaxValue());
     }
 
     @Test

@@ -123,9 +123,9 @@ public class ModelHelperTest {
         RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
         assertNull(policy3);
 
-        policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_KB, 10L, 100L)));
+        policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 10L, 100L)));
         assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, policy1.getRetentionType());
-        assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_KB, policy1.getConsumptionLimits().getType());
+        assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, policy1.getConsumptionLimits().getType());
         
         policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 10L, 100L)));
         assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, policy1.getRetentionType());

@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class ModelHelper {
 
     public static final int MILLIS_TO_MINUTES = 60 * 1000;
-    public static final int KB_TO_MB = 1024;
+    public static final int BYTES_TO_MB = 1024 * 1024;
 
     /**
      * This method translates the REST request object CreateStreamRequest into internal object StreamConfiguration.
@@ -85,12 +85,12 @@ public class ModelHelper {
         int multiplier;
         switch (consumptionLimits.getType()) {
             case SIZE_MB:
-                type = RetentionPolicy.ConsumptionLimits.Type.SIZE_KB;
-                multiplier = 1024;
+                type = RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES;
+                multiplier = BYTES_TO_MB;
                 break;
             case TIME_MINUTES:
                 type = RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS;
-                multiplier = 60 * 1000;
+                multiplier = MILLIS_TO_MINUTES;
                 break;
             default:
                 throw new NotImplementedException("Consumption limit type not supported");
@@ -201,9 +201,9 @@ public class ModelHelper {
                     RetentionPolicy.ConsumptionLimits cl = streamConfiguration.getRetentionPolicy().getConsumptionLimits();
                     int divider;
                     switch (cl.getType()) {
-                        case SIZE_KB:
+                        case SIZE_BYTES:
                             consumptionLimits.setType(ConsumptionLimits.TypeEnum.SIZE_MB);
-                            divider = KB_TO_MB;
+                            divider = BYTES_TO_MB;
                             break;
                         case TIME_MILLIS:
                             divider = MILLIS_TO_MINUTES;

@@ -85,7 +85,7 @@ public class RetentionPolicy implements Serializable {
     public static class ConsumptionLimits {
         public enum Type {
             TIME_MILLIS,
-            SIZE_KB
+            SIZE_BYTES
         }
 
         private final Type type;
