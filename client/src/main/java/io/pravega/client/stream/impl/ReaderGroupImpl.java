@@ -44,7 +44,6 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
