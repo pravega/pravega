@@ -9,5 +9,17 @@
  */
 package io.pravega.shared.health;
 
+import java.util.Collection;
+
+@FunctionalInterface
 public interface StatusAggregator {
+
+    /**
+     * A reduction function aggregation a {@link Collection} of {@link Status} objects into a single {@link Status} object
+     * representing the overall health of the given {@link HealthIndicator}.
+     *
+     * @param statuses The {@link Collection} of {@link Status}.
+     * @return
+     */
+    public Status aggregate(Collection<Status> statuses);
 }

@@ -9,17 +9,55 @@
  */
 package io.pravega.shared.health;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import lombok.Builder;
+import lombok.Getter;
+
+import java.util.Collection;
+import java.util.Map;
+
 /**
- * The {@link Health} interface represents the data gathered by a {@link HealthContributor} after performing a health check.
+ * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
-public interface Health {
+@Builder
+@JsonInclude(Include.NON_EMPTY)
+public class Health {
+
+    /**
+     * Any sort of identifying string that describes from which component this measurement
+     * was taken from.
+     */
+    @Getter
+    public final String name;
+
+    @Getter
+    private final Status status;
+
+    @Getter
+    private final Collection<Map.Entry<String, Object>> details;
+
+    Health(HealthBuilder builder) {
+        this.status = builder.status;
+        this.details = builder.details;
+        this.name = builder.name;
+    }
+
+    Health(String id, Status status, Collection<Map.Entry<String, Object>> details) {
+        this.name = id;
+        this.status = status;
+        this.details = details;
+    }
+
     /**
      * Used to perform readiness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'ready'.
      * A component is considered 'ready' if it has completed it's initialization step(s) and is ready to execute.
      *
      * @return
      */
-    boolean ready();
+    public boolean ready() {
+        return false;
+    }
 
     /**
      * Used to perform liveness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'alive'.
@@ -33,5 +71,7 @@ public interface Health {
      *
      * @return
      */
-    boolean alive();
+    public boolean alive() {
+        return false;
+    }
 }

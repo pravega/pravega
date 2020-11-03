@@ -10,52 +10,38 @@
 package io.pravega.shared.health;
 
 
-import lombok.NonNull;
-
 /**
  * Enumerates the list of potential states that a service or component may be in.
  */
-public final class Status {
-
+public enum Status {
     /**
      * Describes a {@link Status} that is considered in a healthy and operational state.
      */
-    public static final Status UP = new Status("UP");
-
-    /**
-     * Describes a {@link Status} that is considered in an unhealthy and non-operational state.
-     */
-    public static final Status DOWN = new Status("DOWN");
+    UP(2),
 
     /**
      * Describes a {@link Status} that is considered to be in a (potentially) deteriorating state, but still
      * remains operational.
      */
-    public static final Status WARNING = new Status("WARNING");
+    WARNING(1),
 
     /**
      * Describes a {@link Status} that is in an unknown state.
      */
-    public static final Status UNKNOWN = new Status("UNKNOWN");
-
-    private final String code;
+    UNKNOWN(0),
 
     /**
-     * Generates a {@link Status} object with the given code.
-     *
-     * @param code The string representation of the code.
+     * Describes a {@link Status} that is considered in an unhealthy and non-operational state.
      */
-    @NonNull
-    public Status(String code) {
+    DOWN(-1);
+
+   private final int code;
+
+    Status(int code) {
         this.code = code;
     }
 
-    /**
-     * Returns the code for this {@link Status}.
-     * @return The code.
-     */
-    public String getCode() {
-        return this.code;
+    static boolean alive(Status status) {
+        return status != DOWN && status != UNKNOWN;
     }
-
 }

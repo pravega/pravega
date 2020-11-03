@@ -244,10 +244,19 @@ project('shared:protocol') {
     }
 }
 
-project ('shared:healthcheck') {
+project ('shared:health') {
+
+    def jacksonMatcher = jacksonVersion =~ /\d+\.\d+\.\d+/
+    def jacksonAnnotationVersion = jacksonMatcher[0]
+
     dependencies {
         compile project(':common')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonAnnotationVersion
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
     }
 
     javadoc {
