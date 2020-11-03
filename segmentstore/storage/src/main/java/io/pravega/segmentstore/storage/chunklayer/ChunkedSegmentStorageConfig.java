@@ -35,7 +35,6 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
-    public static final Property<Integer> SELF_CHECK_LEVEL = Property.named("self.check.level", 0);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
 
     /**
@@ -52,7 +51,6 @@ public class ChunkedSegmentStorageConfig {
             .appendEnabled(true)
             .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
-            .selfCheckLevel(0)
             .lateWarningThresholdInMillis(100)
             .build();
 
@@ -120,12 +118,6 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private boolean inlineDefragEnabled;
 
-    /**
-     * Level of self check functionality enabled.
-     */
-    @Getter
-    final private int selfCheckLevel;
-
     @Getter
     final private int lateWarningThresholdInMillis;
 
@@ -146,7 +138,6 @@ public class ChunkedSegmentStorageConfig {
         this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
-        this.selfCheckLevel = properties.getInt(SELF_CHECK_LEVEL);
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
     }
 
