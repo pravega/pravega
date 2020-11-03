@@ -49,39 +49,59 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    @Getter
     private final boolean subscriberForRetention;
-    @Getter
     private final boolean autoPublishAtLastCheckpoint;
+
+    public enum ReaderGroupRetentionConfig {
+        /**
+         * There is no retention done by this {@link ReaderGroup}.
+         */
+        NO_RETENTION,
+
+        /**
+         * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
+         * {@link ReaderGroup} to truncate the stream according to its read positions. These read positions have to be provided
+         * manually in the form of a {@link StreamCut}, see this method:
+         *
+         * {@link ReaderGroup#updateRetentionStreamCut(Stream, StreamCut)}
+         */
+        RETAIN_DATA_UNTIL_EXPLICIT_RELEASE,
+
+        /**
+         * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
+         * {@link ReaderGroup} to truncate the stream using the read positions from the {@link StreamCut}s generated during checkpointing.
+         */
+        RETAIN_DATA_UNTIL_CHECKPOINT
+    }
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private boolean subscribedForRetention = false; //default value
-       private boolean autoPublishLastCheckpoint = false; //default value
+       private boolean subscriberForRetention = false; //default value
+       private boolean autoPublishAtLastCheckpoint = false; //default value
 
        /**
-        * Makes the reader group a subscriber reader group. During CBR (Consumption Based Retention),
-        * the subscriber reader group's positions are considered during truncation. The stream will truncate
-        * to the last checkpoint position of this group.
+        * Set the retention config for the {@link ReaderGroup}.
         *
+        * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder subscribeForRetention() {
-           this.subscribedForRetention = true;
-           return this;
-       }
+       public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
+           switch (retentionConfig) {
+               case NO_RETENTION:
+                   break;
 
-       /**
-        * Allows for every checkpoint initiated by this reader group (automatic or manual)
-        * to be published as a truncation point to the controller, if the reader group is a subscriber reader group.
-        *
-        * @return Reader group config builder.
-        */
-       public ReaderGroupConfigBuilder autoPublishLastCheckpoint() {
-           this.autoPublishLastCheckpoint = true;
+               case RETAIN_DATA_UNTIL_EXPLICIT_RELEASE:
+                   this.subscriberForRetention = true;
+                   break;
+
+               case RETAIN_DATA_UNTIL_CHECKPOINT:
+                   this.subscriberForRetention = true;
+                   this.autoPublishAtLastCheckpoint = true;
+                   break;
+           }
            return this;
        }
 
@@ -228,14 +248,8 @@ public class ReaderGroupConfig implements Serializable {
            Preconditions.checkArgument(maxOutstandingCheckpointRequest > 0,
                    "Outstanding checkpoint request should be greater than zero");
 
-           //basic check to make sure autoPublishLastCheckpoint is not true while subscribedForRetention is false
-           if (!subscribedForRetention) {
-               Preconditions.checkArgument(!autoPublishLastCheckpoint,
-                       "ReaderGroup should be subscriber to be able to auto-truncate");
-           }
-
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, subscribedForRetention, autoPublishLastCheckpoint);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, subscriberForRetention, autoPublishAtLastCheckpoint);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -343,11 +357,17 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            if (revisionDataInput.readBoolean()) {
-                builder.subscribeForRetention();
-            }
-            if (revisionDataInput.readBoolean()) {
-                builder.autoPublishLastCheckpoint();
+            Boolean retainStreamData = revisionDataInput.readBoolean();
+            Boolean autoUpdateRetentionStreamCut = revisionDataInput.readBoolean();
+
+            if (retainStreamData) {
+                if (autoUpdateRetentionStreamCut) {
+                    builder.retentionConfig(ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_CHECKPOINT);
+                } else {
+                    builder.retentionConfig(ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE);
+                }
+            } else {
+                builder.retentionConfig(ReaderGroupRetentionConfig.NO_RETENTION);
             }
         }
 

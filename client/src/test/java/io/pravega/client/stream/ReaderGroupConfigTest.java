@@ -87,12 +87,12 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testIsSubscriber() {
+    public void testIsRetainUntilExplicitRelease() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .subscribeForRetention()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
@@ -104,13 +104,12 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testAutoTruncateAtLastCheckpoint() {
+    public void testRetainUntilCheckpoint() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .subscribeForRetention()
-                .autoPublishLastCheckpoint()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_CHECKPOINT)
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
@@ -149,16 +148,6 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(StreamCut.UNBOUNDED, cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testInValidAutoTruncateAtLastCheckpoint() {
-        ReaderGroupConfig.builder()
-                .disableAutomaticCheckpoints()
-                .stream("scope/s1", getStreamCut("s1"))
-                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .autoPublishLastCheckpoint()
-                .build();
     }
 
     @Test(expected = IllegalArgumentException.class)

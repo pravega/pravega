@@ -399,7 +399,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void updateTruncationStreamCut(Stream stream, StreamCut streamCut) {
+    public void updateRetentionStreamCut(Stream stream, StreamCut streamCut) {
         getAndHandleExceptions(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut), RuntimeException::new);
     }
 

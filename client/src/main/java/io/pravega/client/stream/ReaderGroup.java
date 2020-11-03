@@ -192,7 +192,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * @param stream the stream to be truncated.
      * @param streamCut the stream-cut with which truncation should be done.
      */
-    void updateTruncationStreamCut(Stream stream, StreamCut streamCut);
+    void updateRetentionStreamCut(Stream stream, StreamCut streamCut);
 
     /**
      * Closes the reader group, freeing any resources associated with it.

@@ -114,8 +114,7 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
-        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
-                StreamCut>builder()
+        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
                 .build());
 
@@ -130,8 +129,7 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToCheckpoint() {
-        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
-                StreamCut>builder()
+        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
                 .build());
 
@@ -149,8 +147,7 @@ public class ReaderGroupImplTest {
         when(controller.addSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteSubscriber(SCOPE, "s1", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
-        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
-                StreamCut>builder()
+        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
                 .build());
 
@@ -158,7 +155,7 @@ public class ReaderGroupImplTest {
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .subscribeForRetention()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
                 .build();
 
         // Subscriber ReaderGroupConfig
@@ -183,8 +180,7 @@ public class ReaderGroupImplTest {
         // Setup mocks
         when(controller.addSubscriber(SCOPE, "s3", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.addSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
-        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
-                StreamCut>builder()
+        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
                 .build());
 
@@ -205,7 +201,7 @@ public class ReaderGroupImplTest {
                 StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .subscribeForRetention()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
                 .build());
         verify(controller, times(1)).addSubscriber(SCOPE, "s3", GROUP_NAME);
         verify(controller, times(1)).addSubscriber(SCOPE, "s2", GROUP_NAME);
@@ -219,8 +215,7 @@ public class ReaderGroupImplTest {
         when(controller.addSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.addSubscriber(SCOPE, "s3", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteSubscriber(SCOPE, "s1", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
-        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
-                StreamCut>builder()
+        when(state.getConfig()).thenReturn(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
                 .build());
 
@@ -228,7 +223,7 @@ public class ReaderGroupImplTest {
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .subscribeForRetention()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
                 .build();
 
         // Subscriber ReaderGroupConfig
@@ -242,7 +237,7 @@ public class ReaderGroupImplTest {
                 StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .subscribeForRetention()
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
                 .build());
         // Unsubscribe to older stream
         verify(controller, times(1)).deleteSubscriber(SCOPE, "s1", GROUP_NAME);
