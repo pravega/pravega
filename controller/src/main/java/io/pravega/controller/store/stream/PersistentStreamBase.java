@@ -166,8 +166,8 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(existing -> {
                     Preconditions.checkNotNull(existing);
                     Preconditions.checkArgument(!existing.getObject().isUpdating());
-                    long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-                    long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
+                    long mostRecent = getMostRecent(streamCut);
+                    long oldest = getOldest(streamCut);
                     int epochLow = NameUtils.getEpoch(oldest);
                     int epochHigh = NameUtils.getEpoch(mostRecent);
 
@@ -249,10 +249,15 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
-        return computeStreamCutSpan(streamcut1)
-                .thenCompose(span1 -> computeStreamCutSpan(streamcut2)
-                    .thenApply(span2 -> greaterThan(streamcut1, span1, streamcut2, span2)));
+    public CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1Future = computeStreamCutSpan(streamcut1);
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2Future = computeStreamCutSpan(streamcut2);
+        return CompletableFuture.allOf(span1Future, span2Future)
+                    .thenApply(v -> {
+                        ImmutableMap<StreamSegmentRecord, Integer> span1 = span1Future.join();
+                        ImmutableMap<StreamSegmentRecord, Integer> span2 = span2Future.join();
+                        return greaterThan(streamcut1, span1, streamcut2, span2);
+                    });
     }
 
     @Override
@@ -728,14 +733,22 @@ public abstract class PersistentStreamBase implements Stream {
 
     @VisibleForTesting
     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
-        long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-        long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
+        long mostRecent = getMostRecent(streamCut);
+        long oldest = getOldest(streamCut);
         int epochLow = NameUtils.getEpoch(oldest);
         int epochHigh = NameUtils.getEpoch(mostRecent);
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             return computeStreamCutSpanInternal(streamCut, epochLow, epochHigh, epochs);
         });
+    }
+
+    private Long getMostRecent(Map<Long, Long> streamCut) {
+        return streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
+    }
+
+    private Long getOldest(Map<Long, Long> streamCut) {
+        return streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
     }
 
     private ImmutableMap<StreamSegmentRecord, Integer> computeStreamCutSpanInternal(Map<Long, Long> streamCut, int epochLow, 
@@ -760,8 +773,8 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-        long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
+        long mostRecent = getMostRecent(streamCut);
+        long oldest = getOldest(streamCut);
         int epochLow = NameUtils.getEpoch(oldest);
         int epochHigh = NameUtils.getEpoch(mostRecent);
 
@@ -895,8 +908,7 @@ public abstract class PersistentStreamBase implements Stream {
                     .thenCompose(isValidStreamCut -> {
                         if (isValidStreamCut) {
                             CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1 = computeStreamCutSpan(streamCut);
-                            CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2 = previousStreamCut.isEmpty() ?
-                                    CompletableFuture.completedFuture(ImmutableMap.of()) : computeStreamCutSpan(previousStreamCut);
+                            CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2 = computeStreamCutSpan(previousStreamCut);
                             return CompletableFuture.allOf(span1, span2)
                                                     .thenApply(v -> {
                                                         ImmutableMap<StreamSegmentRecord, Integer> span = span1.join();

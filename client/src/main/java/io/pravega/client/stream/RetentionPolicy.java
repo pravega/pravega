@@ -69,19 +69,22 @@ public class RetentionPolicy implements Serializable {
      * Create a retention policy to configure a stream to truncate a stream
      * according to positions of subscribed reader groups.
      *
+     * Provide null values for min and max if either limit is not desired.  
      * @param type Type of consumption limit which is one of time or size. 
      * @param minLimit min limit
      * @param maxLimit max limit
      * @return Retention policy object.
      */
-    public static RetentionPolicy byConsumption(ConsumptionLimits.Type type, long minLimit, long maxLimit) {
+    public static RetentionPolicy byConsumption(ConsumptionLimits.Type type, Long minLimit, Long maxLimit) {
         return RetentionPolicy.builder().retentionType(RetentionType.CONSUMPTION)
-                              .consumptionLimits(ConsumptionLimits.builder().type(type).minValue(minLimit).maxValue(maxLimit).build()).build();
+                              .consumptionLimits(ConsumptionLimits.builder().type(type)
+                                                                  .minValue(minLimit)
+                                                                  .maxValue(maxLimit)
+                                                                  .build()).build();
     }
     
     @Data
     @Builder
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static class ConsumptionLimits {
         public enum Type {
             TIME_MILLIS,
@@ -91,5 +94,11 @@ public class RetentionPolicy implements Serializable {
         private final Type type;
         private final long minValue;
         private final long maxValue;
+
+        private ConsumptionLimits(Type type, Long minValue, Long maxValue) {
+            this.type = type;
+            this.minValue = minValue != null ? minValue : 0L;
+            this.maxValue = maxValue != null ? maxValue : Long.MAX_VALUE;
+        }
     }
 }

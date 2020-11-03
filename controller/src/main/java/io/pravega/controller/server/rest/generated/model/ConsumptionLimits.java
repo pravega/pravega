@@ -35,7 +35,7 @@ public class ConsumptionLimits   {
   public enum TypeEnum {
     SIZE_MB("SIZE_MB"),
     
-    TIME_MINUTES("TIME_MILLIS");
+    TIME_MINUTES("TIME_MINUTES");
 
     private String value;
 

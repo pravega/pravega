@@ -683,12 +683,14 @@ interface Stream {
 
     /**
      * Method to compare streamcuts to check if streamcut1 is strictly ahead of streamcut2. 
+     * Strictly means if the two streamcuts are overlapping for any range, then this method will reply in negative. 
+     * 
      * @param cut1 streamcut to check
      * @param cut2 streamcut to check against. 
      *
      * @return CompletableFuture which, upon completion, will indicate if the streamcut1 is strictly ahead of streamcut2.
      */
-    CompletableFuture<Boolean> streamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
+    CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.

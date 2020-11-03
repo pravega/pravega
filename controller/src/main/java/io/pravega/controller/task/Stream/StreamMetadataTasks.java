@@ -892,7 +892,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to update stream configuration", ex);
+                    log.warn(requestId, "Exception thrown in trying to truncate stream", ex);
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
