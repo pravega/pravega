@@ -720,7 +720,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Create a scope and a stream
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
 
-        // Create a client to read and write events.
+        // Create a client to write events.
         @Cleanup
         ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
 
