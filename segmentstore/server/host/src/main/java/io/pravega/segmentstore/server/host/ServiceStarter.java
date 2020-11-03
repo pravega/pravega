@@ -30,6 +30,8 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+
+import java.security.Security;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -82,6 +84,8 @@ public final class ServiceStarter {
 
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
+        // Make sure that the JVM is not caching DNS entries forever.
+        Security.setProperty("networkaddress.cache.ttl", "10");
 
         log.info("Initializing metrics provider ...");
         MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
