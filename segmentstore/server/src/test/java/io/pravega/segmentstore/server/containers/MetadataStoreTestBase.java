@@ -83,9 +83,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
     public void testCreateSegment() {
         final int segmentCount = 50;
         val segmentTypes = Arrays.asList(
-                SegmentType.builder().build(),
+                SegmentType.STREAM_SEGMENT,
                 SegmentType.builder().system().build(),
-                SegmentType.builder().sortedTableSegment().build(),
+                SegmentType.TABLE_SEGMENT_SORTED,
                 SegmentType.builder().critical().internal().build());
 
         @Cleanup

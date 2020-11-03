@@ -80,7 +80,7 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
-    private static final SegmentType DEFAULT_TYPE = SegmentType.builder().build();
+    private static final SegmentType DEFAULT_TYPE = SegmentType.STREAM_SEGMENT;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(30);
     private ManualTimer timeProvider;

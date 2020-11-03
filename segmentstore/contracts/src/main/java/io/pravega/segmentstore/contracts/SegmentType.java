@@ -23,6 +23,22 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 public class SegmentType {
+    //region Base Types
+    /**
+     * General Stream Segment with no special roles.
+     */
+    public static final SegmentType STREAM_SEGMENT = SegmentType.builder().build();
+    /**
+     * General Table Segment with no special roles.
+     */
+    public static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
+    /**
+     * General Sorted Table Segment with no special roles.
+     */
+    public static final SegmentType TABLE_SEGMENT_SORTED = SegmentType.builder().sortedTableSegment().build();
+
+    //endregion
+
     //region Flags
 
     /*

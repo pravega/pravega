@@ -78,7 +78,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testUsingInvalidArgs() {
         TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, SegmentType.builder().tableSegment().build(), TIMEOUT).join();
+        val segment = context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
@@ -88,7 +88,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testSortedTableSegment() {
         TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, SegmentType.builder().sortedTableSegment().build(), TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
@@ -340,7 +340,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
         }
 
         public void createSegment() {
-            context.ext.createSegment(SEGMENT_NAME, SegmentType.builder().tableSegment().build(), TIMEOUT).join();
+            context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
     }

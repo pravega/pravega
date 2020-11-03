@@ -46,7 +46,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         context.tableStore.setPutErrorInjector(new ErrorInjector<>(i -> true, IntentionalException::new));
         AssertExtensions.assertSuppliedFutureThrows(
                 "createSegment did not fail when random exception was thrown.",
-                () -> context.getMetadataStore().createSegment(segmentName, SegmentType.builder().build(), null, TIMEOUT),
+                () -> context.getMetadataStore().createSegment(segmentName, SegmentType.STREAM_SEGMENT, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
     }
 
@@ -74,7 +74,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         void initialize() {
             this.tableStore
                     .createSegment(NameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()),
-                            SegmentType.builder().tableSegment().build(), TIMEOUT)
+                            SegmentType.TABLE_SEGMENT_HASH, TIMEOUT)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             this.metadataStore
                     .initialize(TIMEOUT)

@@ -832,7 +832,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             // up testing the additional code for it and also all the base code for regular Table Segments.
             this.segment.updateAttributes(Collections.singletonMap(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE));
             this.sortedKeyStorage = new TableStoreMock(executorService());
-            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.builder().tableSegment().build(), TIMEOUT).join();
+            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             val ds = new SortedKeyIndexDataSource(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
             this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
             this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());

@@ -29,7 +29,7 @@ public class SegmentTypeTests {
     @Test
     @SuppressWarnings("unchecked")
     public void testBuilder() {
-        checkBuilder(SegmentType.builder().build(), SegmentType.FORMAT_BASIC);
+        checkBuilder(SegmentType.STREAM_SEGMENT, SegmentType.FORMAT_BASIC);
         checkBuilder(SegmentType.builder().tableSegment().build(), SegmentType.FORMAT_TABLE_SEGMENT, SegmentType::isTableSegment);
         checkBuilder(SegmentType.builder().sortedTableSegment().build(), SegmentType.FORMAT_SORTED_TABLE_SEGMENT,
                 SegmentType::isTableSegment, SegmentType::isSortedTableSegment);
@@ -68,17 +68,17 @@ public class SegmentTypeTests {
         Assert.assertEquals("Sorted Table Segment.", expectedSortedSegment, sortedTableSegment);
     }
 
-    private void checkBuilder(SegmentType type, long expectedValue, Predicate<SegmentType>... mustBeTrue) {
-        check(type, expectedValue, mustBeTrue);
+    private void checkBuilder(SegmentType type, long expectedValue, Predicate<SegmentType>... predicates) {
+        check(type, expectedValue, predicates);
         val rebuilt = SegmentType.builder(type).build();
-        check(rebuilt, expectedValue, mustBeTrue); // Inherited builder.
+        check(rebuilt, expectedValue, predicates); // Inherited builder.
         Assert.assertEquals(type, rebuilt);
         Assert.assertEquals(type.hashCode(), rebuilt.hashCode());
     }
 
-    private void check(SegmentType type, long expectedValue, Predicate<SegmentType>... mustBeTrue) {
+    private void check(SegmentType type, long expectedValue, Predicate<SegmentType>... predicates) {
         Assert.assertEquals("Unexpected getValue() for " + type.toString(), expectedValue, type.getValue());
-        for (val p : mustBeTrue) {
+        for (val p : predicates) {
             Assert.assertTrue("Check failed for " + type.toString(), p.test(type));
         }
     }

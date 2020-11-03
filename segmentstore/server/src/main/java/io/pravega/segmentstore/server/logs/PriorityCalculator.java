@@ -37,7 +37,7 @@ public final class PriorityCalculator {
      * @param operationType Operation's {@link OperationType}.
      * @return A {@link OperationPriority}.
      */
-    public OperationPriority getPriority(SegmentType segmentType, OperationType operationType) {
+    public static OperationPriority getPriority(SegmentType segmentType, OperationType operationType) {
         if (segmentType.isSystem() && segmentType.isCritical()) {
             // Only Segments marked as System and Critical can get the highest possible priority. These are "must-process"
             // Segments and nothing else must get in their way, not even the Operation Processor throttling.

@@ -21,8 +21,8 @@ import org.junit.Test;
  */
 public class PriorityCalculatorTests {
     private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
-            SegmentType.builder().build(),
-            SegmentType.builder().sortedTableSegment().build(),
+            SegmentType.STREAM_SEGMENT,
+            SegmentType.TABLE_SEGMENT_SORTED,
             SegmentType.builder().internal().build(),
             SegmentType.builder().system().build(),
             SegmentType.builder().system().tableSegment().build(),
@@ -36,7 +36,6 @@ public class PriorityCalculatorTests {
      */
     @Test
     public void testGetPriority() {
-        val calculator = new PriorityCalculator();
         for (val st : SEGMENT_TYPES) {
             for (val ot : OPERATION_TYPES) {
                 OperationPriority expected;
@@ -48,7 +47,7 @@ public class PriorityCalculatorTests {
                     expected = st.isCritical() || (ot == OperationType.Deletion) ? OperationPriority.Critical : OperationPriority.Normal;
                 }
 
-                OperationPriority actual = calculator.getPriority(st, ot);
+                OperationPriority actual = PriorityCalculator.getPriority(st, ot);
                 Assert.assertEquals("Unexpected priority for SegmentType = " + st + ", OperationType = " + ot, expected, actual);
             }
         }

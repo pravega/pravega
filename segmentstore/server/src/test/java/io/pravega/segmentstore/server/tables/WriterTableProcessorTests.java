@@ -566,7 +566,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
 
             // Create the Table Segment Mock to be used by the sorted key index.
-            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.builder().tableSegment().build(), TIMEOUT).join();
+            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {

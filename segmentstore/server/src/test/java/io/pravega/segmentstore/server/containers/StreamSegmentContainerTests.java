@@ -166,7 +166,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT = 250; // Good for majority of tests.
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
-    private static final SegmentType BASIC_TYPE = SegmentType.builder().build();
+    private static final SegmentType BASIC_TYPE = SegmentType.STREAM_SEGMENT;
     private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
             BASIC_TYPE,
             SegmentType.builder(BASIC_TYPE).build(),

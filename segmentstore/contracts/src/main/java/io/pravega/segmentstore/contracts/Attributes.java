@@ -102,10 +102,10 @@ public class Attributes {
      * Defines an attribute that is used to store the Segment's Type ({@link SegmentType#getValue()}.
      * This attribute cannot be modified once set on the Segment.
      */
-    public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET - 1);
+    public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
-     * Determines whether the given attribute may NOT be modified once originally set on the Segment.
+     * Determines whether the given attribute cannot be modified once originally set on the Segment.
      *
      * @param attributeId The Attribute Id to check.
      * @return True if immutable, false otherwise.

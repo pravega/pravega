@@ -119,7 +119,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         context.container.startAsync().awaitRunning();
-        assertUnsupported("createStreamSegment", () -> context.container.createStreamSegment(SEGMENT_NAME, SegmentType.builder().build(), null, TIMEOUT));
+        assertUnsupported("createStreamSegment", () -> context.container.createStreamSegment(SEGMENT_NAME, SegmentType.STREAM_SEGMENT, null, TIMEOUT));
         assertUnsupported("append", () -> context.container.append(SEGMENT_NAME, new ByteArraySegment(new byte[1]), null, TIMEOUT));
         assertUnsupported("append-offset", () -> context.container.append(SEGMENT_NAME, 0, new ByteArraySegment(new byte[1]), null, TIMEOUT));
         assertUnsupported("sealStreamSegment", () -> context.container.sealStreamSegment(SEGMENT_NAME, TIMEOUT));

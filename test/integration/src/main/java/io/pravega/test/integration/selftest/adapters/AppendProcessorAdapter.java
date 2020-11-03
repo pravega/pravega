@@ -112,7 +112,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     public CompletableFuture<Void> createStream(String segmentName, Duration timeout) {
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
-                .createStreamSegment(segmentName, SegmentType.builder().build(), null, timeout)
+                .createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, timeout)
                 .thenRun(() -> {
                     SegmentHandler handler = new SegmentHandler(segmentName, this.testConfig.getProducerCount(), this.segmentStoreAdapter.getStreamSegmentStore());
                     synchronized (this.handlers) {

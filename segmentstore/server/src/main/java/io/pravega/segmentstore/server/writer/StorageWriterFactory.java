@@ -117,7 +117,7 @@ public class StorageWriterFactory implements WriterFactory {
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, AttributeUpdateType.Replace, lastSequenceNumber));
             UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, updates);
             op.setInternal(true); // This is internally generated, so we want to ensure it's accepted even on a sealed segment.
-            OperationPriority priority = new PriorityCalculator().getPriority(segmentType, op.getType());
+            OperationPriority priority = PriorityCalculator.getPriority(segmentType, op.getType());
             return this.operationLog.add(op, priority, timeout);
         }
 

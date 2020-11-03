@@ -69,8 +69,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
-    private static final SegmentType NON_SORTED_TYPE = SegmentType.builder().tableSegment().build();
-    private static final SegmentType SORTED_TYPE = SegmentType.builder(NON_SORTED_TYPE).sortedTableSegment().build();
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -89,7 +87,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         Assert.assertNotNull("Segment not created", context.segment());
 
         val attributes = context.segment().getAttributes(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES.keySet(), false, TIMEOUT).join();
@@ -115,7 +113,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testInvalidIteratorState() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         val iteratorArgs = IteratorArgs
                 .builder()
                 .fetchTimeout(TIMEOUT)
@@ -133,7 +131,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testDeleteIfEmpty() {
         @Cleanup
         val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
         val value = new ByteArraySegment("value".getBytes());
@@ -196,7 +194,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testOffsetAcceptingMethods() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
         val value = new ByteArraySegment("value".getBytes());
@@ -372,7 +370,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(maxCompactionLength, executorService());
 
         // Create the segment and the Table Writer Processor.
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
@@ -447,7 +445,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(executorService());
 
         // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
 
         // Close the initial extension, as we don't need it anymore.
         context.ext.close();
@@ -516,7 +514,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
 
         // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
         Assert.assertNotNull(processor);
@@ -572,7 +570,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Create the segment and the Table Writer Processor. We make `sortedTableSegment` configurable because some tests
         // explicitly test the offsets that are written to the segment, which would be very hard to do in the presence of
         // sorted table segment indexing.
-        context.ext.createSegment(SEGMENT_NAME, sortedTableSegment ? SORTED_TYPE : NON_SORTED_TYPE, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, sortedTableSegment ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);

@@ -116,7 +116,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
-        this.type = SegmentType.builder().build(); // Uninitialized.
+        this.type = SegmentType.STREAM_SEGMENT; // Uninitialized.
     }
 
     //endregion

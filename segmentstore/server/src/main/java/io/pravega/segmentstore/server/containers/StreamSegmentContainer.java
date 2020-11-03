@@ -116,7 +116,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final SegmentStoreMetrics.Container metrics;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
-    private final PriorityCalculator priorityCalculator;
 
     //endregion
 
@@ -164,7 +163,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
-        this.priorityCalculator = new PriorityCalculator();
     }
 
     private MetadataStore createMetadataStore() {
@@ -910,7 +908,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private OperationPriority calculatePriority(SegmentType segmentType, OperationType operationType) {
-        return this.priorityCalculator.getPriority(segmentType, operationType);
+        return PriorityCalculator.getPriority(segmentType, operationType);
     }
 
     //endregion

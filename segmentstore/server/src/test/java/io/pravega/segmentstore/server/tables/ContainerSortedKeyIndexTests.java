@@ -377,7 +377,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
         TestContext() {
             this.mockStore = new TableStoreMock(executorService());
-            this.mockStore.createSegment(SORTED_INFO.getName(), SegmentType.builder().tableSegment().build(), TIMEOUT).join();
+            this.mockStore.createSegment(SORTED_INFO.getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             this.dataSource = new SortedKeyIndexDataSource(this.mockStore::put, this.mockStore::remove, this.mockStore::get);
             this.containerIndex = new ContainerSortedKeyIndex(this.dataSource, executorService());
             this.segmentIndex = this.containerIndex.getSortedKeyIndex(SEGMENT_ID, SORTED_INFO);

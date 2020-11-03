@@ -133,9 +133,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
-    private static final SegmentType STREAM_SEGMENT = SegmentType.builder().build();
-    private static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
-    private static final SegmentType TABLE_SEGMENT_SORTED = SegmentType.builder().sortedTableSegment().build();
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
     private final ServerConnection connection;
@@ -437,7 +434,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
        }
 
        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
-       segmentStore.createStreamSegment(createStreamSegment.getSegment(), STREAM_SEGMENT, attributes, TIMEOUT)
+       segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
                    .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                    .whenComplete((res, e) -> {
                     if (e == null) {
@@ -576,7 +573,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
-        val type = createTableSegment.isSorted() ? TABLE_SEGMENT_SORTED : TABLE_SEGMENT_HASH;
+        val type = createTableSegment.isSorted() ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH;
         tableStore.createSegment(createTableSegment.getSegment(), type, TIMEOUT)
                 .thenAccept(v -> {
                     connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));

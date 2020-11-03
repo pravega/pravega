@@ -48,7 +48,7 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testSegmentType() {
-        SegmentType expectedType = SegmentType.builder().build();
+        SegmentType expectedType = SegmentType.STREAM_SEGMENT;
         StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
         Assert.assertEquals("Unexpected value for non-initialized type.", expectedType, metadata.getType());
 
