@@ -119,6 +119,49 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
+     * API to add a Subscriber to the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @throws IllegalArgumentException if Stream does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber);
+
+    /**
+     * API to remove a Subscriber from list of Subscribers for the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber);
+
+    /**
+     * Get list of Subscribers for the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @return List of StreamSubscribers.
+     */
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName);
+
+    /**
+     * API to update the truncation StreamCut for a particular Subscriber on Controller.
+     * Used when Stream has Consumption Based Retention Policy configured.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscribers position was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
+
+    /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
      * the stream segments which is consistent and covers the entire key range space.
      *
