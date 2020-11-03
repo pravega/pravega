@@ -36,7 +36,7 @@ public class DelegationTokenProviderFactory {
      * @param controller the {@link Controller} client used for obtaining a delegation token from the Controller
      * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
-     * @param accessOperation the access operation to use when requesting a delegation token from th server
+     * @param accessOperation the access operation to use when requesting a delegation token from the server
      * @return a new {@link DelegationTokenProvider} instance
      * @throws NullPointerException if {@code controller}, {@code scopeName} or {@code streamName} is null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} is empty
@@ -52,7 +52,7 @@ public class DelegationTokenProviderFactory {
      *
      * @param controller the {@link Controller} client used for obtaining a delegation token from the Controller
      * @param segment the {@link Segment}, for which a delegation token is to be obtained
-     * @param accessOperation the access operation to use when requesting a delegation token from th server
+     * @param accessOperation the access operation to use when requesting a delegation token from the server
      * @return a new {@link DelegationTokenProvider} instance
      * @throws NullPointerException if {@code controller} or {@code segment} is null
      */

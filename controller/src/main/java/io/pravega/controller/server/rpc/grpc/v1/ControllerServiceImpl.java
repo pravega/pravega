@@ -485,11 +485,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         final String stream = streamInfo.getStream();
         log.debug("getSegments called for stream " + scope + "/" + stream);
 
-        final boolean isDelegationTokenRequested =
-                streamInfo.getRequestedPermission().equals(AccessOperation.NONE.toString()) ? false : true;
-
+        // Older clients will not set requestPermissions, so it'll be set as "". Newer clients will set it as `NONE`.
+        // For backward compatibility, this operation returns a delegation token for older clients along with the
+        // segments. For newer clients, it doesn't.
+        final boolean shouldReturnDelegationToken =
+                AccessOperation.NONE.toString().equals(streamInfo.getRequestedPermission()) ? false : true;
         authenticateExecuteAndProcessResults(() -> {
-                    if (isDelegationTokenRequested) {
+                    if (shouldReturnDelegationToken) {
                         // For backward compatibility: older clients still depend on delegation token generated
                         // by this method for both reads and writes.
                         return this.grpcAuthHelper.checkAuthorizationAndCreateToken(
@@ -506,7 +508,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     return controllerService.getSegmentsAtHead(scope, stream)
                             .thenApply(segments -> {
                                 SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder();
-                                if (isDelegationTokenRequested) {
+                                if (shouldReturnDelegationToken) {
                                         builder.setDelegationToken(authorizationResult);
                                 }
                                 for (Entry<SegmentId, Long> entry : segments.entrySet()) {
