@@ -357,8 +357,8 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            Boolean retainStreamData = revisionDataInput.readBoolean();
-            Boolean autoUpdateRetentionStreamCut = revisionDataInput.readBoolean();
+            boolean retainStreamData = revisionDataInput.readBoolean();
+            boolean autoUpdateRetentionStreamCut = revisionDataInput.readBoolean();
 
             if (retainStreamData) {
                 if (autoUpdateRetentionStreamCut) {

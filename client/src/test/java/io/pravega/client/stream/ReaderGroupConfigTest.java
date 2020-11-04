@@ -368,4 +368,34 @@ public class ReaderGroupConfigTest {
         assertEquals(cfg, ReaderGroupConfig.fromBytes(bufV0));
         assertEquals(cfg, ReaderGroupConfig.fromBytes(bufV1));
     }
+
+    @Test
+    public void testReaderGroupConfigRetentionConfigSerialization() {
+        ReaderGroupConfig cfg0 = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.NO_RETENTION)
+                .build();
+        ByteBuffer buf0 = cfg0.toBytes();
+        assertEquals(cfg0, ReaderGroupConfig.fromBytes(buf0));
+
+        ReaderGroupConfig cfg1 = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .build();
+        ByteBuffer buf1 = cfg1.toBytes();
+        assertEquals(cfg1, ReaderGroupConfig.fromBytes(buf1));
+
+        ReaderGroupConfig cfg2 = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_CHECKPOINT)
+                .build();
+        ByteBuffer buf2 = cfg2.toBytes();
+        assertEquals(cfg2, ReaderGroupConfig.fromBytes(buf2));
+    }
 }
