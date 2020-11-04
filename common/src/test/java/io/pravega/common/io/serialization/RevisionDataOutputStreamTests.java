@@ -10,10 +10,11 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Charsets;
-import io.pravega.common.io.BufferViewSink;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
@@ -62,15 +63,17 @@ public class RevisionDataOutputStreamTests {
     }
 
     /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link BufferViewSink}.
+     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link DirectDataOutput}.
      */
     @Test
     public void testBufferViewSink() throws Exception {
         @Cleanup
-        val s = new BufferViewSinkOutputStream();
+        val s = new DirectDataOutputStream();
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
+        Assert.assertNotEquals("Expected invocations for all direct methods.",
+                0, s.writeIntCount * s.writeShortCount * s.writeLongCount);
     }
 
     /**
@@ -267,10 +270,32 @@ public class RevisionDataOutputStreamTests {
     }
 
 
-    private static class BufferViewSinkOutputStream extends EnhancedByteArrayOutputStream implements BufferViewSink {
+    private static class DirectDataOutputStream extends EnhancedByteArrayOutputStream implements DirectDataOutput {
+        private int writeShortCount = 0;
+        private int writeIntCount = 0;
+        private int writeLongCount = 0;
+
         @Override
         public void writeBuffer(BufferView buffer) throws IOException {
             buffer.copyTo(this);
+        }
+
+        @Override
+        public void writeShort(int shortValue) throws IOException {
+            BitConverter.writeShort(this, (short) shortValue);
+            this.writeShortCount++;
+        }
+
+        @Override
+        public void writeInt(int intValue) throws IOException {
+            BitConverter.writeInt(this, intValue);
+            this.writeIntCount++;
+        }
+
+        @Override
+        public void writeLong(long longValue) throws IOException {
+            BitConverter.writeLong(this, longValue);
+            this.writeLongCount++;
         }
     }
 }

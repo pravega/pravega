@@ -47,6 +47,20 @@ public final class BitConverter {
     }
 
     /**
+     * Writes the given 16-bit Short to the given OutputStream.
+     *
+     * @param target The OutputStream to write to.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     * @throws IOException If an error occurred.
+     */
+    public static int writeShort(OutputStream target, short value) throws IOException {
+        target.write((byte) (value >>> 8 & 255));
+        target.write((byte) (value & 255));
+        return Short.BYTES;
+    }
+
+    /**
      * Writes the given 32-bit Integer to the given {@link CompositeArrayView} at the given offset.
      *
      * @param target The {@link CompositeArrayView} to write to.
@@ -217,6 +231,26 @@ public final class BitConverter {
         target[offset + 5] = (byte) (value >>> 16);
         target[offset + 6] = (byte) (value >>> 8);
         target[offset + 7] = (byte) value;
+        return Long.BYTES;
+    }
+
+    /**
+     * Writes the given 64-bit Long to the given OutputStream.
+     *
+     * @param target The OutputStream to write to.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     * @throws IOException If an exception got thrown.
+     */
+    public static int writeLong(OutputStream target, long value) throws IOException {
+        target.write((byte) (value >>> 56));
+        target.write((byte) (value >>> 48));
+        target.write((byte) (value >>> 40));
+        target.write((byte) (value >>> 32));
+        target.write((byte) (value >>> 24));
+        target.write((byte) (value >>> 16));
+        target.write((byte) (value >>> 8));
+        target.write((byte) value);
         return Long.BYTES;
     }
 

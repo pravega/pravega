@@ -33,6 +33,36 @@ public interface CompositeArrayView extends BufferView {
     void set(int index, byte value);
 
     /**
+     * Sets a Short value at the specified index.
+     *
+     * @param index The index to set the value at.
+     * @param value The Short value to set.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
+     *                                        at the specified index to fit the given value.
+     */
+    void setShort(int index, short value);
+
+    /**
+     * Sets a 32 bit Integer value at the specified index.
+     *
+     * @param index The index to set the value at.
+     * @param value The Integer value to set.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
+     *                                        at the specified index to fit the given value.
+     */
+    void setInt(int index, int value);
+
+    /**
+     * Sets a 64 bit Long value at the specified index.
+     *
+     * @param index The index to set the value at.
+     * @param value The Long value to set.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
+     *                                        at the specified index to fit the given value.
+     */
+    void setLong(int index, long value);
+
+    /**
      * Copies a specified number of bytes from the given {@link BufferView.Reader} into this {@link CompositeArrayView}.
      *
      * @param reader       The {@link BufferView.Reader} to copy bytes from.

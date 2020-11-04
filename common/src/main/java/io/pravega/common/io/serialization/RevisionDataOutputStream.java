@@ -9,11 +9,13 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.io.BufferViewSink;
+import com.google.common.base.Preconditions;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import java.io.DataOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -22,16 +24,28 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToIntFunction;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Getter;
 
 /**
- * RevisionDataOutput implementation that makes use of the {@link #DataOutputStream} for data encoding.
+ * RevisionDataOutput implementation that mimics the encoding in {@link DataOutputStream}.
  */
 @NotThreadSafe
-abstract class RevisionDataOutputStream extends DataOutputStream implements RevisionDataOutput {
+abstract class RevisionDataOutputStream extends FilterOutputStream implements RevisionDataOutput {
+    private DirectDataOutput directOutputStream;
+    @Getter
+    private int size;
+
     //region Constructor
 
     private RevisionDataOutputStream(OutputStream outputStream) {
         super(outputStream);
+        setOut(outputStream);
+        this.size = 0;
+    }
+
+    protected void setOut(OutputStream out) {
+        super.out = out;
+        this.directOutputStream = this.out instanceof DirectDataOutput ? (DirectDataOutput) this.out : null;
     }
 
     /**
@@ -49,6 +63,142 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         } else {
             return new NonSeekableRevisionDataOutput(outputStream);
         }
+    }
+
+    //endregion
+
+    //region DataOutput Implementation
+
+    @Override
+    public void flush() throws IOException {
+        this.out.flush();
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+        this.out.write(b);
+        this.size++;
+    }
+
+    @Override
+    public void write(byte[] array, int off, int len) throws IOException {
+        this.out.write(array, off, len);
+        this.size += len;
+    }
+
+    @Override
+    public final void writeBoolean(boolean value) throws IOException {
+        write(value ? 1 : 0);
+    }
+
+    @Override
+    public final void writeByte(int b) throws IOException {
+        write(b);
+    }
+
+    @Override
+    public void writeChar(int c) throws IOException {
+        writeShort(c);
+    }
+
+    @Override
+    public void writeShort(int s) throws IOException {
+        if (this.directOutputStream == null) {
+            BitConverter.writeShort(this.out, (short) s);
+        } else {
+            this.directOutputStream.writeShort(s);
+        }
+
+        this.size += Short.BYTES;
+    }
+
+    @Override
+    public void writeInt(int i) throws IOException {
+        if (this.directOutputStream == null) {
+            BitConverter.writeInt(this.out, i);
+        } else {
+            this.directOutputStream.writeInt(i);
+        }
+
+        this.size += Integer.BYTES;
+    }
+
+    @Override
+    public void writeLong(long l) throws IOException {
+        if (this.directOutputStream == null) {
+            BitConverter.writeLong(this.out, l);
+        } else {
+            this.directOutputStream.writeLong(l);
+        }
+
+        this.size += Long.BYTES;
+    }
+
+    @Override
+    public void writeFloat(float f) throws IOException {
+        writeInt(Float.floatToIntBits(f));
+    }
+
+    @Override
+    public void writeDouble(double d) throws IOException {
+        writeLong(Double.doubleToLongBits(d));
+    }
+
+    @Override
+    public void writeBytes(String s) throws IOException {
+        int len = s.length();
+        for (int i = 0; i < len; ++i) {
+            this.out.write((byte) s.charAt(i));
+        }
+
+        this.size += len;
+    }
+
+    @Override
+    public final void writeChars(String s) throws IOException {
+        int len = s.length();
+        for (int i = 0; i < len; ++i) {
+            writeChar(s.charAt(i));
+        }
+    }
+
+    @Override
+    public final void writeUTF(String str) throws IOException {
+        // TODO: copied from DataOutputStream.
+        final int stringLength = str.length();
+        final int utfLength = getUTFLength(str) - 2;
+        Preconditions.checkArgument(utfLength <= 65535, "Encoded string too long: %s bytes", utfLength);
+
+        byte[] byteArray = new byte[utfLength + 2];
+        int index = 0;
+        byteArray[index++] = (byte) ((utfLength >>> 8) & 0xFF);
+        byteArray[index++] = (byte) ((utfLength >>> 0) & 0xFF);
+
+        int c;
+        int i;
+        for (i = 0; i < stringLength; i++) {
+            c = str.charAt(i);
+            if (c < 1 || c > 127) {
+                break;
+            }
+            byteArray[index++] = (byte) c;
+        }
+
+        for (; i < stringLength; i++) {
+            c = str.charAt(i);
+            if (c >= 1 && c <= 127) {
+                byteArray[index++] = (byte) c;
+            } else if (c > 2047) {
+                byteArray[index++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 6) & 0x3F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            } else {
+                byteArray[index++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            }
+        }
+
+        write(byteArray);
     }
 
     //endregion
@@ -311,9 +461,9 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         writeCompactInt(buf.getLength());
 
         // Copy the buffer contents to this OutputStream. This will write all its bytes.
-        if (this.out instanceof BufferViewSink) {
-            ((BufferViewSink) this.out).writeBuffer(buf);
-            super.written += buf.getLength();
+        if (this.directOutputStream != null) {
+            this.directOutputStream.writeBuffer(buf);
+            this.size += buf.getLength();
         } else {
             buf.copyTo(this);
         }
@@ -438,9 +588,9 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         @Override
         public void close() throws IOException {
             // We do not want to close the underlying Stream as it may be reused.
-            if (this.length != size()) {
+            if (this.length != getSize()) {
                 // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
-                throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, size()));
+                throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, getSize()));
             } else if (requiresExplicitLength()) {
                 // We haven't written anything nor declared a length. Write the length prior to exiting.
                 length(0);
@@ -462,7 +612,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         public void length(int length) throws IOException {
             if (requiresExplicitLength()) {
                 BitConverter.writeInt(this.realStream, length);
-                super.out = this.realStream;
+                setOut(this.realStream);
                 this.length = length;
             }
         }

@@ -12,11 +12,15 @@ package io.pravega.common.util;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -73,6 +77,74 @@ public class CompositeByteArraySegmentTests extends BufferViewTestBase {
             Assert.assertEquals("Unexpected buffer size at array index " + i, expectedSize, b.remaining());
             AssertExtensions.assertArrayEquals("", getCopyContents, i * ARRAY_SIZE, b.array(), b.arrayOffset(), expectedSize);
         }
+    }
+
+    /**
+     * Tests {@link CompositeByteArraySegment#setShort}.
+     */
+    @Test
+    public void testSetShort() throws Exception {
+        testPrimitiveType(i -> (short) (int) i, CompositeByteArraySegment::setShort,
+                reader -> BitConverter.readShort(reader.readSlice(Short.BYTES).getCopy(), 0),
+                Short.BYTES);
+    }
+
+    /**
+     * Tests {@link CompositeByteArraySegment#setInt}.
+     */
+    @Test
+    public void testSetInt() throws Exception {
+        testPrimitiveType(i -> i * i * (i < 0 ? -1 : 1), CompositeByteArraySegment::setInt, BufferView.Reader::readInt, Integer.BYTES);
+    }
+
+    /**
+     * Tests {@link CompositeByteArraySegment#setLong}.
+     */
+    @Test
+    public void testSetLong() throws Exception {
+        testPrimitiveType(i -> (long) Math.pow(i, 3), CompositeByteArraySegment::setLong, BufferView.Reader::readLong, Long.BYTES);
+    }
+
+    private <T> void testPrimitiveType(Function<Integer, T> toPrimitiveType, ValueSetter<T> writer,
+                                       Function<BufferView.Reader, T> reader, int byteSize) throws Exception {
+        // Create an array with both an odd length and odd array length. We want to verify that our primitive encoding
+        // correctly wraps around internal buffers.
+        val s = new CompositeByteArraySegment(511, 31);
+
+        // Generate values, both negative and positive.
+        val values = IntStream.range(-s.getLength() / 2, s.getLength() / 2 + 1).boxed().map(toPrimitiveType).collect(Collectors.toList());
+
+        int bufferIndex = 0;
+        int valueIndex = 0;
+        for (; valueIndex < values.size(); valueIndex++) {
+            val v = values.get(valueIndex);
+            if (bufferIndex + byteSize > s.getLength()) {
+                val finalIndex = bufferIndex;
+                AssertExtensions.assertThrows(
+                        "Expected call to be rejected if insufficient space remaining.",
+                        () -> writer.accept(s, finalIndex, v),
+                        ex -> ex instanceof ArrayIndexOutOfBoundsException);
+                break;
+            } else {
+                writer.accept(s, bufferIndex, v);
+                bufferIndex += byteSize;
+            }
+        }
+
+        // Read all values back and validate they are correct.
+        BufferView.Reader bufferReader = s.getBufferViewReader();
+        for (int i = 0; i < valueIndex; i++) {
+            val expected = values.get(i);
+            T actual = reader.apply(bufferReader);
+            Assert.assertEquals("Unexpected value read at value index " + i, expected, actual);
+        }
+
+        Assert.assertEquals("Unexpected number of bytes read.", s.getLength() - bufferIndex, bufferReader.available());
+    }
+
+    @FunctionalInterface
+    private interface ValueSetter<T> {
+        void accept(CompositeByteArraySegment b, int index, T value) throws IOException;
     }
 
     /**
