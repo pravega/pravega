@@ -13,7 +13,7 @@ package io.pravega.common.util;
  * Defines a generic view of a composite, index-based, array-like structure that is made up of one or more individual
  * arrays.
  */
-public interface CompositeArrayView extends BufferView {
+public interface CompositeArrayView extends BufferView, StructuredWritableBuffer {
     /**
      * Gets the value at the specified index.
      *
@@ -22,45 +22,6 @@ public interface CompositeArrayView extends BufferView {
      * @throws ArrayIndexOutOfBoundsException If index is invalid.
      */
     byte get(int index);
-
-    /**
-     * Sets the value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The Byte value to set.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     */
-    void set(int index, byte value);
-
-    /**
-     * Sets a Short value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The Short value to set.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
-     *                                        at the specified index to fit the given value.
-     */
-    void setShort(int index, short value);
-
-    /**
-     * Sets a 32 bit Integer value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The Integer value to set.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
-     *                                        at the specified index to fit the given value.
-     */
-    void setInt(int index, int value);
-
-    /**
-     * Sets a 64 bit Long value at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The Long value to set.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
-     *                                        at the specified index to fit the given value.
-     */
-    void setLong(int index, long value);
 
     /**
      * Copies a specified number of bytes from the given {@link BufferView.Reader} into this {@link CompositeArrayView}.

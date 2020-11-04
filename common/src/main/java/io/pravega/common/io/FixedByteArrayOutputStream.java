@@ -113,7 +113,7 @@ public class FixedByteArrayOutputStream extends OutputStream implements RandomAc
      * @return A readonly ByteArraySegment from the current buffer.
      */
     public ByteArraySegment getData() {
-        return new ByteArraySegment(this.array, this.offset, this.length, true);
+        return new ByteArraySegment(this.array, this.offset, this.length);
     }
 
     @Override

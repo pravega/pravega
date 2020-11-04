@@ -25,7 +25,7 @@ public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream impleme
      * @return A readonly ByteArraySegment from the current buffer of the ByteArrayOutputStream.
      */
     public ByteArraySegment getData() {
-        return new ByteArraySegment(this.buf, 0, this.count, true);
+        return new ByteArraySegment(this.buf, 0, this.count);
     }
 
     @Override

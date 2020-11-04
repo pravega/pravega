@@ -175,7 +175,6 @@ class BTreePage {
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format and validate == true.
      */
     private BTreePage(@NonNull Config config, @NonNull ByteArraySegment contents, boolean validate) {
-        Preconditions.checkArgument(!contents.isReadOnly(), "Cannot wrap a read-only ByteArraySegment.");
         this.config = config;
         this.contents = contents;
         this.header = contents.slice(0, DATA_OFFSET);
