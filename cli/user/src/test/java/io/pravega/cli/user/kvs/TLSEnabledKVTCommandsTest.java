@@ -26,7 +26,7 @@ public class TLSEnabledKVTCommandsTest extends AbstractTlsUserCommandTest {
     @Before
     @Override
     public void setUp() throws Exception {
-        this.tlsEnabled = true;
+        tlsEnabled = true;
         super.setUp();
     }
 

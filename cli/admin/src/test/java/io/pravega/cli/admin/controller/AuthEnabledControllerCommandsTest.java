@@ -190,7 +190,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
         CommandArgs args = new CommandArgs(pc.getArgs(), state);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         TestingDescribeStreamCommand cmd = new TestingDescribeStreamCommand(args);
-        try (PrintStream ps = new PrintStream(baos, true, "UTF-8")) {
+        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
             cmd.setOut(ps);
             cmd.execute();
         }

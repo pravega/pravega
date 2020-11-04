@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @NotThreadSafe
-public final class SecureSetupUtils {
+public final class SecureSetupUtils implements AutoCloseable {
 
     // The different services.
     @Getter
@@ -70,13 +70,11 @@ public final class SecureSetupUtils {
     private PravegaConnectionListener server = null;
     @Getter
     private TestingServer zkTestServer = null;
+    private ServiceBuilder serviceBuilder = null;
 
     @Getter
     @Setter
     private boolean authEnabled = false;
-    @Getter
-    @Setter
-    private boolean tlsEnabled = false;
 
     // Manage the state of the class.
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -92,14 +90,10 @@ public final class SecureSetupUtils {
 
     public ClientConfig generateValidClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
-                .controllerURI(URI.create((this.tlsEnabled ? "tls" : "tcp") + "://localhost:" + controllerRPCPort));
+                .controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
         if (this.authEnabled) {
             clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
                     SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
-        }
-        if (this.tlsEnabled) {
-            clientConfigBuilder.trustStore("../" + SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                    .validateHostName(false);
         }
         return clientConfigBuilder.build();
     }
@@ -135,19 +129,12 @@ public final class SecureSetupUtils {
         this.zkTestServer.start();
 
         // Start Pravega Service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        if (this.tlsEnabled) {
-            this.server =  new PravegaConnectionListener(true, false, "localhost", servicePort, store,
-                    serviceBuilder.createTableStoreService(), SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                    new PassingTokenVerifier(), "../" + SecurityConfigDefaults.TLS_SERVER_CERT_PATH,
-                    "../" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH, true, serviceBuilder.getLowPriorityExecutor());
-        } else {
-            this.server = new PravegaConnectionListener(false, servicePort, store, serviceBuilder.createTableStoreService(),
-                    serviceBuilder.getLowPriorityExecutor());
-        }
+        this.serviceBuilder.initialize();
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        this.server = new PravegaConnectionListener(false, servicePort, store, this.serviceBuilder.createTableStoreService(),
+                this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
         log.info("Started Pravega Service");
 
@@ -166,7 +153,8 @@ public final class SecureSetupUtils {
      *
      * @throws Exception on any errors.
      */
-    public void stopAllServices() throws Exception {
+    @Override
+    public void close() throws Exception {
         if (!this.started.compareAndSet(true, false)) {
             log.warn("Services not yet started or already stopped, not attempting to stop");
             return;
@@ -175,6 +163,7 @@ public final class SecureSetupUtils {
         this.controllerWrapper.close();
         this.server.close();
         this.zkTestServer.close();
+        this.serviceBuilder.close();
         this.clientFactory.close();
         this.controller.close();
         this.executor.shutdown();
@@ -240,7 +229,7 @@ public final class SecureSetupUtils {
     }
 
     public URI getControllerUri() {
-        return URI.create(clientConfig.getControllerURI().toString().replace(this.tlsEnabled ? "tls://" : "tcp://", ""));
+        return URI.create(clientConfig.getControllerURI().toString());
     }
 
     public URI getControllerRestUri() {

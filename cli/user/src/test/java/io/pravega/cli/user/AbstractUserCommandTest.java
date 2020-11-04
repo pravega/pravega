@@ -38,14 +38,14 @@ public abstract class AbstractUserCommandTest {
         interactiveConfig.setAuthEnabled(SETUP_UTILS.isAuthEnabled());
         interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-        interactiveConfig.setTlsEnabled(SETUP_UTILS.isTlsEnabled());
+        interactiveConfig.setTlsEnabled(false);
         interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
         CONFIG.set(interactiveConfig);
     }
 
     @After
     public void tearDown() throws Exception {
-        SETUP_UTILS.stopAllServices();
+        SETUP_UTILS.close();
     }
 
 }

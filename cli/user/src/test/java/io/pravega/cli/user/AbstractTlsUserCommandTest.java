@@ -14,6 +14,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.common.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,15 +27,14 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class AbstractTlsUserCommandTest {
 
     // Security related flags and instantiate local pravega server.
-    protected static final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
-
-    private static final Integer CONTROLLER_PORT = 9090;
-    private static final Integer SEGMENT_STORE_PORT = 6000;
-    private static final Integer REST_SERVER_PORT = 9091;
+    private static final Integer CONTROLLER_PORT = TestUtils.getAvailableListenPort();
+    private static final Integer SEGMENT_STORE_PORT = TestUtils.getAvailableListenPort();
+    private static final Integer REST_SERVER_PORT = TestUtils.getAvailableListenPort();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
+    protected final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;

@@ -24,8 +24,8 @@ public class SecureScopeCommandsTest extends AbstractTlsUserCommandTest {
     @Before
     @Override
     public void setUp() throws Exception {
-        this.tlsEnabled = true;
-        this.authEnabled = true;
+        tlsEnabled = true;
+        authEnabled = true;
         super.setUp();
     }
 

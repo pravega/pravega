@@ -15,6 +15,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.ControllerHostnameVerifier;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import lombok.AccessLevel;
+import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
@@ -67,21 +68,20 @@ public abstract class ControllerCommand extends AdminCommand {
         // If tls parameters are configured, set them in client
         if (getCLIControllerConfig().isTlsEnabled()) {
             KeyStore ks = null;
-            InputStream trustStore = null;
             try {
-                trustStore = new FileInputStream(new File(getCLIControllerConfig().getTruststore()));
+                @Cleanup
+                InputStream trustStore = new FileInputStream(new File(getCLIControllerConfig().getTruststore()));
                 ks = KeyStore.getInstance("JKS");
                 ks.load(trustStore, null);
-                trustStore.close();
 
             } catch (KeyStoreException e) {
-                output("The keystore file is invalid, the keystore type is not supported: " + e.toString());
+                output("The keystore file is invalid, the keystore type is not supported: %s", e.toString());
             } catch (IOException e) {
-                output("The keystore file is invalid, check if the file exists: " + e.toString());
+                output("The keystore file is invalid, check if the file exists: %s", e.toString());
             } catch (NoSuchAlgorithmException e) {
-                output("The keystore file is invalid, the keystore file might be in the wrong format: " + e.toString());
+                output("The keystore file is invalid, the keystore file might be in the wrong format: %s", e.toString());
             } catch (CertificateException e) {
-                output("The keystore file is invalid, check if the certificates are valid: " + e.toString());
+                output("The keystore file is invalid, check if the certificates are valid: %s", e.toString());
             }
 
             HostnameVerifier controllerHostnameVerifier = new ControllerHostnameVerifier();

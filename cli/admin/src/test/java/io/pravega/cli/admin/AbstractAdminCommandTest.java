@@ -41,14 +41,14 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(SETUP_UTILS.isAuthEnabled()));
         pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
         pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
-        pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(SETUP_UTILS.isTlsEnabled()));
+        pravegaProperties.setProperty("cli.security.tls.enable", "false");
         pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH);
         STATE.get().getConfigBuilder().include(pravegaProperties);
     }
 
     @After
     public void tearDown() throws Exception {
-        SETUP_UTILS.stopAllServices();
+        SETUP_UTILS.close();
         STATE.get().close();
     }
 

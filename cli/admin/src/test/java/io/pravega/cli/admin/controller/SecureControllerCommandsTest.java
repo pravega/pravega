@@ -28,8 +28,8 @@ public class SecureControllerCommandsTest extends AbstractTlsAdminCommandTest {
     @Before
     @Override
     public void setUp() throws Exception {
-        this.authEnabled = true;
-        this.tlsEnabled = true;
+        authEnabled = true;
+        tlsEnabled = true;
         super.setUp();
     }
 
@@ -42,7 +42,7 @@ public class SecureControllerCommandsTest extends AbstractTlsAdminCommandTest {
 
     @Test
     public void testListScopesCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
         assertTrue(commandResult.contains("_system"));
         assertNotNull(ControllerListScopesCommand.descriptor());
     }
@@ -70,21 +70,21 @@ public class SecureControllerCommandsTest extends AbstractTlsAdminCommandTest {
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
 
-        String commandResult = TestUtils.executeCommand("controller list-streams " + scope, STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-streams " + scope, state.get());
         assertTrue(commandResult.contains(testStream));
         assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
     }
 
     @Test
     public void testListReaderGroupsCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller list-readergroups _system", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-readergroups _system", state.get());
         assertTrue(commandResult.contains("commitStreamReaders"));
         assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
     }
 
     @Test
     public void testDescribeScopeCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller describe-scope _system", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller describe-scope _system", state.get());
         assertTrue(commandResult.contains("_system"));
         assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }

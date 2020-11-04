@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.common.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,15 +27,14 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class AbstractTlsAdminCommandTest {
 
     // Security related flags and instantiate local pravega server.
-    protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
-
-    private static final Integer CONTROLLER_PORT = 9090;
-    private static final Integer SEGMENT_STORE_PORT = 6000;
-    private static final Integer REST_SERVER_PORT = 9091;
+    private static final Integer CONTROLLER_PORT = TestUtils.getAvailableListenPort();
+    private static final Integer SEGMENT_STORE_PORT = TestUtils.getAvailableListenPort();
+    private static final Integer REST_SERVER_PORT = TestUtils.getAvailableListenPort();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(80, TimeUnit.SECONDS);
 
+    protected final AtomicReference<AdminCommandState> state = new AtomicReference<>();
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
@@ -79,7 +79,7 @@ public abstract class AbstractTlsAdminCommandTest {
         // is decided based on whether security is enabled or not.
 
         // Set the CLI properties.
-        STATE.set(new AdminCommandState());
+        state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.controller.rest.uri", "localhost:" + REST_SERVER_PORT.toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", "localhost:" + CONTROLLER_PORT.toString());
@@ -91,7 +91,7 @@ public abstract class AbstractTlsAdminCommandTest {
         pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
         pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME);
 
-        STATE.get().getConfigBuilder().include(pravegaProperties);
+        state.get().getConfigBuilder().include(pravegaProperties);
 
         localPravega.start();
 
@@ -109,11 +109,11 @@ public abstract class AbstractTlsAdminCommandTest {
     protected ClientConfig prepareValidClientConfig() {
         ClientConfig.ClientConfigBuilder clientBuilder = ClientConfig.builder()
                 .controllerURI(URI.create(this.localPravega.getInProcPravegaCluster().getControllerURI()));
-        if (this.authEnabled) {
+        if (authEnabled) {
             clientBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
                     SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
         }
-        if (this.tlsEnabled) {
+        if (tlsEnabled) {
             clientBuilder.trustStore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
                     .validateHostName(false);
         }
