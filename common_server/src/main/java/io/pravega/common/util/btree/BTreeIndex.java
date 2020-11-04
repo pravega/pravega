@@ -14,7 +14,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import java.time.Duration;
@@ -109,7 +109,7 @@ public class BTreeIndex {
 
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Short.BYTES + Long.BYTES; // Offset, PageLength, MinOffset.
     private static final int FOOTER_LENGTH = Long.BYTES + Integer.BYTES;
-    private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+    private static final BufferViewComparator KEY_COMPARATOR = BufferViewComparator.create();
     private final BTreePage.Config indexPageConfig;
     private final BTreePage.Config leafPageConfig;
     private final ReadPage read;
@@ -300,7 +300,7 @@ public class BTreeIndex {
 
     /**
      * Returns an {@link AsyncIterator} that will iterate through all the keys within the specified bounds. All iterated keys will
-     * be returned in lexicographic order (smallest to largest). See {@link ByteArrayComparator} for ordering details.
+     * be returned in lexicographic order (smallest to largest). See {@link BufferViewComparator} for ordering details.
      *
      * @param firstKey          A ByteArraySegment representing the lower bound of the iteration.
      * @param firstKeyInclusive If true, firstKey will be included in the iteration (if it exists in the index), otherwise
@@ -722,8 +722,8 @@ public class BTreeIndex {
 
     private ByteArraySegment generateMinKey() {
         byte[] result = new byte[this.indexPageConfig.getKeyLength()];
-        if (ByteArrayComparator.MIN_VALUE != 0) {
-            Arrays.fill(result, ByteArrayComparator.MIN_VALUE);
+        if (BufferViewComparator.MIN_VALUE != 0) {
+            Arrays.fill(result, BufferViewComparator.MIN_VALUE);
         }
 
         return new ByteArraySegment(result);
