@@ -9,18 +9,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
-import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
-import java.util.Random;
-import java.util.concurrent.ScheduledExecutorService;
-import lombok.val;
-
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -29,6 +17,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -62,9 +51,6 @@ import org.junit.Assert;
  * {@link ContainerTableExtension} (TableStore) service.
  */
 public class TableContext implements AutoCloseable {
-
-    private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
-
     private final static int CONTAINER_ID = 1;
     private final static long SEGMENT_ID = 2L;
     private final static String SEGMENT_NAME = "TableSegment";
