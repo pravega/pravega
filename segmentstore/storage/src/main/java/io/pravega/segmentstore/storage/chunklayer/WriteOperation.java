@@ -216,13 +216,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         chunkHandle,
                                         lastChunkMetadata,
                                         offsetToWriteAt,
-                                        writeSize)
-                                        .thenApplyAsync(bytesWritten -> {
-                                            // Update the counts
-                                            bytesRemaining -= bytesWritten;
-                                            currentOffset += bytesWritten;
-                                            return null;
-                                        }, chunkedSegmentStorage.getExecutor());
+                                        writeSize);
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor())
                 .thenApplyAsync(v -> {
@@ -369,7 +363,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     /**
      * Write to chunk.
      */
-    private CompletableFuture<Integer> writeToChunk(MetadataTransaction txn,
+    private CompletableFuture<Void> writeToChunk(MetadataTransaction txn,
                                                     SegmentMetadata segmentMetadata,
                                                     InputStream data,
                                                     ChunkHandle chunkHandle,
@@ -380,21 +374,22 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
         return chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis)
-                .thenApplyAsync(bytesWritten -> {
+                .thenAcceptAsync(bytesWritten -> {
                     // Update the metadata for segment and chunk.
                     Preconditions.checkState(bytesWritten >= 0);
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);
                     txn.update(segmentMetadata);
-                    return bytesWritten;
+                    bytesRemaining -= bytesWritten;
+                    currentOffset += bytesWritten;
                 }, chunkedSegmentStorage.getExecutor())
                 .exceptionally(e -> {
                     val ex = Exceptions.unwrap(e);
                     if (ex instanceof InvalidOffsetException) {
                         throw new CompletionException(new BadOffsetException(segmentMetadata.getName(),
-                                ((InvalidOffsetException) ex).getExpectedOffset(),
-                                ((InvalidOffsetException) ex).getGivenOffset()));
+                                currentOffset + ((InvalidOffsetException) ex).getExpectedOffset(),
+                                currentOffset + ((InvalidOffsetException) ex).getGivenOffset()));
                     }
                     if (ex instanceof ChunkStorageException) {
                         throw new CompletionException(ex);

@@ -646,7 +646,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
         Preconditions.checkState(activeKeys.contains(key));
         Preconditions.checkState(bufferedTxnData.containsKey(key));
-        Preconditions.checkState(null != retValue.dbObject);
+        if (!retValue.isPinned()) {
+            Preconditions.checkState(null != retValue.dbObject);
+        }
         return retValue;
     }
 

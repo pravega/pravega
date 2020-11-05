@@ -733,7 +733,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         TestContext testContext = getTestContext();
         // Setup a segment.
-        val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{25});
+        val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{10, 10, 5});
 
         int validStart = 10;
         int validLength = 15;
@@ -778,7 +778,11 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
                 testContext.chunkedSegmentStorage.write(h, validStart + validLength - 1, inputStream, 1, TIMEOUT),
                 ex -> ex instanceof BadOffsetException);
-
+        AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
+                testContext.chunkedSegmentStorage.write(h, validStart + 2, inputStream, 1, TIMEOUT),
+                ex -> ex instanceof BadOffsetException
+                        && ((BadOffsetException) ex).getGivenOffset() == validStart + 2
+                        && ((BadOffsetException) ex).getExpectedOffset() == validStart + validLength);
         // Sealed segment
         testContext.chunkedSegmentStorage.seal(h, TIMEOUT).join();
         AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
