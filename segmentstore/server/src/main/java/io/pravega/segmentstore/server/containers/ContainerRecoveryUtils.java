@@ -89,6 +89,7 @@ public class ContainerRecoveryUtils {
         validateContainerIds(debugStreamSegmentContainersMap, containerCount);
 
         log.info("Recovery started for all containers...");
+        System.out.println("Recovery started for all containers...");
         // Get all segments in the metadata store for each debug segment container instance.
         Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService);
 
@@ -102,7 +103,7 @@ public class ContainerRecoveryUtils {
         while (segmentIterator.hasNext()) {
             val currentSegment = segmentIterator.next();
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
-
+            System.out.println(currentSegment.getName());
             // skip recovery if the segment is an attribute segment or metadata segment.
             if (NameUtils.isAttributeSegment(currentSegment.getName()) || NameUtils.isMetadataSegment(currentSegment.getName(), containerId)) {
                 continue;
@@ -118,6 +119,7 @@ public class ContainerRecoveryUtils {
         for (val existingSegmentsSetEntry : existingSegmentsMap.entrySet()) {
             for (String segmentName : existingSegmentsSetEntry.getValue()) {
                 log.info("Deleting segment '{}' as it is not in the storage.", segmentName);
+                System.out.println(String.format("Deleting segment '%d' as it is not in the storage.", segmentName));
                 futures.add(debugStreamSegmentContainersMap.get(existingSegmentsSetEntry.getKey())
                         .deleteStreamSegment(segmentName, TIMEOUT));
             }
