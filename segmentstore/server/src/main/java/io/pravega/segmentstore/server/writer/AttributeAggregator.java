@@ -252,7 +252,8 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                     () -> {
                         RootPointerInfo rpi = this.lastRootPointer.get();
                         log.debug("{}: Updating Root Pointer info to {}.", this.traceObjectId, rpi);
-                        return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
+                        return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), this.metadata.getType(),
+                                       rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
                                 .whenCompleteAsync((r, ex) -> {
                                     if (ex != null) {
                                         logAttributesPersistedError(ex, rpi);
