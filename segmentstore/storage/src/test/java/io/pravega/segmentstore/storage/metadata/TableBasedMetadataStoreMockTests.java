@@ -14,17 +14,16 @@ import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
-import lombok.val;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.CompletionException;
+import lombok.val;
+import org.junit.Test;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.any;
 
 /**
  *  Test TableBasedMetadataStore using mock {@link TableStore}.
@@ -35,7 +34,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
         when(mockTableStore.get(anyString(), any(), any())).thenThrow(new IllegalStateException());
         AssertExtensions.assertThrows(
                 "read should throw an exception",
@@ -48,7 +47,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
         // Throw random exception
         Exception e = new ArithmeticException();
         when(mockTableStore.get(anyString(), any(), any())).thenThrow(e);
@@ -63,7 +62,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
 
         // Throw DataLogWriterNotPrimaryException exception
         Exception e = new CompletionException(new DataLogWriterNotPrimaryException("test"));
@@ -81,7 +80,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
 
         // Throw BadKeyVersionException exception
         Exception e = new CompletionException(new BadKeyVersionException("test", new HashMap<>()));
@@ -99,7 +98,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
 
         // Throw random exception
         Exception e = new ArithmeticException();
@@ -117,7 +116,7 @@ public class TableBasedMetadataStoreMockTests {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore);
 
-        when(mockTableStore.createSegment(any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
+        when(mockTableStore.createSegment(any(), any(), any())).thenThrow(new CompletionException(new StreamSegmentExistsException("test")));
 
         // Make it throw IllegalStateException
         val td = BaseMetadataStore.TransactionData.builder().key("foo").version(1L).dbObject(null).build();

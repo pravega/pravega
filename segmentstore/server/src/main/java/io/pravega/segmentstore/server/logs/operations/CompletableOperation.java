@@ -9,23 +9,28 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.PriorityBlockingDrainingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Binds a Operation with success and failure callbacks that will be invoked based on its outcome..
  */
 @Slf4j
-public class CompletableOperation {
+public class CompletableOperation implements PriorityBlockingDrainingQueue.Item {
     //region Members
 
     private final Operation operation;
+    @Getter
+    private final OperationPriority priority;
     private final Consumer<Throwable> failureHandler;
     private final Consumer<Void> successHandler;
     @Getter
@@ -40,12 +45,13 @@ public class CompletableOperation {
      * Creates a new instance of the CompletableOperation class.
      *
      * @param operation      The operation to wrap.
+     * @param priority       Priority for the operation.
      * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation.
      *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation as its payload.
      * @throws IllegalArgumentException If the given callbackFuture is already done.
      */
-    public CompletableOperation(Operation operation, CompletableFuture<Void> callbackFuture) {
-        this(operation, callbackFuture::complete, callbackFuture::completeExceptionally);
+    public CompletableOperation(Operation operation, OperationPriority priority, CompletableFuture<Void> callbackFuture) {
+        this(operation, priority, callbackFuture::complete, callbackFuture::completeExceptionally);
         Exceptions.checkArgument(!callbackFuture.isDone(), "callbackFuture", "CallbackFuture is already done.");
     }
 
@@ -53,13 +59,16 @@ public class CompletableOperation {
      * Creates a new instance of the CompletableOperation class.
      *
      * @param operation      The operation to wrap.
+     * @param priority       Priority for the operation.
      * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided is the Sequence Number of the Operation.
      * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the causing Exception for the failure.
      * @throws NullPointerException If operation is null.
      */
-    CompletableOperation(Operation operation, Consumer<Void> successHandler, Consumer<Throwable> failureHandler) {
-        Preconditions.checkNotNull(operation, "operation");
+    @VisibleForTesting
+    CompletableOperation(@NonNull Operation operation, @NonNull OperationPriority priority, Consumer<Void> successHandler,
+                         Consumer<Throwable> failureHandler) {
         this.operation = operation;
+        this.priority = priority;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;
         this.timer = new Timer();
@@ -109,6 +118,11 @@ public class CompletableOperation {
      */
     public boolean isDone() {
         return this.done;
+    }
+
+    @Override
+    public byte getPriorityValue() {
+        return this.priority.getValue();
     }
 
     //endregion

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiPredicate;
@@ -120,4 +121,12 @@ public interface SegmentMetadata extends SegmentProperties {
      * and can be safely accessed and iterated over from any thread.
      */
     Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter);
+
+    /**
+     * Gets the type of this Segment, which was set at the time of Segment creation. This value cannot be modified
+     * afterwards.
+     *
+     * @return A {@link SegmentType} representing the type of the Segment.
+     */
+    SegmentType getType();
 }
