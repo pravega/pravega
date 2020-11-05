@@ -247,7 +247,7 @@ public class ContainerRecoveryUtils {
      * @return              CompletableFuture which when completed will have the segment deleted. In case segment didn't
      *                      exist, a completed future will be returned.
      */
-    private static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName) {
+    public static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName) {
         log.info("Deleting Segment '{}'", segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
