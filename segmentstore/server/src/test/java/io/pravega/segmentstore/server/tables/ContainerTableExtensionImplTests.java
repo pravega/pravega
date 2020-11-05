@@ -540,7 +540,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(config, executorService());
 
         // Create the Segment and set up the WriterTableProcessor.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, sorted ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
         Assert.assertNotNull(processor);
@@ -615,7 +615,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(TableExtensionConfig.builder().maxBatchSize(maxBatchSize).build(), executorService());
 
         // Create the Segment
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
 
         // Generate Table Entries as long as we are under the total max size limit.
         val allEntries = new ArrayList<TableEntry>();
