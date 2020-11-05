@@ -52,4 +52,18 @@ public interface StructuredReadableBuffer extends BufferView {
      *                                        at the specified index to fit the given value.
      */
     long getLong(int index);
+
+    /**
+     * Gets a 64 bit Unsigned Long from the specified index. This value must have been serialized using
+     * {@link StructuredWritableBuffer#setUnsignedLong} for proper results. This method is not interoperable with
+     * {@link StructuredWritableBuffer#setLong}.
+     *
+     * @param index The index to get the value at.
+     * @return The Long at the specified index.
+     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
+     *                                        at the specified index to fit the given value.
+     */
+    default long getUnsignedLong(int index) {
+        return getLong(index) ^ Long.MIN_VALUE;
+    }
 }

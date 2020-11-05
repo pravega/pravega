@@ -9,10 +9,9 @@
  */
 package io.pravega.common.util;
 
+import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.UUID;
 
 /**
  * Unit tests for the {@link BitConverter} class.
@@ -21,47 +20,18 @@ public class BitConverterTests {
     private static final int MAX_LENGTH = 2 * Long.BYTES;
 
     /**
-     * Tests the {@link BitConverter#writeShort} and {@link BitConverter#readShort}.
-     */
-    @Test
-    public void testShort() {
-        test(BitConverter::writeShort, BitConverter::readShort, Short.MIN_VALUE, Short.MAX_VALUE, (short) -1, (short) 0, (short) 1);
-    }
-
-    /**
-     * Tests the {@link BitConverter#writeInt} and {@link BitConverter#readInt}.
-     */
-    @Test
-    public void testInt() {
-        test(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
-        testCompositeArray(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
-    }
-
-    /**
-     * Tests the {@link BitConverter#writeLong} and {@link BitConverter#readLong}.
-     */
-    @Test
-    public void testLong() {
-        test(BitConverter::writeLong, BitConverter::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
-    }
-    
-    /**
-     * Tests the {@link BitConverter#writeUUID(byte[], int, UUID)} and {@link BitConverter#readUUID(byte[], int)}.
+     * Tests the {@link BitConverter#writeUUID} and {@link BitConverter#readUUID}.
      */
     @Test
     public void testUUID() {
-        test(BitConverter::writeUUID, BitConverter::readUUID, new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
-                new UUID(Long.MIN_VALUE, Long.MAX_VALUE), new UUID(0L, 0L), UUID.randomUUID(), 
-                new UUID(Long.MAX_VALUE, Long.MIN_VALUE), 
+        WriteArray<UUID> toWrite = (target, offset, value) -> {
+            BitConverter.writeUUID(new ByteArraySegment(target, offset, Long.BYTES * 2), value);
+            return Long.BYTES * 2;
+        };
+        test(toWrite, BitConverter::readUUID, new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
+                new UUID(Long.MIN_VALUE, Long.MAX_VALUE), new UUID(0L, 0L), UUID.randomUUID(),
+                new UUID(Long.MAX_VALUE, Long.MIN_VALUE),
                 new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
-    }
-
-    /**
-     * Tests the {@link BitConverter#writeUnsignedLong} and {@link BitConverter#readUnsignedLong}.
-     */
-    @Test
-    public void testUnsignedLong() {
-        test(BitConverter::writeUnsignedLong, BitConverter::readUnsignedLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
     }
 
     @SafeVarargs
@@ -74,25 +44,9 @@ public class BitConverterTests {
         }
     }
 
-    @SafeVarargs
-    private final <T> void testCompositeArray(WriteCompositeArray<T> write, Read<T> read, T... testValues) {
-        byte[] buffer = new byte[MAX_LENGTH];
-        CompositeByteArraySegment c = new CompositeByteArraySegment(buffer);
-        for (T value : testValues) {
-            int length = write.apply(c, 0, value);
-            T readValue = read.apply(new ByteArraySegment(buffer, 0, length), 0);
-            Assert.assertEquals("Unexpected deserialized value.", value, readValue);
-        }
-    }
-
     @FunctionalInterface
     interface WriteArray<T> {
         int apply(byte[] target, int offset, T value);
-    }
-
-    @FunctionalInterface
-    interface WriteCompositeArray<T> {
-        int apply(CompositeArrayView target, int offset, T value);
     }
 
     @FunctionalInterface

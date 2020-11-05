@@ -10,6 +10,9 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -23,39 +26,56 @@ import org.junit.Test;
  */
 public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     /**
-     * Tests {@link CompositeByteArraySegment#setShort}.
+     * Tests {@link StructuredWritableBuffer#setShort} and {@link StructuredReadableBuffer#getShort}.
      */
     @Test
-    public void testSetShort() {
+    public void testShort() {
         testPrimitiveType(i -> (short) (int) i, StructuredWritableBuffer::setShort, StructuredReadableBuffer::getShort,
-                reader -> BitConverter.readShort(reader.readSlice(Short.BYTES).getCopy(), 0),
+                reader -> ByteBuffer.wrap(reader.readSlice(Short.BYTES).getCopy()).getShort(0),
                 Short.BYTES);
     }
 
     /**
-     * Tests {@link CompositeByteArraySegment#setInt}.
+     * Tests {@link StructuredWritableBuffer#setInt} and {@link StructuredReadableBuffer#getInt}.
      */
     @Test
-    public void testSetInt() {
+    public void testInt() {
         testPrimitiveType(i -> i * i * (i < 0 ? -1 : 1), StructuredWritableBuffer::setInt, StructuredReadableBuffer::getInt,
                 BufferView.Reader::readInt, Integer.BYTES);
     }
 
     /**
-     * Tests {@link CompositeByteArraySegment#setLong}.
+     * Tests {@link StructuredWritableBuffer#setLong} and {@link StructuredReadableBuffer#getLong}.
      */
     @Test
-    public void testSetLong() {
+    public void testLong() {
         testPrimitiveType(i -> (long) Math.pow(i, 3), StructuredWritableBuffer::setLong, StructuredReadableBuffer::getLong,
                 BufferView.Reader::readLong, Long.BYTES);
+    }
+
+    /**
+     * Tests {@link StructuredWritableBuffer#setUnsignedLong} and {@link StructuredReadableBuffer#getUnsignedLong(int)}.
+     */
+    @Test
+    public void testUnsignedLong() {
+        val values = Arrays.asList(Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
+        testPrimitiveType(values, StructuredWritableBuffer::setUnsignedLong, StructuredReadableBuffer::getUnsignedLong,
+                r -> r.readLong() ^ Long.MIN_VALUE, Long.BYTES);
     }
 
     private <T> void testPrimitiveType(Function<Integer, T> toPrimitiveType, ValueSetter<T> writer, ValueGetter<T> reader,
                                        Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
         val s = newWritableBuffer();
 
-        // 1. Generate values, both negative and positive.
-        val values = IntStream.range(-s.getLength() / 2, s.getLength() / 2 + 1).boxed().map(toPrimitiveType).collect(Collectors.toList());
+        // Generate values, both negative and positive.
+        val count = s.getLength() / byteSize;
+        val values = IntStream.range(-count / 2, count / 2 + 1).boxed().map(toPrimitiveType).collect(Collectors.toList());
+        testPrimitiveType(values, writer, reader, bufferViewReader, byteSize);
+    }
+
+    private <T> void testPrimitiveType(List<T> values, ValueSetter<T> writer, ValueGetter<T> reader,
+                                       Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
+        val s = newWritableBuffer();
 
         int bufferIndex = 0;
         int valueIndex = 0;
@@ -74,7 +94,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
             }
         }
 
-        // 2. Read all values back using BufferView.Reader and validate they are correct.
+        // Read all values back using BufferView.Reader and validate they are correct.
         BufferView.Reader bufferReader = s.getBufferViewReader();
         for (int i = 0; i < valueIndex; i++) {
             val expected = values.get(i);
@@ -84,7 +104,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
 
         Assert.assertEquals("Unexpected number of bytes read.", s.getLength() - bufferIndex, bufferReader.available());
 
-        // 3. Read all values back using StructuredReadableBuffer (if available) and validate they are correct.
+        // Read all values back using StructuredReadableBuffer (if available) and validate they are correct.
         if (s instanceof StructuredReadableBuffer) {
             val r = (StructuredReadableBuffer) s;
             bufferIndex = 0;

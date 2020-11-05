@@ -113,8 +113,8 @@ public class AbstractBufferViewTests {
 
         // Write some data. Fill with garbage, then put some readable values at the beginning.
         rnd.nextBytes(buffer.array());
-        BitConverter.writeInt(buffer, 0, intValue);
-        BitConverter.writeLong(buffer, Integer.BYTES, longValue);
+        buffer.setInt(0, intValue);
+        buffer.setLong(Integer.BYTES, longValue);
 
         // Now read them back.
         BufferView.Reader reader = buffer.getBufferViewReader();

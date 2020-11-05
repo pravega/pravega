@@ -218,15 +218,14 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region Other Operations
 
     /**
-     * Copies a specified number of bytes from the given ByteArraySegment into this ByteArraySegment.
+     * Copies a specified number of bytes from the given {@link ArrayView} into this ByteArraySegment.
      *
-     * @param source       The ByteArraySegment to copy bytes from.
+     * @param source       The {@link ArrayView} to copy bytes from.
      * @param targetOffset The offset within this ByteArraySegment to start copying at.
      * @param length       The number of bytes to copy.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    public void copyFrom(ByteArraySegment source, int targetOffset, int length) {
+    public void copyFrom(ArrayView source, int targetOffset, int length) {
         Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
@@ -234,17 +233,16 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     }
 
     /**
-     * Copies a specified number of bytes from the given ByteArraySegment into this ByteArraySegment.
+     * Copies a specified number of bytes from the given {@link ArrayView} into this ByteArraySegment.
      *
-     * @param source       The ByteArraySegment to copy bytes from.
+     * @param source       The {@link ArrayView} to copy bytes from.
      * @param sourceOffset The offset within source to start copying from.
      * @param targetOffset The offset within this ByteArraySegment to start copying at.
      * @param length       The number of bytes to copy.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    public void copyFrom(ByteArraySegment source, int sourceOffset, int targetOffset, int length) {
-        Exceptions.checkArrayRange(sourceOffset, length, source.length, "index", "values.length");
+    public void copyFrom(ArrayView source, int sourceOffset, int targetOffset, int length) {
+        Exceptions.checkArrayRange(sourceOffset, length, source.getLength(), "index", "values.length");
         Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 

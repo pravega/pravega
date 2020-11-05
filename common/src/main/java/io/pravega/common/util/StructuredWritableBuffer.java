@@ -52,4 +52,24 @@ public interface StructuredWritableBuffer extends BufferView {
      *                                        at the specified index to fit the given value.
      */
     void setLong(int index, long value);
+
+    /**
+     * Sets a 64 bit Unsigned Long at the specified index. This value can then be deserialized using
+     * {@link StructuredReadableBuffer#getUnsignedLong(int)}. This method is not interoperable with
+     * {@link StructuredReadableBuffer#getLong}.
+     *
+     * The advantage of serializing as Unsigned Long (vs. a normal Signed Long) is that the serialization will have the
+     * same natural order as the input value type (i.e., if compared using a lexicographic bitwise comparator such as
+     * BufferViewComparator, it will have the same ordering as the typical Long type).
+     *
+     * @param index The index to set the value at.
+     * @param value  The (signed) value to write. The value will be converted into the range [0, 2^64-1] before
+     *               serialization by flipping the high order bit (so positive values will begin with 1 and negative values
+     *               will begin with 0).
+     * @throws ArrayIndexOutOfBoundsException If index is invalid or if there is insufficient space in the array starting
+     *                                        at the specified index to fit the given value.
+     */
+    default void setUnsignedLong(int index, long value) {
+        setLong(index, value ^ Long.MIN_VALUE);
+    }
 }
