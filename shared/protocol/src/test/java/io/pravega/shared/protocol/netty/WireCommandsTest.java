@@ -940,6 +940,17 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         assertEquals(0, buffer.refCnt());
     }
 
+    @Test
+    public void testConditionalAppendRawBytes() throws IOException {
+        testCommand(new WireCommands.ConditionalAppendRawBytes(uuid, l, l, buf, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1),
+                WireCommands.ConditionalAppend::readFrom,
+                ce -> ce.getEvent().getData().refCnt());
+    }
+
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));

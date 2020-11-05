@@ -106,6 +106,8 @@ public enum WireCommandType {
     TABLE_ENTRIES_DELTA_READ(87, WireCommands.TableEntriesDeltaRead::readFrom),
     READ_TABLE_ENTRIES_DELTA(88, WireCommands.ReadTableEntriesDelta::readFrom),
 
+    CONDITIONAL_APPEND_RAW_BYTES(89, WireCommands.ConditionalAppendRawBytes::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;

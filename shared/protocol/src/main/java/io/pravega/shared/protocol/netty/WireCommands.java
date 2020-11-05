@@ -673,7 +673,6 @@ public final class WireCommands {
             this.event.data.release();
         }
     }
-
     @Data
     public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
@@ -2422,6 +2421,64 @@ public final class WireCommands {
             this.entries.release();
         }
     }
+
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    public static final class ConditionalAppendRawBytes extends ReleasableCommand implements Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND_RAW_BYTES;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final ByteBuf data;
+        final long requestId;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            if (data == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(data.readableBytes());
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            }
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            long eventNumber = in.readLong();
+            long expectedOffset = in.readLong();
+            int dataLength = in.readInt();
+            ByteBuf data;
+            if (dataLength > 0) {
+                data = in.readFully(dataLength);
+            } else {
+                data = EMPTY_BUFFER;
+            }
+            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new ConditionalAppendRawBytes(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
+        }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.data.release();
+        }
+    }
+
 
     /**
      * Base class for any command that may require releasing resources.

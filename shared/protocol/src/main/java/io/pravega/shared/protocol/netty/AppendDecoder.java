@@ -49,7 +49,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @Override
     public boolean acceptInboundMessage(Object msg) throws Exception {
         return msg instanceof WireCommands.SetupAppend || msg instanceof WireCommands.AppendBlock || msg instanceof WireCommands.AppendBlockEnd
-                || msg instanceof WireCommands.Padding || msg instanceof WireCommands.ConditionalAppend;
+                || msg instanceof WireCommands.Padding || msg instanceof WireCommands.ConditionalAppend || msg instanceof  WireCommands.ConditionalAppendRawBytes;
     }
 
     @Override
@@ -65,7 +65,8 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
      *
      * @param command Inbound {@link WireCommand}. Supported types are: {@link WireCommandType#PADDING},
      *                {@link WireCommandType#SETUP_APPEND}, {@link WireCommandType#CONDITIONAL_APPEND},
-     *                {@link WireCommandType#APPEND_BLOCK} and {@link WireCommandType#APPEND_BLOCK_END}.
+     *                {@link WireCommandType#CONDITIONAL_APPEND_RAW_BYTES},{@link WireCommandType#APPEND_BLOCK}
+     *                and {@link WireCommandType#APPEND_BLOCK_END}.
      * @return One of the following:
      * - null if command type is {@link WireCommandType#PADDING} or {@link WireCommandType#APPEND_BLOCK}.
      * - command if command type is A {@link WireCommandType#SETUP_APPEND}.
@@ -112,6 +113,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             case CONDITIONAL_APPEND:
                 result = processConditionalAppend((WireCommands.ConditionalAppend) command);
                 break;
+            case CONDITIONAL_APPEND_RAW_BYTES:
+                result = processConditionalAppendRawBytes((WireCommands.ConditionalAppendRawBytes) command);
+                break;
             case APPEND_BLOCK:
                 processAppendBlock((WireCommands.AppendBlock) command);
                 break;
@@ -141,6 +145,20 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 ca.getEventNumber(),
                 1,
                 ca.getEvent().getAsByteBuf(),
+                ca.getExpectedOffset(), ca.getRequestId());
+    }
+
+    private Append processConditionalAppendRawBytes(WireCommands.ConditionalAppendRawBytes ca) {
+        Segment segment = getSegment(ca.getWriterId());
+        if (ca.getEventNumber() < segment.lastEventNumber) {
+            throw new InvalidMessageException("Last event number went backwards.");
+        }
+        segment.lastEventNumber = ca.getEventNumber();
+        return new Append(segment.getName(),
+                ca.getWriterId(),
+                ca.getEventNumber(),
+                1,
+                ca.getData(),
                 ca.getExpectedOffset(), ca.getRequestId());
     }
 
