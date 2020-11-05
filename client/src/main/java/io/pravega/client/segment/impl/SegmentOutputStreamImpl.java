@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import static com.google.common.base.Preconditions.checkState;
 
+import java.net.SocketException;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayDeque;
@@ -218,7 +219,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
             }
             if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
-                    || throwable instanceof InvalidTokenException) {
+                    || throwable instanceof InvalidTokenException || throwable instanceof SocketException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);
@@ -487,6 +488,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
+            } catch (SocketException e) {
+                event.getAckFuture().completeExceptionally(e);
+                log.error("Failed to write events ");
             }
             long eventNumber = state.addToInflight(event);
             try {
@@ -586,9 +590,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("(Re)connect invoked, Segment: {}, writerID: {}", segmentName, writerId);
         state.setupConnection.registerAndRunReleaser(() -> {
-            Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
-                                             retrySchedule.getMaxDelay(),
-                                             t -> log.warn(writerId + " Failed to connect: ", t))
+             CompletableFuture<Void> r = Retry.withExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(), 15 ,
+                                             retrySchedule.getMaxDelay() ).retryWhen(t -> t instanceof Exception)
                  .runAsync(() -> {
                      log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
 
@@ -641,6 +644,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
                          }, connectionPool.getInternalExecutor());
                  }, connectionPool.getInternalExecutor());
+             r.exceptionally(t -> {
+                 log.info("Error will attempting to establish connection");
+                 failConnection(t);
+                 return null;
+             });
+
         }, new CompletableFuture<ClientConnection>());
     }
 
