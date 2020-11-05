@@ -56,7 +56,7 @@ public class ReaderGroupConfig implements Serializable {
         /**
          * There is no retention done by this {@link ReaderGroup}.
          */
-        NO_RETENTION,
+        NO_CONSUMPTION_BASED_TRUNCATION,
 
         /**
          * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
@@ -65,13 +65,13 @@ public class ReaderGroupConfig implements Serializable {
          *
          * {@link ReaderGroup#updateRetentionStreamCut(Stream, StreamCut)}
          */
-        RETAIN_DATA_UNTIL_EXPLICIT_RELEASE,
+        TRUNCATE_AT_USER_STREAMCUT,
 
         /**
          * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
          * {@link ReaderGroup} to truncate the stream using the read positions from the {@link StreamCut}s generated during checkpointing.
          */
-        RETAIN_DATA_UNTIL_CHECKPOINT
+        TRUNCATE_AT_LAST_CHECKPOINT
     }
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
@@ -90,14 +90,14 @@ public class ReaderGroupConfig implements Serializable {
         */
        public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
            switch (retentionConfig) {
-               case NO_RETENTION:
+               case NO_CONSUMPTION_BASED_TRUNCATION:
                    break;
 
-               case RETAIN_DATA_UNTIL_EXPLICIT_RELEASE:
+               case TRUNCATE_AT_USER_STREAMCUT:
                    this.subscriberForRetention = true;
                    break;
 
-               case RETAIN_DATA_UNTIL_CHECKPOINT:
+               case TRUNCATE_AT_LAST_CHECKPOINT:
                    this.subscriberForRetention = true;
                    this.autoPublishAtLastCheckpoint = true;
                    break;
@@ -362,12 +362,12 @@ public class ReaderGroupConfig implements Serializable {
 
             if (retainStreamData) {
                 if (autoUpdateRetentionStreamCut) {
-                    builder.retentionConfig(ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_CHECKPOINT);
+                    builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT);
                 } else {
-                    builder.retentionConfig(ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE);
+                    builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT);
                 }
             } else {
-                builder.retentionConfig(ReaderGroupRetentionConfig.NO_RETENTION);
+                builder.retentionConfig(ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION);
             }
         }
 

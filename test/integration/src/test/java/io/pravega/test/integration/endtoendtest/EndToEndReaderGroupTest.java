@@ -48,7 +48,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -466,7 +465,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         // Create a Subscriber ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
 
         List<String> subs = controller.listSubscribers("test", "test").get();
@@ -491,7 +490,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         // Create a Subscriber ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
 
         List<String> subs = controller.listSubscribers("test", "test").get();
@@ -521,7 +520,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         // Create a Subscriber ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         List<String> subs = controller.listSubscribers("test", "test").get();
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
@@ -561,7 +560,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         // Reset to Subscriber
         nonSubGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         subs = controller.listSubscribers("test", "test").get();
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
@@ -588,7 +587,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test1")
                 .stream("test/test2")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         List<String> subs = controller.listSubscribers("test", "test1").get();
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
@@ -602,7 +601,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test2")
                 .stream("test/test3")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         subs = controller.listSubscribers("test", "test1").get();
         assertFalse("Subscriber list contains required reader group", subs.contains("group"));
@@ -610,44 +609,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
         subs = controller.listSubscribers("test", "test3").get();
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
-    }
-
-    @Test
-    public void testUpdateRetentionStreamCutFailure() throws InterruptedException, ExecutionException {
-        StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
-        Stream test = Stream.of("test", "test");
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
-                .build());
-        @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
-
-        @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-        // Create a Non subscriber ReaderGroup
-        groupManager.createReaderGroup("group1", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test")
-                .build());
-        List<String> subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group1"));
-        // Create a Subscriber ReaderGroup
-        groupManager.createReaderGroup("group2", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test")
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
-                .build());
-        subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group2"));
-
-        ReaderGroup nonSubGroup = groupManager.getReaderGroup("group1");
-        ReaderGroup subGroup = groupManager.getReaderGroup("group2");
-
-        assertThrows(RuntimeException.class, () -> nonSubGroup.updateRetentionStreamCut(test, new StreamCutImpl(test, ImmutableMap.of(getSegment(0, 0), 1L))));
-        assertThrows(RuntimeException.class, () -> subGroup.updateRetentionStreamCut(Stream.of("test/test2"), new StreamCutImpl(Stream.of("test/test2"), ImmutableMap.of(getSegment(0, 0), 1L))));
-        assertThrows(RuntimeException.class, () -> subGroup.updateRetentionStreamCut(test, new StreamCutImpl(test, ImmutableMap.of(getSegment(0, 0), -1L))));
     }
 
     private StreamConfiguration getStreamConfig() {

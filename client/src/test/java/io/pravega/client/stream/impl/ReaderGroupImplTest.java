@@ -153,7 +153,7 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig firstConfig = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build();
 
         // Subscriber ReaderGroupConfig
@@ -196,7 +196,7 @@ public class ReaderGroupImplTest {
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         verify(controller, times(1)).addSubscriber(SCOPE, "s3", GROUP_NAME);
         verify(controller, times(1)).addSubscriber(SCOPE, "s2", GROUP_NAME);
@@ -217,7 +217,7 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig firstConfig = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build();
 
         // Subscriber ReaderGroupConfig
@@ -230,7 +230,7 @@ public class ReaderGroupImplTest {
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.RETAIN_DATA_UNTIL_EXPLICIT_RELEASE)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         // Unsubscribe to older stream
         verify(controller, times(1)).deleteSubscriber(SCOPE, "s1", GROUP_NAME);
