@@ -49,6 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
@@ -100,7 +101,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
+            streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
         }
     }
 
@@ -111,7 +112,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
         if (config.isSubscriberForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
+            streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
         }
 
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))

@@ -12,7 +12,6 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
@@ -49,6 +48,7 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -70,6 +70,8 @@ import lombok.extern.slf4j.Slf4j;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
+import static io.pravega.common.util.CollectionHelpers.filterOut;
 
 @Slf4j
 @Data
@@ -199,16 +201,16 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private void manageSubscriptions(ReaderGroupConfig config) {
         ReaderGroupConfig oldConfig = getReaderGroupConfig();
-        Set<Stream> newStreams = config.isSubscriberForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
         Set<Stream> oldStreams = oldConfig.isSubscriberForRetention() ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> newStreams = config.isSubscriberForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
 
-        Set<Stream> streamsToSub = Sets.difference(newStreams, oldStreams);
-        Set<Stream> streamsToUnsub = Sets.difference(oldStreams, newStreams);
+        Collection<Stream> streamsToSub = filterOut(newStreams, oldStreams);
+        Collection<Stream> streamsToUnsub = filterOut(oldStreams, newStreams);
 
         // Unsubscribe to older streams
-        streamsToUnsub.forEach(s -> getAndHandleExceptions(controller.deleteSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
+        streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
         // Subscribe to newer streams
-        streamsToSub.forEach(s -> getAndHandleExceptions(controller.addSubscriber(scope, s.getStreamName(), groupName), RuntimeException::new));
+        streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
     }
 
     @Override

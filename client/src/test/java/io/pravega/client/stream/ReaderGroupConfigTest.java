@@ -87,7 +87,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testIsRetainUntilExplicitRelease() {
+    public void testTruncateAtUserStreamCut() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
@@ -104,7 +104,7 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testRetainUntilCheckpoint() {
+    public void testTruncateAtLastCheckpoint() {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))

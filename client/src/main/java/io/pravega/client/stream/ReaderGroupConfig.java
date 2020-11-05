@@ -54,24 +54,41 @@ public class ReaderGroupConfig implements Serializable {
 
     public enum ReaderGroupRetentionConfig {
         /**
-         * There is no retention done by this {@link ReaderGroup}.
+         * This {@link ReaderGroup} is not a subscriber and does not participate in Consumption Based Retention.
+         *
+         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
+         *
          */
-        NO_CONSUMPTION_BASED_TRUNCATION,
+        NO_CONSUMPTION_BASED_TRUNCATION(false, false),
 
         /**
-         * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
+         * This {@link ReaderGroup} is a subscriber and can retain stream data using Consumption Based Retention. This will configure the
          * {@link ReaderGroup} to truncate the stream according to its read positions. These read positions have to be provided
          * manually in the form of a {@link StreamCut}, see this method:
          *
          * {@link ReaderGroup#updateRetentionStreamCut(Stream, StreamCut)}
+         *
+         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
+         *
          */
-        TRUNCATE_AT_USER_STREAMCUT,
+        TRUNCATE_AT_USER_STREAMCUT(true, false),
 
         /**
-         * This {@link ReaderGroup} can retain stream data using Consumption Based Retention. This will configure the
-         * {@link ReaderGroup} to truncate the stream using the read positions from the {@link StreamCut}s generated during checkpointing.
+         * This {@link ReaderGroup} is a subscriber and can retain stream data using Consumption Based Retention. This will configure the
+         * {@link ReaderGroup} to truncate the stream using the read positions from the last {@link Checkpoint}.
+         *
+         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
+         *
          */
-        TRUNCATE_AT_LAST_CHECKPOINT
+        TRUNCATE_AT_LAST_CHECKPOINT(true, true);
+
+        private final boolean isReaderGroupASubscriber;
+        private final boolean autoTruncateAtLastCheckpoint;
+
+        ReaderGroupRetentionConfig(boolean isReaderGroupASubscriber, boolean autoTruncateAtLastCheckpoint) {
+            this.isReaderGroupASubscriber = isReaderGroupASubscriber;
+            this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
+        }
     }
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
@@ -79,8 +96,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private boolean subscriberForRetention = false; //default value
-       private boolean autoPublishAtLastCheckpoint = false; //default value
+       private ReaderGroupRetentionConfig readerGroupRetentionConfig = ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION;
 
        /**
         * Set the retention config for the {@link ReaderGroup}.
@@ -89,19 +105,7 @@ public class ReaderGroupConfig implements Serializable {
         * @return Reader group config builder.
         */
        public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
-           switch (retentionConfig) {
-               case NO_CONSUMPTION_BASED_TRUNCATION:
-                   break;
-
-               case TRUNCATE_AT_USER_STREAMCUT:
-                   this.subscriberForRetention = true;
-                   break;
-
-               case TRUNCATE_AT_LAST_CHECKPOINT:
-                   this.subscriberForRetention = true;
-                   this.autoPublishAtLastCheckpoint = true;
-                   break;
-           }
+           this.readerGroupRetentionConfig = retentionConfig;
            return this;
        }
 
@@ -249,7 +253,8 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, subscriberForRetention, autoPublishAtLastCheckpoint);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest,
+                   readerGroupRetentionConfig.isReaderGroupASubscriber, readerGroupRetentionConfig.autoTruncateAtLastCheckpoint);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -357,11 +362,17 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            boolean retainStreamData = revisionDataInput.readBoolean();
-            boolean autoUpdateRetentionStreamCut = revisionDataInput.readBoolean();
-
-            if (retainStreamData) {
-                if (autoUpdateRetentionStreamCut) {
+            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
+            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
+            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
+            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
+            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
+            boolean isASubscriber = revisionDataInput.readBoolean();
+            boolean autoTruncate = revisionDataInput.readBoolean();
+            if (isASubscriber) {
+                if (autoTruncate) {
                     builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT);
                 } else {
                     builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT);
@@ -372,6 +383,13 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
             revisionDataOutput.writeBoolean(object.isSubscriberForRetention());
             revisionDataOutput.writeBoolean(object.isAutoPublishAtLastCheckpoint());
         }
