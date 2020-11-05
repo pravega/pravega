@@ -297,7 +297,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private void checkPreconditions() {
         Preconditions.checkArgument(null != handle, "handle");
         Preconditions.checkArgument(null != data, "data");
-        Preconditions.checkArgument(null != handle.getSegmentName(), "streamSegmentName");
+        Preconditions.checkArgument(null != handle.getSegmentName(), "handle.segmentName");
         Preconditions.checkArgument(!handle.isReadOnly(), "handle");
         Preconditions.checkArgument(offset >= 0, "offset");
         Preconditions.checkArgument(length >= 0, "length");
