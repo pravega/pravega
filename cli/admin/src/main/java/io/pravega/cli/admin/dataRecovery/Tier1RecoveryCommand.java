@@ -60,14 +60,6 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
     private static final int CONTAINER_EPOCH = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
-    // Configurations for setting the context for running debug segment container(s)
-    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
-            .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
-            .build();
-
     private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
     private final int containerCount;
     private final StorageFactory storageFactory;
@@ -104,7 +96,7 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         @Cleanup
         val zkClient = createZKClient();
         @Cleanup
-        val factory = new BookKeeperLogFactory(bkConfig, zkClient, getCommandArgs().getState().getExecutor());
+        val factory = new BookKeeperLogFactory(bkConfig, zkClient, executorService);
         try {
             factory.initialize();
         } catch (DurableDataLogException ex) {
