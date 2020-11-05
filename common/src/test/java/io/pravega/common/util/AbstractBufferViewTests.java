@@ -9,7 +9,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -167,14 +167,13 @@ public class AbstractBufferViewTests {
         Assert.assertEquals(expectedLength, builder.getLength());
         val finalBuffer = builder.build();
 
-        val expectedData = new byte[expectedLength];
-        val expectedDataWriter = new FixedByteArrayOutputStream(expectedData, 0, expectedLength);
+        val expectedDataWriter = new ByteBufferOutputStream(expectedLength);
         for (val c : components) {
             c.copyTo(expectedDataWriter);
         }
 
-        val actualData = finalBuffer.getCopy();
-        Assert.assertArrayEquals(expectedData, actualData);
+        val expectedData = expectedDataWriter.getData();
+        Assert.assertEquals(expectedData, finalBuffer);
     }
 
     private List<BufferView> copy(List<BufferView> source) {

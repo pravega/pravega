@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -200,7 +200,7 @@ public class DataFrameOutputStreamTests {
         int maxFrameSize = 511; // Very small frame, so we can test switching over to new frames.
         val values = IntStream.range(0, Short.MAX_VALUE).boxed().map(toPrimitiveType).collect(Collectors.toList());
         @Cleanup
-        val expectedRecord = new EnhancedByteArrayOutputStream();
+        val expectedRecord = new ByteBufferOutputStream();
         @Cleanup
         val expectedRecordWriter = new DataOutputStream(expectedRecord);
 

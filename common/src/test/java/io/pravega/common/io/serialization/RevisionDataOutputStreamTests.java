@@ -11,17 +11,13 @@ package io.pravega.common.io.serialization;
 
 import com.google.common.base.Charsets;
 import io.pravega.common.io.DirectDataOutput;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.function.Function;
@@ -38,25 +34,12 @@ import org.junit.Test;
 public class RevisionDataOutputStreamTests {
     
     /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream.
+     * Tests the RandomRevisionDataOutput class with an {@link ByteBufferOutputStream}.
      */
     @Test
     public void testRandomOutputExpandable() throws Exception {
         @Cleanup
-        val s = new EnhancedByteArrayOutputStream();
-        @Cleanup
-        val impl = RevisionDataOutputStream.wrap(s);
-        testImpl(impl, s::getData);
-    }
-
-    /**
-     * Tests the RandomRevisionDataOutput class with an fixed-length RandomAccessOutputStream.
-     */
-    @Test
-    public void testRandomOutputFixed() throws Exception {
-        final int bufferSize = 1024 * 1024;
-        @Cleanup
-        val s = new FixedByteArrayOutputStream(new byte[bufferSize], 0, bufferSize);
+        val s = new ByteBufferOutputStream();
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
@@ -66,7 +49,7 @@ public class RevisionDataOutputStreamTests {
      * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link DirectDataOutput}.
      */
     @Test
-    public void testBufferViewSink() throws Exception {
+    public void testDirectDataOutputStream() throws Exception {
         @Cleanup
         val s = new DirectDataOutputStream();
         @Cleanup
@@ -170,7 +153,7 @@ public class RevisionDataOutputStreamTests {
      */
     @Test
     public void testZeroLengthRandomOutput() throws Exception {
-        testZeroLength(EnhancedByteArrayOutputStream::new, EnhancedByteArrayOutputStream::getData);
+        testZeroLength(ByteBufferOutputStream::new, ByteBufferOutputStream::getData);
     }
 
     /**
@@ -270,31 +253,26 @@ public class RevisionDataOutputStreamTests {
     }
 
 
-    private static class DirectDataOutputStream extends EnhancedByteArrayOutputStream implements DirectDataOutput {
+    private static class DirectDataOutputStream extends ByteBufferOutputStream implements DirectDataOutput {
         private int writeShortCount = 0;
         private int writeIntCount = 0;
         private int writeLongCount = 0;
 
         @Override
-        public void writeBuffer(BufferView buffer) throws IOException {
-            buffer.copyTo(this);
-        }
-
-        @Override
-        public void writeShort(int shortValue) throws IOException {
-            BitConverter.writeShort(this, (short) shortValue);
+        public void writeShort(int shortValue) {
+            super.writeShort(shortValue);
             this.writeShortCount++;
         }
 
         @Override
-        public void writeInt(int intValue) throws IOException {
-            BitConverter.writeInt(this, intValue);
+        public void writeInt(int intValue) {
+            super.writeInt(intValue);
             this.writeIntCount++;
         }
 
         @Override
-        public void writeLong(long longValue) throws IOException {
-            BitConverter.writeLong(this, longValue);
+        public void writeLong(long longValue) {
+            super.writeLong(longValue);
             this.writeLongCount++;
         }
     }

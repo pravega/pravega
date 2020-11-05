@@ -10,7 +10,7 @@
 package io.pravega.common.util;
 
 import com.google.common.collect.Lists;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
@@ -305,7 +305,8 @@ public abstract class BufferViewTestBase {
     }
 
     private ArrayView getData(List<ByteBuffer> buffers) {
-        val os = new EnhancedByteArrayOutputStream();
+        @Cleanup
+        val os = new ByteBufferOutputStream();
         for (ByteBuffer buffer : buffers) {
             byte[] contents = new byte[buffer.remaining()];
             buffer.get(contents);

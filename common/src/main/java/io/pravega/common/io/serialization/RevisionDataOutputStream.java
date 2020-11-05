@@ -31,9 +31,13 @@ import lombok.Getter;
  */
 @NotThreadSafe
 abstract class RevisionDataOutputStream extends FilterOutputStream implements RevisionDataOutput {
-    private DirectDataOutput directOutputStream;
+    //region Members
+
+    private DirectDataOutput structuredWriter;
     @Getter
     private int size;
+
+    //endregion
 
     //region Constructor
 
@@ -45,7 +49,11 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
 
     protected void setOut(OutputStream out) {
         super.out = out;
-        this.directOutputStream = this.out instanceof DirectDataOutput ? (DirectDataOutput) this.out : null;
+        if (this.out instanceof DirectDataOutput) {
+            this.structuredWriter = (DirectDataOutput) this.out;
+        } else {
+            this.structuredWriter = new IndirectWriter();
+        }
     }
 
     /**
@@ -103,34 +111,19 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
 
     @Override
     public void writeShort(int s) throws IOException {
-        if (this.directOutputStream == null) {
-            BitConverter.writeShort(this.out, (short) s);
-        } else {
-            this.directOutputStream.writeShort(s);
-        }
-
+        this.structuredWriter.writeShort(s);
         this.size += Short.BYTES;
     }
 
     @Override
     public void writeInt(int i) throws IOException {
-        if (this.directOutputStream == null) {
-            BitConverter.writeInt(this.out, i);
-        } else {
-            this.directOutputStream.writeInt(i);
-        }
-
+        this.structuredWriter.writeInt(i);
         this.size += Integer.BYTES;
     }
 
     @Override
     public void writeLong(long l) throws IOException {
-        if (this.directOutputStream == null) {
-            BitConverter.writeLong(this.out, l);
-        } else {
-            this.directOutputStream.writeLong(l);
-        }
-
+        this.structuredWriter.writeLong(l);
         this.size += Long.BYTES;
     }
 
@@ -461,12 +454,11 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
         writeCompactInt(buf.getLength());
 
         // Copy the buffer contents to this OutputStream. This will write all its bytes.
-        if (this.directOutputStream != null) {
-            this.directOutputStream.writeBuffer(buf);
-            this.size += buf.getLength();
-        } else {
-            buf.copyTo(this);
-        }
+        this.structuredWriter.writeBuffer(buf);
+
+        // Increase our size here regardless of what structuredWriter does. See IndirectWriter.writerBuffer for how
+        // this is offset in certain cases.
+        this.size += buf.getLength();
     }
 
     @Override
@@ -518,6 +510,40 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
 
     //endregion
 
+    //region IndirectWriter
+
+    /**
+     * Structured data writer for cases when the underlying {@link OutputStream} does not support {@link DirectDataOutput}.
+     */
+    private class IndirectWriter implements DirectDataOutput {
+        @Override
+        public void writeShort(int shortValue) throws IOException {
+            BitConverter.writeShort(out, (short) shortValue);
+        }
+
+        @Override
+        public void writeInt(int intValue) throws IOException {
+            BitConverter.writeInt(out, intValue);
+        }
+
+        @Override
+        public void writeLong(long longValue) throws IOException {
+            BitConverter.writeLong(out, longValue);
+        }
+
+        @Override
+        public void writeBuffer(BufferView buffer) throws IOException {
+            buffer.copyTo(RevisionDataOutputStream.this);
+            // BufferView.copyTo will cause our "size" to increase, but an external DirectDataOutput will not do that.
+            // To avoid wrapping the external DirectDataOutput with another wrapper, we increase the size in
+            // RevisionDataOutputStream.writeBuffer() regardless of case, so we need to make an adjustment here to offset
+            // for that.
+            size -= buffer.getLength();
+        }
+    }
+
+    //endregion
+
     //region Implementations
 
     /**
@@ -539,8 +565,9 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
             super(outputStream);
 
             // Pre-allocate 4 bytes so we can write the length later, but remember this position.
-            this.initialPosition = ((RandomAccessOutputStream) outputStream).size();
-            BitConverter.writeInt(outputStream, 0);
+            RandomAccessOutputStream ros = (RandomAccessOutputStream) outputStream;
+            this.initialPosition = ros.size();
+            ros.writeInt(0);
         }
 
         @Override
@@ -550,7 +577,7 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
             int length = ros.size() - this.initialPosition - Integer.BYTES;
 
             // Write the length at the appropriate position.
-            BitConverter.writeInt(ros.subStream(this.initialPosition, Integer.BYTES), length);
+            ros.writeInt(length, this.initialPosition);
         }
 
         @Override

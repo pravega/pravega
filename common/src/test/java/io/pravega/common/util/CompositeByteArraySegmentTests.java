@@ -9,7 +9,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.InputStream;
@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -114,8 +115,10 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     @Test
     public void testCopyToStream() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
-            val targetData = new byte[s.getLength()];
-            s.copyTo(new FixedByteArrayOutputStream(targetData, 0, targetData.length));
+            @Cleanup
+            val targetStream = new ByteBufferOutputStream();
+            s.copyTo(targetStream);
+            val targetData = targetStream.getData().getCopy();
             Assert.assertArrayEquals("Unexpected data copied for step " + offset, expectedData, targetData);
         });
     }
@@ -148,8 +151,10 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     @Test
     public void testSliceRead() {
         testProgressiveCopies((expectedData, s, offset, length) -> {
-            val targetData = new byte[s.getLength()];
-            s.copyTo(new FixedByteArrayOutputStream(targetData, 0, targetData.length));
+            @Cleanup
+            val targetStream = new ByteBufferOutputStream(s.getLength());
+            s.copyTo(targetStream);
+            val targetData = targetStream.getData().getCopy();
 
             for (int sliceOffset = 0; sliceOffset <= s.getLength() / 2; sliceOffset++) {
                 val sliceLength = s.getLength() - 2 * sliceOffset;

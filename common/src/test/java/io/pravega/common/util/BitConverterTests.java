@@ -39,7 +39,7 @@ public class BitConverterTests {
         byte[] buffer = new byte[MAX_LENGTH];
         for (T value : testValues) {
             int length = write.apply(buffer, 0, value);
-            T readValue = read.apply(new ByteArraySegment(buffer, 0, length), 0);
+            T readValue = read.apply(buffer, 0);
             Assert.assertEquals("Unexpected deserialized value.", value, readValue);
         }
     }
@@ -51,6 +51,6 @@ public class BitConverterTests {
 
     @FunctionalInterface
     interface Read<T> {
-        T apply(ArrayView target, int position);
+        T apply(byte[] target, int position);
     }
 }

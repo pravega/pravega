@@ -164,19 +164,6 @@ public final class BitConverter {
     }
 
     /**
-     * Reads a 128-bit UUID from the given {@link StructuredReadableBuffer} starting at the given position.
-     *
-     * @param source   The ArrayView to read from.
-     * @param position The position in the ArrayView to start reading at.
-     * @return The read UUID.
-     */
-    public static UUID readUUID(StructuredReadableBuffer source, int position) {
-        long msb = source.getLong(position);
-        long lsb = source.getLong(position + Long.BYTES);
-        return new UUID(msb, lsb);
-    }
-
-    /**
      * Reads a 128-bit UUID from the given byte array starting at the given position.
      *
      * @param source   The byte array to read from.

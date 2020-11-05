@@ -12,7 +12,7 @@ package io.pravega.common.io.serialization;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -74,8 +74,8 @@ import java.util.Map;
  * ** RevisionDataOutput has a requiresExplicitLength() to aid in determining which kind of OutputStream is being used.
  * ** RevisionDataOutput has a number of methods that can be used in calculating the length of Strings and other complex
  * structures.
- * ** Consider serializing to a FixedByteArrayOutputStream or EnhancedByteArrayOutputStream if you want to make use
- * of the RandomOutput features (automatic length measurement).
+ * ** Consider serializing to a {@link ByteBufferOutputStream} if you want to make use of the RandomOutput features
+ * (such as automatic length measurement).
  * *** Consider using {@code ByteArraySegment serialize(T object)} if you want the VersionedSerializer to do this for you.
  * Be mindful that this will create a new buffer for the serialization, which might affect performance.
  *
@@ -127,7 +127,7 @@ public abstract class VersionedSerializer<T> {
      * @throws IOException If an IO Exception occurred.
      */
     public ByteArraySegment serialize(T object) throws IOException {
-        val result = new EnhancedByteArrayOutputStream();
+        val result = new ByteBufferOutputStream();
         serialize(result, object);
         return result.getData();
     }
