@@ -240,6 +240,26 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String readerGroupId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String readerGroupId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut cut) {
         throw new UnsupportedOperationException();
     }

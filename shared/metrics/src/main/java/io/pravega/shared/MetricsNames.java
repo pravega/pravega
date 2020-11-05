@@ -210,6 +210,15 @@ public final class MetricsNames {
     public static final String TRUNCATE_STREAM = PREFIX + "controller.stream.truncated";                     // Counter and Per-stream Counter
     public static final String TRUNCATE_STREAM_LATENCY = PREFIX + "controller.stream.truncated_latency_ms";  // Histogram
     public static final String TRUNCATE_STREAM_FAILED = PREFIX + "controller.stream.truncate_failed";        // Counter and Per-stream Counter
+    public static final String ADD_SUBSCRIBER = PREFIX + "controller.stream.add_subscriber";                     // Counter and Per-stream Counter
+    public static final String ADD_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.add_subscriber_latency_ms";  // Histogram
+    public static final String ADD_SUBSCRIBER_FAILED = PREFIX + "controller.stream.add_subscriber_failed";        // Counter and Per-stream Counter
+    public static final String REMOVE_SUBSCRIBER = PREFIX + "controller.stream.remove_subscriber";                     // Counter and Per-stream Counter
+    public static final String REMOVE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.remove_subscriber_latency_ms";  // Histogram
+    public static final String REMOVE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.remove_subscriber_failed";        // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER = PREFIX + "controller.stream.update_subscriber";                     // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.update_subscriber_latency_ms";  // Histogram
+    public static final String UPDATE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.update_subscriber_failed";        // Counter and Per-stream Counter
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter

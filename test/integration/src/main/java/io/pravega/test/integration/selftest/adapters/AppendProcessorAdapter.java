@@ -13,6 +13,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
@@ -111,7 +112,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     public CompletableFuture<Void> createStream(String segmentName, Duration timeout) {
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
-                .createStreamSegment(segmentName, null, timeout)
+                .createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, timeout)
                 .thenRun(() -> {
                     SegmentHandler handler = new SegmentHandler(segmentName, this.testConfig.getProducerCount(), this.segmentStoreAdapter.getStreamSegmentStore());
                     synchronized (this.handlers) {

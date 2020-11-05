@@ -17,6 +17,7 @@ import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -565,7 +566,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
 
             // Create the Table Segment Mock to be used by the sorted key index.
-            this.tableStoreMock.createSegment(SEGMENT_NAME, TIMEOUT).join();
+            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {

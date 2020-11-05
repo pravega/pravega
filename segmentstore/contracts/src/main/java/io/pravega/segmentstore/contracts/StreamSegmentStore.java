@@ -150,12 +150,14 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to create.
      * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment. May be null.
      *                          See Notes about AttributeUpdates in the interface Javadoc.
+     * @param segmentType       Type of Segment to create. This cannot change after creation.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout);
+    CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes,
+                                                Duration timeout);
 
     /**
      * Merges a StreamSegment into another. If the StreamSegment is not already sealed, it will seal it.
