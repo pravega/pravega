@@ -50,7 +50,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  */
 @Slf4j
 public class ContainerRecoveryUtils {
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(200);
     private static final int BUFFER_SIZE = 8 * 1024 * 1024;
 
     /**
