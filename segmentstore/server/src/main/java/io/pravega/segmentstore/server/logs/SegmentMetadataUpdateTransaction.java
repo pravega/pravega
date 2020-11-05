@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -56,6 +57,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private final int containerId;
     @Getter
+    private final SegmentType type;
+    @Getter
     private long startOffset;
     @Getter
     private long length;
@@ -92,6 +95,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.id = baseMetadata.getId();
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
+        this.type = baseMetadata.getType();
         this.startOffset = baseMetadata.getStartOffset();
         this.length = baseMetadata.getLength();
         this.baseStorageLength = baseMetadata.getStorageLength();
@@ -225,6 +229,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void refreshType() {
+        // Nothing to do here. This method only applies to StreamSegmentMetadata.
+    }
+
+    @Override
     public void copyFrom(SegmentMetadata other) {
         throw new UnsupportedOperationException("copyFrom is not supported on " + this.getClass().getName());
     }
@@ -246,9 +255,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
+     * @throws MetadataUpdateException      If the operation cannot not be processed because a Metadata Update precondition
+     *                                      check failed.
      */
     void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadOffsetException, BadAttributeUpdateException {
+            BadOffsetException, BadAttributeUpdateException, MetadataUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -288,9 +299,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException     If the operation is for a different Segment.
      * @throws BadAttributeUpdateException  If at least one of the AttributeUpdates is invalid given the current attribute
      *                                      values of the segment.
+     * @throws MetadataUpdateException      If the operation cannot not be processed because a Metadata Update precondition
+     *                                      check failed.
      */
     void preProcessOperation(UpdateAttributesOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException,
-            BadAttributeUpdateException {
+            BadAttributeUpdateException, MetadataUpdateException {
         ensureSegmentId(operation);
         if (this.merged) {
             // We do not allow any operation after merging (since after merging the Segment disappears).
@@ -436,13 +449,21 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param attributeUpdates The Updates to process (if any).
      * @throws BadAttributeUpdateException If any of the given AttributeUpdates is invalid given the current state of
      *                                     the segment.
+     * @throws MetadataUpdateException      If the operation cannot not be processed because a Metadata Update precondition
+     *                                      check failed.
      */
-    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates) throws BadAttributeUpdateException {
+    private void preProcessAttributes(Collection<AttributeUpdate> attributeUpdates)
+            throws BadAttributeUpdateException, MetadataUpdateException {
         if (attributeUpdates == null) {
             return;
         }
 
         for (AttributeUpdate u : attributeUpdates) {
+            if (Attributes.isUnmodifiable(u.getAttributeId())) {
+                throw new MetadataUpdateException(this.containerId,
+                        String.format("Attribute Id '%s' on Segment Id %s ('%s') may not be modified.", u.getAttributeId(), this.id, this.name));
+            }
+
             AttributeUpdateType updateType = u.getUpdateType();
             boolean hasValue = false;
             long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
