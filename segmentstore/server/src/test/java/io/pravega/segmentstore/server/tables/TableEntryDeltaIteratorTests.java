@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -77,7 +78,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testUsingInvalidArgs() {
         TableContext context = new TableContext(CONFIG, executorService());
-        context.ext.createSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
@@ -87,7 +88,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testSortedTableSegment() {
         TableContext context = new TableContext(CONFIG, executorService());
-        context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
@@ -332,7 +333,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
         }
 
         public void createSegment() {
-            context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+            context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
     }

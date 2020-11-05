@@ -9,6 +9,18 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.val;
+
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -159,11 +171,13 @@ public class TableContext implements AutoCloseable {
             return CompletableFuture.supplyAsync(() -> segment, executorService);
         }
 
-        @Override
-        public CompletableFuture<Void> createStreamSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-            if (this.segment.get() != null) {
-                return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
-            }
+    @Override
+    public CompletableFuture<Void> createStreamSegment(String segmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
+        Assert.assertTrue("Expected Table Segment type.", segmentType.isTableSegment());
+        if (this.segment.get() != null) {
+            return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
+        }
 
             return CompletableFuture
                     .runAsync(() -> {

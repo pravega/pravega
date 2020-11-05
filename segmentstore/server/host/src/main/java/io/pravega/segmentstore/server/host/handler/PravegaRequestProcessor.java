@@ -31,6 +31,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -436,7 +437,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
        }
 
        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
-       segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
+       segmentStore.createStreamSegment(createStreamSegment.getSegment(), SegmentType.STREAM_SEGMENT, attributes, TIMEOUT)
                    .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
                    .whenComplete((res, e) -> {
                     if (e == null) {
@@ -575,12 +576,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
-        tableStore.createSegment(createTableSegment.getSegment(), createTableSegment.isSorted(), TIMEOUT)
-                  .thenAccept(v -> {
-                      connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
-                      this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
-                  })
-                  .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
+        val type = createTableSegment.isSorted() ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH;
+        tableStore.createSegment(createTableSegment.getSegment(), type, TIMEOUT)
+                .thenAccept(v -> {
+                    connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
+                    this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
     }
 
     @Override

@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -212,7 +213,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
         ensureRunning();
-        return this.streamSegmentStore.createStreamSegment(streamName, null, timeout);
+        return this.streamSegmentStore.createStreamSegment(streamName, SegmentType.STREAM_SEGMENT, null, timeout);
     }
 
     @Override
@@ -223,7 +224,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         // name for the new segment. In mergeTransaction, we need a way to extract the original Segment's name out of this
         // txnName, so best if we use the NameUtils class.
         String txnName = NameUtils.getTransactionNameFromId(parentStream, UUID.randomUUID());
-        return this.streamSegmentStore.createStreamSegment(txnName, null, timeout)
+        return this.streamSegmentStore.createStreamSegment(txnName, SegmentType.STREAM_SEGMENT, null, timeout)
                                       .thenApply(v -> txnName);
     }
 
@@ -261,7 +262,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
         ensureRunning();
-        return this.tableStore.createSegment(tableName, timeout);
+        return this.tableStore.createSegment(tableName, SegmentType.TABLE_SEGMENT_HASH, timeout);
     }
 
     @Override
