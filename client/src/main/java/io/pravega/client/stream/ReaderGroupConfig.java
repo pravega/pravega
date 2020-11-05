@@ -70,6 +70,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
+       private ReaderGroupRetentionConfig defaultRetentionConfig = ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION; //default value
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -226,7 +227,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionConfig);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, defaultRetentionConfig);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
