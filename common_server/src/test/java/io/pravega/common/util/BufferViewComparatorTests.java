@@ -23,10 +23,14 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the ByteArrayComparator class.
+ * Unit tests for the {@link BufferViewComparator} class.
  */
-public class ByteArrayComparatorTests {
+public abstract class BufferViewComparatorTests {
     private static final int COUNT = 2000;
+
+    abstract BufferViewComparator getComparator();
+
+    //region Tests
 
     /**
      * Tests comparing raw byte arrays.
@@ -34,7 +38,7 @@ public class ByteArrayComparatorTests {
     @Test
     public void testCompareByteArray() {
         val sortedData = generateSortedData();
-        test(sortedData, new ByteArrayComparator()::compare);
+        test(sortedData, getComparator()::compare);
     }
 
     /**
@@ -43,7 +47,7 @@ public class ByteArrayComparatorTests {
     @Test
     public void testCompareArrayView() {
         val sortedData = generateSortedData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
-        test(sortedData, new ByteArrayComparator()::compare);
+        test(sortedData, getComparator()::compare);
     }
 
     /**
@@ -51,7 +55,7 @@ public class ByteArrayComparatorTests {
      */
     @Test
     public void testCompareArrayViewVariableSize() {
-        testCompareBufferView(a -> a, new ByteArrayComparator()::compare);
+        testCompareBufferView(a -> a, getComparator()::compare);
     }
 
     /**
@@ -66,7 +70,7 @@ public class ByteArrayComparatorTests {
                     }
                     return builder.build();
                 },
-                new ByteArrayComparator()::compare);
+                getComparator()::compare);
     }
 
     private <T extends BufferView> void testCompareBufferView(Function<ArrayView, T> toBufferView, BiFunction<T, T, Integer> comparator) {
@@ -77,10 +81,10 @@ public class ByteArrayComparatorTests {
         sortedData.add(0, toBufferView.apply(new ByteArraySegment(new byte[0]))); // Empty.
         test(sortedData, comparator);
         for (val s : sortedData) {
-            int compareResult = comparator.apply(toBufferView.apply(new ByteArraySegment(ByteArrayComparator.getMinValue())), s);
+            int compareResult = comparator.apply(toBufferView.apply(new ByteArraySegment(BufferViewComparator.getMinValue())), s);
             if (compareResult == 0) {
                 // Only equal to itself.
-                Assert.assertTrue(s.getLength() == 1 && s.getBufferViewReader().readByte() == ByteArrayComparator.MIN_VALUE);
+                Assert.assertTrue(s.getLength() == 1 && s.getBufferViewReader().readByte() == BufferViewComparator.MIN_VALUE);
             } else if (compareResult > 0) {
                 // Only empty array is smaller than it.
                 Assert.assertEquals(0, s.getLength());
@@ -89,12 +93,12 @@ public class ByteArrayComparatorTests {
     }
 
     /**
-     * Tests the {@link  ByteArrayComparator#getNextItemOfSameLength}.
+     * Tests the {@link  BufferViewComparator#getNextItemOfSameLength}.
      */
     @Test
     public void testGetNextItemOfSameLength() {
-        val c = new ByteArrayComparator();
-        val max = ByteArrayComparator.MAX_VALUE;
+        val c = getComparator();
+        val max = BufferViewComparator.MAX_VALUE;
         val almostMax = (byte) (max - 1);
         List<Map.Entry<byte[], byte[]>> tests = Arrays.asList(
                 new AbstractMap.SimpleImmutableEntry<>(new byte[]{}, null),
@@ -105,7 +109,7 @@ public class ByteArrayComparatorTests {
                 new AbstractMap.SimpleImmutableEntry<>(new byte[]{max, max}, null));
 
         for (val e : tests) {
-            val actual = ByteArrayComparator.getNextItemOfSameLength(new ByteArraySegment(e.getKey()));
+            val actual = BufferViewComparator.getNextItemOfSameLength(new ByteArraySegment(e.getKey()));
             if (e.getValue() == null) {
                 Assert.assertNull(actual);
             } else {
@@ -148,8 +152,33 @@ public class ByteArrayComparatorTests {
             for (int j = 0; j < sortedData.size(); j++) {
                 int expectedResult = (int) Math.signum(Integer.compare(i, j));
                 int actualResult = (int) Math.signum(comparator.apply(sortedData.get(i), sortedData.get(j)));
-                Assert.assertEquals("Unexpected comparison value.", expectedResult, actualResult);
+                if (expectedResult != actualResult) {
+                    actualResult = (int) Math.signum(comparator.apply(sortedData.get(i), sortedData.get(j)));
+                }
+                Assert.assertEquals("Unexpected comparison value for " + i + " <-> " + j, expectedResult, actualResult);
             }
+        }
+    }
+
+    //endregion
+
+    /**
+     * Unit tests for the {@link BufferViewComparator.LegacyComparator} class.
+     */
+    public static class Legacy extends BufferViewComparatorTests {
+        @Override
+        BufferViewComparator getComparator() {
+            return new BufferViewComparator.LegacyComparator();
+        }
+    }
+
+    /**
+     * Unit tests for the {@link BufferViewComparator.IntrinsicComparator} class.
+     */
+    public static class Intrinsic extends BufferViewComparatorTests {
+        @Override
+        BufferViewComparator getComparator() {
+            return new BufferViewComparator.IntrinsicComparator();
         }
     }
 }

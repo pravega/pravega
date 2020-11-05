@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -62,7 +63,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
-    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
@@ -200,6 +201,10 @@ public class DurableLog extends AbstractService implements OperationLog {
                                 .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor));
     }
 
+    private CompletableFuture<Void> queueMetadataCheckpoint() {
+        return Futures.toVoid(checkpoint(DEFAULT_TIMEOUT));
+    }
+
     @SneakyThrows(Exception.class)
     private boolean performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
@@ -209,7 +214,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Timer timer = new Timer();
         try {
             // Initialize the DurableDataLog, which will acquire its lock and ensure we are the only active users of it.
-            this.durableDataLog.initialize(RECOVERY_TIMEOUT);
+            this.durableDataLog.initialize(DEFAULT_TIMEOUT);
 
             // Initiate the recovery.
             RecoveryProcessor p = new RecoveryProcessor(this.metadata, this.durableDataLog, this.memoryStateUpdater);
@@ -293,9 +298,9 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region OperationLog Implementation
 
     @Override
-    public CompletableFuture<Void> add(Operation operation, Duration timeout) {
+    public CompletableFuture<Void> add(Operation operation, OperationPriority priority, Duration timeout) {
         ensureRunning();
-        return this.operationProcessor.process(operation);
+        return this.operationProcessor.process(operation, priority);
     }
 
     @Override
@@ -321,7 +326,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
         // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
         // info will be readily available upon recovery without delay.
-        return add(new StorageMetadataCheckpointOperation(), timer.getRemaining())
+        return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
@@ -331,6 +336,18 @@ public class DurableLog extends AbstractService implements OperationLog {
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
                     this.operationProcessor.getMetrics().operationLogTruncate(count);
                 }, this.executor);
+    }
+
+    @Override
+    public CompletableFuture<Long> checkpoint(Duration timeout) {
+        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
+        MetadataCheckpointOperation op = new MetadataCheckpointOperation();
+        return this.operationProcessor
+                .process(op, OperationPriority.Normal)
+                .thenApply(v -> {
+                    log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId);
+                    return op.getSequenceNumber();
+                });
     }
 
     @Override
@@ -407,13 +424,6 @@ public class DurableLog extends AbstractService implements OperationLog {
             this.stopException.set(new StreamingException("OperationProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
             stopAsync();
         }
-    }
-
-    private CompletableFuture<Void> queueMetadataCheckpoint() {
-        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
-        return this.operationProcessor
-                .process(new MetadataCheckpointOperation())
-                .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));
     }
 
     private void unregisterTailRead(TailRead tailRead) {

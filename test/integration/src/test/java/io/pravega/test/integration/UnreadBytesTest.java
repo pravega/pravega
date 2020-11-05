@@ -40,6 +40,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -210,6 +211,77 @@ public class UnreadBytesTest {
         long unreadBytes = readerGroup.getMetrics().unreadBytes();
         //Ensure the endoffset of 90 Bytes is taken into consideration when computing unread
         assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 30);
+    }
+
+    @Test
+    public void testUnreadBytesWithCheckpointsAndStreamCuts() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                .build();
+
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("unreadbytes").get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        long unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
+
+        writer.writeEvent("0", "data of size 30").get();
+        writer.writeEvent("0", "data of size 30").get();
+
+        EventRead<String> firstEvent = reader.readNextEvent(15000);
+        EventRead<String> secondEvent = reader.readNextEvent(15000);
+        assertNotNull(firstEvent);
+        assertEquals("data of size 30", firstEvent.getEvent());
+        assertNotNull(secondEvent);
+        assertEquals("data of size 30", secondEvent.getEvent());
+
+        // trigger a checkpoint.
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
+        assertEquals("test", chkpointEvent.getCheckpointName());
+
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        assertEquals(false, emptyEvent.isCheckpoint());
+        assertEquals(null, emptyEvent.getEvent());
+        chkPointResult.join();
+
+        unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
+
+        // starting from checkpoint "test", data of size 30 is read
+        writer.writeEvent("0", "data of size 30").get();
+        unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 30);
+
+        // trigger a stream-cut
+        CompletableFuture<Map<Stream, StreamCut>> scResult = readerGroup.generateStreamCuts(executor);
+        EventRead<String> scEvent = reader.readNextEvent(15000);
+
+        reader.readNextEvent(100);
+
+        unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 30);
+
+        // starting from checkpoint "test", data of size 60 is written => stream-cut does not change last checkpointed position
+        writer.writeEvent("0", "data of size 30").get();
+        unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 60);
     }
 
     /*

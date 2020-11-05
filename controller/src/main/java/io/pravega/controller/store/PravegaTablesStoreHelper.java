@@ -425,24 +425,24 @@ public class PravegaTablesStoreHelper {
      */
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String tableName, ByteBuf continuationToken, int limit) {
         log.trace("get keys paginated called for : {}", tableName);
-
         return withRetries(() ->
-                segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
-                        () -> String.format("get keys paginated for table: %s", tableName))
-                             .thenApplyAsync(result -> {
-                                 try {
-                                     List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
-                                                                .collect(Collectors.toList());
-                                     log.trace("get keys paginated on table {} returned items {}", tableName, items);
-                                     // if the returned token and result are empty, return the incoming token so that 
-                                     // callers can resume from that token. 
-                                     return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
-                                 } finally {
-                                     releaseKeys(result.getItems());
-                                 }
-                             }, executor);
+                        segmentHelper.readTableKeys(tableName, limit, IteratorStateImpl.fromBytes(continuationToken), authToken.get(),
+                                RequestTag.NON_EXISTENT_ID),
+                () -> String.format("get keys paginated for table: %s", tableName))
+                .thenApplyAsync(result -> {
+                    try {
+                        List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), Charsets.UTF_8))
+                                .collect(Collectors.toList());
+                        log.trace("get keys paginated on table {} returned items {}", tableName, items);
+                        // if the returned token and result are empty, return the incoming token so that
+                        // callers can resume from that token.
+                        return new AbstractMap.SimpleEntry<>(getNextToken(continuationToken, result), items);
+                    } finally {
+                        releaseKeys(result.getItems());
+                    }
+                }, executor);
     }
-    
+
     /**
      * Method to get paginated list of entries with a continuation token.
      * @param tableName tableName

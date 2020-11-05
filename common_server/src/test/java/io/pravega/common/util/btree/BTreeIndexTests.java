@@ -12,7 +12,7 @@ package io.pravega.common.util.btree;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -43,7 +43,7 @@ import org.junit.Test;
  * Unit tests for the BTreeIndex class.
  */
 public class BTreeIndexTests extends ThreadPooledTestSuite {
-    private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+    private static final BufferViewComparator KEY_COMPARATOR = BufferViewComparator.create();
     private static final int KEY_LENGTH = 4;
     private static final int VALUE_LENGTH = 2;
     private static final int MAX_PAGE_SIZE = 128;
@@ -391,9 +391,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
     private int getKeyCount(BTreeIndex index) {
         val minKey = new byte[KEY_LENGTH];
-        Arrays.fill(minKey, ByteArrayComparator.MIN_VALUE);
+        Arrays.fill(minKey, BufferViewComparator.MIN_VALUE);
         val maxKey = new byte[KEY_LENGTH];
-        Arrays.fill(maxKey, ByteArrayComparator.MAX_VALUE);
+        Arrays.fill(maxKey, BufferViewComparator.MAX_VALUE);
 
         val count = new AtomicInteger();
         index.iterator(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)
