@@ -99,6 +99,22 @@ public class Attributes {
     public static final UUID ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
 
     /**
+     * Defines an attribute that is used to store the Segment's Type ({@link SegmentType#getValue()}.
+     * This attribute cannot be modified once set on the Segment.
+     */
+    public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
+
+    /**
+     * Determines whether the given attribute cannot be modified once originally set on the Segment.
+     *
+     * @param attributeId The Attribute Id to check.
+     * @return True if immutable, false otherwise.
+     */
+    public static boolean isUnmodifiable(UUID attributeId) {
+        return attributeId == ATTRIBUTE_SEGMENT_TYPE;
+    }
+
+    /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
      *
      * @param attributeId The Attribute Id to check.
