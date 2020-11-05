@@ -47,13 +47,9 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
         this.size = 0;
     }
 
-    protected void setOut(OutputStream out) {
+    protected final void setOut(OutputStream out) {
         super.out = out;
-        if (this.out instanceof DirectDataOutput) {
-            this.structuredWriter = (DirectDataOutput) this.out;
-        } else {
-            this.structuredWriter = new IndirectWriter();
-        }
+        this.structuredWriter = (out instanceof DirectDataOutput) ? (DirectDataOutput) out : new IndirectWriter();
     }
 
     /**
@@ -157,7 +153,7 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
 
     @Override
     public final void writeUTF(String str) throws IOException {
-        // TODO: copied from DataOutputStream.
+        // Note: this method was borrowed from DataOutputStream without any changes.
         final int stringLength = str.length();
         final int utfLength = getUTFLength(str) - 2;
         Preconditions.checkArgument(utfLength <= 65535, "Encoded string too long: %s bytes", utfLength);
