@@ -10,6 +10,7 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthServiceImpl;
+import javassist.tools.rmi.Sample;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -23,7 +24,6 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
@@ -99,7 +99,7 @@ public class HealthServiceTests {
         response = builder.get();
 
         Assert.assertEquals(String.format("[Ping] %s responded with unexpected code.", url.toString()),
-                Status.OK.getStatusCode(),
+                Response.Status.OK.getStatusCode(),
                 response.getStatus());
         Assert.assertEquals(String.format("[Ping] %s responded with unexpected plain-text.", url.toString()),
                 HealthEndpoint.PING_RESPONSE,
@@ -108,7 +108,14 @@ public class HealthServiceTests {
 
     @Test
     public void health() {
+        HealthService service = HealthServiceImpl.INSTANCE;
+        Assert.assertTrue(service.running());
 
+        SampleIndicator indicator = new SampleIndicator();
+        service.(indicator);
+
+        Health health = indicator.health();
+        log.info("{}", health);
     }
 
     @Test
@@ -128,6 +135,20 @@ public class HealthServiceTests {
 
     @Test
     public void readiness() {
+
+    }
+
+    private class SampleIndicator extends HealthIndicator {
+        public SampleIndicator() {
+            super("sample-indicator");
+        }
+
+        public void doHealthCheck(Health.HealthBuilder builder) {
+            builder.status(Status.UP);
+        }
+    }
+
+    private class Request {
 
     }
 }

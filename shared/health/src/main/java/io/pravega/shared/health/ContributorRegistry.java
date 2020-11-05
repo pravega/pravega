@@ -14,12 +14,6 @@ package io.pravega.shared.health;
  * the overall state of some {@link HealthService}.
  */
 public interface ContributorRegistry extends Registry<HealthContributor> {
-    /**
-     * Registers the indicator to the registry.
-     *
-     * @param contributor The {@link HealthContributor} object to add to the registry.
-     */
-    void register(HealthContributor contributor);
 
     /**
      * Registers the contributor to the registry.
@@ -29,16 +23,4 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      *                    health will be predicated on this {@link HealthContributor}'s health.
      */
     void register(HealthContributor contributor, HealthComponent parent);
-
-    /**
-     * Unregisters the indicator from the registry.
-     *
-     * @param indicator The {@link HealthContributor} object to remove from the registry.
-     */
-    void unregister(HealthContributor indicator);
-
-    /**
-     * Unregisters all entries in the registry.
-      */
-    void clear();
 }

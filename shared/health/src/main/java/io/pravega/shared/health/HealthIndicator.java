@@ -10,6 +10,7 @@
 package io.pravega.shared.health;
 
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.AbstractMap;
@@ -28,6 +29,8 @@ import java.util.stream.Collectors;
 public abstract class HealthIndicator implements HealthContributor {
 
       private final Details details;
+
+      @Getter
       private final String name;
 
       HealthIndicator(String name) {

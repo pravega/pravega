@@ -9,7 +9,9 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.ContributorRegistry;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthComponent;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.Getter;
@@ -25,9 +27,10 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.util.Optional;
 
 @Slf4j
-public class HealthServiceImpl extends ContributorRegistryImpl implements HealthService {
+public class HealthServiceImpl implements HealthService {
 
     /**
      * The singleton {@link HealthService} INSTANCE.
@@ -39,12 +42,16 @@ public class HealthServiceImpl extends ContributorRegistryImpl implements Health
      */
     private static final int HEALTH_REST_PORT = 10090;
 
-    private ContributorRegistry registry;
+    private ContributorRegistryImpl registry;
 
     private HttpServer server;
 
     @Getter
     private URI uri;
+
+    public void register(HealthContributor contributor, HealthComponent parent) {
+        register.re;
+    }
 
     private HealthServiceImpl() {
         // Initiate the contributor registry.
@@ -99,4 +106,12 @@ public class HealthServiceImpl extends ContributorRegistryImpl implements Health
     public synchronized boolean running() {
         return server == null || !server.isStarted() ? false : true;
     }
+
+    public Optional<Health> health(String name, boolean includeDetails) {
+        Optional<HealthContributor> result = registry.get(name);
+        if (result.isEmpty()) {
+            log.error("No HealthComponent with name: {} found in the registry.", name);
+        }
+    }
+
 }

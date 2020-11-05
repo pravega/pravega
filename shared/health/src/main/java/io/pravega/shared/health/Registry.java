@@ -9,6 +9,8 @@
  */
 package io.pravega.shared.health;
 
+import java.util.Optional;
+
 public interface Registry<T> {
 
     /**
@@ -24,4 +26,17 @@ public interface Registry<T> {
      * @param object The object to unregister.
      */
     void unregister(T object);
+
+    /**
+     * Provides some mechanism to clear all registered entries from the underlying store.
+     */
+    void clear();
+
+    /**
+     * Returns the object associated with the identifier. A key of type {@link String} is used, therefore we should
+     * protect against the case where an no item of type *T* mapped by {@param id} exists.
+     * @param id The identifier used to query the underlying store.
+     * @return The object of type *T* associated with {@param id}.
+     */
+    Optional<T> get(String id);
 }

@@ -13,8 +13,11 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The {@link HealthComponent} class is used to provide a structured way for some service (I.E the SegmentStore or Controller)
- * to access.
+ * The {@link HealthComponent} class is used to provide a logical grouping of components. Each registered {@link  HealthComponent}
+ * will export it's JSON representation via some HTTP route.
+ *
+ * The children/dependencies of a {@link HealthComponent} are used to determine the {@link Status} of this component, based
+ * on some {@link StatusAggregationRule}.
  */
 @Slf4j
 public class HealthComponent extends CompositeHealthContributor {

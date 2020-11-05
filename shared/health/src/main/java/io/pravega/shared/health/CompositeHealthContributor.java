@@ -17,11 +17,12 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class CompositeHealthContributor<T> implements HealthContributor, Registry<HealthContributor>  {
+public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor>  {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
@@ -87,6 +88,17 @@ public abstract class CompositeHealthContributor<T> implements HealthContributor
         }
         return Health.builder().status(status).details(details).build();
     }
+
+    public void clear() {
+        contributors.clear();
+    }
+
+    public Optional<HealthContributor> get(String name) {
+        return contributors.stream()
+                .filter(val -> val.getName() == name)
+                .findFirst();
+    }
+
 
     abstract public String getName();
 }

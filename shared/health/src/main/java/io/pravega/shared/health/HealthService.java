@@ -9,8 +9,7 @@
  */
 package io.pravega.shared.health;
 
-import java.io.IOException;
-import java.net.URI;
+import java.util.Optional;
 
 /**
  * The top level interface used to provide any and all health related information for a particular component
@@ -23,27 +22,31 @@ import java.net.URI;
  *  * /health/liveness      Exposes the top level 'liveness' status.
  *  * /health/details       Exposes the aggregate {@link Health} details.
  */
-public interface HealthService {
-    /**
-     * A sanity checker that tells us if the {@link org.glassfish.grizzly.http.server.HttpServer} has been started.
-     * @return
-     */
-    boolean running();
+public interface HealthService extends HealthServer, Registry<HealthContributor> {
+    ///**
+    // * Registers the contributor to the default {@link HealthComponent} registry.
+    // *
+    // * @param contributor The {@link HealthContributor} object to add to the registry.
+    // */
+    //void register(HealthContributor contributor);
 
     /**
-     * A method that will start the {@link org.glassfish.grizzly.http.server.HttpServer} instance.
-     * @throws IOException If there was an exception starting the server.
+     * Registers the contributor to the registry.
+     *
+     * @param contributor The {@link HealthContributor} object to add to the registry.
+     * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
+     *                    health will be predicated on this {@link HealthContributor}'s health.
      */
-    void start() throws IOException;
+    void register(HealthContributor contributor, HealthComponent parent);
 
     /**
-     * A method that will stop the {@link org.glassfish.grizzly.http.server.HttpServer} instance.
+     * Similar to a {@link HealthContributor}, a {@link HealthService} should also provide some way to access the {@link Health}
+     * of the service. The difference is a {@link HealthService} is concerned with one or many {@link HealthComponent},
+     * where as a {@link HealthContributor} should just be concerned with it's own {@link Health}.
+     *
+     * @param name  The name of the {@link HealthComponent} to check the {@link Health} of.
+     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
+     * @return The {@link Health} object of the component.
      */
-    void stop();
-
-    /**
-     * Provides the {@link org.glassfish.jersey.server.Uri} the {@link org.glassfish.grizzly.http.server.HttpServer} is
-     * configured to run at.
-     */
-    URI getUri();
+    Optional<Health> health(String name, boolean includeDetails);
 }
