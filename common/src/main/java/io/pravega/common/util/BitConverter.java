@@ -17,6 +17,14 @@ import java.util.UUID;
 
 /**
  * Helper methods for various Number to Bit conversions.
+ *
+ * IMPORTANT: This class is closed to new additions. While not deprecated (it's good to have similar methods in one place),
+ * consider using one of the following instead:
+ * - {@link StructuredWritableBuffer} or {@link StructuredReadableBuffer} implementations, such as
+ * {@link ByteArraySegment}). These provide the most efficient serialization implementations available.
+ * - {@link io.pravega.common.io.DirectDataOutput} implementations, such as
+ * {@link io.pravega.common.io.ByteBufferOutputStream}). This provides an efficient serialization implementation as well.
+ * - {@link java.io.DataOutputStream} if none of the above are useful (this is the classic Java serializer).
  */
 public final class BitConverter {
     /**
@@ -27,7 +35,6 @@ public final class BitConverter {
      * @return The number of bytes written.
      * @throws IOException If an error occurred.
      */
-    // TODO: unit tests
     public static int writeShort(OutputStream target, short value) throws IOException {
         target.write((byte) (value >>> 8 & 255));
         target.write((byte) (value & 255));
