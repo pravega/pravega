@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
@@ -77,9 +78,9 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes,
-                                                       Duration timeout) {
-        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, attributes, timeout);
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
+        CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, segmentType, attributes, timeout);
         Futures.await(result);
         return result;
     }
