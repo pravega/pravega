@@ -17,11 +17,14 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdateCheckpointPublished;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
@@ -39,7 +42,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -416,7 +422,11 @@ public class ReaderGroupStateManager {
         Preconditions.checkArgument(multiplier >= 1, "Invalid acquire timer multiplier");
         return TIME_UNIT.multipliedBy(multiplier);
     }
-    
+
+    /**
+     * Returns name of the checkpoint to be processed by this reader
+     * @return String - name of the first checkpoint pending processing for this Reader.
+     * */
     String getCheckpoint() throws ReaderNotInReaderGroupException {
         fetchUpdatesIfNeeded();
         ReaderGroupState state = sync.getState();
@@ -462,7 +472,27 @@ public class ReaderGroupStateManager {
     boolean isCheckpointSilent(String atCheckpoint) {
         return sync.getState().getCheckpointState().isCheckpointSilent(atCheckpoint);
     }
-    
+
+    @SneakyThrows(CheckpointFailedException.class)
+    public void updateTruncationStreamCutIfNeeded() {
+        ReaderGroupState state = sync.getState();
+        // here add check if RG is Subscriber and autoPublishTruncationStreamCut = true
+        if (state.getConfig().getRetentionConfig().equals(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT)
+        && !state.getCheckpointState().isLastCheckpointPublished()) {
+            // we get here only when this is the reader that has completed the lastCheckpoint
+            Optional<Map<Stream, Map<Segment, Long>>> cuts = state.getPositionsForLastCompletedCheckpoint();
+            if (!cuts.isPresent()) {
+                throw new CheckpointFailedException("Could not get positions for last checkpoint.");
+            }
+            Set<StreamCut> streamCuts = cuts.get().entrySet().stream()
+                    .map(entry -> new StreamCutImpl(entry.getKey(), entry.getValue()))
+                    .collect(Collectors.toSet());
+            streamCuts.forEach(entry -> controller.updateSubscriberStreamCut(entry.asImpl().getStream().getScope(),
+                    entry.asImpl().getStream().getScope(), readerId, entry));
+            sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
+        }
+    }
+
     Set<Stream> getStreams() {
         return Collections.unmodifiableSet(sync.getState().getConfig().getStartingStreamCuts().keySet());
     }

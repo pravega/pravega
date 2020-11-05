@@ -49,6 +49,22 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
+    private final ReaderGroupRetentionConfig retentionConfig;
+
+    public enum ReaderGroupRetentionConfig {
+        NO_CONSUMPTION_BASED_TRUNCATION(false, false),
+        TRUNCATE_AT_USER_STREAMCUT(true, false),
+        TRUNCATE_AT_LAST_CHECKPOINT(true, true);
+
+        private boolean isReaderGroupASubscriber;
+        private boolean autoTruncateAtLastCheckpoint;
+
+        ReaderGroupRetentionConfig(boolean isSubscriber, boolean autoTruncateAtLastCheckpoint) {
+            this.isReaderGroupASubscriber = isSubscriber;
+            this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
+        }
+    }
+
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
@@ -177,6 +193,17 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
+       /**
+        * Set the retention config for the {@link ReaderGroup}.
+        *
+        * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
+           this.retentionConfig = retentionConfig;
+           return this;
+       }
+
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
@@ -199,7 +226,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionConfig);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -265,6 +292,7 @@ public class ReaderGroupConfig implements Serializable {
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
             version(0).revision(1, this::write01, this::read01);
+            version(0).revision(2, this::write02, this::read02);
         }
 
         private void read00(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
@@ -303,6 +331,29 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
+        }
+
+        private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
+            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
+            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
+            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
+            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
+            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
+            builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
+            int ordinal = revisionDataInput.readCompactInt();
+            builder.retentionConfig(ReaderGroupRetentionConfig.values()[ordinal]);
+        }
+
+        private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
+            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
+            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
+            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
+            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
+            revisionDataOutput.writeCompactInt(object.retentionConfig.ordinal());
         }
     }
 
