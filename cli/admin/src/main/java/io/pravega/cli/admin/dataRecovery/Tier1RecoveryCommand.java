@@ -166,11 +166,6 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
             Services.startAsync(debugStreamSegmentContainer, executorService).join();
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
             output(Level.FINE, "Container %d started.", containerId);
-
-            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId);
-            output(Level.FINE, "Container metadata segment and attributes index segment deleted for container Id = " +
-                    containerId);
         }
         return debugStreamSegmentContainerMap;
     }
