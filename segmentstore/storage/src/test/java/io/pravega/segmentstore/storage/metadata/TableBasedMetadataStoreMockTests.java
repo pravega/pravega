@@ -41,7 +41,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         when(mockTableStore.get(anyString(), any(), any())).thenThrow(new IllegalStateException());
         AssertExtensions.assertFutureThrows(
                 "read should throw an exception",
@@ -54,7 +54,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         // Throw random exception
         Exception e = new ArithmeticException();
         val f = new CompletableFuture<List<TableEntry>>();
@@ -71,7 +71,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
         // Throw DataLogWriterNotPrimaryException exception
         Exception e = new CompletionException(new DataLogWriterNotPrimaryException("test"));
@@ -91,7 +91,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
         // Throw BadKeyVersionException exception
         Exception e = new CompletionException(new BadKeyVersionException("test", new HashMap<>()));
@@ -111,7 +111,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
         // Throw random exception
         Exception e = new ArithmeticException();
@@ -131,7 +131,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         TableStore mockTableStore = mock(TableStore.class);
         TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
 
-        when(mockTableStore.createSegment(any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
         // Make it throw IllegalStateException
         val td = BaseMetadataStore.TransactionData.builder().key("foo").version(1L).dbObject(null).build();

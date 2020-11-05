@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -191,7 +192,11 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     private CompletableFuture<Void> ensureInitialized() {
         if (!isTableInitialized.get()) {
-            return this.tableStore.createSegment(tableName, timeout)
+            // Storage Metadata Segment is a System, Internal Segment. It must also be designated as Critical since the
+            // Segment Store may not function properly without it performing well. The Critical designation will cause
+            // all of its "modify" operations to bypass any ingestion pipeline throttling and be expedited for processing.
+            val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
+            return this.tableStore.createSegment(tableName, segmentType, timeout)
                     .thenRunAsync(() -> {
                         log.info("Created table segment {}", tableName);
                         isTableInitialized.set(true);
