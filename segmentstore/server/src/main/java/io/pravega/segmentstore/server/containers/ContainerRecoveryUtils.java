@@ -90,7 +90,7 @@ public class ContainerRecoveryUtils {
 
         log.info("Recovery started for all containers...");
         // Get all segments in the metadata store for each debug segment container instance.
-        Map<Integer, Set<String>> existingSegmentsMap = new HashMap<>(); //getExistingSegments(debugStreamSegmentContainersMap, executorService);
+        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService);
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 

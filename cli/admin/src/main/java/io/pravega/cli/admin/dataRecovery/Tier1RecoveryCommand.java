@@ -17,7 +17,7 @@ import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
@@ -25,6 +25,7 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.server.containers.DebugStreamSegmentContainer;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
@@ -65,34 +66,6 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
             .build();
-    private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
-            .build();
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(
-            ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
-
-    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
-            .builder()
-            .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
-            .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
-            .build();
-
-    private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
-            .builder()
-            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
-            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3)
-            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
-            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
-            .build();
-
-    // Configurations for DebugSegmentContainer(s)
-    private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
-            .build();
 
     private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
     private final int containerCount;
@@ -120,6 +93,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         storage.initialize(CONTAINER_EPOCH);
         output(Level.INFO, "Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
+        val config = getCommandArgs().getState().getConfigBuilder().build().getConfig(ContainerConfig::builder);
+
         // Start a zk client and create a bookKeeperLogFactory
         val serviceConfig = getServiceConfig();
         val bkConfig = getCommandArgs().getState().getConfigBuilder()
@@ -143,9 +118,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
 
         // Start debug segment containers
         @Cleanup
-        ContainerContext context = createContainerContext(executorService);
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = createContainers(context, this.containerCount, factory,
-                this.storageFactory);
+        ContainerContext context = createContainerContext(executorService, this.storageFactory, factory, config);
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = createContainers(context, this.containerCount, storage);
         output(Level.INFO, "Debug segment containers started.");
 
         output(Level.INFO, "Recovering all segments...");
@@ -181,65 +155,79 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
     }
 
     // Creates debug segment container instances, puts them in a map and returns it.
-    private Map<Integer, DebugStreamSegmentContainer> createContainers(ContainerContext context, int containerCount,
-                                                                    BookKeeperLogFactory dataLogFactory,
-                                                                    StorageFactory storageFactory) throws Exception {
+    private Map<Integer, DebugStreamSegmentContainer> createContainers(ContainerContext context, int containerCount, Storage storage) {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService);
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            MetadataCleanupContainer debugStreamSegmentContainer = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                    context.getDefaultExtensions(), executorService);
-
-            Services.startAsync(debugStreamSegmentContainer, executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            DebugStreamSegmentContainer debugStreamSegmentContainer = (DebugStreamSegmentContainer)
+                    context.containerFactory.createDebugStreamSegmentContainer(containerId);
+            Services.startAsync(debugStreamSegmentContainer, executorService).join();
             debugStreamSegmentContainerMap.put(containerId, debugStreamSegmentContainer);
             output(Level.FINE, "Container %d started.", containerId);
+
+            // Delete container metadata segment and attributes index segment corresponding to the container Id from the long term storage
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, containerId);
+            output(Level.FINE, "Container metadata segment and attributes index segment deleted for container Id = " +
+                    containerId);
         }
         return debugStreamSegmentContainerMap;
     }
 
-    private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
-        private final ScheduledExecutorService executor;
-
-        public MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
-                                        ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
-                                        WriterFactory writerFactory, StorageFactory storageFactory,
-                                        SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
-            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
-                    storageFactory, createExtensions, executor);
-            this.executor = executor;
-        }
-    }
-
-    public static ContainerContext createContainerContext(ScheduledExecutorService scheduledExecutorService) {
-        return new ContainerContext(scheduledExecutorService);
+    public static ContainerContext createContainerContext(ScheduledExecutorService scheduledExecutorService, StorageFactory storageFactory,
+                                                          BookKeeperLogFactory bookKeeperLogFactory, ContainerConfig containerConfig) {
+        return new ContainerContext(scheduledExecutorService, storageFactory, bookKeeperLogFactory, containerConfig);
     }
 
 
     public static class ContainerContext implements AutoCloseable {
+        private final StreamSegmentContainerFactory containerFactory;
+        private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
         private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
         private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
+        private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = DurableLogConfig
+                .builder()
+                .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
+                .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L)
+                .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
+                .build();
+        private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
-        ContainerContext(ScheduledExecutorService scheduledExecutorService) {
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+        private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
+                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
+                .build();
+
+        private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
+                .builder()
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
+                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+                .build();
+
+        ContainerContext(ScheduledExecutorService scheduledExecutorService, StorageFactory storageFactory,
+                         BookKeeperLogFactory bookKeeperLogFactory, ContainerConfig containerConfig) {
+            this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, bookKeeperLogFactory, scheduledExecutorService);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, scheduledExecutorService);
+            this.containerFactory = new StreamSegmentContainerFactory(containerConfig, this.operationLogFactory,
+                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, storageFactory,
+                    this::createContainerExtensions, scheduledExecutorService);
         }
 
-        public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
-            return (c, e) -> Collections.singletonMap(ContainerTableExtension.class, createTableExtension(c, e));
-        }
-
-        private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(c, this.cacheManager, e);
+        private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
+                SegmentContainer container, ScheduledExecutorService executor) {
+            return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
         }
 
         @Override
