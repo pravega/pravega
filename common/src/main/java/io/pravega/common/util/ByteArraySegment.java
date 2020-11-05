@@ -55,9 +55,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
      * @throws UnsupportedOperationException  If buff is not backed by an array.
      */
     public ByteArraySegment(ByteBuffer buff) {
-        this.buffer = buff.slice();
-        this.bufferPosition = this.buffer.arrayOffset() + this.buffer.position();
-        this.length = this.buffer.remaining();
+        this(buff.array(), buff.arrayOffset() + buff.position(), buff.remaining());
     }
 
     /**
