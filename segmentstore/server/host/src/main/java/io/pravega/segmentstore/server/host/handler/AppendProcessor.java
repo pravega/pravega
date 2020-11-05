@@ -33,7 +33,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
@@ -147,8 +146,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             try {
                 JsonWebToken token = tokenVerifier.verifyToken(newSegment,
                         setupAppend.getDelegationToken(),
-                        newSegment.contains(NameUtils.INTERNAL_STREAM_IDENTIFYING_PATTERN) ?
-                                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE);
+                        AuthHandler.Permissions.READ_UPDATE);
                 setupTokenExpiryTask(setupAppend, token);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,

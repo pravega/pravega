@@ -181,7 +181,31 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     }
 
     @Test
-    public void supplierCreatesTokenWithReadForInternalStreamsByDefault() {
+    public void supplierCreatesTokenWithReadUpdateForInternalStreamsByDefault() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "_testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "_testStream", null);
+
+        doReturn("dummy.delegation.token").when(mockAuthHelper).checkAuthorizationAndCreateToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithReadForInternalStreamsWhenRequestedIsSame() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+        String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "_testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "_testStream",
+                AccessOperation.READ);
+
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ);
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
+    }
+
+    @Test
+    public void supplierCreatesTokenWithReadWriteForInternalStreamsWhenRequestedIsSame() {
         GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
         ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
         String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "_testStream");
@@ -189,7 +213,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 AccessOperation.READ_WRITE);
 
         doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
-        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
         assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
     }
 

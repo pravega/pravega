@@ -447,13 +447,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         tokenPermission = requestedPermissions;
                     }
                 } else {
-                    AuthHandler.Permissions targetPermission = authParams.requiredPermissionForWrites();
+                    final AuthHandler.Permissions authorizationPermission;
+                    if (requestedPermissions.equals(AuthHandler.Permissions.READ_UPDATE)) {
+                        authorizationPermission = authParams.requiredPermissionForWrites();
+                        tokenPermission = AuthHandler.Permissions.READ_UPDATE;
+                    } else if (requestedPermissions.equals(AuthHandler.Permissions.READ)) {
+                        authorizationPermission = AuthHandler.Permissions.READ;
+                        tokenPermission = requestedPermissions;
+                    } else {
+                        authorizationPermission = AuthHandler.Permissions.READ;
+                        tokenPermission = AuthHandler.Permissions.READ;
+                    }
 
                     // Internal streams will be qualified as non-stream resources. For example
                     // "prn:://scope:myScope/reader-group:myApp" and "prn:://scope:myScope/watermark:myStream".
-                    this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), targetPermission);
+                    this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), authorizationPermission);
                     tokenResource = streamResource;
-                    tokenPermission = targetPermission;
                 }
                 return this.grpcAuthHelper.createDelegationToken(tokenResource, tokenPermission);
             }
