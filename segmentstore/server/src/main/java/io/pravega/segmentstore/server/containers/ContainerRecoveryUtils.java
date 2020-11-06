@@ -50,7 +50,6 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  */
 @Slf4j
 public class ContainerRecoveryUtils {
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int BUFFER_SIZE = 8 * 1024 * 1024;
 
     /**
@@ -73,13 +72,14 @@ public class ContainerRecoveryUtils {
      * @param debugStreamSegmentContainersMap   A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                          representing the containers that will be recovered.
      * @param executorService                   A thread pool for execution.
+     * @param timeout                           Timeout for the operation.
      * @throws Exception                        If an exception occurred. This could be one of the following:
      *                                              * TimeoutException:     If the calls for computation(used in the method)
      *                                                                      didn't complete in time.
      *                                              * IOException     :     If a general IO exception occurred.
      */
     public static void recoverAllSegments(Storage storage, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap,
-                                          ExecutorService executorService) throws Exception {
+                                          ExecutorService executorService, Duration timeout) throws Exception {
         Preconditions.checkNotNull(storage);
         Preconditions.checkNotNull(executorService);
         Preconditions.checkNotNull(debugStreamSegmentContainersMap);
@@ -90,7 +90,8 @@ public class ContainerRecoveryUtils {
 
         log.info("Recovery started for all containers...");
         // Get all segments in the metadata store for each debug segment container instance.
-        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService);
+        Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService,
+                timeout);
 
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
 
@@ -109,9 +110,9 @@ public class ContainerRecoveryUtils {
 
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
             existingSegmentsMap.get(containerId).remove(currentSegment.getName());
-            futures.add(recoverSegment(debugStreamSegmentContainersMap.get(containerId), currentSegment));
+            futures.add(recoverSegment(debugStreamSegmentContainersMap.get(containerId), currentSegment, timeout));
         }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
         futures.clear();
         // Delete segments which only exist in the container metadata, not in storage.
@@ -119,10 +120,10 @@ public class ContainerRecoveryUtils {
             for (String segmentName : existingSegmentsSetEntry.getValue()) {
                 log.info("Deleting segment '{}' as it is not in the storage.", segmentName);
                 futures.add(debugStreamSegmentContainersMap.get(existingSegmentsSetEntry.getKey())
-                        .deleteStreamSegment(segmentName, TIMEOUT));
+                        .deleteStreamSegment(segmentName, timeout));
             }
         }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -156,6 +157,7 @@ public class ContainerRecoveryUtils {
      * @param containerMap              A Map of Container Ids to {@link DebugStreamSegmentContainer} instances
      *                                  representing the containers to list the segments from.
      * @param executorService           A thread pool for execution.
+     * @param timeout                   Timeout for the operation.
      * @return                          A Map of Container Ids to segment names representing all segments present in the
      *                                  container metadata segment of a Container.
      * @throws Exception                If an exception occurred. This could be one of the following:
@@ -164,23 +166,24 @@ public class ContainerRecoveryUtils {
      *                                      * IOException     :     If a general IO exception occurred.
      */
     private static Map<Integer, Set<String>> getExistingSegments(Map<Integer, DebugStreamSegmentContainer> containerMap,
-                                                                 ExecutorService executorService) throws Exception {
+                                                                 ExecutorService executorService,
+                                                                 Duration timeout) throws Exception {
         Map<Integer, Set<String>> metadataSegmentsMap = new HashMap<>();
-        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
+        val args = IteratorArgs.builder().fetchTimeout(timeout).build();
 
         // Get all segments for each container entry
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
             val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Store the segments in a set
             Set<String> metadataSegments = new HashSet<>();
             keyIterator.forEachRemaining(k ->
                     metadataSegments.addAll(k.getEntries().stream()
                             .map(entry -> entry.getKey().toString())
-                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                            .collect(Collectors.toSet())), executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
@@ -197,10 +200,12 @@ public class ContainerRecoveryUtils {
      * @param container         A {@link DebugStreamSegmentContainer} instance for registering the given segment and checking
      *                          its existence in the container metadata.
      * @param storageSegment    A {@link SegmentProperties} instance which has properties of the segment to be registered.
+     * @param timeout           Timeout for the operation.
      * @return                  CompletableFuture which when completed will have the segment registered on to the container
      *                          metadata.
      */
-    private static CompletableFuture<Void> recoverSegment(DebugStreamSegmentContainer container, SegmentProperties storageSegment) {
+    private static CompletableFuture<Void> recoverSegment(DebugStreamSegmentContainer container, SegmentProperties storageSegment,
+                                                          Duration timeout) {
         Preconditions.checkNotNull(container);
         Preconditions.checkNotNull(storageSegment);
         long segmentLength = storageSegment.getLength();
@@ -209,12 +214,12 @@ public class ContainerRecoveryUtils {
 
         log.info("Registering: {}, {}, {}.", segmentName, segmentLength, isSealed);
         return Futures.exceptionallyComposeExpecting(
-                container.getStreamSegmentInfo(storageSegment.getName(), TIMEOUT)
+                container.getStreamSegmentInfo(storageSegment.getName(), timeout)
                         .thenCompose(e -> {
                             if (segmentLength != e.getLength() || isSealed != e.isSealed()) {
                                 log.debug("Segment '{}' exists in the container's metadata store, but with a different length" +
                                         "or sealed status or both, so deleting it from there and then registering it.", segmentName);
-                                return container.metadataStore.deleteSegment(segmentName, TIMEOUT)
+                                return container.metadataStore.deleteSegment(segmentName, timeout)
                                         .thenCompose(x -> container.registerSegment(segmentName, segmentLength, isSealed));
                             } else {
                                 return null;
@@ -230,13 +235,16 @@ public class ContainerRecoveryUtils {
      * Deletes container metadata segment and its Attribute segment from the {@link Storage} for the given container Id.
      * @param storage       A {@link Storage} instance to delete the segments from.
      * @param containerId   Id of the container for which the segments has to be deleted.
+     * @param timeout       Timeout for the operation.
+     * @return              A CompletableFuture that, when completed normally, will indicate the operation
+     * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    public static CompletableFuture<Void> deleteMetadataAndAttributeSegments(Storage storage, int containerId) {
+    public static CompletableFuture<Void> deleteMetadataAndAttributeSegments(Storage storage, int containerId, Duration timeout) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        return deleteSegmentFromStorage(storage, metadataSegmentName)
-                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName));
+        return deleteSegmentFromStorage(storage, metadataSegmentName, timeout)
+                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
     }
 
     /**
@@ -244,13 +252,14 @@ public class ContainerRecoveryUtils {
      * nothing and returns.
      * @param storage       A {@link Storage} instance to delete the segments from.
      * @param segmentName   Name of the segment to be deleted.
+     * @param timeout       Timeout for the operation.
      * @return              CompletableFuture which when completed will have the segment deleted. In case segment didn't
      *                      exist, a completed future will be returned.
      */
-    private static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName) {
+    private static CompletableFuture<Void> deleteSegmentFromStorage(Storage storage, String segmentName, Duration timeout) {
         log.info("Deleting Segment '{}'", segmentName);
         return Futures.exceptionallyExpecting(
-                storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, TIMEOUT)),
+                storage.openWrite(segmentName).thenCompose(segmentHandle -> storage.delete(segmentHandle, timeout)),
                 ex -> ex instanceof StreamSegmentNotExistsException, null);
     }
 
@@ -263,19 +272,21 @@ public class ContainerRecoveryUtils {
      * @param backUpMetadataSegmentName  A name of the back up metadata segment.
      * @param backUpAttributeSegmentName A name of the back attribute segment.
      * @param executorService            A thread pool for execution.
+     * @param timeout                    Timeout for the operation.
      * @return                           A CompletableFuture which when completed will indicate the operation has completed.
      *                                   If the operation failed, the future will be failed with the causing exception.
      */
     public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
                                                                              String backUpMetadataSegmentName,
                                                                              String backUpAttributeSegmentName,
-                                                                             ExecutorService executorService) {
+                                                                             ExecutorService executorService,
+                                                                             Duration timeout) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        return copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService)
+        return copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout)
                         .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
-                                executorService));
+                                executorService, timeout));
     }
 
     /**
@@ -362,22 +373,24 @@ public class ContainerRecoveryUtils {
      * @param sourceSegment             The name of the source segment to copy the contents from.
      * @param targetSegment             The name of the segment to write the contents to.
      * @param executor                  A thread pool for execution.
+     * @param timeout                   Timeout for the operation.
      * @return                          A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor) {
+    protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor,
+                                                         Duration timeout) {
         byte[] buffer = new byte[BUFFER_SIZE];
-        return storage.create(targetSegment, TIMEOUT).thenComposeAsync(targetHandle -> {
-            return storage.getStreamSegmentInfo(sourceSegment, TIMEOUT).thenComposeAsync(info -> {
+        return storage.create(targetSegment, timeout).thenComposeAsync(targetHandle -> {
+            return storage.getStreamSegmentInfo(sourceSegment, timeout).thenComposeAsync(info -> {
                 return storage.openRead(sourceSegment).thenComposeAsync(sourceHandle -> {
                     AtomicInteger offset = new AtomicInteger(0);
                     AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
                     return Futures.loop(
                             () -> bytesToRead.get() > 0,
                             () -> {
-                                return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), TIMEOUT)
+                                return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), timeout)
                                         .thenComposeAsync(size -> {
-                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, TIMEOUT)
+                                            return (size > 0) ? storage.write(targetHandle, offset.get(), new ByteArrayInputStream(buffer, 0, size), size, timeout)
                                                     .thenAcceptAsync(r -> {
                                                         bytesToRead.addAndGet(-size);
                                                         offset.addAndGet(size);
@@ -420,8 +433,8 @@ public class ContainerRecoveryUtils {
             val finalContainerId = containerId;
             futures.add(Futures.exceptionallyExpecting(
                     ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                            backUpMetadataSegment, backUpAttributeSegment, executorService)
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId)
+                            backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
+                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
                                     .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
                             ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }

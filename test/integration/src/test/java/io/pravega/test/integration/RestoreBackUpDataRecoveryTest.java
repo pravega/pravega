@@ -704,7 +704,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 containerCount, this.dataLogFactory, this.storageFactory);
 
         // List segments from storage and recover them using debug segment container instance.
-        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService());
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
         // Update core attributes from the backUp Metadata segments
         ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
