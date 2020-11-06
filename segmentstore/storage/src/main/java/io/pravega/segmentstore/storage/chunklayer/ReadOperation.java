@@ -129,10 +129,9 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                         if (null != currentChunkName) {
                             startOffsetForCurrentChunk += chunkToReadFrom.getLength();
                             return txn.get(currentChunkName)
-                                    .thenApplyAsync(storageMetadata -> {
+                                    .thenAcceptAsync(storageMetadata -> {
                                         chunkToReadFrom = (ChunkMetadata) storageMetadata;
                                         log.debug("{} read - reading from next chunk - segment={}, chunk={}", chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), chunkToReadFrom);
-                                        return null;
                                     }, chunkedSegmentStorage.getExecutor());
                         }
                     } else {
@@ -145,12 +144,11 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                                 bytesToRead,
                                                 buffer,
                                                 currentBufferOffset)
-                                                .thenApplyAsync(bytesRead -> {
+                                                .thenAcceptAsync(bytesRead -> {
                                                     bytesRemaining -= bytesRead;
                                                     currentOffset += bytesRead;
                                                     currentBufferOffset += bytesRead;
                                                     totalBytesRead += bytesRead;
-                                                    return null;
                                                 }, chunkedSegmentStorage.getExecutor()),
                                         chunkedSegmentStorage.getExecutor());
                     }
@@ -184,7 +182,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         return Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,
                 () -> txn.get(currentChunkName)
-                        .thenApplyAsync(storageMetadata -> {
+                        .thenAcceptAsync(storageMetadata -> {
                             chunkToReadFrom = (ChunkMetadata) storageMetadata;
                             Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
                             if (startOffsetForCurrentChunk <= currentOffset
@@ -193,7 +191,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                 log.debug("{} read - found chunk to read - segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
                                         chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
                                 isLoopExited = true;
-                                return null;
+                                return;
                             }
                             currentChunkName = chunkToReadFrom.getNextChunk();
                             startOffsetForCurrentChunk += chunkToReadFrom.getLength();
@@ -203,14 +201,12 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                 chunkedSegmentStorage.getReadIndexCache().addIndexEntry(handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk);
                             }
                             cntScanned.incrementAndGet();
-                            return null;
                         }, chunkedSegmentStorage.getExecutor())
-                        .thenApplyAsync(v -> {
+                        .thenAcceptAsync(v -> {
                             val elapsed = readIndexTimer.getElapsed();
                             SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
                             log.debug("{} read - chunk lookup - segment={}, offset={}, scanned={}, latency={}.",
                                     chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), offset, cntScanned.get(), elapsed.toMillis());
-                            return null;
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
     }

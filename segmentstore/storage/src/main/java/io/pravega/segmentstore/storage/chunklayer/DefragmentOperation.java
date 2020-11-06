@@ -145,21 +145,19 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                             } else {
                                 f = CompletableFuture.completedFuture(null);
                             }
-                            return f.thenApplyAsync(vv -> {
+                            return f.thenRunAsync(() -> {
                                 // Move on to next place in list where we can concat if we are done with append based concatenations.
                                 if (!useAppend) {
                                     targetChunkName = nextChunkName;
                                 }
                                 // Toggle
                                 useAppend = !useAppend;
-                                return null;
                             }, chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
-                .thenApplyAsync(vv -> {
+                .thenRunAsync(() -> {
                     // Make sure no invariants are broken.
                     segmentMetadata.checkInvariants();
-                    return null;
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -175,7 +173,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
             f = concatUsingAppend(concatArgs);
         }
 
-        return f.thenApplyAsync(v -> {
+        return f.thenAcceptAsync(v -> {
             // Delete chunks.
             for (int i = 1; i < chunksToConcat.size(); i++) {
                 chunksToDelete.add(chunksToConcat.get(i).getName());
@@ -198,7 +196,6 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
             }
             txn.update(target);
             txn.update(segmentMetadata);
-            return null;
         }, chunkedSegmentStorage.getExecutor());
 
     }
@@ -225,13 +222,12 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                                         && !(useAppend && chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat() < next.getLength())
                                                         && !(targetSizeAfterConcat + next.getLength() > segmentMetadata.getMaxRollinglength() || next.getLength() > chunkedSegmentStorage.getConfig().getMaxSizeLimitForConcat()),
                                         () -> txn.get(nextChunkName)
-                                                .thenApplyAsync(storageMetadata2 -> {
+                                                .thenAcceptAsync(storageMetadata2 -> {
                                                     next = (ChunkMetadata) storageMetadata2;
                                                     chunksToConcat.add(new ChunkInfo(next.getLength(), nextChunkName));
                                                     targetSizeAfterConcat += next.getLength();
 
                                                     nextChunkName = next.getNextChunk();
-                                                    return null;
                                                 }, chunkedSegmentStorage.getExecutor()),
                                         chunkedSegmentStorage.getExecutor());
 
@@ -250,9 +246,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                     bytesToRead = Math.toIntExact(arg.getLength());
 
                     return copyBytes(writeHandle, arg)
-                            .thenApplyAsync(v -> {
+                            .thenRunAsync(() -> {
                                 currentArgIndex.incrementAndGet();
-                                return null;
                             }, chunkedSegmentStorage.getExecutor());
                 },
                 chunkedSegmentStorage.getExecutor())
@@ -269,9 +264,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                 bytesToRead -= size;
                                 readAtOffset += size;
                                 return chunkedSegmentStorage.getChunkStorage().write(writeHandle, writeAtOffset, size, new ByteArrayInputStream(buffer, 0, size))
-                                        .thenApplyAsync(written -> {
+                                        .thenAcceptAsync(written -> {
                                             writeAtOffset += written;
-                                            return null;
                                         }, chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
                 },

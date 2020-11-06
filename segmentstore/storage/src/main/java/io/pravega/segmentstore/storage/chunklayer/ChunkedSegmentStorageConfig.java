@@ -108,6 +108,9 @@ public class ChunkedSegmentStorageConfig {
 
     /**
      * Whether the lazy commit functionality is enabled or disabled.
+     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
+     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
+     * Note that otherwise for each commit the data is written to underlying key-value store.
      */
     @Getter
     final private boolean lazyCommitEnabled;

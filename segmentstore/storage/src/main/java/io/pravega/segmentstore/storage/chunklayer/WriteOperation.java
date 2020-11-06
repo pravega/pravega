@@ -118,9 +118,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                                                                         .exceptionally(this::handleException),
                                                                         chunkedSegmentStorage.getExecutor())
                                                                 .whenCompleteAsync((value, e) -> collectGarbage(), chunkedSegmentStorage.getExecutor())
-                                                                .thenApplyAsync(vvv -> {
+                                                                .thenRunAsync(() -> {
                                                                     logEnd();
-                                                                    return null;
                                                                 }, chunkedSegmentStorage.getExecutor()),
                                                 chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
@@ -147,9 +146,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> getLastChunk(MetadataTransaction txn) {
         if (null != segmentMetadata.getLastChunk()) {
             return txn.get(segmentMetadata.getLastChunk())
-                    .thenApplyAsync(storageMetadata1 -> {
+                    .thenAcceptAsync(storageMetadata1 -> {
                         lastChunkMetadata = (ChunkMetadata) storageMetadata1;
-                        return null;
                     }, chunkedSegmentStorage.getExecutor());
         } else {
             return CompletableFuture.completedFuture(null);
@@ -190,9 +188,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
         // if layout did not change then commit with lazyWrite.
         return txn.commit(!didSegmentLayoutChange && chunkedSegmentStorage.getConfig().isLazyCommitEnabled())
-                .thenApplyAsync(v -> {
+                .thenRunAsync(() -> {
                     isCommitted = true;
-                    return null;
                 }, chunkedSegmentStorage.getExecutor());
 
     }
@@ -219,10 +216,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         writeSize);
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor())
-                .thenApplyAsync(v -> {
+                .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
-                    return null;
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -236,9 +232,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         } else {
             // No new chunk needed just write data to existing chunk.
             return chunkedSegmentStorage.getChunkStorage().openWrite(lastChunkMetadata.getName())
-                    .thenApplyAsync(h -> {
+                    .thenAcceptAsync(h -> {
                         chunkHandle = h;
-                        return null;
                     }, chunkedSegmentStorage.getExecutor());
         }
     }
@@ -248,7 +243,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         String newChunkName = getNewChunkName(handle.getSegmentName(),
                 segmentMetadata.getLength());
         return chunkedSegmentStorage.getChunkStorage().create(newChunkName)
-                .thenApplyAsync(h -> {
+                .thenAcceptAsync(h -> {
                     chunkHandle = h;
                     String previousLastChunkName = lastChunkMetadata == null ? null : lastChunkMetadata.getName();
 
@@ -277,7 +272,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
                     log.debug("{} write - New chunk added - segment={}, chunk={}, offset={}.",
                             chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
-                    return null;
                 }, chunkedSegmentStorage.getExecutor());
     }
 

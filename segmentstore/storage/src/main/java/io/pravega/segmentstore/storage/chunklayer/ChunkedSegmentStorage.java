@@ -173,10 +173,9 @@ public class ChunkedSegmentStorage implements Storage {
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
 
         // Now bootstrap
-        log.info("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch).thenApplyAsync(v -> {
-            log.info("{} STORAGE BOOT: Ended.", logPrefix);
-            return null;
+        log.debug("{} STORAGE BOOT: Started.", logPrefix);
+        return this.systemJournal.bootstrap(epoch).thenRunAsync(() -> {
+            log.debug("{} STORAGE BOOT: Ended.", logPrefix);
         }, executor);
     }
 

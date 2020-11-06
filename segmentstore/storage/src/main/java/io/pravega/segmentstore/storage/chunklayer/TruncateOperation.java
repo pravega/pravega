@@ -90,9 +90,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                         return commit(txn)
                                                 .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
                                                 .thenComposeAsync(vv ->
-                                                                chunkedSegmentStorage.collectGarbage(chunksToDelete).thenApplyAsync(vvv -> {
+                                                                chunkedSegmentStorage.collectGarbage(chunksToDelete).thenRunAsync(() -> {
                                                                     postCommit();
-                                                                    return null;
                                                                 }, chunkedSegmentStorage.getExecutor()),
                                                         chunkedSegmentStorage.getExecutor());
                                     }, chunkedSegmentStorage.getExecutor());
@@ -161,14 +160,14 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         return Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,
                 () -> txn.get(currentChunkName)
-                        .thenApplyAsync(storageMetadata -> {
+                        .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;
                             Preconditions.checkState(null != currentMetadata, "currentMetadata is null.");
 
                             // If for given chunk start <= offset < end  then we have found the chunk that will be the first chunk.
                             if ((startOffset <= offset) && (startOffset + currentMetadata.getLength() > offset)) {
                                 isLoopExited = true;
-                                return null;
+                                return;
                             }
 
                             startOffset += currentMetadata.getLength();
@@ -177,14 +176,12 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             // move to next chunk
                             currentChunkName = currentMetadata.getNextChunk();
-                            return null;
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor()
-        ).thenApplyAsync(v -> {
+        ).thenAcceptAsync(v -> {
             segmentMetadata.setFirstChunk(currentChunkName);
             segmentMetadata.setStartOffset(offset);
             segmentMetadata.setFirstChunkStartOffset(startOffset);
-            return null;
         }, chunkedSegmentStorage.getExecutor());
     }
 

@@ -142,16 +142,16 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
         // Call concrete implementation.
         val returnFuture = doCreateAsync(chunkName);
-        val metricsFuture = returnFuture.thenAcceptAsync(handle -> {
+        returnFuture.thenAcceptAsync(handle -> {
             // Record metrics.
             val elapsed = timer.getElapsed();
             ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.CREATE_COUNT.inc();
             log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
+            if (log.isTraceEnabled()) {
+                LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
+            }
         }, executor);
-        if (log.isTraceEnabled()) {
-            metricsFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "create", traceId, chunkName), executor);
-        }
         return returnFuture;
     }
 
@@ -176,17 +176,17 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
         // Call concrete implementation.
         val returnFuture = doDeleteAsync(handle);
-        val metricsFuture = returnFuture.thenAcceptAsync(v -> {
+        returnFuture.thenRunAsync(() -> {
             // Record metrics.
             val elapsed = timer.getElapsed();
             ChunkStorageMetrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.DELETE_COUNT.inc();
 
             log.debug("Delete - chunk={}, latency={}.", handle.getChunkName(), elapsed.toMillis());
+            if (log.isTraceEnabled()) {
+                LoggerHelpers.traceLeave(log, "delete", traceId, handle.getChunkName());
+            }
         }, executor);
-        if (log.isTraceEnabled()) {
-            metricsFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "delete", traceId, handle.getChunkName()), executor);
-        }
 
         return returnFuture;
     }
@@ -295,17 +295,16 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
         // Call concrete implementation.
         val returnFuture = doReadAsync(handle, fromOffset, length, buffer, bufferOffset);
-        val metricsFuture = returnFuture.thenApplyAsync(bytesRead -> {
+        returnFuture.thenAcceptAsync(bytesRead -> {
             val elapsed = timer.getElapsed();
             ChunkStorageMetrics.READ_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.READ_BYTES.add(bytesRead);
 
             log.debug("Read - chunk={}, offset={}, bytesRead={}, latency={}.", handle.getChunkName(), fromOffset, length, elapsed.toMillis());
-            return bytesRead;
+            if (log.isTraceEnabled()) {
+                LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
+            }
         }, executor);
-        if (log.isTraceEnabled()) {
-            metricsFuture.thenAcceptAsync(bytesRead -> LoggerHelpers.traceLeave(log, "read", traceId, bytesRead), executor);
-        }
 
         return returnFuture;
     }
@@ -347,18 +346,17 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
         // Call concrete implementation.
         val returnFuture = doWriteAsync(handle, offset, length, data);
-        val metricsFuture = returnFuture.thenApplyAsync(bytesWritten -> {
+        returnFuture.thenAcceptAsync(bytesWritten -> {
             val elapsed = timer.getElapsed();
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.WRITE_BYTES.add(bytesWritten);
 
             log.debug("Write - chunk={}, offset={}, bytesWritten={}, latency={}.", handle.getChunkName(), offset, length, elapsed.toMillis());
-            return bytesWritten;
+            if (log.isTraceEnabled()) {
+                LoggerHelpers.traceLeave(log, "write", traceId, bytesWritten);
+            }
         }, executor);
-        if (log.isTraceEnabled()) {
-            metricsFuture.thenAcceptAsync(bytesWritten -> LoggerHelpers.traceLeave(log, "read", traceId, bytesWritten), executor);
-        }
         return returnFuture;
     }
 
@@ -383,7 +381,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Call concrete implementation.
         val returnFuture = doConcatAsync(chunks);
 
-        val metricsFuture = returnFuture.thenAcceptAsync(retValue -> {
+        returnFuture.thenAcceptAsync(retValue -> {
             val elapsed = timer.getElapsed();
             log.debug("concat - target={}, latency={}.", chunks[0].getName(), elapsed.toMillis());
 
@@ -391,10 +389,11 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.CONCAT_BYTES.add(retValue);
             ChunkStorageMetrics.CONCAT_COUNT.inc();
             ChunkStorageMetrics.LARGE_CONCAT_COUNT.inc();
+
+            if (log.isTraceEnabled()) {
+                LoggerHelpers.traceLeave(log, "concat", traceId, chunks[0].getName());
+            }
         }, executor);
-        if (log.isTraceEnabled()) {
-            metricsFuture.thenAcceptAsync(bytesWritten -> LoggerHelpers.traceLeave(log, "concat", traceId, chunks[0].getName()), executor);
-        }
 
         return returnFuture;
     }

@@ -266,26 +266,25 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         val modifiedValues = new ArrayList<TransactionData>();
         val t = new Timer();
         val retValue = CompletableFuture.runAsync(() -> {
-            if (fenced.get()) {
-                throw new CompletionException(new StorageMetadataWritesFencedOutException("Transaction writer is fenced off."));
-            }
-        }, executor)
+                    if (fenced.get()) {
+                        throw new CompletionException(new StorageMetadataWritesFencedOutException("Transaction writer is fenced off."));
+                    }
+                }, executor)
                 .thenComposeAsync(v -> {
                     // Mark keys in transaction as active to prevent their eviction.
                     txn.getData().keySet().forEach(this::addToActiveKeySet);
 
                     // Acquire a write lock over segment.
                     val tLock = new Timer();
-                    log.debug("Acquiring write lock for {}", String.join(", ", txn.getKeysToLock()));
+                    //log.debug("Acquiring write lock for {}", txn.getKeysToLock());
                     val writeLock = scheduler.getWriteLock(txn.getKeysToLock());
                     return writeLock.lock()
                             .thenComposeAsync(v0 -> {
                                 // Step 1 : If bufferedTxnData data was flushed, then read it back from external source and re-insert in bufferedTxnData buffer.
-                                // This step is kind of thread safe
                                 val elapsed = tLock.getElapsed();
                                 WRITE_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
-                                log.debug("Acquired write lock for {}, wait time: {} ms",
-                                        String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
+                                //log.debug("Acquired write lock for {}, wait time: {} ms", txn.getKeysToLock());
+                                //log.debug("Acquired write wait time: {} ms", elapsed.toMillis());
                                 return loadMissingKeys(txn, skipStoreCheck, txnData);
                             }, executor)
                             .thenComposeAsync(v1 -> {
@@ -295,7 +294,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                             .whenCompleteAsync((v2, ex) -> writeLock.unlock(), executor);
                 }, executor)
                 .thenRunAsync(() -> {
-                    //  Step 5 : evict if required.
+                    //  Step 5 : Mark transaction as commited.
                     txn.setCommitted();
                     txnData.clear();
                 }, executor)
@@ -306,9 +305,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 }, executor);
 
         // Trigger evict
-        retValue.thenComposeAsync(v4 -> {
+        retValue.thenAcceptAsync(v4 -> {
             //  Step 6 : evict if required.
-            return evictIfNeeded();
+            evictIfNeeded();
         }, executor);
 
         return retValue;
@@ -333,7 +332,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             }
         }
         return Futures.allOf(loadFutures)
-                .thenApplyAsync(v4 -> {
+                .thenRunAsync(() -> {
                     // validate everything is alright.
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
                         val dataFromBuffer = bufferedTxnData.get(entry.getKey());
@@ -345,7 +344,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                             }
                         }
                     }
-                    return null;
                 }, executor);
     }
 
@@ -354,17 +352,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     private CompletableFuture<Void> performCommit(MetadataTransaction txn, boolean lazyWrite, Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys, ArrayList<TransactionData> modifiedValues) {
         return CompletableFuture.runAsync(() -> {
-            // Step 2 : Check whether transaction is safe to commit.
-            validateCommit(txn, txnData, modifiedKeys, modifiedValues);
-        }, executor)
+                    // Step 2 : Check whether transaction is safe to commit.
+                    validateCommit(txn, txnData, modifiedKeys, modifiedValues);
+                }, executor)
                 .thenComposeAsync(v -> {
                     // Step 3: Commit externally.
                     // This operation may call external storage.
                     return writeToMetadataStore(lazyWrite, modifiedValues);
                 }, executor)
-                .thenComposeAsync(v ->
-                                executeExternalCommitAction(txn),
-                        executor)
+                .thenComposeAsync(v -> executeExternalCommitAction(txn), executor)
                 .thenRunAsync(() -> {
                     // If we reach here then it means transaction is safe to commit.
                     // Step 4: Update buffer.
@@ -425,7 +421,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         for (val entry : txnData.entrySet()) {
             val key = entry.getKey();
             val transactionData = entry.getValue();
-            Preconditions.checkState(null != transactionData.getKey());
+            Preconditions.checkState(null != transactionData.getKey(), "Missing key.");
 
             // See if this entry was modified in this transaction.
             if (transactionData.getVersion() == txn.getVersion()) {
@@ -451,7 +447,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 // Set the database object.
                 transactionData.setDbObject(dataFromBuffer.getDbObject());
             } else {
-                Preconditions.checkState(entry.getValue().isPinned(), "Why are we here??");
+                Preconditions.checkState(entry.getValue().isPinned(), "Transaction data evicted unexpectedly.");
             }
         }
     }
@@ -460,7 +456,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Evict entries if needed.
      * Only evict keys that are persisted, not pinned or active.
      */
-    private CompletableFuture<Void> evictIfNeeded() {
+    private void evictIfNeeded() {
         if (isEvictionRunning.compareAndSet(false, true)) {
             val limit = 1 + maxEntriesInTxnBuffer / CACHE_EVICTION_RATIO;
             if (bufferCount.get() > maxEntriesInTxnBuffer) {
@@ -489,7 +485,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             isEvictionRunning.set(false);
             log.debug("Entries evicted from transaction buffer.");
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     /**

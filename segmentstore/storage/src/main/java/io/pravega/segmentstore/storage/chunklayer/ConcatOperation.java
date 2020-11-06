@@ -139,7 +139,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                 .thenComposeAsync(storageMetadata1 -> {
                     targetLastChunk = (ChunkMetadata) storageMetadata1;
                     return txn.get(sourceSegmentMetadata.getFirstChunk())
-                            .thenApplyAsync(storageMetadata2 -> {
+                            .thenAcceptAsync(storageMetadata2 -> {
                                 sourceFirstChunk = (ChunkMetadata) storageMetadata2;
 
                                 if (targetLastChunk != null) {
@@ -163,7 +163,6 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
                                 txn.update(targetSegmentMetadata);
                                 txn.delete(sourceSegment);
-                                return null;
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor());
     }

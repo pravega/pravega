@@ -207,18 +207,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @throws Exception
      */
     private CompletableFuture<Void> initializeStorage() throws Exception {
-        log.info("{}: Storage initialization started.", this.traceObjectId);
+        log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
 
             // Bootstrap
-            return chunkedStorage.bootstrap()
-                    .thenApplyAsync( v -> {
-                        log.info("{}: Storage initialization done.", this.traceObjectId);
-                        return null;
-                    }, this.executor);
+            return chunkedStorage.bootstrap();
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -301,7 +297,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> initializeSecondaryServices() {
         try {
             return initializeStorage()
-                    .thenComposeAsync(v -> this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout()), this.executor);
+                    .thenComposeAsync(v -> {
+                        log.info("{}: Initializing Metadata Store.", this.traceObjectId);
+                        return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
+                    }, this.executor);
         } catch (Exception ex) {
             return Futures.failedFuture(ex);
         }

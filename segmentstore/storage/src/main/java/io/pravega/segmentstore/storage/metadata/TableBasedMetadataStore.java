@@ -85,10 +85,10 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
         val t = new Timer();
         return ensureInitialized()
                 .thenComposeAsync(v -> this.tableStore.get(tableName, keys, timeout)
-                        .thenApplyAsync(retValue -> {
+                        .thenApplyAsync(entries -> {
                             try {
-                                Preconditions.checkState(retValue.size() == 1, "Unexpected number of values returned.");
-                                val entry = retValue.get(0);
+                                Preconditions.checkState(entries.size() == 1, "Unexpected number of values returned.");
+                                val entry = entries.get(0);
                                 if (null != entry) {
                                     val arr = entry.getValue();
                                     TransactionData txnData = serializer.deserialize(arr);
@@ -128,7 +128,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
         return ensureInitialized()
                 .thenRunAsync(() -> {
                     for (TransactionData txnData : dataList) {
-                        Preconditions.checkState(null != txnData.getDbObject());
+                        Preconditions.checkState(null != txnData.getDbObject(), "Missing tracking object");
 
                         val version = (Long) txnData.getDbObject();
                         if (null == txnData.getValue()) {
@@ -198,13 +198,13 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
             val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
             return this.tableStore.createSegment(tableName, segmentType, timeout)
                     .thenRunAsync(() -> {
-                        log.info("Created table segment {}", tableName);
+                        log.debug("Created table segment {}", tableName);
                         isTableInitialized.set(true);
                     }, getExecutor())
                     .exceptionally(e -> {
                         val ex = Exceptions.unwrap(e);
                         if (e.getCause() instanceof StreamSegmentExistsException) {
-                            log.info("Table segment {} already exists.", tableName);
+                            log.debug("Table segment {} already exists.", tableName);
                             isTableInitialized.set(true);
                             return null;
                         }
