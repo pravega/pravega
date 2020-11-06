@@ -96,6 +96,7 @@ public class HDFSStorageTest extends StorageTestBase {
         final long epochCount = 30;
         final int writeSize = 1000;
         final String segmentName = "Segment";
+        @Cleanup
         val writtenData = new ByteBufferOutputStream();
         final Random rnd = new Random(0);
         int currentEpoch = 1;
