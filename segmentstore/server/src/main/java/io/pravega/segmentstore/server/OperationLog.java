@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -19,14 +20,15 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface OperationLog extends Container {
     /**
-     * Adds a new Operation to the log.
+     * Adds a new {@link Operation} to the {@link OperationLog} with a given {@link OperationPriority}.
      *
-     * @param operation The Operation to append.
-     * @param timeout   Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation has been durably added. If the
-     * operation failed to be added, this Future will complete with the appropriate exception.
+     * @param operation The {@link Operation} to append.
+     * @param priority  Operation Priority.
+     * @param timeout   Timeout for the {@link Operation}.
+     * @return A CompletableFuture that, when completed, will indicate that the {@link Operation} has been durably added.
+     * If the {@link Operation} failed to be added, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Void> add(Operation operation, Duration timeout);
+    CompletableFuture<Void> add(Operation operation, OperationPriority priority, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.

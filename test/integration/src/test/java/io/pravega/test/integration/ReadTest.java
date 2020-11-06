@@ -52,6 +52,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -457,7 +458,7 @@ public class ReadTest extends LeakDetectorTestSuite {
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
+            segmentStore.createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
                 segmentStore.append(segmentName, new ByteBufWrapper(Unpooled.wrappedBuffer(data)), null, Duration.ZERO).get();
             }

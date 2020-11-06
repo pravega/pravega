@@ -15,6 +15,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -376,7 +377,7 @@ public class ContainerSortedKeyIndexTests extends ThreadPooledTestSuite {
 
         TestContext() {
             this.mockStore = new TableStoreMock(executorService());
-            this.mockStore.createSegment(SORTED_INFO.getName(), TIMEOUT).join();
+            this.mockStore.createSegment(SORTED_INFO.getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             this.dataSource = new SortedKeyIndexDataSource(this.mockStore::put, this.mockStore::remove, this.mockStore::get);
             this.containerIndex = new ContainerSortedKeyIndex(this.dataSource, executorService());
             this.segmentIndex = this.containerIndex.getSortedKeyIndex(SEGMENT_ID, SORTED_INFO);
