@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,7 +31,7 @@ public class CompletableOperationTests {
 
         AtomicBoolean callback = new AtomicBoolean(false);
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, v -> callback.set(true), ex -> failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, OperationPriority.Normal, v -> callback.set(true), ex -> failureCallbackCalled.set(true));
 
         AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.",
                 co::complete,
@@ -54,10 +55,22 @@ public class CompletableOperationTests {
 
         AtomicBoolean successCallbackCalled = new AtomicBoolean();
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true), ex -> failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, OperationPriority.Normal, seqNo -> successCallbackCalled.set(true), ex -> failureCallbackCalled.set(true));
 
         co.fail(new IntentionalException());
         Assert.assertTrue("Failure callback was not invoked for valid fail() call.", failureCallbackCalled.get());
         Assert.assertFalse("Success callback invoked for valid fail() call.", successCallbackCalled.get());
+    }
+
+    /**
+     * Tests the {@link CompletableOperation#getPriorityValue()} method.
+     */
+    @Test
+    public void testPriority() {
+        MetadataCheckpointOperation op = new MetadataCheckpointOperation();
+        for (OperationPriority p : OperationPriority.values()) {
+            CompletableOperation co = new CompletableOperation(op, p, new CompletableFuture<>());
+            Assert.assertEquals("Unexpected priority level for " + p, p.getValue(), co.getPriorityValue());
+        }
     }
 }
