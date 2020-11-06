@@ -10,7 +10,6 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthServiceImpl;
-import javassist.tools.rmi.Sample;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -34,7 +33,7 @@ import org.junit.rules.Timeout;
 public class HealthServiceTests {
 
     @Rule
-    public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
+    public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
 
     private final Client client;
     private WebTarget target;
@@ -91,31 +90,36 @@ public class HealthServiceTests {
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertTrue(service.running());
 
-        String uri = service.getUri().toString();
-        String url = new StringBuilder(uri).append("ping").toString();
+        Request request = new Request("ping");
+        response = request.get();
 
-        target = client.target(url);
-        builder = target.request();
-        response = builder.get();
-
-        Assert.assertEquals(String.format("[Ping] %s responded with unexpected code.", url.toString()),
+        Assert.assertEquals(String.format("[Ping] %s responded with unexpected code.", request.getUrl()),
                 Response.Status.OK.getStatusCode(),
                 response.getStatus());
-        Assert.assertEquals(String.format("[Ping] %s responded with unexpected plain-text.", url.toString()),
+        Assert.assertEquals(String.format("[Ping] %s responded with unexpected plain-text.", request.getUrl()),
                 HealthEndpoint.PING_RESPONSE,
                 response.readEntity(String.class));
     }
 
     @Test
-    public void health() {
+    public void health() throws IOException {
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertTrue(service.running());
 
         SampleIndicator indicator = new SampleIndicator();
-        service.(indicator);
+        service.register(indicator);
 
-        Health health = indicator.health();
-        log.info("{}", health);
+        Request request = new Request("health");
+        Response response = request.get();
+        Health health = response.readEntity(Health.class);
+        Assert.assertTrue("Status of the ROOT component is expected to be 'UP'", health.getStatus() == Status.UP);
+
+        request = new Request("health?details=true");
+        response = request.get();
+        health = response.readEntity(Health.class);
+        Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
+
+        //for (;;) { }
     }
 
     @Test
@@ -149,6 +153,24 @@ public class HealthServiceTests {
     }
 
     private class Request {
+
+        String url;
+
+        Request(String path) {
+            String uri = HealthServiceImpl.INSTANCE.getUri().toString();
+            url = new StringBuilder(uri).append(path).toString();
+        }
+
+        Response get() {
+            log.info("HealthService request sent to: {}", url);
+            target = client.target(url);
+            Invocation.Builder builder = target.request();
+            return builder.get();
+        }
+
+        String getUrl() {
+            return url;
+        }
 
     }
 }
