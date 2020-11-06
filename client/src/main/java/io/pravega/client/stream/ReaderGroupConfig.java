@@ -49,8 +49,8 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    private final boolean subscriberForRetention;
-    private final boolean autoPublishAtLastCheckpoint;
+    private final boolean subscribedForRetention;
+    private final boolean autoTruncateAtLastCheckpoint;
 
     public enum ReaderGroupRetentionConfig {
         /**
@@ -59,7 +59,7 @@ public class ReaderGroupConfig implements Serializable {
          * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
          *
          */
-        NO_CONSUMPTION_BASED_TRUNCATION(false, false),
+        NONE(false, false),
 
         /**
          * This {@link ReaderGroup} is a subscriber and can retain stream data using Consumption Based Retention. This will configure the
@@ -96,7 +96,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private ReaderGroupRetentionConfig readerGroupRetentionConfig = ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION;
+       private ReaderGroupRetentionConfig readerGroupRetentionConfig = ReaderGroupRetentionConfig.NONE;
 
        /**
         * Set the retention config for the {@link ReaderGroup}.
@@ -378,7 +378,7 @@ public class ReaderGroupConfig implements Serializable {
                     builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT);
                 }
             } else {
-                builder.retentionConfig(ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION);
+                builder.retentionConfig(ReaderGroupRetentionConfig.NONE);
             }
         }
 
@@ -390,8 +390,8 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
-            revisionDataOutput.writeBoolean(object.isSubscriberForRetention());
-            revisionDataOutput.writeBoolean(object.isAutoPublishAtLastCheckpoint());
+            revisionDataOutput.writeBoolean(object.isSubscribedForRetention());
+            revisionDataOutput.writeBoolean(object.isAutoTruncateAtLastCheckpoint());
         }
     }
 

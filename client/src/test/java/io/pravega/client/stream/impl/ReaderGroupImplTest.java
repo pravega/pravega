@@ -226,7 +226,7 @@ public class ReaderGroupImplTest {
         // Setup mocks for reset call
         when(state.getConfig()).thenReturn(firstConfig);
 
-        // Non subscriber ReaderGroupConfig
+        // New subscriber ReaderGroupConfig
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())

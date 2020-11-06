@@ -99,7 +99,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
 
-        if (config.isSubscriberForRetention()) {
+        if (config.isSubscribedForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
             streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
         }
@@ -110,7 +110,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         ReaderGroup group = getReaderGroup(groupName);
         ReaderGroupConfig config = group.getReaderGroupConfig();
 
-        if (config.isSubscriberForRetention()) {
+        if (config.isSubscribedForRetention()) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
             streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
         }

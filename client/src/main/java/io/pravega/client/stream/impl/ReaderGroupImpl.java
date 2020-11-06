@@ -201,8 +201,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private void manageSubscriptions(ReaderGroupConfig config) {
         ReaderGroupConfig oldConfig = getReaderGroupConfig();
-        Set<Stream> oldStreams = oldConfig.isSubscriberForRetention() ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
-        Set<Stream> newStreams = config.isSubscriberForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> oldStreams = oldConfig.isSubscribedForRetention() ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> newStreams = config.isSubscribedForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
 
         Collection<Stream> streamsToSub = filterOut(newStreams, oldStreams);
         Collection<Stream> streamsToUnsub = filterOut(oldStreams, newStreams);

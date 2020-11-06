@@ -99,8 +99,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertTrue(cfg.isSubscriberForRetention());
-        assertFalse(cfg.isAutoPublishAtLastCheckpoint());
+        assertTrue(cfg.isSubscribedForRetention());
+        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
     }
 
     @Test
@@ -116,8 +116,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertTrue(cfg.isSubscriberForRetention());
-        assertTrue(cfg.isAutoPublishAtLastCheckpoint());
+        assertTrue(cfg.isSubscribedForRetention());
+        assertTrue(cfg.isAutoTruncateAtLastCheckpoint());
     }
 
     @Test
@@ -132,8 +132,8 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertFalse(cfg.isSubscriberForRetention());
-        assertFalse(cfg.isAutoPublishAtLastCheckpoint());
+        assertFalse(cfg.isSubscribedForRetention());
+        assertFalse(cfg.isAutoTruncateAtLastCheckpoint());
     }
 
     @Test
@@ -375,7 +375,7 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION)
+                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.NONE)
                 .build();
         ByteBuffer buf0 = cfg0.toBytes();
         assertEquals(cfg0, ReaderGroupConfig.fromBytes(buf0));
