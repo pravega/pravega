@@ -33,7 +33,7 @@ import org.junit.rules.Timeout;
 public class HealthServiceTests {
 
     @Rule
-    public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
+    public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
     private final Client client;
     private WebTarget target;
