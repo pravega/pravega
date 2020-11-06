@@ -32,9 +32,9 @@ The following will be the primary feature focus areas for our upcoming releases.
 * Segment Container load balancing ([#1644](https://github.com/pravega/pravega/issues/1644))
 * Security-related enhancements
 * Quality-of-Service-related features
-* Support large events <=1GB (PDP 43, [#5056](https://github.com/pravega/pravega/issues/5056))
-* Improve health checks (PDP 45, [#5046](https://github.com/pravega/pravega/issues/5046), [#5098](https://github.com/pravega/pravega/issues/5098))
-* Idempotent writer ([#1210](https://github.com/pravega/pravega/issues/1210))
+* Support large events <=1GB ([PDP 43](https://github.com/pravega/pravega/wiki/PDP-43-Large-Events), [#5056](https://github.com/pravega/pravega/issues/5056))
+* Improve health checks ([PDP 45](https://github.com/pravega/pravega/wiki/PDP-45-Pravega-Healthcheck), [#5046](https://github.com/pravega/pravega/issues/5046), [#5098](https://github.com/pravega/pravega/issues/5098))
+* Idempotent writer ([#1210](https://github.com/pravega/pravega/issues/1210), [#1437](https://github.com/pravega/pravega/issues/1437))
 * Performance improvements continued
 * Support config-based CDI and Spring client injection
 
