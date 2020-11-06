@@ -21,6 +21,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
@@ -223,7 +224,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-
+        RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 4);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
@@ -234,7 +235,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.provideConnection(uri, connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+                retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         reset(connection);
@@ -247,6 +248,10 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         reset(connection);
         cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(output.getRequestId(), SEGMENT, "newHost", "SomeException"));
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
+        cf.getProcessor(uri).processingFailure(new IOException());
+        assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
     }
 
     @SuppressWarnings("unchecked")

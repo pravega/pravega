@@ -11,7 +11,6 @@ package io.pravega.client.segment.impl;
 
 import static com.google.common.base.Preconditions.checkState;
 
-import java.net.SocketException;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayDeque;
@@ -41,6 +40,7 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -210,7 +210,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
                 connection = null;
                 connectionSetupCompleted = null;
-                if (closed || throwable instanceof SegmentSealedException) {
+                if (closed || throwable instanceof SegmentSealedException || throwable instanceof RetriesExhaustedException) {
                     waitingInflight.release();
                 } 
                 if (!closed) {
@@ -219,7 +219,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
             }
             if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
-                    || throwable instanceof InvalidTokenException || throwable instanceof SocketException) {
+                    || throwable instanceof InvalidTokenException || throwable instanceof RetriesExhaustedException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);
@@ -488,9 +488,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
-            } catch (SocketException e) {
+            } catch (RetriesExhaustedException e) {
                 event.getAckFuture().completeExceptionally(e);
-                log.error("Failed to write events ");
+                log.error("Failed to write event to Pravega due connectivity error ", e);
+                return;
             }
             long eventNumber = state.addToInflight(event);
             try {
@@ -498,7 +499,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
-                log.warn("Failed writing event through writer " + writerId + "due to: ", e);
+                log.warn("Failed writing event through writer " + writerId + " due to: ", e);
                 reconnect(); // As the message is inflight, this will perform the retransmission.
             }
         }
@@ -590,8 +591,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("(Re)connect invoked, Segment: {}, writerID: {}", segmentName, writerId);
         state.setupConnection.registerAndRunReleaser(() -> {
-             CompletableFuture<Void> r = Retry.withExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(), 15 ,
-                                             retrySchedule.getMaxDelay() ).retryWhen(t -> t instanceof Exception)
+               //CompletableFuture<Void> r = Retry.withExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(), 15,
+               //                                retrySchedule.getMaxDelay()).retryWhen(t -> t instanceof Exception)
+               CompletableFuture<Void> r = retrySchedule.retryWhen(t -> t instanceof Exception)
                  .runAsync(() -> {
                      log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
 
@@ -645,8 +647,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }, connectionPool.getInternalExecutor());
                  }, connectionPool.getInternalExecutor());
              r.exceptionally(t -> {
-                 log.info("Error will attempting to establish connection");
-                 failConnection(t);
+                 log.error("Error will attempting to establish connection", t);
+                 failUnackedEvents(t);
                  return null;
              });
 
@@ -659,6 +661,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         } else {
             return connectionPool.getClientConnection(uri, responseProcessor);
         }
+    }
+
+    private void failUnackedEvents(Throwable t) {
+        state.getAllInflightEvents().parallelStream().forEach(event -> event.getAckFuture().completeExceptionally(t));
+        state.failConnection(t);
     }
 
     /**
