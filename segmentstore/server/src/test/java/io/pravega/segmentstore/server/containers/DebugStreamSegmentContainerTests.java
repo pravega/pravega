@@ -244,7 +244,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         log.info("Recover all segments using the storage and debug segment containers.");
-        recoverAllSegments(new AsyncStorageWrapper(s, executorService()), debugStreamSegmentContainerMap, executorService());
+        recoverAllSegments(new AsyncStorageWrapper(s, executorService()), debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
         // Re-create all segments which were listed.
         for (int containerId = 0; containerId < containerCount; containerId++) {
@@ -279,7 +279,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         s.create(attributeSegment, TIMEOUT).join();
 
         ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(s, CONTAINER_ID, backUpMetadataSegment, backUpAttributeSegment,
-                executorService()).join();
+                executorService(), TIMEOUT).join();
 
         // back up metadata segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, TIMEOUT).join());
@@ -372,7 +372,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         debugStreamSegmentContainersMap.put(containerId, container2);
 
         // 4. Recover all segments.
-        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService());
+        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
 
         // 5. Update core attributes using back up segments.
         updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
@@ -427,7 +427,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         s.write(handle, 0, dataStream, writeData.length, TIMEOUT).join();
 
         // copy segment
-        ContainerRecoveryUtils.copySegment(s, sourceSegmentName, targetSegmentName, executorService()).join();
+        ContainerRecoveryUtils.copySegment(s, sourceSegmentName, targetSegmentName, executorService(), TIMEOUT).join();
 
         // source segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(sourceSegmentName, null).join());
