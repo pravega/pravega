@@ -22,8 +22,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -324,15 +322,13 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void serializeContents(OutputStream stream, TargetType o) throws IOException {
-            DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-
             val writeVersion = this.versions[getWriteVersion()];
-            dataOutput.writeByte(writeVersion.getVersion());
-            dataOutput.writeByte(writeVersion.getRevisions().size());
+            stream.write(writeVersion.getVersion());
+            stream.write(writeVersion.getRevisions().size());
 
             // Write each Revision for this Version, in turn.
             for (val r : writeVersion.getRevisions()) {
-                dataOutput.writeByte(r.getRevision());
+                stream.write(r.getRevision());
                 try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
                     r.getWriter().accept(o, revisionOutput);
                 }
@@ -383,17 +379,16 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void deserializeContents(InputStream stream, ReaderType target) throws IOException {
-            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-            byte version = dataInput.readByte();
+            byte version = readByte(stream);
             val readVersion = this.versions[version];
             ensureCondition(readVersion != null, "Unsupported version %d.", version);
 
-            byte revisionCount = dataInput.readByte();
+            byte revisionCount = readByte(stream);
             ensureCondition(revisionCount >= 0, "Data corruption: negative revision count.");
 
             int revisionIndex = 0;
             for (int i = 0; i < revisionCount; i++) {
-                byte revision = dataInput.readByte();
+                byte revision = readByte(stream);
                 val rd = readVersion.get(revisionIndex++);
                 try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
                     if (rd != null) {
@@ -403,6 +398,15 @@ public abstract class VersionedSerializer<T> {
                         rd.getReader().accept(revisionInput, target);
                     }
                 }
+            }
+        }
+
+        private byte readByte(InputStream in) throws IOException {
+            int ch = in.read();
+            if (ch < 0) {
+                throw new EOFException();
+            } else {
+                return (byte) ch;
             }
         }
     }

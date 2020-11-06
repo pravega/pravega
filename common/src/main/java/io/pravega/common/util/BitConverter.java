@@ -9,6 +9,8 @@
  */
 package io.pravega.common.util;
 
+import io.pravega.common.io.ByteBufferOutputStream;
+import io.pravega.common.io.DirectDataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,8 +24,8 @@ import java.util.UUID;
  * consider using one of the following instead:
  * - {@link StructuredWritableBuffer} or {@link StructuredReadableBuffer} implementations, such as
  * {@link ByteArraySegment}). These provide the most efficient serialization implementations available.
- * - {@link io.pravega.common.io.DirectDataOutput} implementations, such as
- * {@link io.pravega.common.io.ByteBufferOutputStream}). This provides an efficient serialization implementation as well.
+ * - {@link DirectDataOutput} implementations, such as {@link ByteBufferOutputStream}). This provides an efficient
+ * serialization implementation as well.
  * - {@link java.io.DataOutputStream} if none of the above are useful (this is the classic Java serializer).
  */
 public final class BitConverter {
