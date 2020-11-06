@@ -172,17 +172,25 @@ public class ContainerRecoveryUtils {
 
         // Get all segments for each container entry
         for (val containerEntry : containerMap.entrySet()) {
-            Preconditions.checkNotNull(containerEntry.getValue());
-            val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
-            val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
-                    containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
             // Store the segments in a set
             Set<String> metadataSegments = new HashSet<>();
-            keyIterator.forEachRemaining(k ->
-                    metadataSegments.addAll(k.getEntries().stream()
-                            .map(entry -> entry.getKey().toString())
-                            .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            try {
+                Preconditions.checkNotNull(containerEntry.getValue());
+                val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
+                val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
+                        containerEntry.getKey()), args).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+                keyIterator.forEachRemaining(k ->
+                        metadataSegments.addAll(k.getEntries().stream()
+                                .map(entry -> entry.getKey().toString())
+                                .collect(Collectors.toSet())), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
+                    continue;
+                } else {
+                    throw e;
+                }
+            }
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
