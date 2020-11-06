@@ -355,6 +355,8 @@ public class ContainerRecoveryUtils {
 
             // Waiting for update attributes for all segments in each back up metadata segment.
             Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+
+            containerForBackUpMetadataSegment.deleteStreamSegment(backUpMetadataSegment, TIMEOUT).join();
         }
     }
 
