@@ -21,4 +21,9 @@ public class DeleteSegmentOperationTests extends OperationTestsBase<DeleteSegmen
         result.setStreamSegmentOffset(random.nextInt(1000));
         return result;
     }
+
+    @Override
+    protected OperationType getExpectedOperationType() {
+        return OperationType.Deletion;
+    }
 }
