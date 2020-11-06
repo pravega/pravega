@@ -34,7 +34,7 @@ public abstract class HealthIndicator implements HealthContributor {
       private final String name;
 
       HealthIndicator(String name) {
-            this(name, null);
+            this(name, new Details());
       }
 
       HealthIndicator(String name, Details details) {

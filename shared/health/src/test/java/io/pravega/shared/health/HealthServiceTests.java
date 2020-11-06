@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health;
 
+import io.pravega.shared.health.impl.ContributorRegistryImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.JacksonJsonProvider;
@@ -34,6 +36,12 @@ public class HealthServiceTests {
 
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
+
+    private HealthServiceConfig config = HealthServiceConfig
+            .builder()
+            .with(HealthServiceConfig.INTERVAL, 10)
+            .with(HealthServiceConfig.PORT, 10090)
+            .build();
 
     private final Client client;
     private WebTarget target;
@@ -118,13 +126,25 @@ public class HealthServiceTests {
         response = request.get();
         health = response.readEntity(Health.class);
         Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
-
-        //for (;;) { }
     }
 
     @Test
     public void components() {
+        HealthService service = HealthServiceImpl.INSTANCE;
+        Assert.assertTrue(service.running());
 
+        SampleIndicator indicator = new SampleIndicator();
+        service.register(indicator);
+
+        Request request = new Request("health/components");
+        Response response = request.get();
+        ArrayList<String> components = response.readEntity(ArrayList.class);
+        // Only the 'ROOT' HealthComponent should be registered.
+        Assert.assertTrue("No non-root components have been defined.", components.size() == 1);
+        // Assert that it is indeed the 'ROOT'
+        Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
+                ContributorRegistryImpl.getDefaultComponent().getName(),
+                components.get(0));
     }
 
     @Test
@@ -153,7 +173,6 @@ public class HealthServiceTests {
     }
 
     private class Request {
-
         String url;
 
         Request(String path) {
@@ -165,7 +184,10 @@ public class HealthServiceTests {
             log.info("HealthService request sent to: {}", url);
             target = client.target(url);
             Invocation.Builder builder = target.request();
-            return builder.get();
+            Response response = builder.get();
+            // Make sure the request was sent to a valid endpoint.
+            Assert.assertTrue(response.getStatus() < Response.Status.BAD_REQUEST.getStatusCode());
+            return response;
         }
 
         String getUrl() {

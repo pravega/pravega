@@ -10,13 +10,11 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.StatusAggregatorImpl;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,6 +27,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
      */
     private final StatusAggregator aggregator;
 
+    @Getter
     private final Set<HealthContributor> contributors;
 
     CompositeHealthContributor() {
@@ -62,9 +61,6 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
         contributors.remove(contributor);
     }
 
-    /*
-     Reminder: Fix risk of StackOverflow.
-     */
     public Health health() {
         return health(false);
     }
@@ -79,14 +75,8 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
                 .stream()
                 .map(contributor -> contributor.getStatus())
                 .collect(Collectors.toList()));
-        // Normalize the details object(s).
-        ArrayList<Map.Entry<String, Object>> details = new ArrayList<>();
-        if (includeDetails) {
-            for (Health child : children) {
-                details.add(new AbstractMap.SimpleImmutableEntry<>(child.getName(), child.getDetails()));
-            }
-        }
-        return Health.builder().status(status).details(details).build();
+
+        return Health.builder().status(status).children(includeDetails ? children : null).build();
     }
 
     public void clear() {

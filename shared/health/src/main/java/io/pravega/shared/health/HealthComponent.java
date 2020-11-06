@@ -10,7 +10,10 @@
 package io.pravega.shared.health;
 
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Optional;
 
 /**
  * The {@link HealthComponent} class is used to provide a logical grouping of components. Each registered {@link  HealthComponent}
@@ -22,20 +25,19 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HealthComponent extends CompositeHealthContributor {
 
-    public static final HealthComponent ROOT = new HealthComponent("ROOT");
-
     @Getter
+    @NonNull
     private final String name;
 
-    private final HealthComponent parent;
+    private final Optional<HealthComponent> parent;
 
-    HealthComponent(String name) {
+    public HealthComponent(String name) {
         this(name, null);
     }
 
-    HealthComponent(String name, HealthComponent parent) {
+    public HealthComponent(String name, HealthComponent parent) {
         this.name = name;
-        this.parent = parent;
+        this.parent = Optional.ofNullable(parent);
     }
 
     @Override

@@ -14,6 +14,7 @@ import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.HealthServiceConfig;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,9 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class HealthServiceImpl implements HealthService {
@@ -37,31 +40,50 @@ public class HealthServiceImpl implements HealthService {
      */
     public static final HealthService INSTANCE = new HealthServiceImpl();
 
-    /**
-     * The default PORT to host the {@link HealthService} on.
-     */
-    private static final int HEALTH_REST_PORT = 10090;
-
-    private ContributorRegistryImpl registry;
+    public ContributorRegistryImpl registry;
 
     private HttpServer server;
+
+    private boolean initialized = false;
+
+    private HealthServiceConfig config;
 
     @Getter
     private URI uri;
 
-    public void register(HealthContributor contributor, HealthComponent parent) {
-        register.re;
-    }
-
     private HealthServiceImpl() {
         // Initiate the contributor registry.
         registry = new ContributorRegistryImpl();
-        // Setup the server.
-        uri = UriBuilder.fromUri(String.format("http://%s/", getHostAddress())).port(HEALTH_REST_PORT).build();
-        server = createHttpServer();
+    }
+
+    public synchronized void initialize(HealthServiceConfig config) {
+        if (!initialized) {
+            // Setup the server.
+            uri = UriBuilder.fromUri(String.format("http://%s/", config.getAddress()))
+                    .port(config.getPort())
+                    .build();
+            // Initialize the server, but don't start.
+            server = createHttpServer();
+        } else {
+            log.warn("Attempted to call initialize() on an already initialized HealthService.");
+            initialized = true;
+        }
+    }
+
+    public void register(HealthContributor contributor) {
+        register(contributor, registry.getDefaultComponent());
+    }
+
+    public void register(HealthContributor contributor, HealthComponent parent) {
+        registry.register(contributor, parent);
     }
 
     public synchronized void start() throws IOException {
+        if (!initialized) {
+            HealthServiceConfig config = HealthServiceConfig.builder().build();
+            log.warn("Initializing HealthService with default HealthServiceConfig values:\n\n{}\n", config);
+            initialize(config);
+        }
         if (!server.isStarted()) {
             server.start();
             log.info("Starting Health HTTP Server @ {}", uri);
@@ -107,11 +129,25 @@ public class HealthServiceImpl implements HealthService {
         return server == null || !server.isStarted() ? false : true;
     }
 
-    public Optional<Health> health(String name, boolean includeDetails) {
+    public Health health(String name, boolean includeDetails) {
         Optional<HealthContributor> result = registry.get(name);
         if (result.isEmpty()) {
             log.error("No HealthComponent with name: {} found in the registry.", name);
+            return null;
         }
+        return result.get().health(includeDetails);
+    }
+
+    public Health health(boolean includeDetails) {
+        return health(registry.getDefaultComponent().getName(), includeDetails);
+    }
+
+    public Collection<HealthComponent> components() {
+       return registry.getComponents()
+               .entrySet()
+               .stream()
+               .map(entry -> entry.getValue())
+               .collect(Collectors.toList());
     }
 
 }

@@ -12,6 +12,7 @@ package io.pravega.shared.health.impl;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthContributor;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,10 +26,15 @@ import java.util.Set;
 public class ContributorRegistryImpl implements ContributorRegistry {
 
     /**
+     * The default {@link HealthComponent} to register any {@link HealthContributor} under.
+     */
+    private static final HealthComponent ROOT_COMPONENT = new HealthComponent("ROOT");
+    /**
      * A {@link Map} that maintains the 'logical' relationships between a particular {@link HealthComponent} and all
      * of the required dependencies used to determine it's overall health.
      */
-    Map<String, HealthComponent> components;
+    @Getter
+    final Map<String, HealthComponent> components;
     /**
      * A {@link Map} that maintains the 'logical' relationships between a particular {@link HealthContributor} and all
      * of the components that act as a dependee to this {@link HealthContributor}.
@@ -36,17 +42,23 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * The {@link HealthComponent} maintains the references to it's dependencies, while the dependencies ({@link HealthContributor}
      * do not maintain references to their dependees.
      */
-    Map<HealthContributor, Set<HealthComponent>> contributors;
+    final Map<HealthContributor, Set<HealthComponent>> contributors;
 
     ContributorRegistryImpl() {
-        components = new HashMap<>();
-        contributors = new HashMap<>();
+        this.components = new HashMap<>();
+        this.contributors = new HashMap<>();
+        // Registry default component.
+        this.components.put(ROOT_COMPONENT.getName(), ROOT_COMPONENT);
+    }
+
+    public static HealthComponent getDefaultComponent() {
+        return ROOT_COMPONENT;
     }
 
     @Override
     @NonNull
     public void register(HealthContributor contributor) {
-        register(contributor, HealthComponent.ROOT);
+        register(contributor, ROOT_COMPONENT);
     }
 
     @NonNull

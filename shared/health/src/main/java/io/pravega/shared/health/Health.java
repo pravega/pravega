@@ -11,6 +11,8 @@ package io.pravega.shared.health;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -21,6 +23,7 @@ import java.util.Map;
  * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
 @Builder
+@AllArgsConstructor
 @JsonInclude(Include.NON_EMPTY)
 public class Health {
 
@@ -29,24 +32,29 @@ public class Health {
      * was taken from.
      */
     @Getter
+    @JsonProperty("name")
     public final String name;
 
     @Getter
+    @JsonProperty("status")
     private final Status status;
 
     @Getter
+    @JsonProperty("details")
     private final Collection<Map.Entry<String, Object>> details;
+
+    /**
+     * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
+     */
+    @Getter
+    @JsonProperty("children")
+    private final Collection<Health> children;
 
     Health(HealthBuilder builder) {
         this.status = builder.status;
         this.details = builder.details;
         this.name = builder.name;
-    }
-
-    Health(String id, Status status, Collection<Map.Entry<String, Object>> details) {
-        this.name = id;
-        this.status = status;
-        this.details = details;
+        this.children = builder.children;
     }
 
     /**

@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.health;
 
-import java.util.Optional;
+import java.util.Collection;
 
 /**
  * The top level interface used to provide any and all health related information for a particular component
@@ -22,13 +22,13 @@ import java.util.Optional;
  *  * /health/liveness      Exposes the top level 'liveness' status.
  *  * /health/details       Exposes the aggregate {@link Health} details.
  */
-public interface HealthService extends HealthServer, Registry<HealthContributor> {
-    ///**
-    // * Registers the contributor to the default {@link HealthComponent} registry.
-    // *
-    // * @param contributor The {@link HealthContributor} object to add to the registry.
-    // */
-    //void register(HealthContributor contributor);
+public interface HealthService extends HealthServer {
+    /**
+     * Registers the contributor to the default {@link HealthComponent} registry.
+     *
+     * @param contributor The {@link HealthContributor} object to add to the registry.
+     */
+    void register(HealthContributor contributor);
 
     /**
      * Registers the contributor to the registry.
@@ -48,5 +48,13 @@ public interface HealthService extends HealthServer, Registry<HealthContributor>
      * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
      * @return The {@link Health} object of the component.
      */
-    Optional<Health> health(String name, boolean includeDetails);
+    Health health(String name, boolean includeDetails);
+
+    Health health(boolean includeDetails);
+
+    /**
+     * Returns a {@link Collection} of all the components the {@link HealthService} is responsible for and observes.
+     * @return
+     */
+    Collection<HealthComponent> components();
 }

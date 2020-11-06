@@ -14,10 +14,13 @@ import io.pravega.shared.health.impl.HealthServiceImpl;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import java.util.stream.Collectors;
 
 @Path("/")
 public class HealthEndpoint {
@@ -36,30 +39,39 @@ public class HealthEndpoint {
     @GET
     @Path("/health")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response health() {
-        return Response.status(Status.OK)
-                .entity(SERVICE.health(HealthComponent.ROOT.getName(), false))
+    public Response health(@QueryParam("details") boolean details) {
+        Health health = SERVICE.health(details);
+        if (health != null) {
+            return Response.status(Status.OK)
+                    .entity(health)
+                    .build();
+        }
+        return Response.status(Status.NOT_FOUND)
+                .entity(null)
                 .build();
     }
 
     @GET
-    @Path("/health/readiness")
+    @Path("/health/readiness/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response readiness() {
+    public Response readiness(@PathParam("id") String id) {
         return Response.status(Status.OK).build();
     }
 
     @GET
-    @Path("/health/liveness")
+    @Path("/health/liveness/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response liveness() {
+    public Response liveness(@PathParam("id") String id) {
         return Response.status(Status.OK).build();
     }
 
     @GET
-    @Path("/health/details")
+    @Path("/health/details/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response details() {
+    public Response details(@PathParam("id") String id) {
+        if (id.isEmpty()) {
+
+        }
         return Response.status(Status.OK).build();
     }
 
@@ -67,6 +79,11 @@ public class HealthEndpoint {
     @Path("/health/components")
     @Produces(MediaType.APPLICATION_JSON)
     public Response components() {
-        return Response.status(Status.OK).build();
+        return Response.status(Status.OK)
+                .entity(SERVICE.components()
+                        .stream()
+                        .map(HealthComponent::getName)
+                        .collect(Collectors.toList()))
+                .build();
     }
 }
