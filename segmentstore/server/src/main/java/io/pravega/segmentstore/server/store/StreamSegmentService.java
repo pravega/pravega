@@ -14,6 +14,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -95,11 +96,12 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.createStreamSegment(streamSegmentName, attributes, timeout),
-                "createStreamSegment", streamSegmentName, attributes);
+                container -> container.createStreamSegment(streamSegmentName, segmentType, attributes, timeout),
+                "createStreamSegment", streamSegmentName, segmentType, attributes);
     }
 
     @Override

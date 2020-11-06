@@ -1,0 +1,24 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.segmentstore.server.logs.operations;
+
+/**
+ * Defines operation types.
+ */
+public enum OperationType {
+    /**
+     * An operation that results in a deletion of a Segment.
+     */
+    Deletion,
+    /**
+     * Any operation that is not a Deletion.
+     */
+    Normal
+}

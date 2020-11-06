@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.shared.NameUtils;
@@ -45,7 +46,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         context.tableStore.setPutErrorInjector(new ErrorInjector<>(i -> true, IntentionalException::new));
         AssertExtensions.assertSuppliedFutureThrows(
                 "createSegment did not fail when random exception was thrown.",
-                () -> context.getMetadataStore().createSegment(segmentName, null, TIMEOUT),
+                () -> context.getMetadataStore().createSegment(segmentName, SegmentType.STREAM_SEGMENT, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
     }
 
@@ -72,7 +73,8 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         @SneakyThrows
         void initialize() {
             this.tableStore
-                    .createSegment(NameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()), TIMEOUT)
+                    .createSegment(NameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()),
+                            SegmentType.TABLE_SEGMENT_HASH, TIMEOUT)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             this.metadataStore
                     .initialize(TIMEOUT)

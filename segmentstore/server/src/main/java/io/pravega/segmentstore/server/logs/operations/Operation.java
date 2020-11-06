@@ -74,6 +74,15 @@ public abstract class Operation implements SequencedItemList.Element {
         this.sequenceNumber = value;
     }
 
+    /**
+     * Gets a value indicating the type of this operation.
+     *
+     * @return The {@link OperationType}.
+     */
+    public OperationType getType() {
+        return OperationType.Normal;
+    }
+
     @Override
     public String toString() {
         return String.format("%s: SequenceNumber = %d", this.getClass().getSimpleName(), getSequenceNumber());
