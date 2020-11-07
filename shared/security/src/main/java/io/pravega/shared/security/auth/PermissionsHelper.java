@@ -48,10 +48,6 @@ public class PermissionsHelper {
         if (Strings.isNullOrEmpty(accessOperationStr)) {
             return defaultPermissions;
         }
-        try {
-            return toAuthHandlerPermissions(AccessOperation.valueOf(accessOperationStr));
-        } catch (IllegalArgumentException e) {
-            return defaultPermissions;
-        }
+        return toAuthHandlerPermissions(AccessOperation.valueOf(accessOperationStr));
     }
 }

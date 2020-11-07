@@ -45,9 +45,7 @@ public class PermissionsHelperTest {
                 AuthHandler.Permissions.NONE));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.parse(AccessOperation.WRITE.toString(),
                 AuthHandler.Permissions.NONE));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.parse(AccessOperation.ANY.toString(),
-                AuthHandler.Permissions.READ_UPDATE));
-        assertEquals(AuthHandler.Permissions.NONE, PermissionsHelper.parse(AccessOperation.NONE.toString(),
-                AuthHandler.Permissions.READ_UPDATE));
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> PermissionsHelper.parse(AccessOperation.ANY.toString(), null));
     }
 }
