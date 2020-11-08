@@ -39,7 +39,7 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
             @NonNull String keyValueTableName, @NonNull Serializer<KeyT> keySerializer,
             @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
         val kvt = new KeyValueTableInfo(this.scope, keyValueTableName);
-        val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName(), AccessOperation.WRITE);
+        val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName(), AccessOperation.READ_WRITE);
         val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionPool, clientConfiguration, provider);
         return new KeyValueTableImpl<>(kvt, tsf, this.controller, keySerializer, valueSerializer);
     }
