@@ -9,51 +9,69 @@ You may obtain a copy of the License at
 -->
 # Pravega Roadmap
 
-# Version 0.3
-The following will be the primary feature focus areas for our upcoming release.
+The following will be the primary feature focus areas for our upcoming releases.
 
-## Retention Policy Implementation
-Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will be automatically purged.
+## Version 0.9 (20Q4)
+* Improved authorization model
+* Simplified-LTS (Long Term Storage) in production ([#4802](https://github.com/pravega/pravega/issues/4802), [#4902](https://github.com/pravega/pravega/issues/4902), [#4903](https://github.com/pravega/pravega/issues/4903), [#4912](https://github.com/pravega/pravega/issues/4912), [#4967](https://github.com/pravega/pravega/issues/4967), [#5067](https://github.com/pravega/pravega/issues/5067))
+* Consumption-based retention ([PDP 47](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention), [#5108](https://github.com/pravega/pravega/issues/5108), [#5109](https://github.com/pravega/pravega/issues/5109), [#5111](https://github.com/pravega/pravega/issues/5111), [#5112](https://github.com/pravega/pravega/issues/5112), [#5114](https://github.com/pravega/pravega/issues/5114), [#5203](https://github.com/pravega/pravega/issues/5203), [#5306](https://github.com/pravega/pravega/issues/5306))
+* Native client bindings, phase 1: Rust Client ([repo](https://github.com/pravega/pravega-client-rust), [design plan](https://github.com/pravega/pravega-client-rust/wiki/Design-plan), [status](https://github.com/pravega/pravega-client-rust/wiki/Supported-APIs)) and Python bindings (Experimental) ([#83](https://github.com/pravega/pravega-client-rust/issues/83), [#113](https://github.com/pravega/pravega-client-rust/issues/113), [#117](https://github.com/pravega/pravega-client-rust/issues/117), [#128](https://github.com/pravega/pravega-client-rust/issues/128), [#164](https://github.com/pravega/pravega-client-rust/issues/164), [#183](https://github.com/pravega/pravega-client-rust/issues/183))
+* DR tool v1 ([#4938](https://github.com/pravega/pravega/issues/4938))
+* Improve Pravega CLI ([#4803](https://github.com/pravega/pravega/issues/4803), [#5221](https://github.com/pravega/pravega/issues/5221))
+* Upgrade server components to Java 11 ([#4884](https://github.com/pravega/pravega/issues/4884), [#5047](https://github.com/pravega/pravega/issues/5047), [#5082](https://github.com/pravega/pravega/issues/5082), [#5232](https://github.com/pravega/pravega/issues/5232), [#5234](https://github.com/pravega/pravega/issues/5234), [#5296](https://github.com/pravega/pravega/issues/5296))
+* Performance characterization and improvements: (a) Transaction performance improvements ([#5072](https://github.com/pravega/pravega/issues/5072)), (b) Improvements w/ large # of segments, (c) Schema Registry, (d) Key Value Store, and (e) Simplified-LTS ([#5245](https://github.com/pravega/pravega/issues/5245), [#5260](https://github.com/pravega/pravega/issues/5260))
+* K8s operators for Pravega, ZooKeeper & BookKeeper: Tanzu and OpenShift support
+* Upgrade base packages for security compliance
 
-## Transactions API
-The current transactions API is functional, however it is cumbersome and requires detailed knowledge of Pravega to configure appropriate values such as timeouts.  This work will simplify the API and automate as many timeouts as possible.
+## Version 0.10 (21Q2)
+* Spillover from 0.9
+* Separate LTS configurations per scope
+* Full AWS S3 support for LTS
+* Dynamic scaling (scale pods horizontally and vertically according to allocated resources and/or service demand)
+* Strengthen video streaming use-cases ([#4087](https://github.com/pravega/pravega/issues/4087))
+* Segment Container load balancing ([#1644](https://github.com/pravega/pravega/issues/1644))
+* Security-related enhancements
+* Quality-of-Service-related features
+* Support large events <=1GB ([PDP 43](https://github.com/pravega/pravega/wiki/PDP-43-Large-Events), [#5056](https://github.com/pravega/pravega/issues/5056))
+* Improve health checks ([PDP 45](https://github.com/pravega/pravega/wiki/PDP-45-Pravega-Healthcheck), [#5046](https://github.com/pravega/pravega/issues/5046), [#5098](https://github.com/pravega/pravega/issues/5098))
+* Idempotent writer ([#1210](https://github.com/pravega/pravega/issues/1210), [#1437](https://github.com/pravega/pravega/issues/1437))
+* Performance improvements continued
+* Support config-based CDI and Spring client injection
 
-## Exactly Once Guarantees
-Focus is on testing and strengthening exactly once guarantees and correctness under failure conditions.
+## Version 0.11
+* Spillover from 0.10
+* Refactor Tier-1
+* Native client bindings (phase 2: Golang)
+* QoS improvements continued
+* Performance improvements continued
+* Security enhancements continued
 
-## Low-level Reader API
-This will expose a new low-level reader API that provides access the low level byte stream as opposed to the event semantics offered by the Java Client API.  This can also be leveraged in the future to build different flavors of reader groups.
-
-## Security
-Security for this release will focus on support for securing Pravega external interfaces along with basic access controls on stream access and administration.
--  Access Control on Stream operations.
--  Auth between Clients and Controller/SegmentStore.
--  Auth between SegmentStore and Tier 2 Storage.
-
-## Pravega Connectors
-Pravega ecosystem interconnectivity will be augmented with the following:
--  Expanded Flink connector support (batch & table API support).
--  Logstash connector.
--  Others also under consideration (Interested in writing a connector? Talk to us on [Slack](https://pravega-io.slack.com/))
-
-
+## Version 0.12
+* Spillover from 0.11
+* Native client bindings (phase 3: Node.js, Ruby, C#)
+* Cross-site replication
+* QoS improvements continued
+* Performance improvements continued
+* Security enhancements continued
+* Edge functions
+* Shared namespace across Pravega clusters (between edge and core)
+* Pravega WebUI
 
 # Future Items
 The following items are new features that we wish to build in upcoming Pravega releases, however many active work is currently underway.  Please reach out on the Pravega channels if you're interested in picking one of these up.
 
 -  Operational Features
-  -  Non-disruptive and rolling upgrades for Pravega
-  -  Provide default Failure Detector
-  -  Exposing information for administration purposes
-  -  Ability to define throughput quotas and other QoS guarantees
+    -  Non-disruptive and rolling upgrades for Pravega
+    -  Provide default Failure Detector
+    -  Exposing information for administration purposes
+    -  Ability to define throughput quotas and other QoS guarantees
 -  Pravega Connectors / Integration
-  -  Kafka API Compatibility (Producer and Consumer APIs)
-  -  Spark connectors (source/sink)
-  -  REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
+    -  Kafka API Compatibility (Producer and Consumer APIs)
+    -  Spark connectors (source/sink)
+    -  REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
 -  Stream Management
-  -  Stream aliasing
-  -  Ability to logically group multiple Streams
-  -  Ability to assign arbitrary Key-Value pairs to streams - Tagging
+    -  Stream aliasing
+    -  Ability to assign arbitrary Key-Value pairs to streams - Tagging
 -  Tiering Support
-  -  Policy driven tiering of Streams from Streaming Storage to Long-term storage
-  -  Support for additional Tier 2 Storage backends
+    -  Policy driven tiering of Streams from Streaming Storage to Long-term storage
+    -  Support for additional Tier 2 Storage backends
