@@ -24,15 +24,16 @@ public abstract class AbstractAdminCommandTest {
 
     // Setup utility.
     protected static final SecureSetupUtils SETUP_UTILS = new SecureSetupUtils();
-    protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
+    protected final AtomicReference<AdminCommandState> state = new AtomicReference<>();
+
     @Before
     public void setUp() throws Exception {
         SETUP_UTILS.startAllServices();
-        STATE.set(new AdminCommandState());
+        state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
@@ -43,13 +44,13 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
         pravegaProperties.setProperty("cli.security.tls.enable", "false");
         pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH);
-        STATE.get().getConfigBuilder().include(pravegaProperties);
+        state.get().getConfigBuilder().include(pravegaProperties);
     }
 
     @After
     public void tearDown() throws Exception {
         SETUP_UTILS.close();
-        STATE.get().close();
+        state.get().close();
     }
 
 }

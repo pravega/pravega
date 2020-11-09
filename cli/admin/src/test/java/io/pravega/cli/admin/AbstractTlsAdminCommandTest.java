@@ -74,10 +74,6 @@ public abstract class AbstractTlsAdminCommandTest {
 
         localPravega = emulatorBuilder.build();
 
-        // The uri returned by LocalPravegaEmulator is in the form tcp://localhost:9090 (protocol + domain + port)
-        // but for the CLI we need to set the GRPC uri as localhost:9090 (domain + port). Because the protocol
-        // is decided based on whether security is enabled or not.
-
         // Set the CLI properties.
         state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();

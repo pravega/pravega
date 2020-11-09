@@ -25,10 +25,10 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testCreateStream() throws Exception {
         String scope = "createStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "newStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
         new ScopeCommand.Create(commandArgs).execute();
 
-        String commandResult = TestUtils.executeCommand("stream create " + stream, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream create " + stream, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(StreamCommand.Create.descriptor());
     }
@@ -37,13 +37,13 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testDeleteStream() throws Exception {
         String scope = "deleteStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "deleteStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
         new ScopeCommand.Create(commandArgs).execute();
 
-        commandArgs = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        commandArgs = new CommandArgs(Collections.singletonList(stream), config.get());
         new StreamCommand.Create(commandArgs).execute();
 
-        String commandResult = TestUtils.executeCommand("stream delete " + stream, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream delete " + stream, config.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(StreamCommand.Delete.descriptor());
     }
@@ -52,18 +52,18 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testListStream() throws Exception {
         String scope = "listStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "theStream");
-        CommandArgs commandArgsScope = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgsScope = new CommandArgs(Collections.singletonList(scope), config.get());
         new ScopeCommand.Create(commandArgsScope).execute();
 
         // List Streams in scope when it is empty.
-        String commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream list " + scope, config.get());
         Assert.assertFalse(commandResult.contains("theStream"));
 
-        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), config.get());
         new StreamCommand.Create(commandArgsStream).execute();
 
         // List Streams in scope when we have one.
-        commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream list " + scope, config.get());
         Assert.assertTrue(commandResult.contains("theStream"));
         Assert.assertNotNull(StreamCommand.List.descriptor());
     }
@@ -72,23 +72,23 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testAppendAndReadStream() throws Exception {
         String scope = "appendAndReadStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "appendAndReadStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
         new ScopeCommand.Create(commandArgs).execute();
 
-        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), config.get());
         new StreamCommand.Create(commandArgsStream).execute();
 
-        String commandResult = TestUtils.executeCommand("stream append " + stream + " 100", CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream append " + stream + " 100", config.get());
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Append.descriptor());
 
         // Need to use a timeout for readers, otherwise the test never completes.
-        commandResult = TestUtils.executeCommand("stream read " + stream + " true 5", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream read " + stream + " true 5", config.get());
         Assert.assertTrue(commandResult.contains("Done"));
 
-        commandResult = TestUtils.executeCommand("stream append " + stream + " key 100", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream append " + stream + " key 100", config.get());
         Assert.assertTrue(commandResult.contains("Done"));
-        commandResult = TestUtils.executeCommand("stream read " + stream + " 5", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream read " + stream + " 5", config.get());
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Read.descriptor());
     }

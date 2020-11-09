@@ -69,7 +69,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
     @Test
     public void testListScopesCommand() throws Exception {
         SETUP_UTILS.createTestStream("testListScopesCommand", 2);
-        String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
         // Check that both the new scope and the system one exist.
         Assert.assertTrue(commandResult.contains("_system"));
         Assert.assertTrue(commandResult.contains(SETUP_UTILS.getScope()));
@@ -78,7 +78,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
 
     @Test
     public void testDescribeScopeCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller describe-scope _system", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller describe-scope _system", state.get());
         Assert.assertTrue(commandResult.contains("_system"));
         Assert.assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }
@@ -87,7 +87,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
     public void testListStreamsCommand() throws Exception {
         String testStream = "testListStreamsCommand";
         SETUP_UTILS.createTestStream(testStream, 1);
-        String commandResult = TestUtils.executeCommand("controller list-streams " + SETUP_UTILS.getScope(), STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-streams " + SETUP_UTILS.getScope(), state.get());
         // Check that the newly created stream is retrieved as part of the list of streams.
         Assert.assertTrue(commandResult.contains(testStream));
         Assert.assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
@@ -96,7 +96,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
     @Test
     public void testListReaderGroupsCommand() throws Exception {
         // Check that the system reader group can be listed.
-        String commandResult = TestUtils.executeCommand("controller list-readergroups _system", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller list-readergroups _system", state.get());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
         Assert.assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
     }
@@ -104,7 +104,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
     @Test
     public void testDescribeReaderGroupCommand() throws Exception {
         // Check that the system reader group can be listed.
-        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", STATE.get());
+        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", state.get());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
     }
@@ -132,7 +132,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
         // Check if stream created successfully.
         Assert.assertTrue("Failed to create the stream ", isStreamCreated);
 
-        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, STATE.get());
+        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, state.get());
         Assert.assertTrue(commandResult.contains("stream_config"));
         Assert.assertTrue(commandResult.contains("stream_state"));
         Assert.assertTrue(commandResult.contains("segment_count"));
@@ -142,7 +142,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
         Assert.assertTrue(commandResult.contains("scaling_info"));
 
         // Exercise actual instantiateSegmentHelper
-        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), state.get());
         ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
         @Cleanup
         CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(SETUP_UTILS.getZkTestServer().getConnectString(),
@@ -153,11 +153,11 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
         // Try the Zookeeper backend, which is expected to fail and be handled by the command.
         Properties properties = new Properties();
         properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.ZOOKEEPER.name());
-        STATE.get().getConfigBuilder().include(properties);
-        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        state.get().getConfigBuilder().include(properties);
+        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), state.get());
         new ControllerDescribeStreamCommand(commandArgs).execute();
         properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.SEGMENTSTORE.name());
-        STATE.get().getConfigBuilder().include(properties);
+        state.get().getConfigBuilder().include(properties);
     }
 
     @Test
@@ -167,15 +167,15 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
         pravegaProperties.setProperty("cli.security.auth.enable", "true");
         pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
         pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
-        STATE.get().getConfigBuilder().include(pravegaProperties);
-        String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
+        state.get().getConfigBuilder().include(pravegaProperties);
+        String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
         // Check that both the new scope and the system one exist.
         Assert.assertTrue(commandResult.contains("_system"));
         Assert.assertTrue(commandResult.contains(SETUP_UTILS.getScope()));
         Assert.assertNotNull(ControllerListScopesCommand.descriptor());
         // Restore config
         pravegaProperties.setProperty("cli.security.auth.enable", "false");
-        STATE.get().getConfigBuilder().include(pravegaProperties);
+        state.get().getConfigBuilder().include(pravegaProperties);
 
         // Exercise response codes for REST requests.
         CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), new AdminCommandState());

@@ -22,16 +22,17 @@ public abstract class AbstractUserCommandTest {
 
     // Setup utility.
     protected static final SecureSetupUtils SETUP_UTILS = new SecureSetupUtils();
-    protected static final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
+
+    protected final AtomicReference<InteractiveConfig> config = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
         SETUP_UTILS.startAllServices();
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
-        interactiveConfig.setControllerUri(SETUP_UTILS.getControllerUri().toString());
+        interactiveConfig.setControllerUri(SETUP_UTILS.getControllerUri().toString().replace("tcp://", ""));
         interactiveConfig.setDefaultSegmentCount(4);
         interactiveConfig.setMaxListItems(100);
         interactiveConfig.setTimeoutMillis(1000);
@@ -40,7 +41,7 @@ public abstract class AbstractUserCommandTest {
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(false);
         interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        CONFIG.set(interactiveConfig);
+        config.set(interactiveConfig);
     }
 
     @After

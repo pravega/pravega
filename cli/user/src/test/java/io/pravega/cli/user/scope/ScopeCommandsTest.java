@@ -22,7 +22,7 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
     @Test(timeout = 5000)
     public void testCreateScope() throws Exception {
         final String scope = "testCreate";
-        String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
     }
@@ -30,10 +30,10 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
     @Test(timeout = 5000)
     public void testDeleteScope() throws Exception {
         String scopeToDelete = "toDelete";
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), config.get());
         Assert.assertNotNull(commandArgs.toString());
         new ScopeCommand.Create(commandArgs).execute();
-        String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, config.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(ScopeCommand.Delete.descriptor());
     }
