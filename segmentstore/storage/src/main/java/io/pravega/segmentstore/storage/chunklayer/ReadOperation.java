@@ -71,7 +71,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         log.debug("{} read - started op={}, segment={}, offset={}, bytesRead={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
         val streamSegmentName = handle.getSegmentName();
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(streamSegmentName),
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(true, streamSegmentName),
                 txn -> txn.get(streamSegmentName)
                         .thenComposeAsync(storageMetadata -> {
                             segmentMetadata = (SegmentMetadata) storageMetadata;

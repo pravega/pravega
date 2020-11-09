@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
+import org.junit.Assert;
 
 import java.util.concurrent.ExecutorService;
 
@@ -63,6 +64,16 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
         @Override
         public TestContext getTestContext(ChunkedSegmentStorageConfig config) throws Exception {
             return new InMemorySimpleStorageTestContext(executorService(), config);
+        }
+
+        @Override
+        protected void populate(byte[] data) {
+            rnd.nextBytes(data);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output) {
+            Assert.assertArrayEquals(expected, output);
         }
 
         public class InMemorySimpleStorageTestContext extends ChunkedSegmentStorageTests.TestContext {

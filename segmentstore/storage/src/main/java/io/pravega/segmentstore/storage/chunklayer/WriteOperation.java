@@ -85,7 +85,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length);
 
         val streamSegmentName = handle.getSegmentName();
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(handle.getSegmentName()),
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, handle.getSegmentName()),
                 txn -> {
                     didSegmentLayoutChange = false;
 

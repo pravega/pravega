@@ -82,9 +82,10 @@ public interface ChunkMetadataStore extends AutoCloseable {
      * Begins a new transaction.
      *
      * @param keysToLock Array of keys to lock for this transaction.
+     * @param isReadonly Whether transaction is read only or not.
      * @return Returns a new instance of {@link MetadataTransaction}.
      */
-    MetadataTransaction beginTransaction(String... keysToLock);
+    MetadataTransaction beginTransaction(boolean isReadonly, String... keysToLock);
 
     /**
      * Retrieves the metadata for given key.

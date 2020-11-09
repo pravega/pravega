@@ -66,7 +66,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInvariants() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             Assert.assertFalse(txn.isAborted());
             Assert.assertFalse(txn.isCommitted());
             assertNull(txn.get(null));
@@ -93,7 +93,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testDelete() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             assertNull(txn.get(KEY0));
             txn.create(new MockStorageMetadata(KEY0, VALUE0));
             Assert.assertNotNull(txn.get(KEY0));
@@ -102,7 +102,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             txn.commit().join();
         }
 
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             assertNull(txn.get(KEY0));
             // Should be able to recreate
             txn.create(new MockStorageMetadata(KEY0, VALUE0));
@@ -110,7 +110,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             txn.commit().join();
         }
 
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn.get(KEY0), KEY0, VALUE0);
         }
     }
@@ -122,7 +122,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenario() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             // NO value should be found.
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
@@ -177,7 +177,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         Assert.assertNull(metadataStore.read(KEY3).get().getValue());
 
         // See the effect of transaction after words
-        try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn2.get(KEY0), KEY0, VALUE0);
             assertEquals(txn2.get(KEY1), KEY1, VALUE4);
             assertNull(txn2.get(KEY3));
@@ -193,7 +193,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // Should have no effect;
-        try (MetadataTransaction txn3 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn3 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn3.get(KEY0), KEY0, VALUE0);
             assertEquals(txn3.get(KEY1), KEY1, VALUE4);
             assertNull(txn3.get(KEY2));
@@ -227,7 +227,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenarioWithLazyCommit() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             // NO value should be found.
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
@@ -280,7 +280,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // See the effect of transaction after words
-        try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn2.get(KEY0), KEY0, VALUE0);
             assertEquals(txn2.get(KEY1), KEY1, VALUE4);
             assertNull(txn2.get(KEY3));
@@ -296,7 +296,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // Should have no effect;
-        try (MetadataTransaction txn3 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn3 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn3.get(KEY0), KEY0, VALUE0);
             assertEquals(txn3.get(KEY1), KEY1, VALUE4);
             assertNull(txn3.get(KEY3));
@@ -312,7 +312,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleScenarioWithPinnedRecords() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             // NO value should be found.
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
@@ -368,7 +368,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // See the effect of transaction after words
-        try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn2.get(KEY0), KEY0, VALUE0);
             assertEquals(txn2.get(KEY1), KEY1, VALUE4);
             assertNull(txn2.get(KEY3));
@@ -384,7 +384,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // Should have no effect;
-        try (MetadataTransaction txn3 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn3 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn3.get(KEY0), KEY0, VALUE0);
             assertEquals(txn3.get(KEY1), KEY1, VALUE4);
             assertNull(txn3.get(KEY3));
@@ -412,7 +412,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     @Test
     public void testLazyCommitWithNormalCommitWithNoBuffer() throws Exception {
         metadataStore.setMaxEntriesInTxnBuffer(0);
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             // NO value should be found.
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
@@ -438,7 +438,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         assertEquals((MockStorageMetadata) metadataStore.read(KEY1).get().getValue(), KEY1, VALUE1);
         assertEquals((MockStorageMetadata) metadataStore.read(KEY2).get().getValue(), KEY2, VALUE2);
 
-        try (MetadataTransaction txn1 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn1 = metadataStore.beginTransaction(false, KEYS)) {
             // Update
             txn1.update(new MockStorageMetadata(KEY1, VALUE4));
             assertEquals(txn1.get(KEY0), KEY0, VALUE0);
@@ -467,7 +467,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
 
         // See the effect of transaction after words in a new transaction.
         // Note this transaction is aborted. So any changes made here should be totally ignored.
-        try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn2.get(KEY0), KEY0, VALUE0);
             assertEquals(txn2.get(KEY1), KEY1, VALUE4);
             assertNull(txn2.get(KEY2));
@@ -484,7 +484,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             throw e;
         }
         // Should have no effect;
-        try (MetadataTransaction txn3 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn3 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn3.get(KEY0), KEY0, VALUE0);
             assertEquals(txn3.get(KEY1), KEY1, VALUE4);
             assertNull(txn3.get(KEY2));
@@ -492,7 +492,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             throw e;
         }
 
-        try (MetadataTransaction txn4 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn4 = metadataStore.beginTransaction(false, KEYS)) {
             // Update
             txn4.update(new MockStorageMetadata(KEY0, VALUE5));
             txn4.update(new MockStorageMetadata(KEY1, VALUE6));
@@ -528,7 +528,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testLazyCommitWithNormalCommit() throws Exception {
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             // NO value should be found.
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
@@ -554,7 +554,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         assertEquals((MockStorageMetadata) metadataStore.read(KEY1).get().getValue(), KEY1, VALUE1);
         assertEquals((MockStorageMetadata) metadataStore.read(KEY2).get().getValue(), KEY2, VALUE2);
 
-        try (MetadataTransaction txn1 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn1 = metadataStore.beginTransaction(false, KEYS)) {
             // Update
             txn1.update(new MockStorageMetadata(KEY1, VALUE4));
             assertEquals(txn1.get(KEY0), KEY0, VALUE0);
@@ -583,7 +583,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
 
         // See the effect of transaction after words in a new transaction.
         // Note this transaction is aborted. So any changes made here should be totally ignored.
-        try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn2.get(KEY0), KEY0, VALUE0);
             assertEquals(txn2.get(KEY1), KEY1, VALUE4);
             assertNull(txn2.get(KEY2));
@@ -600,7 +600,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             throw e;
         }
         // Should have no effect;
-        try (MetadataTransaction txn3 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn3 = metadataStore.beginTransaction(false, KEYS)) {
             assertEquals(txn3.get(KEY0), KEY0, VALUE0);
             assertEquals(txn3.get(KEY1), KEY1, VALUE4);
             assertNull(txn3.get(KEY2));
@@ -608,7 +608,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             throw e;
         }
 
-        try (MetadataTransaction txn4 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn4 = metadataStore.beginTransaction(false, KEYS)) {
             // Update
             txn4.update(new MockStorageMetadata(KEY0, VALUE5));
             txn4.update(new MockStorageMetadata(KEY1, VALUE6));
@@ -640,7 +640,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     @Test
     public void testTransactionFailedForMultipleUpdates() throws Exception {
         // Step 1: Set up
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
             assertNull(txn.get(KEY3));
@@ -665,7 +665,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // Step 2: Create a test transaction
-        try (MetadataTransaction txn0 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn0 = metadataStore.beginTransaction(false, KEYS)) {
 
             // Step 2 A: Make some updates, but don't commit yet.
             txn0.update(new MockStorageMetadata(KEY0, VALUE5));
@@ -673,7 +673,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertEquals(txn0.get(KEY3), KEY3, VALUE2);
 
             // Step 3 : Start a parallel transaction
-            try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+            try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
                 // Step 3 A: Make some updates, but don't commit yet.
                 txn2.update(new MockStorageMetadata(KEY0, VALUE6));
                 assertEquals(txn2.get(KEY0), KEY0, VALUE6);
@@ -689,7 +689,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             }
 
             // Step 4 : Start a second parallel transaction
-            try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+            try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
                 // Step 4 : Data committed by earlier transaction should be visible to other new transactions
                 assertEquals(txn2.get(KEY0), KEY0, VALUE6);
                 assertEquals(txn2.get(KEY3), KEY3, VALUE2);
@@ -714,7 +714,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     public void testTransactionFailedForMultipleOperations() throws Exception {
 
         // Set up the data there are 3 keys
-        try (MetadataTransaction txn = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
             assertNull(txn.get(KEY0));
             assertNull(txn.get(KEY1));
             assertNull(txn.get(KEY3));
@@ -739,7 +739,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
 
         // Start a test transaction
-        try (MetadataTransaction txn0 = metadataStore.beginTransaction(KEYS)) {
+        try (MetadataTransaction txn0 = metadataStore.beginTransaction(false, KEYS)) {
             // Update/delete some keys but don't commit .
             // We wan to see that these changes do not affect other transactions
             txn0.update(new MockStorageMetadata(KEY0, VALUE5));
@@ -749,7 +749,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             assertNull(txn0.get(KEY1));
 
             // Another Transaction that must be able modify its view data and commit
-            try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+            try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
 
                 txn2.update(new MockStorageMetadata(KEY0, VALUE6));
                 txn2.delete(KEY1);
@@ -766,7 +766,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             }
 
             // Yet another Transaction that must be able modify its view data and commit
-            try (MetadataTransaction txn2 = metadataStore.beginTransaction(KEYS)) {
+            try (MetadataTransaction txn2 = metadataStore.beginTransaction(false, KEYS)) {
 
                 assertEquals(txn2.get(KEY0), KEY0, VALUE6);
                 assertEquals(txn2.get(KEY3), KEY3, VALUE2);
@@ -786,6 +786,138 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 Assert.fail("Transaction should be aborted.");
             } catch (CompletionException e) {
                 Assert.assertTrue(e.getCause() instanceof StorageMetadataVersionMismatchException);
+            }
+        }
+    }
+
+    /**
+     * Test that only one of the concurrent commit can proceed and others fail.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testCommitSafety() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+            // Set up the callback so that you can block writeAll call, to create situation where commit is in flight but not finished.
+            final CompletableFuture<Void> futureToBlockOn = new CompletableFuture<Void>();
+            ((InMemoryMetadataStore) metadataStore).setWriteCallback( v -> futureToBlockOn.thenApplyAsync( v2 -> null, executorService()));
+            CompletableFuture<Void> commitFuture;
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
+                assertNull(txn.get(KEY0));
+                txn.create(new MockStorageMetadata(KEY0, VALUE0));
+                Assert.assertNotNull(txn.get(KEY0));
+                commitFuture = txn.commit(); // Do not wait , this call should block
+            }
+
+            try {
+                // Try commit on all keys
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
+                    assertNull(txn.get(KEY0));
+                    txn.create(new MockStorageMetadata(KEY0, VALUE1));
+                    assertEquals(txn.get(KEY0), KEY0, VALUE1);
+                    AssertExtensions.assertFutureThrows(
+                            "Transaction should fail.",
+                            txn.commit(),
+                            ex -> ex instanceof StorageMetadataVersionMismatchException);
+                }
+
+                // Try commit only on only one key.
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0)) {
+                    assertNull(txn.get(KEY0));
+                    txn.create(new MockStorageMetadata(KEY0, VALUE1));
+                    assertEquals(txn.get(KEY0), KEY0, VALUE1);
+                    AssertExtensions.assertFutureThrows(
+                            "Transaction should fail.",
+                            txn.commit(),
+                            ex -> ex instanceof StorageMetadataVersionMismatchException);
+                }
+            } finally {
+                futureToBlockOn.complete(null);
+            }
+            commitFuture.join();
+            // make sure the valid transaction went through.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0)) {
+                assertEquals(txn.get(KEY0), KEY0, VALUE0);
+            }
+        }
+    }
+
+    /**
+     * Test that only one of the concurrent commit can proceed and others fail.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testCommitSafetyWithSubset() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+            // Set up the callback so that you can block writeAll call, to create situation where commit is in flight but not finished.
+            final CompletableFuture<Void> futureToBlockOn = new CompletableFuture<Void>();
+            ((InMemoryMetadataStore) metadataStore).setWriteCallback( transactionDataList -> {
+                // Block only on KEY0.
+                if (transactionDataList.stream().filter(t -> t.getKey().equals(KEY0)).findAny().isPresent()) {
+                    return futureToBlockOn.thenApplyAsync(v2 -> null, executorService());
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
+            });
+            CompletableFuture<Void> commitFuture;
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+                assertNull(txn.get(KEY0));
+                txn.create(new MockStorageMetadata(KEY0, VALUE0));
+                Assert.assertNotNull(txn.get(KEY0));
+                commitFuture = txn.commit(); // Do not wait , this call should block
+            }
+
+            try {
+                // Try commit on all keys
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEYS)) {
+                    assertNull(txn.get(KEY0));
+                    txn.create(new MockStorageMetadata(KEY0, VALUE1));
+                    assertEquals(txn.get(KEY0), KEY0, VALUE1);
+                    AssertExtensions.assertFutureThrows(
+                            "Transaction should fail.",
+                            txn.commit(),
+                            ex -> ex instanceof StorageMetadataVersionMismatchException);
+                }
+
+                // Try commit only on only one key.
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0)) {
+                    assertNull(txn.get(KEY0));
+                    txn.create(new MockStorageMetadata(KEY0, VALUE1));
+                    assertEquals(txn.get(KEY0), KEY0, VALUE1);
+                    AssertExtensions.assertFutureThrows(
+                            "Transaction should fail.",
+                            txn.commit(),
+                            ex -> ex instanceof StorageMetadataVersionMismatchException);
+                }
+
+                // Try commit only on only one key.
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+                    assertNull(txn.get(KEY0));
+                    txn.create(new MockStorageMetadata(KEY0, VALUE1));
+                    assertEquals(txn.get(KEY0), KEY0, VALUE1);
+                    AssertExtensions.assertFutureThrows(
+                            "Transaction should fail.",
+                            txn.commit(),
+                            ex -> ex instanceof StorageMetadataVersionMismatchException);
+                }
+                // Make sure transactions on unrelated keys works.
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY4)) {
+                    assertNull(txn.get(KEY4));
+                    txn.create(new MockStorageMetadata(KEY4, VALUE4));
+                    assertEquals(txn.get(KEY4), KEY4, VALUE4);
+                    txn.commit().join();
+                }
+                try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY4)) {
+                    assertEquals(txn.get(KEY4), KEY4, VALUE4);
+                }
+            } finally {
+                futureToBlockOn.complete(null);
+            }
+            commitFuture.join();
+            // make sure the valid transaction went through.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0)) {
+                assertEquals(txn.get(KEY0), KEY0, VALUE0);
             }
         }
     }

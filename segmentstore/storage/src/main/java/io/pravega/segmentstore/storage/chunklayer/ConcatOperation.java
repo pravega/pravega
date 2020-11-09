@@ -64,7 +64,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         log.debug("{} concat - started op={}, target={}, source={}, offset={}.",
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset);
 
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(targetHandle.getSegmentName(), sourceSegment),
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, targetHandle.getSegmentName(), sourceSegment),
                 txn -> txn.get(targetHandle.getSegmentName())
                         .thenComposeAsync(storageMetadata1 -> {
                             targetSegmentMetadata = (SegmentMetadata) storageMetadata1;

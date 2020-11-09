@@ -64,7 +64,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset);
 
         val streamSegmentName = handle.getSegmentName();
-        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(streamSegmentName), txn ->
+        return ChunkedSegmentStorage.tryWith(chunkedSegmentStorage.getMetadataStore().beginTransaction(false, streamSegmentName), txn ->
                     txn.get(streamSegmentName)
                         .thenComposeAsync(storageMetadata -> {
                             segmentMetadata = (SegmentMetadata) storageMetadata;

@@ -14,7 +14,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import java.util.concurrent.Executor;
 
 /**
- * Defines a Factory for Simple Storage Adapters.
+ * Defines a Factory that creates an instance of {@link io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage}.
  */
 public interface SimpleStorageFactory extends StorageFactory {
     /**

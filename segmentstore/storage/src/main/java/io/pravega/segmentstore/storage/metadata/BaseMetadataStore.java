@@ -29,11 +29,13 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -46,8 +48,6 @@ import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
-import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.READ_LOCK_LATENCY;
-import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.WRITE_LOCK_LATENCY;
 
 /**
  * Implements base metadata store that provides core functionality of metadata store by encapsulating underlying key value store.
@@ -63,7 +63,7 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.WR
  *
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(String...)}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}
  *
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
@@ -149,14 +149,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private final ConcurrentHashMultiset<String> activeKeys;
 
     /**
+     * Set of keys from commits that are actively being processed. No concurrent commits on the same keys are allowed to proceed.
+     */
+    @GuardedBy("lockedKeys")
+    private final HashSet<String> lockedKeys = new HashSet<>();
+
+    /**
      * Cache for reading and writing transaction data entries to underlying KV store.
      */
     private final Cache<String, TransactionData> cache;
-
-    /**
-     * {@link MultiKeyReaderWriterScheduler} instance.
-     */
-    private final MultiKeyReaderWriterScheduler scheduler = new MultiKeyReaderWriterScheduler();
 
     /**
      * Storage executor object.
@@ -216,9 +217,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * @return Returns a new instance of MetadataTransaction.
      */
     @Override
-    public MetadataTransaction beginTransaction(String... keysToLock) {
+    public MetadataTransaction beginTransaction(boolean isReadonly, String... keysToLock) {
         // Each transaction gets a unique number which is monotonically increasing.
-        return new MetadataTransaction(this, version.incrementAndGet(), keysToLock);
+        return new MetadataTransaction(this, isReadonly, version.incrementAndGet(), keysToLock);
     }
 
     /**
@@ -260,38 +261,32 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     @Override
     public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) {
         Preconditions.checkArgument(null != txn);
+        Preconditions.checkState(!txn.isReadonly(), "Attempt to modify in readonly transaction");
+
         val txnData = txn.getData();
 
         val modifiedKeys = new ArrayList<String>();
         val modifiedValues = new ArrayList<TransactionData>();
         val t = new Timer();
+        val shouldReleaseKeys = new AtomicBoolean(false);
         val retValue = CompletableFuture.runAsync(() -> {
                     if (fenced.get()) {
-                        throw new CompletionException(new StorageMetadataWritesFencedOutException("Transaction writer is fenced off."));
+                        throw new CompletionException(new StorageMetadataWritesFencedOutException(
+                                String.format("Transaction writer is fenced off. transaction=%s", txn.getVersion())));
                     }
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Mark keys in transaction as active to prevent their eviction.
                     txn.getData().keySet().forEach(this::addToActiveKeySet);
-
-                    // Acquire a write lock over segment.
-                    val tLock = new Timer();
-                    //log.debug("Acquiring write lock for {}", txn.getKeysToLock());
-                    val writeLock = scheduler.getWriteLock(txn.getKeysToLock());
-                    return writeLock.lock()
-                            .thenComposeAsync(v0 -> {
-                                // Step 1 : If bufferedTxnData data was flushed, then read it back from external source and re-insert in bufferedTxnData buffer.
-                                val elapsed = tLock.getElapsed();
-                                WRITE_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
-                                //log.debug("Acquired write lock for {}, wait time: {} ms", txn.getKeysToLock());
-                                //log.debug("Acquired write wait time: {} ms", elapsed.toMillis());
-                                return loadMissingKeys(txn, skipStoreCheck, txnData);
-                            }, executor)
+                    // Prevent any concurrent transactions on keys.
+                    acquireKeys(txn);
+                    shouldReleaseKeys.set(true);
+                    // Step 1 : If bufferedTxnData data was flushed, then read it back from external source and re-insert in bufferedTxnData buffer.
+                    return loadMissingKeys(txn, skipStoreCheck, txnData)
                             .thenComposeAsync(v1 -> {
                                 // This check needs to be atomic, with absolutely no possibility of re-entry
                                 return performCommit(txn, lazyWrite, txnData, modifiedKeys, modifiedValues);
-                            }, executor)
-                            .whenCompleteAsync((v2, ex) -> writeLock.unlock(), executor);
+                            }, executor);
                 }, executor)
                 .thenRunAsync(() -> {
                     //  Step 5 : Mark transaction as commited.
@@ -299,6 +294,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     txnData.clear();
                 }, executor)
                 .whenCompleteAsync((v, ex) -> {
+                    if (shouldReleaseKeys.get()) {
+                        // Release keys.
+                        releaseKeys(txn);
+                    }
                     // Remove keys from active set.
                     txn.getData().keySet().forEach(this::removeFromActiveKeySet);
                     COMMIT_LATENCY.reportSuccessEvent(t.getElapsed());
@@ -327,7 +326,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 // This check is safe to be outside the lock
                 val dataFromBuffer = bufferedTxnData.get(key);
                 if (null == dataFromBuffer) {
-                    loadFutures.add(loadFromStore(txn, key, true));
+                    loadFutures.add(loadFromStore(key));
                 }
             }
         }
@@ -437,7 +436,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 }
                 if (dataFromBuffer.getVersion() > transactionData.getVersion()) {
                     throw new CompletionException(new StorageMetadataVersionMismatchException(
-                            String.format("Transaction uses stale data. Key version changed key:%s buffer:%s transaction:%s",
+                            String.format("Transaction uses stale data. Key version changed key=%s committed=%s transaction=%s",
                                     key, dataFromBuffer.getVersion(), txnData.get(key).getVersion())));
                 }
 
@@ -526,18 +525,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         // Prevent the key from getting evicted.
         addToActiveKeySet(key);
 
-        // Try to find it in buffer. Access buffer using reader lock.
-        val tLock = new Timer();
-        log.debug("Acquiring read lock for {}", key);
-        val readLock = scheduler.getReadLock(txn.getKeysToLock());
-        return readLock.lock()
-                .thenApplyAsync(v -> {
-                    val elapsed = tLock.getElapsed();
-                    READ_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
-                    log.debug("Acquired read lock for {}, wait time: {} ms",
-                            String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
-                    return bufferedTxnData.get(key);
-                }, executor)
+        return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
                 .thenApplyAsync(dataFromBuffer -> {
                     if (dataFromBuffer != null) {
                         // Make sure it is a deep copy.
@@ -549,14 +537,13 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     }
                     return null;
                 }, executor)
-                .whenCompleteAsync((v, ex) -> readLock.unlock(), executor)
                 .thenComposeAsync(retValue -> {
                     if (retValue != null) {
                         return CompletableFuture.completedFuture(retValue);
                     }
                     // We did not find it in the buffer either.
                     // Try to find it in store.
-                    return loadFromStore(txn, key, false)
+                    return loadFromStore(key)
                             .thenApplyAsync(TransactionData::getValue, executor);
                 }, executor)
                 .whenCompleteAsync((v, ex) -> {
@@ -587,32 +574,51 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     /**
+     * When called marks the keys in the transaction as "locked".
+     * Until they are unlocked all further commits on the same keys will fail with VersionMismatch.
+     *
+     * @param txn Transaction which should get exclusive access to the keys.
+     */
+    private void acquireKeys(MetadataTransaction txn) {
+        synchronized (lockedKeys) {
+            for (String key : txn.getKeysToLock()) {
+                if (lockedKeys.contains(key)) {
+                    throw new CompletionException(new StorageMetadataVersionMismatchException(
+                            String.format("Concurrent transaction commits not allowed. key=%s transaction=%s",
+                                    key, txn.getVersion())));
+                }
+            }
+            // Now that we have validated, mark all keys as "locked".
+            for (String key : txn.getKeysToLock()) {
+                lockedKeys.add(key);
+            }
+        }
+    }
+
+    /**
+     * When called unmarks the keys in the transaction as "locked".
+     *
+     * @param txn Transaction which should get exclusive access to the keys.
+     */
+    private void releaseKeys(MetadataTransaction txn) {
+        synchronized (lockedKeys) {
+            for (String key : txn.getKeysToLock()) {
+                lockedKeys.remove(key);
+            }
+        }
+    }
+
+    /**
      * Loads value from store.
      */
-    private CompletableFuture<TransactionData> loadFromStore(MetadataTransaction txn, String key, boolean isReenterant) {
+    private CompletableFuture<TransactionData> loadFromStore(String key) {
         log.trace("Loading key from the store key = {}", key);
         return readFromStore(key)
                 .thenApplyAsync(this::makeCopyForBuffer, executor)
-                .thenComposeAsync(copyForBuffer -> {
+                .thenApplyAsync(copyForBuffer -> {
                     Preconditions.checkState(null != copyForBuffer);
                     Preconditions.checkState(null != copyForBuffer.getDbObject());
-                    if (!isReenterant) {
-                        val t = new Timer();
-                        log.debug("Acquiring write lock for {}", String.join(", ", txn.getKeysToLock()));
-                        val writeLock = scheduler.getWriteLock(txn.getKeysToLock());
-                        // Put this value in bufferedTxnData buffer.
-                        return writeLock.lock()
-                                .thenApplyAsync(lock -> {
-                                    val elapsed = t.getElapsed();
-                                    WRITE_LOCK_LATENCY.reportSuccessEvent(t.getElapsed());
-                                    log.debug("Acquired write lock for {}, wait time: {} ms",
-                                            String.join(", ", txn.getKeysToLock()), elapsed.toMillis());
-                                    return insertInBuffer(key, copyForBuffer);
-                                }, executor)
-                                .whenCompleteAsync((v, ex) -> writeLock.unlock(), executor);
-                    } else {
-                        return CompletableFuture.completedFuture(insertInBuffer(key, copyForBuffer));
-                    }
+                    return insertInBuffer(key, copyForBuffer);
                 }, executor);
     }
 

@@ -34,11 +34,14 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.ConcurrentModificationException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -136,6 +139,8 @@ public class ChunkedSegmentStorage implements Storage {
      */
     private final MultiKeySequentialProcessor<String> taskProcessor;
 
+    @GuardedBy("activeSegments")
+    private final HashSet<String> activeRequests = new HashSet<>();
 
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
@@ -174,9 +179,7 @@ public class ChunkedSegmentStorage implements Storage {
 
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch).thenRunAsync(() -> {
-            log.debug("{} STORAGE BOOT: Ended.", logPrefix);
-        }, executor);
+        return this.systemJournal.bootstrap(epoch).thenRunAsync(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix), executor);
     }
 
     @Override
@@ -190,7 +193,7 @@ public class ChunkedSegmentStorage implements Storage {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            return tryWith(metadataStore.beginTransaction(streamSegmentName),
+            return tryWith(metadataStore.beginTransaction(false, streamSegmentName),
                     txn -> txn.get(streamSegmentName)
                             .thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -308,7 +311,7 @@ public class ChunkedSegmentStorage implements Storage {
             val traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName, rollingPolicy);
             val timer = new Timer();
 
-            return tryWith(metadataStore.beginTransaction(streamSegmentName), txn -> {
+            return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> {
                 // Retrieve metadata and make sure it does not exist.
                 return txn.get(streamSegmentName)
                         .thenComposeAsync(storageMetadata -> {
@@ -417,7 +420,7 @@ public class ChunkedSegmentStorage implements Storage {
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             Preconditions.checkArgument(!handle.isReadOnly(), "handle");
 
-            return tryWith(metadataStore.beginTransaction(handle.getSegmentName()), txn ->
+            return tryWith(metadataStore.beginTransaction(false, handle.getSegmentName()), txn ->
                     txn.get(streamSegmentName)
                             .thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -498,7 +501,7 @@ public class ChunkedSegmentStorage implements Storage {
             val timer = new Timer();
 
             val streamSegmentName = handle.getSegmentName();
-            return tryWith(metadataStore.beginTransaction(streamSegmentName), txn -> txn.get(streamSegmentName)
+            return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
                     .thenComposeAsync(storageMetadata -> {
                         val segmentMetadata = (SegmentMetadata) storageMetadata;
                         // Check preconditions
@@ -572,7 +575,7 @@ public class ChunkedSegmentStorage implements Storage {
             val traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            return tryWith(metadataStore.beginTransaction(streamSegmentName), txn ->
+            return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn ->
                             txn.get(streamSegmentName).thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
                                 checkSegmentExists(streamSegmentName, segmentMetadata);
@@ -616,7 +619,7 @@ public class ChunkedSegmentStorage implements Storage {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            return tryWith(metadataStore.beginTransaction(streamSegmentName), txn ->
+            return tryWith(metadataStore.beginTransaction(true, streamSegmentName), txn ->
                     txn.get(streamSegmentName)
                             .thenApplyAsync(storageMetadata -> {
                                 SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -644,7 +647,7 @@ public class ChunkedSegmentStorage implements Storage {
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            return tryWith(metadataStore.beginTransaction(streamSegmentName),
+            return tryWith(metadataStore.beginTransaction(true, streamSegmentName),
                     txn -> txn.get(streamSegmentName)
                             .thenApplyAsync(storageMetadata -> {
                                 SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
@@ -680,17 +683,24 @@ public class ChunkedSegmentStorage implements Storage {
      * */
     private <R> CompletableFuture<R> executeSerialized(Callable<CompletableFuture<R>> operation, String... segmentNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.taskProcessor.add(Arrays.asList(segmentNames), () -> executeAsync(operation));
+        return this.taskProcessor.add(Arrays.asList(segmentNames), () -> executeExclusive(operation, segmentNames));
     }
 
     /**
-     * Executes the given Callable and returns its result.
+     * Executes the given Callable asynchronously and exclusively.
+     * It returns a CompletableFuture that will be completed with the result.
+     * The operations are not allowed to be concurrent.
      *
-     * @param operation The Callable to execute.
+     * @param operation    The Callable to execute.
      * @param <R>       Return type of the operation.
-     * @return CompletableFuture<R> of the return type of the operation.
-     */
-    private <R> CompletableFuture<R> executeAsync(Callable<CompletableFuture<R>> operation) {
+     * @param segmentNames The names of the Segments involved in this operation (for sequencing purposes).
+     * @return A CompletableFuture that, when completed, will contain the result of the operation.
+     * If the operation failed, it will contain the cause of the failure.
+     * */
+    private <R> CompletableFuture<R> executeExclusive(Callable<CompletableFuture<R>> operation, String... segmentNames) {
+        val shouldRelease = new AtomicBoolean(false);
+        acquire(segmentNames);
+        shouldRelease.set(true);
         return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
@@ -700,7 +710,46 @@ public class ChunkedSegmentStorage implements Storage {
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
+        }, this.executor)
+        .whenCompleteAsync((v, e) -> {
+            if (shouldRelease.get()) {
+                release(segmentNames);
+            }
         }, this.executor);
+    }
+
+    /**
+     * Adds the given segments to the exclusion list.
+     * If concurrent requests are detected then throws {@link ConcurrentModificationException}.
+     *
+     * @param segmentNames The names of the Segments involved in this operation (for sequencing purposes).
+     */
+    private void acquire(String... segmentNames) {
+        synchronized (activeRequests) {
+            for (String segmentName : segmentNames) {
+                if (activeRequests.contains(segmentName)) {
+                    log.error("{} Concurrent modifications for Segment={}", logPrefix, segmentName);
+                    throw new ConcurrentModificationException(String.format("Concurrent modifications not allowed. Segment=%s", segmentName));
+                }
+            }
+            // Now that we have validated, mark all keys as "locked".
+            for (String segmentName : segmentNames) {
+                activeRequests.add(segmentName);
+            }
+        }
+    }
+
+    /**
+     * Removes the given segments from exclusion list.
+     *
+     * @param segmentNames The names of the Segments involved in this operation (for sequencing purposes).
+     */
+    private void release(String... segmentNames) {
+        synchronized (activeRequests) {
+            for (String segmentName : segmentNames) {
+                activeRequests.remove(segmentName);
+            }
+        }
     }
 
     static <T extends AutoCloseable, R> CompletableFuture<R> tryWith(T closeable, Function<T, CompletableFuture<R>> function, Executor executor) {
@@ -732,7 +781,7 @@ public class ChunkedSegmentStorage implements Storage {
         }
     }
 
-    final private void checkInitialized() {
+    private void checkInitialized() {
         Preconditions.checkState(null != this.metadataStore);
         Preconditions.checkState(0 != this.epoch);
         Preconditions.checkState(!closed.get());

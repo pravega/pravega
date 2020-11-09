@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  * This implementation delegates all calls to underlying {@link ChunkMetadataStore}.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(String...)}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}
  * <ul>
  * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload
  * of{@link MetadataTransaction#commit()}.</li>
@@ -86,6 +86,12 @@ public class MetadataTransaction implements AutoCloseable {
     private final long version;
 
     /**
+     * Whether the transaction is readonly or not.
+     */
+    @Getter
+    private final boolean isReadonly;
+
+    /**
      * Local data in the transaction.
      */
     @Getter
@@ -109,13 +115,15 @@ public class MetadataTransaction implements AutoCloseable {
      * Constructor.
      *
      * @param store   Underlying metadata store.
+     * @param isReadonly Whether transaction is read only or not.
      * @param version Version number of the transactions.
      * @param keysToLock Array of keys to lock for this transaction.
      */
-    public MetadataTransaction(ChunkMetadataStore store, long version, String... keysToLock) {
+    public MetadataTransaction(ChunkMetadataStore store, boolean isReadonly, long version, String... keysToLock) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.version = version;
         this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
+        this.isReadonly = isReadonly;
         Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
         data = new ConcurrentHashMap<>();
     }
@@ -140,6 +148,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public void update(StorageMetadata metadata) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         store.update(this, metadata);
     }
 
@@ -151,6 +160,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public void create(StorageMetadata metadata) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         store.create(this, metadata);
     }
 
@@ -173,6 +183,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public void delete(String key) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         store.delete(this, key);
     }
 
@@ -183,6 +194,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public CompletableFuture<Void> commit() {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         return store.commit(this);
@@ -196,6 +208,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public CompletableFuture<Void> commit(boolean lazyWrite) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         return store.commit(this, lazyWrite);
