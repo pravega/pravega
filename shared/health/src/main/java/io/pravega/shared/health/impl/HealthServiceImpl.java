@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health.impl;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthComponentEndpoint;
@@ -31,6 +32,8 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,12 +48,14 @@ public class HealthServiceImpl implements HealthService {
 
     private HttpServer server;
 
-    private boolean initialized = false;
+    private HealthServiceConfig config = null;
 
-    private HealthServiceConfig config;
+    private boolean initialized = false;
 
     @Getter
     private URI uri;
+
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "health-check");
 
     private HealthServiceImpl() {
         // Initiate the contributor registry.
@@ -59,16 +64,21 @@ public class HealthServiceImpl implements HealthService {
 
     public synchronized void initialize(HealthServiceConfig config) {
         if (!initialized) {
-            this.config = config;
+            this.config = config == null ? HealthServiceConfig.builder().build() : config;
             // Setup the server.
             uri = UriBuilder.fromUri(String.format("http://%s/", config.getAddress()))
                     .port(config.getPort())
                     .build();
             // Initialize the server, but don't start.
             server = createHttpServer();
+            // Continuously monitor the health of the top level service.
+            executor.scheduleAtFixedRate(() -> INSTANCE.health(true),
+                    config.getInterval(),
+                    config.getInterval(),
+                    TimeUnit.SECONDS);
+            initialized = true;
         } else {
             log.warn("Attempted to call initialize() on an already initialized HealthService.");
-            initialized = true;
         }
     }
 

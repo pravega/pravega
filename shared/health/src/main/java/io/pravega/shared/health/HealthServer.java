@@ -35,5 +35,4 @@ public interface HealthServer {
      * configured to run at.
      */
     URI getUri();
-
 }

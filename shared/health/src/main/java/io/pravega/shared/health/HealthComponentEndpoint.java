@@ -24,8 +24,9 @@ public class HealthComponentEndpoint {
 
     private static final HealthService SERVICE = HealthServiceImpl.INSTANCE;
 
+    private static final String ID_PATH_PARAM = "/{id}";
     @GET
-    @Path("/health/{id}")
+    @Path(HealthEndpoint.HEALTH_PATH + ID_PATH_PARAM)
     @Produces(MediaType.APPLICATION_JSON)
     public Response health(@PathParam("id") String id, @QueryParam("details") boolean details) {
         Health health = SERVICE.health(id, details);
@@ -38,7 +39,7 @@ public class HealthComponentEndpoint {
     }
 
     @GET
-    @Path("/health/readiness/{id}")
+    @Path(HealthEndpoint.LIVENESS_PATH + ID_PATH_PARAM)
     @Produces(MediaType.APPLICATION_JSON)
     public Response readiness(@PathParam("id") String id) {
         Health health = SERVICE.health(id, false);
@@ -51,7 +52,7 @@ public class HealthComponentEndpoint {
     }
 
     @GET
-    @Path("/health/liveness/{id}")
+    @Path(HealthEndpoint.READINESS_PATH + ID_PATH_PARAM)
     @Produces(MediaType.APPLICATION_JSON)
     public Response liveness(@PathParam("id") String id) {
         Health health = SERVICE.health(id, false);
@@ -64,7 +65,7 @@ public class HealthComponentEndpoint {
     }
 
     @GET
-    @Path("/health/details/{id}")
+    @Path(HealthEndpoint.DETAILS_PATH + ID_PATH_PARAM)
     @Produces(MediaType.APPLICATION_JSON)
     public Response details(@PathParam("id") String id) {
         Health health = SERVICE.health(id, true);

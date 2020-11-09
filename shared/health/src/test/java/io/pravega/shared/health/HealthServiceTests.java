@@ -82,8 +82,7 @@ public class HealthServiceTests {
 
     @Test
     public void lifecycle() throws IOException {
-        // Perform a start-up and shutdown sequence.
-        start();
+        // Perform a start-up and shutdown sequence (implicit start() with @Before).
         stop();
         // Verify that it is repeatable.
         start();
@@ -114,7 +113,7 @@ public class HealthServiceTests {
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertTrue(service.running());
 
-        SampleIndicator indicator = new SampleIndicator();
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.register(indicator);
 
         Request request = new Request("health");
@@ -133,7 +132,7 @@ public class HealthServiceTests {
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertTrue(service.running());
 
-        SampleIndicator indicator = new SampleIndicator();
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.register(indicator);
 
         Request request = new Request("health/components");
@@ -152,7 +151,7 @@ public class HealthServiceTests {
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertTrue(service.running());
 
-        SampleIndicator indicator = new SampleIndicator();
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.register(indicator);
 
         Request request = new Request("health/details");
@@ -163,36 +162,55 @@ public class HealthServiceTests {
         Health sampleIndicatorHealth = health.getChildren().stream().findFirst().get();
         Assert.assertTrue("There should be one details entry provided by the SimpleIndicator.",
                 sampleIndicatorHealth.getDetails().size() == 1);
-        Assert.assertEquals(String.format("Key should equal \"%s\"", SampleIndicator.DETAILS_KEY),
+        Assert.assertEquals(String.format("Key should equal \"%s\"", SampleHealthyIndicator.DETAILS_KEY),
                 sampleIndicatorHealth.getDetails().stream().findFirst().get().getKey(),
-                SampleIndicator.DETAILS_KEY);
-        Assert.assertEquals(String.format("Value should equal \"%s\"", SampleIndicator.DETAILS_VAL),
+                SampleHealthyIndicator.DETAILS_KEY);
+        Assert.assertEquals(String.format("Value should equal \"%s\"", SampleHealthyIndicator.DETAILS_VAL),
                 sampleIndicatorHealth.getDetails().stream().findFirst().get().getValue(),
-                SampleIndicator.DETAILS_VAL);
+                SampleHealthyIndicator.DETAILS_VAL);
     }
 
     @Test
     public void liveness() {
+        HealthService service = HealthServiceImpl.INSTANCE;
+        Assert.assertTrue(service.running());
 
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
+        service.register(indicator);
+
+        Request request = new Request("health/liveness");
+        Response response = request.get();
+        boolean alive = response.readEntity(Boolean.class);
+        Assert.assertTrue("SampleHealthyIndicator should be perceived as alive.", alive);
     }
 
     @Test
     public void readiness() {
+        HealthService service = HealthServiceImpl.INSTANCE;
+        Assert.assertTrue(service.running());
 
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
+        service.register(indicator);
+
+        Request request = new Request("health/readiness");
+        Response response = request.get();
+        boolean alive = response.readEntity(Boolean.class);
+        Assert.assertTrue("SampleHealthyIndicator should be perceived as alive.", alive);
     }
 
-    private class SampleIndicator extends HealthIndicator {
+    private class SampleHealthyIndicator extends HealthIndicator {
         public static final String DETAILS_KEY = "sample-indicator-details-key";
 
         public static final String DETAILS_VAL = "sample-indicator-details-value";
 
-        public SampleIndicator() {
+        public SampleHealthyIndicator() {
             super("sample-indicator");
         }
 
         public void doHealthCheck(Health.HealthBuilder builder) {
             details.add(DETAILS_KEY, () -> DETAILS_VAL);
             builder.status(Status.UP);
+            builder.alive(true);
         }
     }
 
@@ -210,7 +228,8 @@ public class HealthServiceTests {
             Invocation.Builder builder = target.request();
             Response response = builder.get();
             // Make sure the request was sent to a valid endpoint.
-            Assert.assertTrue(response.getStatus() < Response.Status.BAD_REQUEST.getStatusCode());
+            Assert.assertTrue(String.format("Request may have been sent to invalid URL -- received error response %s.", response.getStatus()),
+                    response.getStatus() < Response.Status.BAD_REQUEST.getStatusCode());
             return response;
         }
 

@@ -26,17 +26,29 @@ public class HealthEndpoint {
 
     public static final String PING_RESPONSE = "pong";
 
+    public static final String PING_PATH = "/ping";
+
+    public static final String HEALTH_PATH = "/health";
+
+    public static final String READINESS_PATH = HEALTH_PATH + "/readiness";
+
+    public static final String LIVENESS_PATH = HEALTH_PATH + "/liveness";
+
+    public static final String DETAILS_PATH = HEALTH_PATH + "/details";
+
+    public static final String COMPONENTS_PATH = HEALTH_PATH + "/components";
+
     private static final HealthService SERVICE = HealthServiceImpl.INSTANCE;
 
     @GET
-    @Path("/ping")
+    @Path(PING_PATH)
     @Produces(MediaType.TEXT_PLAIN)
     public Response ping() {
         return Response.status(Status.OK).entity(PING_RESPONSE).build();
     }
 
     @GET
-    @Path("/health")
+    @Path(HEALTH_PATH)
     @Produces(MediaType.APPLICATION_JSON)
     public Response health(@QueryParam("details") boolean details) {
         Health health = SERVICE.health(details);
@@ -49,7 +61,7 @@ public class HealthEndpoint {
     }
 
     @GET
-    @Path("/health/readiness")
+    @Path(READINESS_PATH)
     @Produces(MediaType.APPLICATION_JSON)
     public Response readiness() {
         Health health = SERVICE.health(false);
@@ -62,7 +74,7 @@ public class HealthEndpoint {
     }
 
     @GET
-    @Path("/health/liveness")
+    @Path(LIVENESS_PATH)
     @Produces(MediaType.APPLICATION_JSON)
     public Response liveness() {
         Health health = SERVICE.health(false);
@@ -75,7 +87,7 @@ public class HealthEndpoint {
     }
 
     @GET
-    @Path("/health/details")
+    @Path(DETAILS_PATH)
     @Produces(MediaType.APPLICATION_JSON)
     public Response details() {
         Health health = SERVICE.health(true);
@@ -88,7 +100,7 @@ public class HealthEndpoint {
     }
 
     @GET
-    @Path("/health/components")
+    @Path(COMPONENTS_PATH)
     @Produces(MediaType.APPLICATION_JSON)
     public Response components() {
         return Response.status(Status.OK)

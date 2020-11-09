@@ -18,7 +18,6 @@ import lombok.Getter;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
@@ -37,18 +36,19 @@ public class Health {
     public final String name;
 
     @Getter
+    @Builder.Default
     @JsonProperty("status")
     private Status status = Status.UNKNOWN;
+
+    @JsonProperty("ready")
+    private Boolean ready;
+
+    @JsonProperty("alive")
+    private Boolean alive;
 
     @Getter
     @JsonProperty("details")
     private final Collection<Map.Entry<String, String>> details;
-
-    @JsonProperty("ready")
-    private final Optional<Boolean> ready;
-
-    @JsonProperty("alive")
-    private final Optional<Boolean> alive;
 
     /**
      * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
@@ -58,12 +58,11 @@ public class Health {
     private final Collection<Health> children;
 
     Health(HealthBuilder builder) {
-        this.status = builder.status;
-        this.details = builder.details;
         this.name = builder.name;
-        this.children = builder.children;
         this.ready = builder.ready;
         this.alive = builder.alive;
+        this.details = builder.details;
+        this.children = builder.children;
     }
 
     /**
@@ -73,11 +72,10 @@ public class Health {
      * @return
      */
     public boolean ready() {
-        if (this.ready.isPresent()) {
-            return this.ready.get();
-        } else {
-            return Status.alive(this.status);
+        if (ready == null) {
+            return Status.alive(status);
         }
+        return this.ready;
     }
 
     /**
@@ -93,10 +91,9 @@ public class Health {
      * @return
      */
     public boolean alive() {
-        if (this.alive.isPresent()) {
-            return this.alive.get();
-        } else {
-            return Status.alive(this.status);
+        if (alive == null) {
+            return Status.alive(status);
         }
+        return this.alive;
     }
 }
