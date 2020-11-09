@@ -562,6 +562,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }
             } catch (Exception e) {
                 failConnection(e);
+                if (e instanceof RetriesExhaustedException) {
+                    //throw an exception to the external world that the flush failed due to RetriesExhaustedException
+                    Exceptions.sneakyThrow(e);
+                }
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
@@ -572,6 +576,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             if (state.needSuccessors.get() || (NameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
                 throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
             }
+
         }
     }
 

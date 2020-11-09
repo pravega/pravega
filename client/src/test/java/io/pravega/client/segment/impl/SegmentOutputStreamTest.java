@@ -286,6 +286,48 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
     }
 
+    @Test//(timeout = 10000)
+    public void testFlushWithMultipleConnectFailures() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 1);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        //Simulate a successful connection setup.
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+
+        // try sending an event.
+        byte[] eventData = "test data".getBytes();
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        // this is an inflight event and the client will track it until there is a response from SSS.
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), acked));
+        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(eventData), null, output.getRequestId()));
+        reset(connection);
+        //simulate a connection drop and verify if the writer tries to establish a new connection.
+        cf.getProcessor(uri).connectionDropped();
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
+
+        // Verify flush blocks until there is a response from SSS. Incase of connection error the client retries. If the
+        // retry count more than the configuration ensure flush returns exceptionally.
+        AssertExtensions.assertBlocks(() -> AssertExtensions.assertThrows(RetriesExhaustedException.class, output::flush),
+                () -> cf.getProcessor(uri).connectionDropped());
+        assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
+        // Verify that the inflight event future is completed exceptionally.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
+    }
+
     @SuppressWarnings("unchecked")
     protected void implementAsDirectExecutor(ScheduledExecutorService executor) {
         doAnswer(new Answer<Object>() {
