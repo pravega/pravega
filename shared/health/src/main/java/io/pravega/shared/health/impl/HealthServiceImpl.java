@@ -11,6 +11,7 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthComponent;
+import io.pravega.shared.health.HealthComponentEndpoint;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
@@ -58,6 +59,7 @@ public class HealthServiceImpl implements HealthService {
 
     public synchronized void initialize(HealthServiceConfig config) {
         if (!initialized) {
+            this.config = config;
             // Setup the server.
             uri = UriBuilder.fromUri(String.format("http://%s/", config.getAddress()))
                     .port(config.getPort())
@@ -113,7 +115,9 @@ public class HealthServiceImpl implements HealthService {
     }
 
     private synchronized HttpServer createHttpServer() {
-        return GrizzlyHttpServerFactory.createHttpServer(uri, new ResourceConfig().register(HealthEndpoint.class), false);
+        return GrizzlyHttpServerFactory.createHttpServer(uri,
+                new ResourceConfig().register(HealthEndpoint.class).register(HealthComponentEndpoint.class),
+                false);
     }
 
     /**

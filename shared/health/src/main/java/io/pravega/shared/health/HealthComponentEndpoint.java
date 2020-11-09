@@ -9,94 +9,71 @@
  */
 package io.pravega.shared.health;
 
-
 import io.pravega.shared.health.impl.HealthServiceImpl;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import java.util.stream.Collectors;
 
 @Path("/")
-public class HealthEndpoint {
-
-    public static final String PING_RESPONSE = "pong";
+public class HealthComponentEndpoint {
 
     private static final HealthService SERVICE = HealthServiceImpl.INSTANCE;
 
     @GET
-    @Path("/ping")
-    @Produces(MediaType.TEXT_PLAIN)
-    public Response ping() {
-        return Response.status(Status.OK).entity(PING_RESPONSE).build();
-    }
-
-    @GET
-    @Path("/health")
+    @Path("/health/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response health(@QueryParam("details") boolean details) {
-        Health health = SERVICE.health(details);
+    public Response health(@PathParam("id") String id, @QueryParam("details") boolean details) {
+        Health health = SERVICE.health(id, details);
         if (health == null) {
             return invalid();
         }
-        return Response.status(Status.OK)
+        return Response.status(Response.Status.OK)
                 .entity(health)
                 .build();
     }
 
     @GET
-    @Path("/health/readiness")
+    @Path("/health/readiness/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response readiness() {
-        Health health = SERVICE.health(false);
+    public Response readiness(@PathParam("id") String id) {
+        Health health = SERVICE.health(id, false);
         if (health == null) {
             return invalid();
         }
-        return Response.status(Status.OK)
+        return Response.status(Response.Status.OK)
                 .entity(health.ready())
                 .build();
     }
 
     @GET
-    @Path("/health/liveness")
+    @Path("/health/liveness/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response liveness() {
-        Health health = SERVICE.health(false);
+    public Response liveness(@PathParam("id") String id) {
+        Health health = SERVICE.health(id, false);
         if (health == null) {
             return invalid();
         }
-        return Response.status(Status.OK)
+        return Response.status(Response.Status.OK)
                 .entity(health.alive())
                 .build();
     }
 
     @GET
-    @Path("/health/details")
+    @Path("/health/details/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response details() {
-        Health health = SERVICE.health(true);
+    public Response details(@PathParam("id") String id) {
+        Health health = SERVICE.health(id, true);
         if (health == null) {
             return invalid();
         }
-        return Response.status(Status.OK)
-                .entity(health)
-                .build();
-    }
-
-    @GET
-    @Path("/health/components")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response components() {
-        return Response.status(Status.OK)
-                .entity(SERVICE.components()
-                        .stream()
-                        .map(HealthComponent::getName)
-                        .collect(Collectors.toList()))
-                .build();
+        return Response.status(Response.Status.OK)
+                    .entity(health.getDetails())
+                    .build();
     }
 
     private static Response invalid() {

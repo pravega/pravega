@@ -35,7 +35,7 @@ import org.junit.rules.Timeout;
 public class HealthServiceTests {
 
     @Rule
-    public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
+    public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
 
     private HealthServiceConfig config = HealthServiceConfig
             .builder()
@@ -149,7 +149,26 @@ public class HealthServiceTests {
 
     @Test
     public void details() {
+        HealthService service = HealthServiceImpl.INSTANCE;
+        Assert.assertTrue(service.running());
 
+        SampleIndicator indicator = new SampleIndicator();
+        service.register(indicator);
+
+        Request request = new Request("health/details");
+        Response response = request.get();
+        Health health = response.readEntity(Health.class);
+        Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
+
+        Health sampleIndicatorHealth = health.getChildren().stream().findFirst().get();
+        Assert.assertTrue("There should be one details entry provided by the SimpleIndicator.",
+                sampleIndicatorHealth.getDetails().size() == 1);
+        Assert.assertEquals(String.format("Key should equal \"%s\"", SampleIndicator.DETAILS_KEY),
+                sampleIndicatorHealth.getDetails().stream().findFirst().get().getKey(),
+                SampleIndicator.DETAILS_KEY);
+        Assert.assertEquals(String.format("Value should equal \"%s\"", SampleIndicator.DETAILS_VAL),
+                sampleIndicatorHealth.getDetails().stream().findFirst().get().getValue(),
+                SampleIndicator.DETAILS_VAL);
     }
 
     @Test
@@ -163,11 +182,16 @@ public class HealthServiceTests {
     }
 
     private class SampleIndicator extends HealthIndicator {
+        public static final String DETAILS_KEY = "sample-indicator-details-key";
+
+        public static final String DETAILS_VAL = "sample-indicator-details-value";
+
         public SampleIndicator() {
             super("sample-indicator");
         }
 
         public void doHealthCheck(Health.HealthBuilder builder) {
+            details.add(DETAILS_KEY, () -> DETAILS_VAL);
             builder.status(Status.UP);
         }
     }

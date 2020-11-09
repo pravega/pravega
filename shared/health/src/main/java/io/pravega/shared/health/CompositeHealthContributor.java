@@ -68,7 +68,13 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     public Health health(boolean includeDetails) {
         // Fetch the Health Status of all dependencies.
         val children = contributors.stream()
-                .map(contributor -> contributor.health(includeDetails))
+                .map(contributor -> {
+                    Health health = contributor.health(includeDetails);
+                    if (health.getStatus() == Status.UNKNOWN) {
+                        log.warn("{} has a Status of 'UNKNOWN', your `doHealthCheck` method may not define the Status logic.", health.getName());
+                    }
+                    return health;
+                })
                 .collect(Collectors.toList());
         // Get the aggregate health status.
         Status status = aggregator.aggregate(children

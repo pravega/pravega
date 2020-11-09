@@ -18,6 +18,7 @@ import lombok.Getter;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
@@ -37,11 +38,17 @@ public class Health {
 
     @Getter
     @JsonProperty("status")
-    private final Status status;
+    private Status status = Status.UNKNOWN;
 
     @Getter
     @JsonProperty("details")
-    private final Collection<Map.Entry<String, Object>> details;
+    private final Collection<Map.Entry<String, String>> details;
+
+    @JsonProperty("ready")
+    private final Optional<Boolean> ready;
+
+    @JsonProperty("alive")
+    private final Optional<Boolean> alive;
 
     /**
      * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
@@ -55,6 +62,8 @@ public class Health {
         this.details = builder.details;
         this.name = builder.name;
         this.children = builder.children;
+        this.ready = builder.ready;
+        this.alive = builder.alive;
     }
 
     /**
@@ -64,7 +73,11 @@ public class Health {
      * @return
      */
     public boolean ready() {
-        return false;
+        if (this.ready.isPresent()) {
+            return this.ready.get();
+        } else {
+            return Status.alive(this.status);
+        }
     }
 
     /**
@@ -80,6 +93,10 @@ public class Health {
      * @return
      */
     public boolean alive() {
-        return false;
+        if (this.alive.isPresent()) {
+            return this.alive.get();
+        } else {
+            return Status.alive(this.status);
+        }
     }
 }

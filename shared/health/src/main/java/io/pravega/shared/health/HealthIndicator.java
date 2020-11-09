@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class HealthIndicator implements HealthContributor {
 
-      private final Details details;
+      final Details details;
 
       @Getter
       private final String name;
@@ -64,11 +64,11 @@ public abstract class HealthIndicator implements HealthContributor {
             return String.format("A Health Check on the {} has failed.", this.name);
       }
 
-      private Collection<Map.Entry<String, Object>> getDetails() {
+      private Collection<Map.Entry<String, String>> getDetails() {
             return this.details.getDetails()
                     .entrySet()
                     .stream()
-                    .map(val -> new AbstractMap.SimpleImmutableEntry<>(val.getKey(), val.getValue().get()))
+                    .map(val -> new AbstractMap.SimpleImmutableEntry<>(val.getKey(), val.getValue().get().toString()))
                     .collect(Collectors.toList());
       }
 
@@ -77,6 +77,24 @@ public abstract class HealthIndicator implements HealthContributor {
             return String.format("HealthIndicator::%s", this.name);
       }
 
+      /**
+       * The {@link HealthIndicator#doHealthCheck(Health.HealthBuilder)} method is the primary interface used by some client
+       * to define the logic which determines the health status of a component.
+       *
+       * This method *must* define logic to assign the {@link Status} that best reflects the current state of the component.
+       * - It *should* also determine if the component is considered both {@link Health#alive()} and {@link Health#ready()}.
+       *   If ready/alive logic is not defined, {@link Status#alive(Status)} defines the default logic for *both*.
+       *
+       * Optionally, {@link Details} may be provided to gain further insight to the status of the component. The end result
+       * should be a key, value pair of type {@link String}. {@link Details} accepts a {@link java.util.function.Supplier}
+       * that can return any arbitrary {@link Object}, but said object *must* have the necessary `toString` logic defined
+       * (to be human readable).
+       *
+       * The {@link Details} object may be constructed ahead of time and provided during registration
+       *
+       *
+       * @param builder The {@link Health.HealthBuilder} object.
+       * @throws Exception An exception to be thrown if the underlying health check fails.
+       */
       public abstract void doHealthCheck(Health.HealthBuilder builder) throws Exception;
-
 }
