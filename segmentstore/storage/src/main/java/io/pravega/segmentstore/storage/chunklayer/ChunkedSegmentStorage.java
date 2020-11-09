@@ -244,8 +244,8 @@ public class ChunkedSegmentStorage implements Storage {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
-                        Preconditions.checkState(null != lastChunk);
-                        Preconditions.checkState(null != lastChunk.getName());
+                        Preconditions.checkState(null != lastChunk, "last chunk metadata must not be null.");
+                        Preconditions.checkState(null != lastChunk.getName(), "Name of last chunk must not be null.");
                         log.debug("{} claimOwnership - current last chunk - segment={}, last chunk={}, Length={}.",
                                 logPrefix,
                                 segmentMetadata.getName(),
@@ -253,11 +253,12 @@ public class ChunkedSegmentStorage implements Storage {
                                 lastChunk.getLength());
                         return chunkStorage.getInfo(lastChunkName)
                                 .thenComposeAsync(chunkInfo -> {
-                                    Preconditions.checkState(chunkInfo != null);
-                                    Preconditions.checkState(lastChunk != null);
+                                    Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
+                                    Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
-                                        Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength());
+                                        Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
+                                                "Length of last chunk on LTS must be greater than what is in metadata.");
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
@@ -782,8 +783,8 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     private void checkInitialized() {
-        Preconditions.checkState(null != this.metadataStore);
-        Preconditions.checkState(0 != this.epoch);
-        Preconditions.checkState(!closed.get());
+        Preconditions.checkState(null != this.metadataStore, "metadata store must not be null");
+        Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
+        Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
     }
 }

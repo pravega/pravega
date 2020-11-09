@@ -161,7 +161,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         currentChunkName = segmentMetadata.getFirstChunk();
         chunkToReadFrom = null;
 
-        Preconditions.checkState(null != currentChunkName);
+        Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null.");
 
         bytesRemaining = length;
         currentBufferOffset = bufferOffset;

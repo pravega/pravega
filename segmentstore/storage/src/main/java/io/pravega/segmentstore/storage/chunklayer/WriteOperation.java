@@ -370,7 +370,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         return chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis)
                 .thenAcceptAsync(bytesWritten -> {
                     // Update the metadata for segment and chunk.
-                    Preconditions.checkState(bytesWritten >= 0);
+                    Preconditions.checkState(bytesWritten >= 0, "bytesWritten must be non-negative");
                     segmentMetadata.setLength(segmentMetadata.getLength() + bytesWritten);
                     chunkWrittenMetadata.setLength(chunkWrittenMetadata.getLength() + bytesWritten);
                     txn.update(chunkWrittenMetadata);

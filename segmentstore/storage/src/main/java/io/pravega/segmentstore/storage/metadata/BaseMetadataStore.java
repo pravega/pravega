@@ -318,7 +318,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private CompletableFuture<Void> loadMissingKeys(MetadataTransaction txn, boolean skipStoreCheck, Map<String, TransactionData> txnData) {
         val loadFutures = new ArrayList<CompletableFuture<TransactionData>>();
         for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-            Preconditions.checkState(activeKeys.contains(entry.getKey()));
+            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
             val key = entry.getKey();
             if (skipStoreCheck || entry.getValue().isPinned()) {
                 log.trace("Skipping loading key from the store key = {}", key);
@@ -336,10 +336,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
                         val dataFromBuffer = bufferedTxnData.get(entry.getKey());
                         if (!(entry.getValue().isPinned())) {
-                            Preconditions.checkState(activeKeys.contains(entry.getKey()));
-                            Preconditions.checkState(null != dataFromBuffer);
+                            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
+                            Preconditions.checkState(null != dataFromBuffer, "Data from buffer must not be null.");
                             if (!dataFromBuffer.isPinned()) {
-                                Preconditions.checkState(null != dataFromBuffer.getDbObject());
+                                Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
                             }
                         }
                     }
@@ -432,7 +432,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             val dataFromBuffer = bufferedTxnData.get(key);
             if (null != dataFromBuffer) {
                 if (!dataFromBuffer.isPinned()) {
-                    Preconditions.checkState(null != dataFromBuffer.getDbObject());
+                    Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
                 }
                 if (dataFromBuffer.getVersion() > transactionData.getVersion()) {
                     throw new CompletionException(new StorageMetadataVersionMismatchException(
@@ -465,7 +465,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                         .map(Map.Entry::getKey)
                         .limit(limit)
                         .collect(Collectors.toList());
-                int i = 0;
+                int count = 0;
                 for (val key : toEvict) {
                     // synchronize so that we don't accidentally delete a key that becomes active after check here.
                     synchronized (evictionLock) {
@@ -475,14 +475,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                             cache.put(key, bufferedTxnData.get(key));
                             // Remove from buffer.
                             bufferedTxnData.remove(key);
-                            i++;
+                            count++;
                         }
                     }
                 }
-                bufferCount.addAndGet(-1 * i);
+                bufferCount.addAndGet(-1 * count);
+                log.debug("{} entries evicted from transaction buffer.", count);
             }
             isEvictionRunning.set(false);
-            log.debug("Entries evicted from transaction buffer.");
+
         }
     }
 
@@ -616,8 +617,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         return readFromStore(key)
                 .thenApplyAsync(this::makeCopyForBuffer, executor)
                 .thenApplyAsync(copyForBuffer -> {
-                    Preconditions.checkState(null != copyForBuffer);
-                    Preconditions.checkState(null != copyForBuffer.getDbObject());
+                    Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
+                    Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
                     return insertInBuffer(key, copyForBuffer);
                 }, executor);
     }
@@ -634,8 +635,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Inserts a copy of metadata into the buffer.
      */
     private TransactionData insertInBuffer(String key, TransactionData copyForBuffer) {
-        Preconditions.checkState(null != copyForBuffer);
-        Preconditions.checkState(null != copyForBuffer.dbObject);
+        Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
+        Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
         // If some other transaction beat us then use that value.
         val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
         final TransactionData retValue;
@@ -645,10 +646,10 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             retValue = copyForBuffer;
             bufferCount.incrementAndGet();
         }
-        Preconditions.checkState(activeKeys.contains(key));
-        Preconditions.checkState(bufferedTxnData.containsKey(key));
+        Preconditions.checkState(activeKeys.contains(key), "key must be marked active.");
+        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key");
         if (!retValue.isPinned()) {
-            Preconditions.checkState(null != retValue.dbObject);
+            Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
         }
         return retValue;
     }
@@ -657,21 +658,21 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Gets a copy from buffer.
      */
     private TransactionData makeCopyForBuffer(TransactionData fromDb) {
-        Preconditions.checkState(null != fromDb);
-        Preconditions.checkState(null != fromDb.dbObject);
+        Preconditions.checkState(null != fromDb, "Data from table store must not be null.");
+        Preconditions.checkState(null != fromDb.dbObject, "Missing tracking object");
         log.trace("Done Loading key from the store key = {}", fromDb.getKey());
 
         val copyForBuffer = fromDb.toBuilder()
                 .key(fromDb.getKey())
                 .build();
-        Preconditions.checkState(null != copyForBuffer.dbObject);
+        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
         if (null != fromDb.getValue()) {
             Preconditions.checkState(0 != fromDb.getVersion(), "Version is not initialized");
             // Make sure it is a deep copy.
             copyForBuffer.setValue(fromDb.getValue().deepCopy());
         }
-        Preconditions.checkState(null != copyForBuffer.dbObject);
-        Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject);
+        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
+        Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject, "Missing tracking object");
         return copyForBuffer;
     }
 
