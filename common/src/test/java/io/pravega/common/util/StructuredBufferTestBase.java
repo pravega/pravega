@@ -10,12 +10,16 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -31,7 +35,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     @Test
     public void testShort() {
         testPrimitiveType(i -> (short) (int) i, StructuredWritableBuffer::setShort, StructuredReadableBuffer::getShort,
-                reader -> ByteBuffer.wrap(reader.readSlice(Short.BYTES).getCopy()).getShort(0),
+                DataInputStream::readShort, reader -> ByteBuffer.wrap(reader.readSlice(Short.BYTES).getCopy()).getShort(0),
                 Short.BYTES);
     }
 
@@ -41,7 +45,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     @Test
     public void testInt() {
         testPrimitiveType(i -> i * i * (i < 0 ? -1 : 1), StructuredWritableBuffer::setInt, StructuredReadableBuffer::getInt,
-                BufferView.Reader::readInt, Integer.BYTES);
+                DataInputStream::readInt, BufferView.Reader::readInt, Integer.BYTES);
     }
 
     /**
@@ -50,7 +54,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     @Test
     public void testLong() {
         testPrimitiveType(i -> (long) Math.pow(i, 3), StructuredWritableBuffer::setLong, StructuredReadableBuffer::getLong,
-                BufferView.Reader::readLong, Long.BYTES);
+                DataInputStream::readLong, BufferView.Reader::readLong, Long.BYTES);
     }
 
     /**
@@ -60,58 +64,66 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     public void testUnsignedLong() {
         val values = Arrays.asList(Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
         testPrimitiveType(values, StructuredWritableBuffer::setUnsignedLong, StructuredReadableBuffer::getUnsignedLong,
-                r -> r.readLong() ^ Long.MIN_VALUE, Long.BYTES);
+                s -> s.readLong() ^ Long.MIN_VALUE, r -> r.readLong() ^ Long.MIN_VALUE, Long.BYTES);
     }
 
     private <T> void testPrimitiveType(Function<Integer, T> toPrimitiveType, ValueSetter<T> writer, ValueGetter<T> reader,
-                                       Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
+                                       ValueReaderStream<T> streamReader, Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
         val s = newWritableBuffer();
 
         // Generate values, both negative and positive.
         val count = s.getLength() / byteSize;
         val values = IntStream.range(-count / 2, count / 2 + 1).boxed().map(toPrimitiveType).collect(Collectors.toList());
-        testPrimitiveType(values, writer, reader, bufferViewReader, byteSize);
+        testPrimitiveType(values, writer, reader, streamReader, bufferViewReader, byteSize);
     }
 
-    private <T> void testPrimitiveType(List<T> values, ValueSetter<T> writer, ValueGetter<T> reader,
+    @SneakyThrows(IOException.class)
+    private <T> void testPrimitiveType(List<T> values, ValueSetter<T> writer, ValueGetter<T> reader, ValueReaderStream<T> streamReader,
                                        Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
-        val s = newWritableBuffer();
+        val buffer = newWritableBuffer();
 
         int bufferIndex = 0;
         int valueIndex = 0;
         for (; valueIndex < values.size(); valueIndex++) {
             val v = values.get(valueIndex);
-            if (bufferIndex + byteSize > s.getLength()) {
+            if (bufferIndex + byteSize > buffer.getLength()) {
                 val finalIndex = bufferIndex;
                 AssertExtensions.assertThrows(
                         "Expected call to be rejected if insufficient space remaining.",
-                        () -> writer.accept(s, finalIndex, v),
+                        () -> writer.accept(buffer, finalIndex, v),
                         ex -> ex instanceof IndexOutOfBoundsException);
                 break;
             } else {
-                writer.accept(s, bufferIndex, v);
+                writer.accept(buffer, bufferIndex, v);
                 bufferIndex += byteSize;
             }
         }
 
         // Read all values back using BufferView.Reader and validate they are correct.
-        BufferView.Reader bufferReader = s.getBufferViewReader();
+        BufferView.Reader bufferReader = buffer.getBufferViewReader();
         for (int i = 0; i < valueIndex; i++) {
             val expected = values.get(i);
             T actual = bufferViewReader.apply(bufferReader);
             Assert.assertEquals("Unexpected value read (BufferView.Reader) at value index " + i, expected, actual);
         }
 
-        Assert.assertEquals("Unexpected number of bytes read.", s.getLength() - bufferIndex, bufferReader.available());
+        Assert.assertEquals("Unexpected number of bytes read.", buffer.getLength() - bufferIndex, bufferReader.available());
 
         // Read all values back using StructuredReadableBuffer (if available) and validate they are correct.
-        if (s instanceof StructuredReadableBuffer) {
-            val r = (StructuredReadableBuffer) s;
+        if (buffer instanceof StructuredReadableBuffer) {
+            val srb = (StructuredReadableBuffer) buffer;
+            @Cleanup
+            val readStream = new DataInputStream(srb.getReader());
+
             bufferIndex = 0;
             for (int i = 0; i < valueIndex; i++) {
                 val expected = values.get(i);
-                T actual = reader.apply(r, bufferIndex);
+                T actual = reader.apply(srb, bufferIndex);
                 Assert.assertEquals("Unexpected value read (StructuredReadableBuffer) at buffer index " + bufferIndex, expected, actual);
+
+                // Use DataInputStream to ensure the value has been properly encoded.
+                T streamValue = streamReader.apply(readStream);
+                Assert.assertEquals("Unexpected value read (DataInputStream) at buffer index " + bufferIndex, streamValue, actual);
                 bufferIndex += byteSize;
             }
         }
@@ -127,5 +139,10 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
     @FunctionalInterface
     private interface ValueGetter<T> {
         T apply(StructuredReadableBuffer b, int index);
+    }
+
+    @FunctionalInterface
+    private interface ValueReaderStream<T> {
+        T apply(DataInputStream stream) throws IOException;
     }
 }

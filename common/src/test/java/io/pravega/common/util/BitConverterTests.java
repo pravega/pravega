@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.common.io.ByteBufferOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,6 +18,7 @@ import java.io.OutputStream;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,7 +35,7 @@ public class BitConverterTests {
     @Test
     public void testShort() throws IOException {
         ReadStream<Short> read = stream -> new DataInputStream(stream).readShort();
-        testStream(BitConverter::writeShort, read, Short.MIN_VALUE, Short.MAX_VALUE, (short) -1, (short) 0, (short) 1);
+        testStream(BitConverter::writeShort, read, DataInputStream::readShort, Short.MIN_VALUE, Short.MAX_VALUE, (short) -1, (short) 0, (short) 1);
     }
 
     /**
@@ -41,16 +43,16 @@ public class BitConverterTests {
      */
     @Test
     public void testInt() throws IOException {
-        test(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
-        testStream(BitConverter::writeInt, BitConverter::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
+        test(BitConverter::writeInt, BitConverter::readInt, DataInputStream::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
+        testStream(BitConverter::writeInt, BitConverter::readInt, DataInputStream::readInt, Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1);
     }
 
     /**
      * Tests the {@link BitConverter#writeLong} and {@link BitConverter#readLong}.
      */
     @Test
-    public void testLong() {
-        test(BitConverter::writeLong, BitConverter::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
+    public void testLong() throws IOException {
+        test(BitConverter::writeLong, BitConverter::readLong, DataInputStream::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
         WriteArray<Long> streamWriter = (target, offset, value) -> {
             @Cleanup
             val s = new ByteBufferOutputStream();
@@ -62,7 +64,14 @@ public class BitConverterTests {
             s.getData().copyTo(target, offset, s.size());
             return s.size();
         };
-        test(streamWriter, BitConverter::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
+        test(streamWriter, BitConverter::readLong, DataInputStream::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
+
+        ReadStream<Long> streamReader = s -> {
+            byte[] data = new byte[Long.BYTES];
+            Assert.assertEquals(Long.BYTES, s.read(data));
+            return BitConverter.readLong(data, 0);
+        };
+        testStream(BitConverter::writeLong, streamReader, DataInputStream::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
     }
 
     /**
@@ -74,30 +83,47 @@ public class BitConverterTests {
             BitConverter.writeUUID(new ByteArraySegment(target, offset, Long.BYTES * 2), value);
             return Long.BYTES * 2;
         };
-        test(toWrite, BitConverter::readUUID, new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
+
+        test(toWrite, BitConverter::readUUID, s -> new UUID(s.readLong(), s.readLong()),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
                 new UUID(Long.MIN_VALUE, Long.MAX_VALUE), new UUID(0L, 0L), UUID.randomUUID(),
                 new UUID(Long.MAX_VALUE, Long.MIN_VALUE),
                 new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
     }
 
     @SafeVarargs
-    private final <T> void test(WriteArray<T> write, ReadArray<T> read, T... testValues) {
+    @SneakyThrows(IOException.class)
+    private final <T> void test(WriteArray<T> write, ReadArray<T> read, ReadDataStream<T> readDataStream, T... testValues) {
         byte[] buffer = new byte[MAX_LENGTH];
         for (T value : testValues) {
             write.apply(buffer, 0, value);
             T readValue = read.apply(buffer, 0);
             Assert.assertEquals("Unexpected deserialized value.", value, readValue);
+
+            // Use a DataInputStream to verify that the value was correctly encoded.
+            @Cleanup
+            val s = new DataInputStream(new ByteArrayInputStream(buffer));
+            T readStreamValue = readDataStream.apply(s);
+            Assert.assertEquals("Unexpected deserialized value (DataInputStream).", readStreamValue, value);
         }
     }
 
     @SafeVarargs
-    private final <T> void testStream(WriteStream<T> write, ReadStream<T> read, T... testValues) throws IOException {
+    private final <T> void testStream(WriteStream<T> write, ReadStream<T> read, ReadDataStream<T> dataStreamReader, T... testValues) throws IOException {
         for (T value : testValues) {
             @Cleanup
             val s = new ByteBufferOutputStream(MAX_LENGTH);
             write.apply(s, value);
+
             T readValue = read.apply(s.getData().getReader());
             Assert.assertEquals("Unexpected deserialized value.", value, readValue);
+
+            // Use a DataInputStream to verify that the value was correctly encoded.
+            @Cleanup
+            val ds = new DataInputStream(s.getData().getReader());
+            T dataStreamReadValue = dataStreamReader.apply(ds);
+            Assert.assertEquals("Unexpected deserialized value (DataInputStream).", dataStreamReadValue, value);
+
         }
     }
 
@@ -119,5 +145,10 @@ public class BitConverterTests {
     @FunctionalInterface
     interface ReadStream<T> {
         T apply(InputStream source) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface ReadDataStream<T> {
+        T apply(DataInputStream source) throws IOException;
     }
 }

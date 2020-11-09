@@ -9,7 +9,6 @@
  */
 package io.pravega.common.io;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.io.serialization.RandomAccessOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -71,7 +70,6 @@ public class ByteBufferOutputStream extends OutputStream implements RandomAccess
 
     @Override
     public void write(byte[] b, int offset, int length) {
-        Exceptions.checkArrayRange(offset, length, b.length, "offset", "length");
         ensureExtraCapacity(length);
         this.buf.put(b, offset, length);
     }
