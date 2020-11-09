@@ -62,15 +62,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.*;
 
 public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
@@ -252,6 +244,46 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         cf.getProcessor(uri).processingFailure(new IOException());
         assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
+    }
+
+    @Test(timeout = 10000)
+    public void testInflightWithMultipleConnectFailures() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        RetryWithBackoff retryConfig = Retry.withExpBackoff(1, 1, 1);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        output.reconnect();
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        //Simulate a successful connection setup.
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+
+        // try sending an event.
+        byte[] eventData = "test data".getBytes();
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), acked));
+        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(eventData), null, output.getRequestId()));
+        reset(connection);
+        //simulate a connection drop and verify if the writer tries to establish a new connection.
+        cf.getProcessor(uri).connectionDropped();
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
+        // Simulate a connection drop again.
+        cf.getProcessor(uri).connectionDropped();
+        // Since we have exceeded the retry attempts verify we do not try to establish a connection.
+        verify(connection, never()).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
+        // Verify that the inflight event future is completed exceptionally.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
     }
 
     @SuppressWarnings("unchecked")
