@@ -147,11 +147,10 @@ public abstract class BufferViewTestBase {
 
     /**
      * Tests the functionality of {@link BufferView#getBufferViewReader()}.
-     *
-     * @throws Exception if an exception occurred.
      */
     @Test
-    public void testGetBufferViewReader() throws Exception {
+    public void testGetBufferViewReader() {
+        val readBytesLength1 = 1;
         val data = newData();
         val expectedData = data.getCopy();
         @Cleanup("release")
@@ -163,9 +162,29 @@ public abstract class BufferViewTestBase {
             // ReadFully.
             val readFullyReader = bufferView.slice(offset, length).getBufferViewReader();
             val readFullyResult = readFullyReader.readFully(2);
-            Assert.assertEquals(0, readFullyReader.readBytes(new ByteArraySegment(new byte[1])));
+            Assert.assertEquals(0, readFullyReader.readFully(2).getLength());
             AssertExtensions.assertArrayEquals("ReadFully offset " + offset,
                     expectedData, offset, readFullyResult.array(), readFullyResult.arrayOffset(), length);
+
+            // ReadBytes(ByteBuffer)
+            val readBytesReader = bufferView.slice(offset, length).getBufferViewReader();
+            byte[] readBytesArray = new byte[data.getLength() * 2];
+            val readBytesResult1 = readBytesReader.readBytes(ByteBuffer.wrap(readBytesArray, 0, readBytesLength1));
+            Assert.assertEquals(Math.min(length, readBytesLength1), readBytesResult1);
+            int readBytesResult2 = 0;
+            while (readBytesResult2 < length - readBytesLength1) {
+                int o = readBytesResult2 + readBytesLength1;
+                int r = readBytesReader.readBytes(ByteBuffer.wrap(readBytesArray, o, readBytesArray.length - o));
+                AssertExtensions.assertGreaterThan("Expecting something to be read.", 0, r);
+                readBytesResult2 += r;
+            }
+            Assert.assertEquals(Math.max(0, length - 1), readBytesResult2);
+            AssertExtensions.assertArrayEquals("ReadBytes(ByteBuffer) offset " + offset,
+                    expectedData, offset, readBytesArray, 0, length);
+            // Verify that nothing got written in the remainder of the array.
+            for (int i = length; i < readBytesArray.length; i++) {
+                Assert.assertEquals(0, readBytesArray[i]);
+            }
 
             // ReadSlice
             val readSliceReader = bufferView.slice(offset, length).getBufferViewReader();

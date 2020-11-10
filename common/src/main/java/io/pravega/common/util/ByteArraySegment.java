@@ -271,9 +271,9 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         }
 
         @Override
-        public int readBytes(ByteArraySegment segment) {
-            int len = Math.min(available(), segment.getLength());
-            System.arraycopy(array(), arrayOffset() + this.position, segment.array(), segment.arrayOffset(), len);
+        public int readBytes(ByteBuffer byteBuffer) {
+            int len = Math.min(available(), byteBuffer.remaining());
+            byteBuffer.put(array(), arrayOffset() + this.position, len);
             this.position += len;
             return len;
         }

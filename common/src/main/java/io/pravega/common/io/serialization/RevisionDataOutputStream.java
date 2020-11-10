@@ -43,13 +43,14 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
 
     private RevisionDataOutputStream(OutputStream outputStream) {
         super(outputStream);
-        setOut(outputStream);
+        this.structuredWriter = (out instanceof DirectDataOutput) ? (DirectDataOutput) out : new IndirectWriter();
         this.size = 0;
     }
 
-    protected final void setOut(OutputStream out) {
+    protected final void setOut(OutputStream out, int length) throws IOException {
         super.out = out;
         this.structuredWriter = (out instanceof DirectDataOutput) ? (DirectDataOutput) out : new IndirectWriter();
+        this.structuredWriter.writeInt(length);
     }
 
     /**
@@ -634,8 +635,7 @@ abstract class RevisionDataOutputStream extends FilterOutputStream implements Re
         @Override
         public void length(int length) throws IOException {
             if (requiresExplicitLength()) {
-                BitConverter.writeInt(this.realStream, length);
-                setOut(this.realStream);
+                setOut(this.realStream, length);
                 this.length = length;
             }
         }

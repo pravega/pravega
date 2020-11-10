@@ -342,11 +342,11 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
         int arrayOffset = getBufferOffset(targetOffset);
         int arrayId = getBufferId(targetOffset);
-        final int ol = length;
         while (length > 0) {
             ByteBuffer bb = getBuffer(arrayId, true); // Need to allocate if not already allocated.
-            int copyLength = Math.min(bb.array().length - arrayOffset, length);
-            copyLength = source.readBytes(new ByteArraySegment(bb.array(), arrayOffset, copyLength));
+            bb.position(arrayOffset);
+            int copyLength = source.readBytes(bb);
+            bb.position(0); // Reset position after copy.
             length -= copyLength;
             arrayOffset += copyLength;
             if (arrayOffset >= bb.array().length) {
@@ -437,10 +437,10 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         }
 
         @Override
-        public int readBytes(ByteArraySegment segment) {
-            int len = Math.min(available(), segment.getLength());
+        public int readBytes(ByteBuffer byteBuffer) {
+            int len = Math.min(available(), byteBuffer.remaining());
             if (len > 0) {
-                slice(this.position, len).copyTo(ByteBuffer.wrap(segment.array(), segment.arrayOffset(), len));
+                slice(this.position, len).copyTo(byteBuffer);
                 this.position += len;
             }
             return len;

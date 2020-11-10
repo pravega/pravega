@@ -90,7 +90,7 @@ public class AbstractBufferViewTests {
 
         val reader = e.getBufferViewReader();
         Assert.assertEquals(0, reader.available());
-        Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        Assert.assertEquals(0, reader.readBytes(ByteBuffer.wrap(new byte[1])));
         AssertExtensions.assertThrows("", reader::readByte, ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
         Assert.assertSame(e, reader.readSlice(0));
         AssertExtensions.assertThrows("", () -> reader.readSlice(1), ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
