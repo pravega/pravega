@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -49,17 +50,17 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    private final ReaderGroupRetentionConfig retentionConfig;
+    private final RetentionConfig retentionConfig;
 
-    public enum ReaderGroupRetentionConfig {
-        NO_CONSUMPTION_BASED_TRUNCATION(false, false),
-        TRUNCATE_AT_USER_STREAMCUT(true, false),
-        TRUNCATE_AT_LAST_CHECKPOINT(true, true);
+    public enum RetentionConfig {
+        NONE(false, false),
+        CBR_USER_STREAMCUT(true, false),
+        CBR_LAST_CHECKPOINT(true, true);
 
         private boolean isReaderGroupASubscriber;
         private boolean autoTruncateAtLastCheckpoint;
 
-        ReaderGroupRetentionConfig(boolean isSubscriber, boolean autoTruncateAtLastCheckpoint) {
+        RetentionConfig(boolean isSubscriber, boolean autoTruncateAtLastCheckpoint) {
             this.isReaderGroupASubscriber = isSubscriber;
             this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
         }
@@ -70,7 +71,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private ReaderGroupRetentionConfig defaultRetentionConfig = ReaderGroupRetentionConfig.NO_CONSUMPTION_BASED_TRUNCATION; //default value
+       private RetentionConfig defaultRetentionConfig = RetentionConfig.NONE; //default value
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -200,7 +201,7 @@ public class ReaderGroupConfig implements Serializable {
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
+       public ReaderGroupConfigBuilder retentionConfig(RetentionConfig retentionConfig) {
            this.retentionConfig = retentionConfig;
            return this;
        }
@@ -343,7 +344,7 @@ public class ReaderGroupConfig implements Serializable {
             builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
             builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
             int ordinal = revisionDataInput.readCompactInt();
-            builder.retentionConfig(ReaderGroupRetentionConfig.values()[ordinal]);
+            builder.retentionConfig(RetentionConfig.values()[ordinal]);
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
