@@ -50,9 +50,15 @@ public class StreamAuthParamsTest {
     }
 
     @Test
-    public void returnsReadPermissionWhenConfigIsTrue() {
-        StreamAuthParams params = new StreamAuthParams("scope", "_internalStream", true);
+    public void returnsAppropriatePermissionForRgStreamWhenConfigIsTrue() {
+        StreamAuthParams params = new StreamAuthParams("scope", "_RGinternalStream", true);
         assertEquals(AuthHandler.Permissions.READ, params.requiredPermissionForWrites());
+    }
+
+    @Test
+    public void returnsAppropriatePermissionForInternalStreamWhenConfigIsTrue() {
+        StreamAuthParams params = new StreamAuthParams("scope", "_internalStream", true);
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, params.requiredPermissionForWrites());
     }
 
     @Test
@@ -62,9 +68,8 @@ public class StreamAuthParamsTest {
     }
 
     @Test
-    public void requestedPermissionEmpty() {
+    public void isAccessOperationUnspecified() {
         assertTrue(new StreamAuthParams("scope", "stream", AccessOperation.UNSPECIFIED, false).isAccessOperationUnspecified());
-        assertFalse(new StreamAuthParams("scope", "stream", null, false).isAccessOperationUnspecified());
     }
 
     @Test
@@ -114,7 +119,7 @@ public class StreamAuthParamsTest {
     public void requestedPermissionReturnsSpecifiedOrDefault() {
         // Default
         assertEquals(AuthHandler.Permissions.READ, new StreamAuthParams("testScope", "testExternalStream",
-                null, true).requestedPermission());
+                AccessOperation.UNSPECIFIED, true).requestedPermission());
 
         // Specified
         assertEquals(AuthHandler.Permissions.READ_UPDATE, new StreamAuthParams("testScope", "testExternalStream",

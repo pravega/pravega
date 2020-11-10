@@ -65,7 +65,7 @@ public class StreamAuthParams {
         if (this.isStreamUserDefined()) {
             return AuthHandler.Permissions.READ_UPDATE;
         } else {
-            if (this.isInternalWritesWithReadPermEnabled) {
+            if (this.isInternalWritesWithReadPermEnabled && this.stream.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
                 return AuthHandler.Permissions.READ;
             } else {
                 if (stream.startsWith(NameUtils.getMARK_PREFIX())) {
@@ -77,11 +77,11 @@ public class StreamAuthParams {
     }
 
     /**
-     * For external streams, returns the stream resource representation (e.g., prn:://scope:testScope/stream:testStream.
+     * For external streams, returns the stream resource representation (e.g., prn::/scope:testScope/stream:testStream.
      * For internal streams, returns a suitable resource representation for authorization.
-     *    - E.g., for a scope/stream testScope/_RGmyapp - prn:://scope:testScope/reader-group:myApp
-     *    - E.g., for a scope/stream testScope/_MARKtestStream - prn:://scope:testScope/stream:testStream
-     *    - E.g., for a scope/stream testScope/_internalStream - prn:://scope:testScope/stream:_internalStream
+     *    - E.g., for a scope/stream testScope/_RGmyapp - prn::/scope:testScope/reader-group:myApp
+     *    - E.g., for a scope/stream testScope/_MARKtestStream - prn::/scope:testScope/stream:testStream
+     *    - E.g., for a scope/stream testScope/_internalStream - prn::/scope:testScope/stream:_internalStream
      *
      * @return a resource string suitable for authorization
      */

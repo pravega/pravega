@@ -463,7 +463,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         authorizationPermission = AuthHandler.Permissions.READ;
                         tokenPermission = AuthHandler.Permissions.READ;
                     }
-
+                    log.trace("resource: {}, authorizationPermission: {}", authParams.resourceString(), authorizationPermission);
                     this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), authorizationPermission);
                     tokenResource = streamResource;
                 }
