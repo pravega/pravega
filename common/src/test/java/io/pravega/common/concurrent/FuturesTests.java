@@ -9,9 +9,12 @@
  */
 package io.pravega.common.concurrent;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,12 +25,16 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,7 +42,12 @@ import org.junit.Test;
 /**
  * Unit tests for the Futures class.
  */
-public class FuturesTests {
+public class FuturesTests extends ThreadPooledTestSuite {
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
     /**
      * Tests the failedFuture() method.
      */
@@ -496,6 +508,13 @@ public class FuturesTests {
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
                 ex -> ex instanceof IntentionalException);
+    }
+
+    @Test
+    public void testTimeout() {
+        Supplier<CompletableFuture<Integer>> supplier = CompletableFuture::new;
+        CompletableFuture<Integer> f1 = Futures.futureWithTimeout(supplier, Duration.ofMillis(10), "", executorService());
+        AssertExtensions.assertFutureThrows("Future should have timedout. ", f1, e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {

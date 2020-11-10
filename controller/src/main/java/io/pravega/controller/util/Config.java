@@ -125,6 +125,8 @@ public final class Config {
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
+    public static final Integer REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE;
+
     private static final String METRICS_PATH = "controller.metrics.";
 
 
@@ -185,6 +187,9 @@ public final class Config {
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
+    private static final Property<Integer> PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS = Property.named(
+            "segmentstore.connect.channel.timeoutSeconds", 120);
+
 
     //endregion
 
@@ -247,6 +252,8 @@ public final class Config {
         USE_PRAVEGA_TABLES = p.getBoolean(PROPERTY_USE_PRAVEGA_TABLES);
         GRPC_SERVER_CONFIG = createGrpcServerConfig();
         METRICS_CONFIG = createMetricsConfig(properties);
+
+        REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
     }
 
     private static Properties loadConfiguration() {
