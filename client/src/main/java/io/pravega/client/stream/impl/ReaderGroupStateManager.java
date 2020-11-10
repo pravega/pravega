@@ -18,7 +18,6 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
@@ -42,7 +41,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -484,11 +482,9 @@ public class ReaderGroupStateManager {
             if (!cuts.isPresent()) {
                 throw new CheckpointFailedException("Could not get positions for last checkpoint.");
             }
-            Set<StreamCut> streamCuts = cuts.get().entrySet().stream()
-                    .map(entry -> new StreamCutImpl(entry.getKey(), entry.getValue()))
-                    .collect(Collectors.toSet());
-            streamCuts.forEach(entry -> controller.updateSubscriberStreamCut(entry.asImpl().getStream().getScope(),
-                    entry.asImpl().getStream().getScope(), readerId, entry));
+            cuts.get().entrySet().stream().forEach(entry ->
+                    controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
+                            readerId, new StreamCutImpl(entry.getKey(), entry.getValue())));
             sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }
