@@ -114,7 +114,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
 
-    private final boolean isInternalWritesWithReadPermEnabled;
+    private final boolean isRGStreamWritesWithReadPermEnabled;
 
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
@@ -124,9 +124,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper,
                                  RequestTracker requestTracker, boolean replyWithStackTraceOnError,
-                                 boolean isInternalWritesWithReadPermEnabled) {
+                                 boolean isRGStreamWritesWithReadPermEnabled) {
         this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError,
-                isInternalWritesWithReadPermEnabled, PAGE_LIMIT);
+                isRGStreamWritesWithReadPermEnabled, PAGE_LIMIT);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                             scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
 
-        StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isInternalWritesWithReadPermEnabled);
+        StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isRGStreamWritesWithReadPermEnabled);
         AuthHandler.Permissions requiredPermission = streamAuthParams.requiredPermissionForWrites();
 
         log.debug("requiredPermission is [{}], for scope [{}] and stream [{}]", requiredPermission, scope, stream);
@@ -404,7 +404,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             }
 
             StreamAuthParams authParams = new StreamAuthParams(request.getScope(), request.getStream(),
-                    translate(request.getAccessOperation()), this.isInternalWritesWithReadPermEnabled);
+                    translate(request.getAccessOperation()), this.isRGStreamWritesWithReadPermEnabled);
 
             // StreamResource will be a stream representation (ex: "prn:://scope:myScope/stream:_RGmyApp") of the
             // reader group (ex: "prn:://scope:myScope/reader-group:myApp). We use stream representation in claims

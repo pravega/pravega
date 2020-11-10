@@ -32,7 +32,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsKeyFile;
     private final String tokenSigningKey;
     private final Integer accessTokenTTLInSeconds;
-    private final boolean internalWritesWithReadPermEnabled;
+    private final boolean isRGWritesWithReadPermEnabled;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
     private final boolean requestTracingEnabled;
@@ -41,7 +41,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
                                 String tlsCertFile, String tlsKeyFile, String tokenSigningKey,
-                                Integer accessTokenTTLInSeconds, boolean internalWritesWithReadPermEnabled,
+                                Integer accessTokenTTLInSeconds, boolean isRGWritesWithReadPermEnabled,
                                 String tlsTrustStore,
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
@@ -69,7 +69,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
         this.accessTokenTTLInSeconds = accessTokenTTLInSeconds;
-        this.internalWritesWithReadPermEnabled = internalWritesWithReadPermEnabled;
+        this.isRGWritesWithReadPermEnabled = isRGWritesWithReadPermEnabled;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
     }
@@ -95,7 +95,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
                 .append(String.format("accessTokenTTLInSeconds: %s, ", accessTokenTTLInSeconds))
-                .append(String.format("internalWritesWithReadPermEnabled: %b, ", internalWritesWithReadPermEnabled))
+                .append(String.format("isRGWritesWithReadPermEnabled: %b, ", isRGWritesWithReadPermEnabled))
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))

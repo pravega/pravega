@@ -76,18 +76,12 @@ public class ReadWithReadPermissionsTest {
         writeThenReadDataBack(passwordInputFileEntries, true);
     }
 
-    /**
-     * This test verifies that data can be read from a stream using read-only permissions, if the system is NOT
-     * configured to allow writes to internal streams with read-only permissions.
-     */
     @SneakyThrows
     @Test
     public void readsRequireWritePermissionsWhenConfigIsFalse() {
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",
-                // READ_UPDATE on scope needed for creating internal streams since we configure "internal writes with
-                // read permissions" to false later (during instantiation of the ClusterWrapper object).
                 "prn::/scope:MarketData,READ_UPDATE",
                 "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
                 "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ_UPDATE"
@@ -106,7 +100,7 @@ public class ReadWithReadPermissionsTest {
         // Setup the cluster and create the objects
         @Cleanup
         final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
-                600, true,
+                600, writeToInternalStreamsWithReadPermission,
                 this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
         cluster.initialize();
         final ClientConfig writerClientConfig = ClientConfig.builder()

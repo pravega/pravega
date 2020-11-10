@@ -29,7 +29,7 @@ public class StreamAuthParams {
     private final String scope;
     private final String stream;
     private final AccessOperation accessOperation;
-    private final boolean isInternalWritesWithReadPermEnabled;
+    private final boolean isRGWritesWithReadPermEnabled;
 
     @VisibleForTesting
     @Getter
@@ -40,15 +40,15 @@ public class StreamAuthParams {
         this(scope, stream, AccessOperation.READ, true);
     }
 
-    public StreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isInternalWritesWithReadPermEnabled) {
-        this(scope, stream, AccessOperation.UNSPECIFIED, isInternalWritesWithReadPermEnabled);
+    public StreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isRGWritesWithReadPermEnabled) {
+        this(scope, stream, AccessOperation.UNSPECIFIED, isRGWritesWithReadPermEnabled);
     }
 
     public StreamAuthParams(@NonNull String scope, @NonNull String stream, @NonNull AccessOperation accessOperation,
-                            boolean isInternalWritesWithReadPermEnabled) {
+                            boolean isRGWritesWithReadPermEnabled) {
         this.scope = scope;
         this.stream = stream;
-        this.isInternalWritesWithReadPermEnabled = isInternalWritesWithReadPermEnabled;
+        this.isRGWritesWithReadPermEnabled = isRGWritesWithReadPermEnabled;
         this.accessOperation = accessOperation;
         this.isInternalStream = stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ? true : false;
     }
@@ -65,7 +65,7 @@ public class StreamAuthParams {
         if (this.isStreamUserDefined()) {
             return AuthHandler.Permissions.READ_UPDATE;
         } else {
-            if (this.isInternalWritesWithReadPermEnabled && this.stream.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
+            if (this.isRGWritesWithReadPermEnabled && this.stream.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
                 return AuthHandler.Permissions.READ;
             } else {
                 if (stream.startsWith(NameUtils.getMARK_PREFIX())) {

@@ -96,12 +96,12 @@ public interface GRPCServerConfig extends ServerConfig {
     Integer getAccessTokenTTLInSeconds();
 
     /**
-     * Indicates whether writes to internal streams are allowed with read permissions. If false, writes to internal
-     * streams will require write permissions too.
+     * Indicates whether writes to reader group streams are allowed with read permissions. If false, writes to those streams
+     * will require write permissions too.
      *
-     * @return Whether writes to internal streams are allowed with read permissions.
+     * @return Whether writes for reader groups streams are allowed with read permissions.
      */
-    boolean isInternalWritesWithReadPermEnabled();
+    boolean isRGWritesWithReadPermEnabled();
 
     /**
      * Returns whether the controller should send back to the client a full stack trace describing an error upon a

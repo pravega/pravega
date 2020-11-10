@@ -100,7 +100,7 @@ public class ControllerWrapper implements AutoCloseable {
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
-                             String tokenSigningKey, boolean isInternalWritesWithReadPermEnabled,
+                             String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
                              int accessTokenTtlInSeconds) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
@@ -155,7 +155,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .authorizationEnabled(enableAuth)
                 .tokenSigningKey(tokenSigningKey)
                 .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
-                .internalWritesWithReadPermEnabled(isInternalWritesWithReadPermEnabled)
+                .isRGWritesWithReadPermEnabled(isRGWritesWithReadPermEnabled)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .build();
 
