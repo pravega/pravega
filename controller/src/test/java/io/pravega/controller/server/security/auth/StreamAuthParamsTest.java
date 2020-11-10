@@ -63,22 +63,22 @@ public class StreamAuthParamsTest {
 
     @Test
     public void requestedPermissionEmpty() {
-        assertTrue(new StreamAuthParams("scope", "stream", "", false).isRequestedPermissionEmpty());
-        assertFalse(new StreamAuthParams("scope", "stream", "READ", false).isRequestedPermissionEmpty());
+        assertTrue(new StreamAuthParams("scope", "stream", AccessOperation.UNSPECIFIED, false).isAccessOperationUnspecified());
+        assertFalse(new StreamAuthParams("scope", "stream", null, false).isAccessOperationUnspecified());
     }
 
     @Test
     public void requestedPermissionForWatermarkStream() {
         StreamAuthParams params1 = new StreamAuthParams("testScope", NameUtils.getMarkStreamForStream("testStream"),
-                "", false);
+                AccessOperation.UNSPECIFIED, false);
         assertEquals(AuthHandler.Permissions.READ_UPDATE, params1.requiredPermissionForWrites());
 
         StreamAuthParams params2 = new StreamAuthParams("testscope", "_MARKteststream",
-                AccessOperation.READ.name(), false);
+                AccessOperation.READ, false);
         assertEquals(AuthHandler.Permissions.READ, params2.requiredPermissionForWrites());
 
         StreamAuthParams params3 = new StreamAuthParams("testscope", "_MARKteststream",
-                AccessOperation.READ_WRITE.name(), false);
+                AccessOperation.READ_WRITE, false);
         assertEquals(AuthHandler.Permissions.READ_UPDATE, params3.requiredPermissionForWrites());
     }
 
@@ -114,10 +114,10 @@ public class StreamAuthParamsTest {
     public void requestedPermissionReturnsSpecifiedOrDefault() {
         // Default
         assertEquals(AuthHandler.Permissions.READ, new StreamAuthParams("testScope", "testExternalStream",
-                "", true).requestedPermission());
+                null, true).requestedPermission());
 
         // Specified
         assertEquals(AuthHandler.Permissions.READ_UPDATE, new StreamAuthParams("testScope", "testExternalStream",
-                AccessOperation.READ_WRITE.name(), true).requestedPermission());
+                AccessOperation.READ_WRITE, true).requestedPermission());
     }
 }

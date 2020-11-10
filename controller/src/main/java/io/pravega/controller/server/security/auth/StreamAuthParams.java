@@ -12,6 +12,7 @@ package io.pravega.controller.server.security.auth;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.security.auth.PermissionsHelper;
 import lombok.Getter;
 import lombok.NonNull;
@@ -27,7 +28,7 @@ public class StreamAuthParams {
 
     private final String scope;
     private final String stream;
-    private final String requestedPermission;
+    private final AccessOperation accessOperation;
     private final boolean isInternalWritesWithReadPermEnabled;
 
     @VisibleForTesting
@@ -36,28 +37,28 @@ public class StreamAuthParams {
 
     @VisibleForTesting
     StreamAuthParams(@NonNull String scope, @NonNull String stream) {
-        this(scope, stream, "READ", true);
+        this(scope, stream, AccessOperation.READ, true);
     }
 
     public StreamAuthParams(@NonNull String scope, @NonNull String stream, boolean isInternalWritesWithReadPermEnabled) {
-        this(scope, stream, "", isInternalWritesWithReadPermEnabled);
+        this(scope, stream, AccessOperation.UNSPECIFIED, isInternalWritesWithReadPermEnabled);
     }
 
-    public StreamAuthParams(@NonNull String scope, @NonNull String stream, @NonNull String requestedPermission,
+    public StreamAuthParams(@NonNull String scope, @NonNull String stream, @NonNull AccessOperation accessOperation,
                             boolean isInternalWritesWithReadPermEnabled) {
         this.scope = scope;
         this.stream = stream;
         this.isInternalWritesWithReadPermEnabled = isInternalWritesWithReadPermEnabled;
-        this.requestedPermission = requestedPermission;
+        this.accessOperation = accessOperation;
         this.isInternalStream = stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ? true : false;
     }
 
     public AuthHandler.Permissions requestedPermission() {
-        return PermissionsHelper.parse(requestedPermission, AuthHandler.Permissions.READ);
+        return PermissionsHelper.parse(accessOperation, AuthHandler.Permissions.READ);
     }
 
     private AuthHandler.Permissions requestedPermission(AuthHandler.Permissions defaultValue) {
-        return PermissionsHelper.parse(requestedPermission, defaultValue);
+        return PermissionsHelper.parse(accessOperation, defaultValue);
     }
 
     public AuthHandler.Permissions requiredPermissionForWrites() {
@@ -75,12 +76,21 @@ public class StreamAuthParams {
         }
     }
 
+    /**
+     * For external streams, returns the stream resource representation (e.g., prn:://scope:testScope/stream:testStream.
+     * For internal streams, returns a suitable resource representation for authorization.
+     *    - E.g., for a scope/stream testScope/_RGmyapp - prn:://scope:testScope/reader-group:myApp
+     *    - E.g., for a scope/stream testScope/_MARKtestStream - prn:://scope:testScope/stream:testStream
+     *    - E.g., for a scope/stream testScope/_internalStream - prn:://scope:testScope/stream:_internalStream
+     *
+     * @return a resource string suitable for authorization
+     */
     public String resourceString() {
         return toResourceString(this.scope, this.stream);
     }
 
-    public boolean isRequestedPermissionEmpty() {
-        return this.requestedPermission.equals("");
+    public boolean isAccessOperationUnspecified() {
+        return this.accessOperation.equals(AccessOperation.UNSPECIFIED);
     }
 
     public String streamResourceString() {

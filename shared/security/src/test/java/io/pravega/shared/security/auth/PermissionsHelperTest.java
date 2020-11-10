@@ -35,17 +35,16 @@ public class PermissionsHelperTest {
 
     @Test
     public void parsesEmptyPermissionStringToDefault() {
-        assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse("", AuthHandler.Permissions.READ));
         assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse(null, AuthHandler.Permissions.READ));
     }
 
     @Test
     public void parsesNonEmptyPermissionStrings() {
-        assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse(AccessOperation.READ.toString(),
+        assertEquals(AuthHandler.Permissions.READ, PermissionsHelper.parse(AccessOperation.READ,
                 AuthHandler.Permissions.NONE));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.parse(AccessOperation.WRITE.toString(),
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, PermissionsHelper.parse(AccessOperation.WRITE,
                 AuthHandler.Permissions.NONE));
         AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> PermissionsHelper.parse(AccessOperation.ANY.toString(), null));
+                () -> PermissionsHelper.parse(AccessOperation.ANY, null));
     }
 }

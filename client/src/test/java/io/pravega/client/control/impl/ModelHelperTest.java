@@ -259,14 +259,21 @@ public class ModelHelperTest {
     }
 
     @Test
-    public void createStreamInfo() {
-        Controller.StreamInfo streamInfo1 = ModelHelper.createStreamInfo("testScope", "testStream");
-        assertEquals("testScope", streamInfo1.getScope());
-        assertEquals("testStream", streamInfo1.getStream());
-        assertEquals("", streamInfo1.getRequestedPermission());
+    public void createStreamInfoWithMissingAccessOperation() {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo("testScope", "testStream");
+        assertEquals("testScope", streamInfo.getScope());
+        assertEquals("testStream", streamInfo.getStream());
+        assertEquals(Controller.StreamInfo.AccessOperation.UNSPECIFIED, streamInfo.getAccessOperation());
+    }
 
-        assertEquals("READ",
-                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ).getRequestedPermission());
+    @Test
+    public void createStreamInfoWithAccessOperation() {
+        assertEquals(Controller.StreamInfo.AccessOperation.READ,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ).getAccessOperation());
+        assertEquals(Controller.StreamInfo.AccessOperation.WRITE,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.WRITE).getAccessOperation());
+        assertEquals(Controller.StreamInfo.AccessOperation.READ_WRITE,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ_WRITE).getAccessOperation());
     }
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {

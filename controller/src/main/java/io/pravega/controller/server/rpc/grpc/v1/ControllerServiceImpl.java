@@ -90,9 +90,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import lombok.NonNull;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
+
 /**
  * gRPC Service API implementation for the Controller.
  */
@@ -358,6 +360,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver, requestTag);
     }
 
+    private AccessOperation translate(@NonNull StreamInfo.AccessOperation accessOperation) {
+        return AccessOperation.valueOf(accessOperation.name());
+    }
+
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         final String scope = request.getScope();
@@ -365,8 +371,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getCurrentSegments called for stream {}/{}.", scope, stream);
         String resource = StreamAuthParams.toResourceString(scope, stream);
 
-        final boolean isDelegationTokenRequested =
-                request.getRequestedPermission().equals(AccessOperation.NONE.toString()) ? false : true;
+        final boolean isDelegationTokenRequested = !request.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
 
         authenticateExecuteAndProcessResults(() -> {
                     if (isDelegationTokenRequested) {
@@ -399,7 +404,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             }
 
             StreamAuthParams authParams = new StreamAuthParams(request.getScope(), request.getStream(),
-                    request.getRequestedPermission(), this.isInternalWritesWithReadPermEnabled);
+                    translate(request.getAccessOperation()), this.isInternalWritesWithReadPermEnabled);
 
             // StreamResource will be a stream representation (ex: "prn:://scope:myScope/stream:_RGmyApp") of the
             // reader group (ex: "prn:://scope:myScope/reader-group:myApp). We use stream representation in claims
@@ -408,14 +413,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             String streamResource = authParams.streamResourceString();
             String resource = authParams.resourceString();
 
-            if (authParams.isRequestedPermissionEmpty()) {
-                // For backward compatibility: Older clients will not populate requested permission.
-                log.info("Requested permission was empty for request with scope {} and stream {}", request.getScope(),
-                        request.getStream());
+            if (authParams.isAccessOperationUnspecified()) {
+                // For backward compatibility: Older clients will not send access operation in the request.
+                log.debug("Access operation was unspecified for request with scope {} and stream {}",
+                        request.getScope(), request.getStream());
                 return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource, AuthHandler.Permissions.READ_UPDATE);
             } else {
-                log.debug("Requested permission was {} for request with scope {} and stream {}",
-                        request.getRequestedPermission(), request.getScope(), request.getStream());
+                log.trace("Access operation was {} for request with scope {} and stream {}",
+                        translate(request.getAccessOperation()), request.getScope(), request.getStream());
 
                 // The resource string that'll be used in the delegation token for use of the segment store
                 final String tokenResource;
@@ -459,8 +464,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         tokenPermission = AuthHandler.Permissions.READ;
                     }
 
-                    // Internal streams will be qualified as non-stream resources. For example
-                    // "prn:://scope:myScope/reader-group:myApp" and "prn:://scope:myScope/watermark:myStream".
                     this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), authorizationPermission);
                     tokenResource = streamResource;
                 }
@@ -497,8 +500,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         // Older clients will not set requestPermissions, so it'll be set as "". Newer clients will set it as `NONE`.
         // For backward compatibility, this operation returns a delegation token for older clients along with the
         // segments. For newer clients, it doesn't.
-        final boolean shouldReturnDelegationToken =
-                AccessOperation.NONE.toString().equals(streamInfo.getRequestedPermission()) ? false : true;
+        final boolean shouldReturnDelegationToken = !streamInfo.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
         authenticateExecuteAndProcessResults(() -> {
                     if (shouldReturnDelegationToken) {
                         // For backward compatibility: older clients still depend on delegation token generated

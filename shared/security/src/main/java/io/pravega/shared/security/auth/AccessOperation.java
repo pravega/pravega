@@ -16,6 +16,16 @@ package io.pravega.shared.security.auth;
 public enum AccessOperation {
 
     /**
+     * No operation specified.
+     */
+    UNSPECIFIED,
+
+    /**
+     * Doesn't represent any access operation.
+     */
+    NONE,
+
+    /**
      * Doesn't represent any specific operation, and allows the caller to make it explicit that any access operation.
      * It is primarily meant for use in tests.
      */
@@ -35,9 +45,4 @@ public enum AccessOperation {
      * Represents reads and writes (inserts, updates and deletes).
      */
     READ_WRITE,
-
-    /**
-     * Doesn't represent any access operation.
-     */
-    NONE;
 }

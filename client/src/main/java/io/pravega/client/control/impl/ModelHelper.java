@@ -423,7 +423,7 @@ public final class ModelHelper {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
         if (accessOperation != null) {
-            builder.setRequestedPermission(accessOperation.name());
+            builder.setAccessOperation(StreamInfo.AccessOperation.valueOf(accessOperation.name()));
         }
         return builder.build();
     }

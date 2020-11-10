@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.security.auth;
 
-import com.google.common.base.Strings;
 import io.pravega.auth.AuthHandler;
 import lombok.NonNull;
 
@@ -39,15 +38,15 @@ public class PermissionsHelper {
     /**
      * Parse the specified {@code accessOperationStr} string and translate it to an {@link AuthHandler.Permissions} object.
      *
-     * @param accessOperationStr a string value of an {@link AccessOperation} object
+     * @param accessOperation the intended {@link AccessOperation}
      * @param defaultPermissions the default {@link AuthHandler.Permissions} object to return in case the
      *                           {@code accessOperationStr} can't be parsed.
      * @return the parsed or default {@link AuthHandler.Permissions} object,
      */
-    public static AuthHandler.Permissions parse(String accessOperationStr, AuthHandler.Permissions defaultPermissions) {
-        if (Strings.isNullOrEmpty(accessOperationStr)) {
+    public static AuthHandler.Permissions parse(AccessOperation accessOperation, AuthHandler.Permissions defaultPermissions) {
+        if (accessOperation  == null || accessOperation.equals(AccessOperation.UNSPECIFIED)) {
             return defaultPermissions;
         }
-        return toAuthHandlerPermissions(AccessOperation.valueOf(accessOperationStr));
+        return toAuthHandlerPermissions(accessOperation);
     }
 }
