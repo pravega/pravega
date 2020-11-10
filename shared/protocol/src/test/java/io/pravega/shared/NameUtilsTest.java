@@ -146,9 +146,4 @@ public class NameUtilsTest {
         UUID txnId = UUID.fromString("00000065-0000-000a-0000-000000000064");
         assertEquals(101, NameUtils.getEpoch(txnId));
     }
-
-    @Test
-    public void testSegmentStoreInternalStreamPattern() {
-        assertEquals("/_", NameUtils.INTERNAL_STREAM_IDENTIFYING_PATTERN);
-    }
 }

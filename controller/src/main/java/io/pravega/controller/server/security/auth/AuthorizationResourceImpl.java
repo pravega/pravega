@@ -22,7 +22,6 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     private static final String TAG_STREAM = "stream";
     private static final String TAG_READERGROUP = "reader-group";
     private static final String TAG_KEYVALUETABLE = "key-value-table";
-    private static final String TAG_WATERMARK = "watermark";
 
     private static final String ROOT_RESOURCE = String.format("%s/", DOMAIN_PART_SUFFIX);
 
