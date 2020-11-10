@@ -25,6 +25,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.api.BookKeeper;
@@ -42,19 +44,21 @@ import javax.annotation.concurrent.GuardedBy;
 public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Members
 
+    // Period of inspection to meet the maximum number of log creation attempts for a given container.
+    private static final Duration LOG_CREATION_INSPECTION_PERIOD = Duration.ofSeconds(60);
+    // Maximum number of log creation attempts for a given container before considering resetting the BK client.
+    private static final int MAX_CREATE_ATTEMPTS_PER_LOG = 2;
+
     private final String namespace;
     private final CuratorFramework zkClient;
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
-
-    // Maximum number of log creation attempts for a given container before considering resetting the BK client.
-    private static final int MAX_CREATE_ATTEMPTS_PER_LOG = 2;
-    // Period of inspection to meet the maximum number of log creation attempts for a given container.
-    private static Duration LOG_CREATION_INSPECTION_PERIOD = Duration.ofSeconds(60);
+    @Getter(AccessLevel.PACKAGE)
     @GuardedBy("this")
     private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
+    @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<Timer> lastBookkeeperClientReset = new AtomicReference<>(new Timer());
 
     //endregion
@@ -120,6 +124,34 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     @Override
     public DurableDataLog createDurableDataLog(int logId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
+        tryResetBookkeeperClient(logId);
+        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    /**
+     * Creates a new DebugLogWrapper that can be used for debugging purposes. This should not be used for regular operations.
+     *
+     * @param logId Id of the Log to create a wrapper for.
+     * @return A new instance of the DebugLogWrapper class.
+     */
+    public DebugLogWrapper createDebugLogWrapper(int logId) {
+        Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
+        tryResetBookkeeperClient(logId);
+        return new DebugLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+    }
+
+    /**
+     * Gets a pointer to the BookKeeper client used by this BookKeeperLogFactory. This should only be used for testing or
+     * admin tool purposes only. It should not be used for regular operations.
+     *
+     * @return The BookKeeper client.
+     */
+    @VisibleForTesting
+    public BookKeeper getBookKeeperClient() {
+        return this.bookKeeper.get();
+    }
+
+    public void tryResetBookkeeperClient(int logId) {
         synchronized (this) {
             if (logInitializationTracker.containsKey(logId)) {
                 // Account for a restart of the Bookkeeper log.
@@ -140,29 +172,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 logInitializationTracker.put(logId, new LogInitializationRecord());
             }
         }
-        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
-    }
-
-    /**
-     * Creates a new DebugLogWrapper that can be used for debugging purposes. This should not be used for regular operations.
-     *
-     * @param logId Id of the Log to create a wrapper for.
-     * @return A new instance of the DebugLogWrapper class.
-     */
-    public DebugLogWrapper createDebugLogWrapper(int logId) {
-        Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
-        return new DebugLogWrapper(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
-    }
-
-    /**
-     * Gets a pointer to the BookKeeper client used by this BookKeeperLogFactory. This should only be used for testing or
-     * admin tool purposes only. It should not be used for regular operations.
-     *
-     * @return The BookKeeper client.
-     */
-    @VisibleForTesting
-    public BookKeeper getBookKeeperClient() {
-        return this.bookKeeper.get();
     }
 
     //endregion
@@ -213,7 +222,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
      * Keeps track of the number of log creation attempts within an inspection period.
      */
     static class LogInitializationRecord {
-        private final AtomicReference<Timer> timer = new AtomicReference<>();
+        private final AtomicReference<Timer> timer = new AtomicReference<>(new Timer());
         private final AtomicInteger counter = new AtomicInteger(0);
 
         /**
