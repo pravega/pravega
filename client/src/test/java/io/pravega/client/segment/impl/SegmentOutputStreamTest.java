@@ -284,9 +284,16 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
         // Verify that the inflight event future is completed exceptionally.
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
+
+        //Write an additional event to a writer that has failed with RetriesExhaustedException.
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack));
+        verify(connection, never()).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack));
+
     }
 
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testFlushWithMultipleConnectFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
