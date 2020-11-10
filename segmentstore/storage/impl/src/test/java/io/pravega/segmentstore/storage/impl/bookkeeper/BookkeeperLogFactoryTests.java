@@ -16,7 +16,6 @@ import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.framework.imps.CuratorFrameworkImpl;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Assert;
@@ -75,7 +74,7 @@ public class BookkeeperLogFactoryTests extends BookKeeperClusterTestCase {
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
                 .with(BookKeeperConfig.ZK_ADDRESS, zkUtil.getZooKeeperConnectString())
                 .build();
-        RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000,3, 10000);
+        RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3, 10000);
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
                 .connectString(zkUtil.getZooKeeperConnectString())
                 .retryPolicy(retryPolicy)
@@ -111,7 +110,7 @@ public class BookkeeperLogFactoryTests extends BookKeeperClusterTestCase {
         Assert.assertEquals(oldBookkeeperClient, factory.getBookKeeperClient());
     }
 
-    class FakeTimer extends Timer {
+    static class FakeTimer extends Timer {
 
         @Override
         public long getElapsedNanos() {
