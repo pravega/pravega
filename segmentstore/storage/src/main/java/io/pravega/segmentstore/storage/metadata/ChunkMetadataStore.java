@@ -24,7 +24,7 @@ import java.util.concurrent.CompletionException;
  *
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(String...)}.
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}.
  *
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of
  * {@link MetadataTransaction#commit()}.

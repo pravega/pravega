@@ -27,6 +27,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
@@ -43,11 +44,11 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private final long traceId;
     private final Timer timer;
     private volatile SegmentMetadata segmentMetadata;
-    private volatile int bytesRemaining;
-    private volatile int currentBufferOffset;
-    private volatile long currentOffset;
-    private volatile int totalBytesRead = 0;
-    private volatile long startOffsetForCurrentChunk;
+    private final AtomicInteger bytesRemaining = new AtomicInteger();
+    private final AtomicInteger currentBufferOffset = new AtomicInteger();
+    private final AtomicLong currentOffset = new AtomicLong();
+    private final AtomicInteger totalBytesRead = new AtomicInteger();
+    private final AtomicLong startOffsetForCurrentChunk = new AtomicLong();
     private volatile String currentChunkName;
     private volatile ChunkMetadata chunkToReadFrom = null;
     private volatile boolean isLoopExited;
@@ -98,7 +99,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                     })
                                     .thenApplyAsync(v -> {
                                         logEnd();
-                                        return totalBytesRead;
+                                        return totalBytesRead.get();
                                     }, chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
@@ -120,14 +121,14 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
     private CompletableFuture<Void> readData(MetadataTransaction txn) {
         return Futures.loop(
-                () -> bytesRemaining > 0 && null != currentChunkName,
+                () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {
-                    bytesToRead = Math.min(bytesRemaining, Math.toIntExact(chunkToReadFrom.getLength() - (currentOffset - startOffsetForCurrentChunk)));
-                    if (currentOffset >= startOffsetForCurrentChunk + chunkToReadFrom.getLength()) {
+                    bytesToRead = Math.min(bytesRemaining.get(), Math.toIntExact(chunkToReadFrom.getLength() - (currentOffset.get() - startOffsetForCurrentChunk.get())));
+                    if (currentOffset.get() >= startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength()) {
                         // The current chunk is over. Move to the next one.
                         currentChunkName = chunkToReadFrom.getNextChunk();
                         if (null != currentChunkName) {
-                            startOffsetForCurrentChunk += chunkToReadFrom.getLength();
+                            startOffsetForCurrentChunk.addAndGet(chunkToReadFrom.getLength());
                             return txn.get(currentChunkName)
                                     .thenAcceptAsync(storageMetadata -> {
                                         chunkToReadFrom = (ChunkMetadata) storageMetadata;
@@ -140,15 +141,15 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                         return chunkedSegmentStorage.getChunkStorage().openRead(chunkToReadFrom.getName())
                                 .thenComposeAsync(chunkHandle ->
                                         chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
-                                                currentOffset - startOffsetForCurrentChunk,
+                                                currentOffset.get() - startOffsetForCurrentChunk.get(),
                                                 bytesToRead,
                                                 buffer,
-                                                currentBufferOffset)
+                                                currentBufferOffset.get())
                                                 .thenAcceptAsync(bytesRead -> {
-                                                    bytesRemaining -= bytesRead;
-                                                    currentOffset += bytesRead;
-                                                    currentBufferOffset += bytesRead;
-                                                    totalBytesRead += bytesRead;
+                                                    bytesRemaining.addAndGet(-bytesRead);
+                                                    currentOffset.addAndGet(bytesRead);
+                                                    currentBufferOffset.addAndGet(bytesRead);
+                                                    totalBytesRead.addAndGet(bytesRead);
                                                 }, chunkedSegmentStorage.getExecutor()),
                                         chunkedSegmentStorage.getExecutor());
                     }
@@ -163,18 +164,18 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
         Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null.");
 
-        bytesRemaining = length;
-        currentBufferOffset = bufferOffset;
-        currentOffset = offset;
-        totalBytesRead = 0;
+        bytesRemaining.set(length);
+        currentBufferOffset.set(bufferOffset);
+        currentOffset.set(offset);
+        totalBytesRead.set(0);
 
         // Find the first chunk that contains the data.
-        startOffsetForCurrentChunk = segmentMetadata.getFirstChunkStartOffset();
+        startOffsetForCurrentChunk.set(segmentMetadata.getFirstChunkStartOffset());
         val readIndexTimer = new Timer();
         // Find the name of the chunk in the cached read index that is floor to required offset.
         val floorEntry = chunkedSegmentStorage.getReadIndexCache().findFloor(handle.getSegmentName(), offset);
         if (null != floorEntry) {
-            startOffsetForCurrentChunk = floorEntry.getOffset();
+            startOffsetForCurrentChunk.set(floorEntry.getOffset());
             currentChunkName = floorEntry.getChunkName();
         }
 
@@ -185,8 +186,8 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                         .thenAcceptAsync(storageMetadata -> {
                             chunkToReadFrom = (ChunkMetadata) storageMetadata;
                             Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
-                            if (startOffsetForCurrentChunk <= currentOffset
-                                    && startOffsetForCurrentChunk + chunkToReadFrom.getLength() > currentOffset) {
+                            if (startOffsetForCurrentChunk.get() <= currentOffset.get()
+                                    && startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength() > currentOffset.get()) {
                                 // we have found a chunk that contains first byte we want to read
                                 log.debug("{} read - found chunk to read - segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
                                         chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
@@ -194,11 +195,11 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                 return;
                             }
                             currentChunkName = chunkToReadFrom.getNextChunk();
-                            startOffsetForCurrentChunk += chunkToReadFrom.getLength();
+                            startOffsetForCurrentChunk.addAndGet(chunkToReadFrom.getLength());
 
                             // Update read index with newly visited chunk.
                             if (null != currentChunkName) {
-                                chunkedSegmentStorage.getReadIndexCache().addIndexEntry(handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk);
+                                chunkedSegmentStorage.getReadIndexCache().addIndexEntry(handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get());
                             }
                             cntScanned.incrementAndGet();
                         }, chunkedSegmentStorage.getExecutor())

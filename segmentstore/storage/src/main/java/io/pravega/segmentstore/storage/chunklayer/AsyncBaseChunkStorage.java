@@ -148,9 +148,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.CREATE_COUNT.inc();
             log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
-            if (log.isTraceEnabled()) {
-                LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
-            }
+            LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
         }, executor);
         return returnFuture;
     }
@@ -183,9 +181,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.DELETE_COUNT.inc();
 
             log.debug("Delete - chunk={}, latency={}.", handle.getChunkName(), elapsed.toMillis());
-            if (log.isTraceEnabled()) {
-                LoggerHelpers.traceLeave(log, "delete", traceId, handle.getChunkName());
-            }
+            LoggerHelpers.traceLeave(log, "delete", traceId, handle.getChunkName());
         }, executor);
 
         return returnFuture;
@@ -301,9 +297,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.READ_BYTES.add(bytesRead);
 
             log.debug("Read - chunk={}, offset={}, bytesRead={}, latency={}.", handle.getChunkName(), fromOffset, length, elapsed.toMillis());
-            if (log.isTraceEnabled()) {
-                LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
-            }
+            LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
         }, executor);
 
         return returnFuture;
@@ -353,9 +347,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.WRITE_BYTES.add(bytesWritten);
 
             log.debug("Write - chunk={}, offset={}, bytesWritten={}, latency={}.", handle.getChunkName(), offset, length, elapsed.toMillis());
-            if (log.isTraceEnabled()) {
-                LoggerHelpers.traceLeave(log, "write", traceId, bytesWritten);
-            }
+            LoggerHelpers.traceLeave(log, "write", traceId, bytesWritten);
         }, executor);
         return returnFuture;
     }
@@ -390,9 +382,8 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             ChunkStorageMetrics.CONCAT_COUNT.inc();
             ChunkStorageMetrics.LARGE_CONCAT_COUNT.inc();
 
-            if (log.isTraceEnabled()) {
-                LoggerHelpers.traceLeave(log, "concat", traceId, chunks[0].getName());
-            }
+            LoggerHelpers.traceLeave(log, "concat", traceId, chunks[0].getName());
+
         }, executor);
 
         return returnFuture;

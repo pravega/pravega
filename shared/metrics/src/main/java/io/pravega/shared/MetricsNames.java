@@ -130,8 +130,6 @@ public final class MetricsNames {
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
 
     // SLTS Metadata stats
-    public static final String STORAGE_METADATA_READ_LOCK_LATENCY = PREFIX + "segmentstore.storage.metadata_read_lock_latency_ms";      // Histogram
-    public static final String STORAGE_METADATA_WRITE_LOCK_LATENCY = PREFIX + "segmentstore.storage.metadata_write_lock_latency_ms";    // Histogram
     public static final String STORAGE_METADATA_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_get_latency_ms";                  // Histogram
     public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
     public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram

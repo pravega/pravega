@@ -20,9 +20,6 @@ import io.pravega.shared.metrics.StatsLogger;
 public class StorageMetadataMetrics {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("ChunkedStorageMetadata");
 
-    static final OpStatsLogger READ_LOCK_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_READ_LOCK_LATENCY);
-    static final OpStatsLogger WRITE_LOCK_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_WRITE_LOCK_LATENCY);
-
     static final OpStatsLogger GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_GET_LATENCY);
     static final OpStatsLogger COMMIT_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_COMMIT_LATENCY);
 
