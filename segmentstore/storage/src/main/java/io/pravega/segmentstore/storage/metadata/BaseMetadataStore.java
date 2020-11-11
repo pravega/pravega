@@ -641,12 +641,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
         final TransactionData retValue;
         if (oldValue != null) {
-            if (oldValue.getVersion() >= copyForBuffer.getVersion()) {
-                retValue = oldValue;
-            } else {
-                // Ignore stale value.
-                retValue = copyForBuffer;
-            }
+            retValue = oldValue;
         } else {
             retValue = copyForBuffer;
             bufferCount.incrementAndGet();
