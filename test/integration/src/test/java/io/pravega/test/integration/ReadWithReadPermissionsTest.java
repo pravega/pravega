@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -24,6 +25,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import lombok.Cleanup;
@@ -76,9 +78,22 @@ public class ReadWithReadPermissionsTest {
         writeThenReadDataBack(passwordInputFileEntries, true);
     }
 
+    @Test
+    public void readsRequireWritePermissionsOnRgWhenConfigIsFalse() {
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put("reader", String.join(";",
+                "prn::/scope:MarketData,READ_UPDATE",
+                "prn::/scope:MarketData/stream:StockPriceUpdates,READ",
+                "prn::/scope:MarketData/reader-group:PriceChangeCalculator,READ"
+        ));
+        AssertExtensions.assertThrows(StatusRuntimeException.class,
+                () -> writeThenReadDataBack(passwordInputFileEntries, false));
+    }
+
     @SneakyThrows
     @Test
-    public void readsRequireWritePermissionsWhenConfigIsFalse() {
+    public void readsWorkWithWritePermissionsWhenConfigIsFalse() {
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
         passwordInputFileEntries.put("creator", "prn::*,READ_UPDATE");
         passwordInputFileEntries.put("reader", String.join(";",

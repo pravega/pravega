@@ -26,10 +26,14 @@ public class StreamAuthParams {
 
     private static final AuthorizationResource AUTH_RESOURCE = new AuthorizationResourceImpl();
 
+    @Getter
     private final String scope;
+    @Getter
     private final String stream;
     private final AccessOperation accessOperation;
     private final boolean isRGWritesWithReadPermEnabled;
+    @Getter
+    private final boolean isMarkStream;
 
     @VisibleForTesting
     @Getter
@@ -51,6 +55,7 @@ public class StreamAuthParams {
         this.isRGWritesWithReadPermEnabled = isRGWritesWithReadPermEnabled;
         this.accessOperation = accessOperation;
         this.isInternalStream = stream.startsWith(NameUtils.INTERNAL_NAME_PREFIX) ? true : false;
+        this.isMarkStream = stream.startsWith(NameUtils.getMARK_PREFIX());
     }
 
     public AuthHandler.Permissions requestedPermission() {
@@ -68,7 +73,7 @@ public class StreamAuthParams {
             if (this.isRGWritesWithReadPermEnabled && this.stream.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
                 return AuthHandler.Permissions.READ;
             } else {
-                if (stream.startsWith(NameUtils.getMARK_PREFIX())) {
+                if (isMarkStream()) {
                     return this.requestedPermission(AuthHandler.Permissions.READ_UPDATE);
                 }
                 return AuthHandler.Permissions.READ_UPDATE;

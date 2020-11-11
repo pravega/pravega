@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthorizationException;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -32,6 +33,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
+import io.pravega.controller.server.security.auth.AuthorizationResource;
 import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
@@ -50,6 +52,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -140,6 +143,33 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     @Test
     public void supplierReturnsEmptyTokenWhenAuthIsDisabled() {
         assertEquals("", this.controllerService.delegationTokenSupplier(Controller.StreamInfo.newBuilder().build()).get());
+    }
+
+    @Test
+    public void supplierThrowsExceptionForMarkStreamsForWriteAccessOperations() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+
+        AssertExtensions.assertThrows(AuthorizationException.class, () -> objectUnderTest.delegationTokenSupplier(
+                createStreamInfoProtobufMessage("testScope", "_MARKtestStream", AccessOperation.READ_WRITE)).get());
+        AssertExtensions.assertThrows(AuthorizationException.class, () -> objectUnderTest.delegationTokenSupplier(
+                createStreamInfoProtobufMessage("testScope", "_MARKtestStream", AccessOperation.WRITE)).get());
+    }
+
+    @Test
+    public void supplierForMarkStreamsForReadAccessOperations() {
+        GrpcAuthHelper mockAuthHelper = spy(new GrpcAuthHelper(true, "tokenSigningKey", 600));
+        ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
+
+        AuthorizationResource authResource = new AuthorizationResourceImpl();
+        String markStreamResource = authResource.ofStreamInScope("testScope", "_MARKtestStream");
+        String streamResource = authResource.ofStreamInScope("testScope", "testStream");
+        Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "_MARKtestStream", AccessOperation.READ);
+
+        // For mark streams, authorization is done against the corresponding stream
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(markStreamResource, AuthHandler.Permissions.READ);
+        assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
     }
 
     @Test
