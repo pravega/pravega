@@ -54,8 +54,8 @@ public class ReaderGroupConfig implements Serializable {
 
     public enum RetentionConfig {
         NONE(false, false),
-        CBR_USER_STREAMCUT(true, false),
-        CBR_LAST_CHECKPOINT(true, true);
+        CONSUMPTION_BASED_USER_STREAMCUT(true, false),
+        CONSUMPTION_BASED_AT_LAST_CHECKPOINT(true, true);
 
         private boolean isReaderGroupASubscriber;
         private boolean autoTruncateAtLastCheckpoint;
@@ -71,7 +71,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private RetentionConfig defaultRetentionConfig = RetentionConfig.NONE; //default value
+       private RetentionConfig retentionConfig = RetentionConfig.NONE; //default value
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -228,7 +228,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, defaultRetentionConfig);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionConfig );
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,

@@ -259,7 +259,6 @@ public class CheckpointState {
             builder.checkpoints(input.readCollection(stringDeserializer, ArrayList::new));
             builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
-            builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
         }
 
         private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
@@ -270,7 +269,6 @@ public class CheckpointState {
             output.writeCollection(object.checkpoints, stringSerializer);
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
             output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
-            output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
         }
 
         private void read01(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
