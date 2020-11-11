@@ -69,7 +69,7 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         UUID id = UUID.randomUUID();
-        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
+        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER).getAsByteBuf(), requestId);
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
         Mockito.verify(connection).send(Mockito.eq(request));
         assertFalse(future.isDone());

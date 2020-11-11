@@ -124,24 +124,24 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
     @Test
     public void testConditionalAppend() throws IOException {
-        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
+        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l));
 
         // Test that we are able to decode a message with a previous version.
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
         commandV7.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), -1));
 
         // Test that it correctly implements ReleasableCommand.
         testReleasableCommand(
-                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1),
+                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), -1),
                 WireCommands.ConditionalAppend::readFrom,
-                ce -> ce.getEvent().getData().refCnt());
+                ce -> ce.getData().refCnt());
     }
 
     @Test
     public void testInvalidConditionalAppend() throws IOException {
-        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l);
+        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l);
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         byte[] bytes = bout.toByteArray();

@@ -623,7 +623,7 @@ public final class WireCommands {
         final UUID writerId;
         final long eventNumber;
         final long expectedOffset;
-        final Event event;
+        final ByteBuf data;
         final long requestId;
 
         @Override
@@ -632,7 +632,12 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
-            event.writeFields(out);
+            if (data == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(data.readableBytes());
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            }
             out.writeLong(requestId);
         }
 
@@ -640,21 +645,15 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = readEvent(in, length);
+            int dataLength = in.readInt();
+            ByteBuf data;
+            if (dataLength > 0) {
+                data = in.readFully(dataLength);
+            } else {
+                data = EMPTY_BUFFER;
+            }
             long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId).requireRelease();
-        }
-
-        private static Event readEvent(EnhancedByteBufInputStream in, int length) throws IOException {
-            int typeCode = in.readInt();
-            if (typeCode != WireCommandType.EVENT.getCode()) {
-                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
-            }
-            int eventLength = in.readInt();
-            if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
-            }
-            return new Event(in.readFully(eventLength).retain());
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
         }
 
         @Override
@@ -670,7 +669,7 @@ public final class WireCommands {
 
         @Override
         void releaseInternal() {
-            this.event.data.release();
+            this.data.release();
         }
     }
 

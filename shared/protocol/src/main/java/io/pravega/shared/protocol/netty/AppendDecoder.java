@@ -140,7 +140,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 ca.getWriterId(),
                 ca.getEventNumber(),
                 1,
-                ca.getEvent().getAsByteBuf(),
+                ca.getData(),
                 ca.getExpectedOffset(), ca.getRequestId());
     }
 
