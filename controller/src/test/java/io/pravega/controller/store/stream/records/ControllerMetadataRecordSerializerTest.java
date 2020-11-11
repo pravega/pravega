@@ -22,6 +22,7 @@ import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -205,6 +206,64 @@ public class ControllerMetadataRecordSerializerTest {
 
         record = StreamConfigurationRecord.builder()
                                           .streamConfiguration(allWithTime)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
+        serialized = record.toBytes();
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
+    }
+    
+    @Test
+    public void configurationRecordWithRetentionPolicyTest() throws IOException {
+        StreamConfiguration sizeBasedRetention = StreamConfiguration.builder()
+                                                                    .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                                    .build();
+        StreamConfiguration timeBasedRetention = StreamConfiguration.builder()
+                                                                    .retentionPolicy(RetentionPolicy.byTime(Duration.ofMinutes(1)))
+                                                                    .build();
+        StreamConfiguration cbrSize = StreamConfiguration.builder()
+                                                         .retentionPolicy(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES,
+                                                                 1L, 10L))
+                                                         .build();
+        StreamConfiguration cbrtime = StreamConfiguration.builder()
+                                                         .retentionPolicy(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS,
+                                                                 1L, 10L))
+                                                         .build();
+
+        StreamConfigurationRecord record = StreamConfigurationRecord.builder()
+                                                                    .streamConfiguration(sizeBasedRetention)
+                                                                    .streamName("a")
+                                                                    .scope("a")
+                                                                    .updating(true)
+                                                                    .build();
+        byte[] serialized = record.toBytes();
+        StreamConfigurationRecord deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
+
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(timeBasedRetention)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
+        serialized = record.toBytes();
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
+
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(cbrSize)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
+        serialized = record.toBytes();
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
+        assertEquals(record, deserialized);
+        
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(cbrtime)
                                           .streamName("a")
                                           .scope("a")
                                           .updating(true)

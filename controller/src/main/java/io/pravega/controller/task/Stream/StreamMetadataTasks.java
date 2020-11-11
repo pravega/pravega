@@ -605,6 +605,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                  RetentionSet retentionSet, Map<Long, Long> lowerBound, StreamCutRecord newRecord) {
         // if the lowerbound on subscribers streamcuts satisfies the policy size bound, then return it. 
         // else return the stream cut that satisfies maximum bound on size. 
+        // 1. if lowerbound.size < max and lowerbound.size > min truncate at lowerbound
+        // 2. if lowerbound.size < min, truncate at max irrespective of if lowerbound overlaps with max or not. 
+        // 3. if lowerbound.size > max, truncate at max
         long currentSize = newRecord != null ? newRecord.getRecordingSize() : retentionSet.getLatest().getRecordingSize();
         return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
                           .thenCompose(sizeTill -> {
@@ -653,6 +656,10 @@ public class StreamMetadataTasks extends TaskBase {
         // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time 
         // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
         // exists
+        // 1. if LB > min => truncate at min
+        // 2. if LB < max => truncate at max
+        // 3. if LB < min && LB > max => truncate at LB
+        // 4. if LB < min && overlaps max => truncate at LB
         CompletableFuture<StreamCutRecord> limitMaxFuture = limits.getKey() == null ? CompletableFuture.completedFuture(null) :
                 streamMetadataStore.getStreamCutRecord(scope, stream, limits.getKey(), context, executor);
         CompletableFuture<StreamCutRecord> limitMinFuture = limits.getValue() == null ? CompletableFuture.completedFuture(null) :

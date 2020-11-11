@@ -351,7 +351,8 @@ public abstract class PersistentStreamBase implements Stream {
      */
     @Override
     public CompletableFuture<Void> startUpdateConfiguration(final StreamConfiguration newConfiguration) {
-        return getVersionedConfigurationRecord()
+        return createSubscribersRecordIfAbsent()
+                .thenCompose(v -> getVersionedConfigurationRecord())
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
                     StreamConfigurationRecord update = StreamConfigurationRecord.update(scope, name, newConfiguration);
