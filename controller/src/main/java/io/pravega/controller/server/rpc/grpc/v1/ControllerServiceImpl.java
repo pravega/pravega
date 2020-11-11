@@ -418,14 +418,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 log.debug("Access operation was unspecified for request with scope {} and stream {}",
                         request.getScope(), request.getStream());
 
+                final AuthHandler.Permissions authAndTokenPermission;
                 if (authParams.isMarkStream()) {
                     // Clients are allowed to read from a mark stream, but aren't allowed to write to it. Since the
                     // client didn't specify the access operation, we assume here that it intends to read from it.
-                    return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource, AuthHandler.Permissions.READ);
+                    authAndTokenPermission = AuthHandler.Permissions.READ;
                 } else {
-                    return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource,
-                            AuthHandler.Permissions.READ_UPDATE);
+                    authAndTokenPermission = AuthHandler.Permissions.READ_UPDATE;
                 }
+                this.grpcAuthHelper.checkAuthorization(resource, authAndTokenPermission);
+                return this.grpcAuthHelper.createDelegationToken(streamResource, authAndTokenPermission);
             } else {
                 log.trace("Access operation was {} for request with scope {} and stream {}",
                         translate(request.getAccessOperation()), request.getScope(), request.getStream());

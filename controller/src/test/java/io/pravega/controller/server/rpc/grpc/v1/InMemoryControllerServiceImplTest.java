@@ -191,7 +191,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         ControllerServiceImpl objectUnderTest = new ControllerServiceImpl(null, mockAuthHelper, requestTracker, true, true, 200);
         String streamResource = new AuthorizationResourceImpl().ofStreamInScope("testScope", "testStream");
         Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "testStream", null);
-        doReturn("dummy.delegation.token").when(mockAuthHelper).checkAuthorizationAndCreateToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ_UPDATE);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
 
         assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
     }
@@ -218,7 +219,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         Controller.StreamInfo request = createStreamInfoProtobufMessage("testScope", "_testStream", null);
         System.out.println(request.getAccessOperation().name());
 
-        doReturn("dummy.delegation.token").when(mockAuthHelper).checkAuthorizationAndCreateToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
+        doReturn("").when(mockAuthHelper).checkAuthorization(streamResource, AuthHandler.Permissions.READ_UPDATE);
+        doReturn("dummy.delegation.token").when(mockAuthHelper).createDelegationToken(streamResource, AuthHandler.Permissions.READ_UPDATE);
         assertEquals("dummy.delegation.token", objectUnderTest.delegationTokenSupplier(request).get());
     }
 
