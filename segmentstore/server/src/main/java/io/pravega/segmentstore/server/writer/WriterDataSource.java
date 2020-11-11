@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.writer;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -60,6 +61,7 @@ interface WriterDataSource {
      * of the current
      *
      * @param segmentId          The Id of the Segment to persist for.
+     * @param segmentType        The {@link SegmentType} for the Segment.
      * @param rootPointer        The Root Pointer to set as {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} for the segment.
      * @param lastSequenceNumber The Sequence number of the last Operation that updated attributes. This will be set as
      *                           {@link Attributes#ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO} for the segment.
@@ -68,7 +70,8 @@ interface WriterDataSource {
      * failed, this Future will complete with the appropriate exception. Notable exceptions:
      * - {@link BadAttributeUpdateException}: If the rootPointer is less than the current value for {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER}.
      */
-    CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout);
+    CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer,
+                                                      long lastSequenceNumber, Duration timeout);
 
     /**
      * Instructs the DataSource to seal and compact the Attribute Index for the given Segment.
