@@ -34,6 +34,11 @@ public class StatusAggregatorImpl implements StatusAggregator {
     public static final StatusAggregator ANY = new StatusAggregatorImpl(StatusAggregationRule::any);
 
     /**
+     * The default {@link StatusAggregator} to be used by.
+     */
+    public static final StatusAggregator DEFAULT = UNANIMOUS;
+
+    /**
      * The underlying aggregation rule.
      */
     private final Function<Collection<Status>, Status> rule;

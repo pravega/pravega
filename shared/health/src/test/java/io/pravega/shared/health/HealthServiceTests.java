@@ -59,7 +59,6 @@ public class HealthServiceTests {
         // Service should not start unless explicitly started.
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertFalse(service.running());
-        service.initialize(config);
         // Verify service is now running.
         service.start();
         Assert.assertTrue(service.running());
@@ -120,6 +119,7 @@ public class HealthServiceTests {
         service.register(indicator);
 
         Request request = new Request("health");
+
         Response response = request.get();
         Health health = response.readEntity(Health.class);
         Assert.assertTrue("Status of the ROOT component is expected to be 'UP'", health.getStatus() == Status.UP);

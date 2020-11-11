@@ -20,13 +20,6 @@ public interface HealthServer {
     boolean running();
 
     /**
-     * Provides the opportunity to initialize various structures using a specified {@link HealthServiceConfig} object,
-     * instead of relying on defaults.
-     * @param config The {@link HealthServiceConfig} configuration object.
-     */
-    void initialize(HealthServiceConfig config);
-
-    /**
      * A method that will start the {@link org.glassfish.grizzly.http.server.HttpServer} instance.
      * @throws IOException If there was an exception starting the server.
      */

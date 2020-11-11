@@ -26,6 +26,19 @@ public interface HealthService extends HealthServer {
     public final static String ROOT_COMPONENT_NAME = "root";
 
     /**
+     * Initializes various structures using the provided configurations classes, which may be defaults when this
+     * method is called.
+     */
+    void configure();
+
+    /**
+     * Initializes various structures using explicit {@link HealthComponentConfig} and {@link HealthServiceConfig} classes.
+     * @param serviceConfig The {@link HealthServiceConfig} to use.
+     * @param componentConfig The {@link HealthComponentConfig} to use.
+     */
+    void configure(HealthServiceConfig serviceConfig, HealthComponentConfig componentConfig);
+
+    /**
      * Registers the contributor to the default {@link HealthComponent} registry.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.

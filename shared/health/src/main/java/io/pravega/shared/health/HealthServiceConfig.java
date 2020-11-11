@@ -23,6 +23,7 @@ public class HealthServiceConfig {
     public static final Property<String> ADDRESS = Property.named("connect.host.ip", "localhost");
     public static final Property<Integer> PORT = Property.named("connect.host.port", 10090);
     public static final Property<Integer> INTERVAL = Property.named("health.interval.seconds", 10);
+    public static final Property<Boolean> MONITOR_ENABLED = Property.named("health.monitor.enable", false);
     private static final String COMPONENT_CODE = "health";
 
     @Getter
@@ -40,10 +41,14 @@ public class HealthServiceConfig {
     @Getter
     private final int interval;
 
+    @Getter
+    private final boolean monitorEnabled;
+
     private HealthServiceConfig(TypedProperties properties) throws ConfigurationException {
         this.address = properties.get(ADDRESS);
         this.port = properties.getInt(PORT);
         this.interval = properties.getInt(INTERVAL);
+        this.monitorEnabled = properties.getBoolean(MONITOR_ENABLED);
     }
 
     /**
@@ -61,6 +66,7 @@ public class HealthServiceConfig {
                 .append(String.format("\t%s: %s\n", ADDRESS.getName(), this.address))
                 .append(String.format("\t%s: %s\n", PORT.getName(), this.port))
                 .append(String.format("\t%s: %s", INTERVAL.getName(), this.interval))
+                .append(String.format("\t%s: %s", MONITOR_ENABLED.getName(), this.monitorEnabled))
                 .toString();
     }
 }

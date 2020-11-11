@@ -10,6 +10,7 @@
 package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.HealthComponent;
+import io.pravega.shared.health.HealthComponentConfig;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.ContributorRegistry;
 import lombok.Getter;
@@ -21,27 +22,46 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class ContributorRegistryImpl implements ContributorRegistry {
 
     /**
-     * A {@link Map} that maintains references to all {@link HealthContributor} objects.
+     * Maintains a *flattened* {@link Map} of all {@link HealthComponent} objects to avoid following references.
      */
     @Getter
     final Map<String, HealthComponent> components;
 
-    final Set<HealthContributor> contributors;
+    /**
+     * A {@link Set} that maintains references to all {@link HealthContributor} objects. This {@link Set} is kept for
+     * de-registration purposes.
+     */
+    final Set<HealthContributor> contributors = new HashSet<>();
 
     /**
      * The default {@link HealthComponent} to register any {@link HealthContributor} under.
      */
     private final HealthComponent root;
 
+    @NonNull
     ContributorRegistryImpl(HealthComponent root) {
         this.root = root;
         this.components = new HashMap<>();
-        this.contributors = new HashSet<>();
+        this.components.put(root.getName(), root);
+    }
+
+    ContributorRegistryImpl(HealthComponent root, HealthComponentConfig config) {
+        this.root = root;
+        this.components = config.getComponents();
+        // Anchor the parent-less components at this ROOT component.
+        this.root.setContributors(components.entrySet()
+                .stream()
+                .map(entry -> entry.getValue())
+                .filter(component -> component.isRoot())
+                .collect(Collectors.toSet()));
+        // Put the configured ROOT component into the set.
+        this.components.put(root.getName(), root);
     }
 
     @Override
@@ -52,8 +72,11 @@ public class ContributorRegistryImpl implements ContributorRegistry {
 
     @NonNull
     public void register(HealthContributor contributor, HealthComponent parent) {
-        // Make sure each HealthContributor/Component exists before attempting to use them.
-        this.components.putIfAbsent(parent.getName(), parent);
+        // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
+        if (!components.containsKey(parent.getName())) {
+            log.warn("Attempting to register {} under an unrecognized HealthComponent {}.", contributor, parent.getName());
+            return;
+        }
         log.info("Registering {} to the {}.", contributor, parent);
         // HealthComponent -> Set { HealthContributor }
         parent.register(contributor);
@@ -66,7 +89,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     public void unregister(HealthContributor contributor) {
         String name = contributor.getName();
-        if (!contributors.contains(name)) {
+        if (!contributors.contains(contributor)) {
             log.warn("A request to unregister {} failed -- not found in the registry.", contributor);
             return;
         }
@@ -82,6 +105,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     }
 
     public void clear() {
+        root.clear();
         components.clear();
         contributors.clear();
     }

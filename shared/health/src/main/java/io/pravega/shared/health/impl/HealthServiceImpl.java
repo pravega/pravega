@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthComponent;
+import io.pravega.shared.health.HealthComponentConfig;
 import io.pravega.shared.health.HealthComponentEndpoint;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
@@ -44,47 +45,52 @@ public class HealthServiceImpl implements HealthService {
      * The singleton {@link HealthService} INSTANCE.
      */
     public static final HealthService INSTANCE = new HealthServiceImpl();
-
     @VisibleForTesting
     public ContributorRegistryImpl registry;
-
-    private final HealthComponent root;
-
-    private HttpServer server;
-
-    private HealthServiceConfig config = null;
-
-    private boolean initialized = false;
-
+    private HealthServiceConfig serverConfig;
+    private HealthComponentConfig componentConfig;
     @Getter
     private URI uri;
-
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "health-check");
+    private HttpServer server;
+    /**
+     * The base under which all other {@link HealthComponent} will be registered.
+     */
+    private final HealthComponent root;
+    /**
+     * Due to the use of a SINGLETON to simplify {@link HealthContributor} registration, this flag is used to signal
+     * when the {@link HealthService} is ready to be started (client configuration has been applied).
+     */
+    private boolean initialized = false;
+    /**
+     * The {@link ScheduledExecutorService} used for recurring health checks.
+     */
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-check");
 
     private HealthServiceImpl() {
-        root = new HealthComponent(ROOT_COMPONENT_NAME);
-        // Initiate the contributor registry.
-        registry = new ContributorRegistryImpl(root);
         // Create the root component.
+        root = new HealthComponent(ROOT_COMPONENT_NAME);
+        // Set default configs.
+        serverConfig = HealthServiceConfig.builder().build();
+        componentConfig = HealthComponentConfig.empty();
     }
 
-    public synchronized void initialize(HealthServiceConfig config) {
-        if (!initialized) {
-            this.config = config == null ? HealthServiceConfig.builder().build() : config;
+    public void configure() {
+        configure(this.serverConfig, this.componentConfig);
+    }
+
+   public synchronized void configure(HealthServiceConfig serverConfig, HealthComponentConfig componentConfig) {
+        if (!this.initialized) {
             // Setup the server.
-            uri = UriBuilder.fromUri(String.format("http://%s/", config.getAddress()))
-                    .port(config.getPort())
+            this.uri = UriBuilder.fromUri(String.format("http://%s/", serverConfig.getAddress()))
+                    .port(serverConfig.getPort())
                     .build();
-            // Initialize the server, but don't start.
-            server = createHttpServer();
-            // Continuously monitor the health of the top level service.
-            executor.scheduleAtFixedRate(() -> INSTANCE.health(true),
-                    config.getInterval(),
-                    config.getInterval(),
-                    TimeUnit.SECONDS);
-            initialized = true;
+            // Provide configuration.
+            this.serverConfig = serverConfig;
+            this.componentConfig = componentConfig;
+            // Now considered initialized.
+            this.initialized = true;
         } else {
-            log.warn("Attempted to call initialize() on an already initialized HealthService.");
+            log.warn("Attempted to call configure() on an already initialized HealthService.");
         }
     }
 
@@ -97,10 +103,11 @@ public class HealthServiceImpl implements HealthService {
     }
 
     public synchronized void start() throws IOException {
+        // If has not already been configured, do so now. May use default configuration classes.
         if (!initialized) {
-            HealthServiceConfig config = HealthServiceConfig.builder().build();
-            log.warn("Initializing HealthService with default HealthServiceConfig values:\n\n{}\n", config);
-            initialize(config);
+            // Initialize the server, but don't start.
+            configure();
+            this.server = createHttpServer(uri);
         }
         if (!server.isStarted()) {
             server.start();
@@ -108,6 +115,15 @@ public class HealthServiceImpl implements HealthService {
         } else {
             log.warn("start() was called with an existing INSTANCE or active REST server.");
         }
+        if (serverConfig.isMonitorEnabled()) {
+            // Continuously monitor the health of the top level service.
+            executor.scheduleAtFixedRate(() -> INSTANCE.health(true),
+                    serverConfig.getInterval(),
+                    serverConfig.getInterval(),
+                    TimeUnit.SECONDS);
+        }
+        // Initiate the contributor registry.
+        this.registry = new ContributorRegistryImpl(root, componentConfig);
     }
 
     public synchronized void stop() {
@@ -115,6 +131,16 @@ public class HealthServiceImpl implements HealthService {
             log.warn("stop() was called with no existing INSTANCE or an inactive REST server.");
             return;
         }
+
+        log.info("Shutting down the health monitor executor service.");
+        executor.shutdownNow();
+        try {
+            log.info("Await for monitor termination.");
+            executor.awaitTermination(60, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            log.error("Unexpected InterruptedException shutting down health monitor.", e);
+        }
+
         try {
             log.info("Clearing the ContributorRegistry.");
             registry.clear();
@@ -126,11 +152,12 @@ public class HealthServiceImpl implements HealthService {
         } catch (Exception e) {
             log.error("Error shutting down REST server. Unhandled exception : {}", e);
         } finally {
-            server = createHttpServer();
+            server = createHttpServer(uri);
         }
+
     }
 
-    private synchronized HttpServer createHttpServer() {
+    private synchronized HttpServer createHttpServer(URI uri) {
         return GrizzlyHttpServerFactory.createHttpServer(uri,
                 new ResourceConfig().register(HealthEndpoint.class).register(HealthComponentEndpoint.class),
                 false);
@@ -168,6 +195,9 @@ public class HealthServiceImpl implements HealthService {
                .stream()
                .map(entry -> entry.getValue())
                .collect(Collectors.toList());
+    }
+
+    private void runHealthMonitor() {
     }
 
 }

@@ -11,6 +11,7 @@ package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.StatusAggregatorImpl;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -25,13 +26,14 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
      */
-    private final StatusAggregator aggregator;
+    public final StatusAggregator aggregator;
 
     @Getter
-    private final Set<HealthContributor> contributors;
+    @Setter
+    private Set<HealthContributor> contributors;
 
     CompositeHealthContributor() {
-        this(StatusAggregatorImpl.UNANIMOUS);
+        this(StatusAggregatorImpl.DEFAULT);
     }
 
     CompositeHealthContributor(StatusAggregator aggregator) {
@@ -62,8 +64,6 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
 
         return Health.builder().status(status).children(includeDetails ? children : null).build();
     }
-
-    abstract public String getName();
 
     /**
      * Removes a {@link HealthContributor} as a dependency from this {@link HealthComponent}.
@@ -96,4 +96,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     public void clear() {
         contributors.clear();
     }
+
+    abstract public String getName();
+
 }
