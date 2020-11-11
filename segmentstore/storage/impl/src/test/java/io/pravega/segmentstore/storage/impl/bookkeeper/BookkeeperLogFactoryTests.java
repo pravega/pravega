@@ -85,7 +85,7 @@ public class BookkeeperLogFactoryTests extends BookKeeperClusterTestCase {
         // Initialize the log, and therefore the Bookkeeper client.
         factory.initialize();
         // Set a timer with a longer period than the inspection period to allow client re-creation.
-        factory.getLastBookkeeperClientReset().set(new FakeTimer());
+        factory.getLastBookkeeperClientReset().set(new OldTimer());
         BookKeeper oldBookkeeperClient = factory.getBookKeeperClient();
         // Create a log the first time.
         Assert.assertNull(factory.getLogInitializationTracker().get(0));
@@ -110,7 +110,7 @@ public class BookkeeperLogFactoryTests extends BookKeeperClusterTestCase {
         Assert.assertEquals(oldBookkeeperClient, factory.getBookKeeperClient());
     }
 
-    static class FakeTimer extends Timer {
+    static class OldTimer extends Timer {
 
         @Override
         public long getElapsedNanos() {

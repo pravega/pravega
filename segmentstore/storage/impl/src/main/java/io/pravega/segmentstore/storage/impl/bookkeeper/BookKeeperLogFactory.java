@@ -54,8 +54,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
-    @Getter(AccessLevel.PACKAGE)
     @GuardedBy("this")
+    @Getter(AccessLevel.PACKAGE)
     private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
     @Getter(AccessLevel.PACKAGE)
@@ -151,29 +151,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         return this.bookKeeper.get();
     }
 
-    public void tryResetBookkeeperClient(int logId) {
-        synchronized (this) {
-            if (logInitializationTracker.containsKey(logId)) {
-                // Account for a restart of the Bookkeeper log.
-                logInitializationTracker.get(logId).incrementLogCreations();
-                // If the number of restarts for a single container is meets the threshold, let's reset the BK client.
-                if (logInitializationTracker.get(logId).isBookkeeperClientResetNeeded()
-                        && lastBookkeeperClientReset.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
-                    try {
-                        close();
-                        initialize();
-                        lastBookkeeperClientReset.set(new Timer());
-                    } catch (Exception e) {
-                        log.error("Failure resetting the Bookkeeper client: ", e);
-                        throw new RuntimeException("Unable to reset BookKeeper client.", e);
-                    }
-                }
-            } else {
-                logInitializationTracker.put(logId, new LogInitializationRecord());
-            }
-        }
-    }
-
     //endregion
 
     //region Initialization
@@ -214,6 +191,41 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
         return BookKeeper.newBuilder(config)
                          .build();
+    }
+
+    /**
+     * Recreate the Bookkeeper client if a given log exhibits MAX_CREATE_ATTEMPTS_PER_LOG creation attempts (as a proxy
+     * for Container recoveries) within the period of time defined in LOG_CREATION_INSPECTION_PERIOD.
+     *
+     * @param logId Id of the log being restarted.
+     */
+    private void tryResetBookkeeperClient(int logId) {
+        synchronized (this) {
+            if (logInitializationTracker.containsKey(logId)) {
+                // Account for a restart of the Bookkeeper log.
+                logInitializationTracker.get(logId).incrementLogCreations();
+                // If the number of restarts for a single container is meets the threshold, let's reset the BK client.
+                if (logInitializationTracker.get(logId).isBookkeeperClientResetNeeded()
+                        && lastBookkeeperClientReset.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
+                    try {
+                        log.info("Start creating Bookkeeper client in reset.");
+                        BookKeeper newClient = startBookKeeperClient();
+                        // If we have been able to create a new client successfully, reset the current one and update timer.
+                        log.info("Successfully created new Bookkeeper client, setting it as the new one to use.");
+                        BookKeeper oldClient = this.bookKeeper.getAndSet(newClient);
+                        lastBookkeeperClientReset.set(new Timer());
+                        // Lastly, attempt to close the old client.
+                        log.info("Attempting to close old client.");
+                        oldClient.close();
+                    } catch (Exception e) {
+                        log.error("Failure resetting the Bookkeeper client: ", e);
+                        throw new RuntimeException("Unable to reset BookKeeper client.", e);
+                    }
+                }
+            } else {
+                logInitializationTracker.put(logId, new LogInitializationRecord());
+            }
+        }
     }
 
     //endregion
