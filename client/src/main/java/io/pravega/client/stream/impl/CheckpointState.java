@@ -264,7 +264,6 @@ public class CheckpointState {
         private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
             ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
             ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
-            ElementSerializer<Boolean> boolSerializer = RevisionDataOutput::writeBoolean;
             ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
             output.writeCollection(object.checkpoints, stringSerializer);
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
@@ -285,7 +284,6 @@ public class CheckpointState {
         private void write01(CheckpointState object, RevisionDataOutput output) throws IOException {
             ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
             ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
-            ElementSerializer<Boolean> boolSerializer = RevisionDataOutput::writeBoolean;
             ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
             output.writeCollection(object.checkpoints, stringSerializer);
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
