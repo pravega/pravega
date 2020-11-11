@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor>  {
+public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor> {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
@@ -35,30 +35,8 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     }
 
     CompositeHealthContributor(StatusAggregator aggregator) {
-        this.aggregator = aggregator;
         this.contributors = new HashSet<>();
-    }
-
-    /**
-     * Adds a {@link HealthContributor} as a dependency to this {@link HealthComponent}.
-     *
-     * @param contributor The {@link HealthContributor} to add.
-     */
-    public void register(HealthContributor contributor) {
-        contributors.add(contributor);
-    }
-
-    /**
-     * Removes a {@link HealthContributor} as a dependency from this {@link HealthComponent}.
-     *
-     * @param contributor The {@link HealthContributor} to remove.
-     */
-    public void unregister(HealthContributor contributor) {
-        if (!contributors.contains(contributor)) {
-            log.warn("A request to remove {} failed. {} is not listed as a dependency.", contributor, contributor);
-            return;
-        }
-        contributors.remove(contributor);
+        this.aggregator = aggregator;
     }
 
     public Health health() {
@@ -85,8 +63,28 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
         return Health.builder().status(status).children(includeDetails ? children : null).build();
     }
 
-    public void clear() {
-        contributors.clear();
+    abstract public String getName();
+
+    /**
+     * Removes a {@link HealthContributor} as a dependency from this {@link HealthComponent}.
+     *
+     * @param contributor The {@link HealthContributor} to remove.
+     */
+    public void unregister(HealthContributor contributor) {
+        if (!contributors.contains(contributor)) {
+            log.warn("A request to remove {} failed. {} is not listed as a dependency.", contributor, contributor);
+            return;
+        }
+        contributors.remove(contributor);
+    }
+
+    /**
+     * Adds a {@link HealthContributor} as a dependency to this {@link HealthComponent}.
+     *
+     * @param contributor The {@link HealthContributor} to add.
+     */
+    public void register(HealthContributor contributor) {
+        contributors.add(contributor);
     }
 
     public Optional<HealthContributor> get(String name) {
@@ -95,6 +93,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
                 .findFirst();
     }
 
-
-    abstract public String getName();
+    public void clear() {
+        contributors.clear();
+    }
 }

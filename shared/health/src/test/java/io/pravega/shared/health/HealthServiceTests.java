@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.ContributorRegistryImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +25,7 @@ import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.JacksonJsonProvider;
@@ -37,10 +37,12 @@ public class HealthServiceTests {
     @Rule
     public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
 
+    private int port = new Random().nextInt(50000);
+
     private HealthServiceConfig config = HealthServiceConfig
             .builder()
             .with(HealthServiceConfig.INTERVAL, 10)
-            .with(HealthServiceConfig.PORT, 10090)
+            .with(HealthServiceConfig.PORT, port)
             .build();
 
     private final Client client;
@@ -57,6 +59,7 @@ public class HealthServiceTests {
         // Service should not start unless explicitly started.
         HealthService service = HealthServiceImpl.INSTANCE;
         Assert.assertFalse(service.running());
+        service.initialize(config);
         // Verify service is now running.
         service.start();
         Assert.assertTrue(service.running());
@@ -142,7 +145,7 @@ public class HealthServiceTests {
         Assert.assertTrue("No non-root components have been defined.", components.size() == 1);
         // Assert that it is indeed the 'ROOT'
         Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
-                ContributorRegistryImpl.getDefaultComponent().getName(),
+                HealthService.ROOT_COMPONENT_NAME,
                 components.get(0));
     }
 

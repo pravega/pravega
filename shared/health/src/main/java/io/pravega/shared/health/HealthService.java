@@ -23,6 +23,8 @@ import java.util.Collection;
  *  * /health/details       Exposes the aggregate {@link Health} details.
  */
 public interface HealthService extends HealthServer {
+    public final static String ROOT_COMPONENT_NAME = "root";
+
     /**
      * Registers the contributor to the default {@link HealthComponent} registry.
      *

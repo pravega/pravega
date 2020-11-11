@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthComponent;
@@ -44,7 +45,10 @@ public class HealthServiceImpl implements HealthService {
      */
     public static final HealthService INSTANCE = new HealthServiceImpl();
 
+    @VisibleForTesting
     public ContributorRegistryImpl registry;
+
+    private final HealthComponent root;
 
     private HttpServer server;
 
@@ -58,8 +62,10 @@ public class HealthServiceImpl implements HealthService {
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "health-check");
 
     private HealthServiceImpl() {
+        root = new HealthComponent(ROOT_COMPONENT_NAME);
         // Initiate the contributor registry.
-        registry = new ContributorRegistryImpl();
+        registry = new ContributorRegistryImpl(root);
+        // Create the root component.
     }
 
     public synchronized void initialize(HealthServiceConfig config) {
@@ -83,7 +89,7 @@ public class HealthServiceImpl implements HealthService {
     }
 
     public void register(HealthContributor contributor) {
-        register(contributor, registry.getDefaultComponent());
+        register(contributor, root);
     }
 
     public void register(HealthContributor contributor, HealthComponent parent) {
@@ -153,7 +159,7 @@ public class HealthServiceImpl implements HealthService {
     }
 
     public Health health(boolean includeDetails) {
-        return health(registry.getDefaultComponent().getName(), includeDetails);
+        return health(root.getName(), includeDetails);
     }
 
     public Collection<HealthComponent> components() {

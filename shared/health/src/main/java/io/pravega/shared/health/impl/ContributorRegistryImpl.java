@@ -9,9 +9,9 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.ContributorRegistry;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -26,67 +26,54 @@ import java.util.Set;
 public class ContributorRegistryImpl implements ContributorRegistry {
 
     /**
-     * The default {@link HealthComponent} to register any {@link HealthContributor} under.
-     */
-    private static final HealthComponent ROOT_COMPONENT = new HealthComponent("ROOT");
-    /**
-     * A {@link Map} that maintains the 'logical' relationships between a particular {@link HealthComponent} and all
-     * of the required dependencies used to determine it's overall health.
+     * A {@link Map} that maintains references to all {@link HealthContributor} objects.
      */
     @Getter
     final Map<String, HealthComponent> components;
+
+    final Set<HealthContributor> contributors;
+
     /**
-     * A {@link Map} that maintains the 'logical' relationships between a particular {@link HealthContributor} and all
-     * of the components that act as a dependee to this {@link HealthContributor}.
-     *
-     * The {@link HealthComponent} maintains the references to it's dependencies, while the dependencies ({@link HealthContributor}
-     * do not maintain references to their dependees.
+     * The default {@link HealthComponent} to register any {@link HealthContributor} under.
      */
-    final Map<HealthContributor, Set<HealthComponent>> contributors;
+    private final HealthComponent root;
 
-    ContributorRegistryImpl() {
+    ContributorRegistryImpl(HealthComponent root) {
+        this.root = root;
         this.components = new HashMap<>();
-        this.contributors = new HashMap<>();
-        // Registry default component.
-        this.components.put(ROOT_COMPONENT.getName(), ROOT_COMPONENT);
-    }
-
-    public static HealthComponent getDefaultComponent() {
-        return ROOT_COMPONENT;
+        this.contributors = new HashSet<>();
     }
 
     @Override
     @NonNull
     public void register(HealthContributor contributor) {
-        register(contributor, ROOT_COMPONENT);
+        register(contributor, root);
     }
 
     @NonNull
     public void register(HealthContributor contributor, HealthComponent parent) {
+        // Make sure each HealthContributor/Component exists before attempting to use them.
+        this.components.putIfAbsent(parent.getName(), parent);
         log.info("Registering {} to the {}.", contributor, parent);
         // HealthComponent -> Set { HealthContributor }
-        if (!components.containsKey(parent.getName())) {
-            components.put(parent.getName(), parent);
-        }
         parent.register(contributor);
         // HealthContributor -> Set { HealthComponent }
-        if (!contributors.containsKey(contributor)) {
-            contributors.put(contributor, new HashSet<>());
-        }
-        contributors.get(contributor).add(parent);
+        contributors.add(parent);
+        contributors.add(contributor);
     }
 
     @Override
     @NonNull
     public void unregister(HealthContributor contributor) {
-        if (contributors.get(contributor).isEmpty()) {
+        String name = contributor.getName();
+        if (!contributors.contains(name)) {
             log.warn("A request to unregister {} failed -- not found in the registry.", contributor);
+            return;
         }
-        // Remove from each HealthComponent.
-        for (HealthComponent component : contributors.get(contributor)) {
-            component.unregister(contributor);
+        if (components.containsKey(name)) {
+            log.warn("Attempting to remove a HealthComponent -- this action should not normally be done.");
+            components.remove(contributor);
         }
-        // Remove HealthContributor -> Set { HealthComponent } mapping.
         contributors.remove(contributor);
     }
 
@@ -96,5 +83,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
 
     public void clear() {
         components.clear();
+        contributors.clear();
     }
 }

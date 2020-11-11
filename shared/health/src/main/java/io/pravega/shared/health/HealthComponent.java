@@ -13,8 +13,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Optional;
-
 /**
  * The {@link HealthComponent} class is used to provide a logical grouping of components. Each registered {@link  HealthComponent}
  * will export it's JSON representation via some HTTP route.
@@ -29,15 +27,8 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
-    private final Optional<HealthComponent> parent;
-
     public HealthComponent(String name) {
-        this(name, null);
-    }
-
-    public HealthComponent(String name, HealthComponent parent) {
         this.name = name;
-        this.parent = Optional.ofNullable(parent);
     }
 
     @Override

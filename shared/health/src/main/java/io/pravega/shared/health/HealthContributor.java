@@ -32,5 +32,4 @@ public interface HealthContributor {
      * @return The name provided.
      */
     String getName();
-
 }

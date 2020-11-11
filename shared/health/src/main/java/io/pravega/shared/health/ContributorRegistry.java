@@ -19,7 +19,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Registers the contributor to the registry.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
-     * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
+     * @param parent      The {@link CompositeHealthContributor} the {@link HealthContributor} should map too. This means that the parent's
      *                    health will be predicated on this {@link HealthContributor}'s health.
      */
     void register(HealthContributor contributor, HealthComponent parent);
