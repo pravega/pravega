@@ -479,13 +479,11 @@ public class ReaderGroupStateManager {
         && !state.getCheckpointState().isLastCheckpointPublished()) {
             // we get here only when this is the reader that has completed the lastCheckpoint
             Optional<Map<Stream, Map<Segment, Long>>> cuts = state.getPositionsForLastCompletedCheckpoint();
-            if (!cuts.isPresent()) {
-                throw new CheckpointFailedException("Could not get positions for last checkpoint.");
-            }
-            cuts.get().entrySet().stream().forEach(entry ->
-                    controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                            readerId, new StreamCutImpl(entry.getKey(), entry.getValue())));
-            sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
+            cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
+                 .entrySet().forEach(entry ->
+                        controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
+                                readerId, new StreamCutImpl(entry.getKey(), entry.getValue())));
+                sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }
 
