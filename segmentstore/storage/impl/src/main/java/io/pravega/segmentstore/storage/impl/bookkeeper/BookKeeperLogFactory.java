@@ -25,8 +25,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.api.BookKeeper;
@@ -55,10 +53,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
     @GuardedBy("this")
-    @Getter(AccessLevel.PACKAGE)
     private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
-    @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<Timer> lastBookkeeperClientReset = new AtomicReference<>(new Timer());
 
     //endregion
@@ -201,11 +197,12 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
      */
     private void tryResetBookkeeperClient(int logId) {
         synchronized (this) {
-            if (logInitializationTracker.containsKey(logId)) {
+            LogInitializationRecord record = logInitializationTracker.get(logId);
+            if (record != null) {
                 // Account for a restart of the Bookkeeper log.
-                logInitializationTracker.get(logId).incrementLogCreations();
+                record.incrementLogCreations();
                 // If the number of restarts for a single container is meets the threshold, let's reset the BK client.
-                if (logInitializationTracker.get(logId).isBookkeeperClientResetNeeded()
+                if (record.isBookkeeperClientResetNeeded()
                         && lastBookkeeperClientReset.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
                     try {
                         log.info("Start creating Bookkeeper client in reset.");
@@ -218,14 +215,23 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                         log.info("Attempting to close old client.");
                         oldClient.close();
                     } catch (Exception e) {
-                        log.error("Failure resetting the Bookkeeper client: ", e);
-                        throw new RuntimeException("Unable to reset BookKeeper client.", e);
+                        throw new RuntimeException("Failure resetting the Bookkeeper client", e);
                     }
                 }
             } else {
                 logInitializationTracker.put(logId, new LogInitializationRecord());
             }
         }
+    }
+
+    @VisibleForTesting
+    public Map<Integer, LogInitializationRecord> getLogInitializationTracker() {
+        return logInitializationTracker;
+    }
+
+    @VisibleForTesting
+    public void setLastBookkeeperClientReset(Timer timer) {
+        lastBookkeeperClientReset.set(timer);
     }
 
     //endregion
