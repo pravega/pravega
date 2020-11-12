@@ -67,6 +67,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
@@ -146,23 +147,38 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
-        this.storage = storageFactory.createStorageAdapter();
-        this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
-        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.executor = executor;
+        this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
+        this.extensions = Collections.unmodifiableMap(createExtensions.apply(this, this.executor));
+        this.storage = createStorage(storageFactory);
+        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.config = config;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
         this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.attributeIndex, this.storage, this::createWriterProcessors);
         shutdownWhenStopped(this.writer, "Writer");
-        this.extensions = Collections.unmodifiableMap(createExtensions.apply(this, this.executor));
         this.metadataStore = createMetadataStore();
         this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.metadataStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
+    }
+
+    private Storage createStorage(StorageFactory storageFactory) {
+        if (storageFactory instanceof SimpleStorageFactory) {
+            val simpleFactory = (SimpleStorageFactory) storageFactory;
+            // Initialize storage metadata table segment
+            ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
+            String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
+
+            val metadataStore = new TableBasedMetadataStore(s, tableExtension, simpleFactory.getExecutor());
+
+            return simpleFactory.createStorageAdapter(this.metadata.getContainerId(), metadataStore);
+        } else {
+            return storageFactory.createStorageAdapter();
+        }
     }
 
     private MetadataStore createMetadataStore() {
@@ -190,21 +206,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      *
      * @throws Exception
      */
-    private void initializeStorage() throws Exception {
+    private CompletableFuture<Void> initializeStorage() throws Exception {
+        log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
 
-            // Initialize storage metadata table segment
-            ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
-            String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
-
-            val metadata = new TableBasedMetadataStore(s, tableExtension);
-
             // Bootstrap
-            chunkedStorage.bootstrap(this.metadata.getContainerId(), metadata);
+            return chunkedStorage.bootstrap();
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     //endregion
@@ -284,11 +296,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private CompletableFuture<Void> initializeSecondaryServices() {
         try {
-            initializeStorage();
+            return initializeStorage()
+                    .thenComposeAsync(v -> {
+                        log.info("{}: Initializing Metadata Store.", this.traceObjectId);
+                        return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
+                    }, this.executor);
         } catch (Exception ex) {
             return Futures.failedFuture(ex);
         }
-        return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 
     private CompletableFuture<Void> startSecondaryServicesAsync() {

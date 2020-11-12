@@ -35,6 +35,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.HttpStatus;
@@ -43,6 +44,7 @@ import java.io.InputStream;
 
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.Executor;
 
 /**
  * {@link ChunkStorage} for extended S3 based storage.
@@ -63,7 +65,8 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //endregion
 
     //region constructor
-    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config) {
+    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor) {
+        super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
     }
@@ -133,7 +136,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
-            client.getObjectMetadata(config.getBucket(), objectPath);
+            val metadata = client.getObjectMetadata(config.getBucket(), objectPath);
+            if (metadata.getContentLength() != offset) {
+                throw new InvalidOffsetException(handle.getChunkName(), metadata.getContentLength(), offset, "doWrite");
+            }
 
             // Put data.
             client.putObject(this.config.getBucket(), objectPath,
