@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -37,6 +38,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * {@link ChunkStorage} for file system based storage.
@@ -61,8 +63,10 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
      * Creates a new instance of the FileSystemChunkStorage class.
      *
      * @param config The configuration to use.
+     * @param executor Executor for async operations.
      */
-    public FileSystemChunkStorage(FileSystemStorageConfig config) {
+    public FileSystemChunkStorage(FileSystemStorageConfig config, Executor executor) {
+        super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.fileSystem = new FileSystemWrapper();
     }
@@ -72,8 +76,10 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
      *
      * @param config The configuration to use.
      * @param fileSystem Object that wraps file system related calls.
+     * @param executor Executor for a async operations.
      */
-    public FileSystemChunkStorage(FileSystemStorageConfig config, FileSystemWrapper fileSystem) {
+    public FileSystemChunkStorage(FileSystemStorageConfig config, FileSystemWrapper fileSystem, Executor executor) {
+        super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.fileSystem = Preconditions.checkNotNull(fileSystem, "fileSystem");
     }
@@ -218,7 +224,7 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
         try (FileChannel channel = fileSystem.getFileChannel(path, StandardOpenOption.WRITE)) {
             long fileSize = channel.size();
             if (fileSize != offset) {
-                throw new IllegalArgumentException(String.format("fileSize (%d) did not match offset (%d) for chunk %s", fileSize, offset, handle.getChunkName()));
+                throw new InvalidOffsetException(handle.getChunkName(), fileSize, offset, "doWrite");
             }
 
             // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
@@ -282,6 +288,9 @@ public class FileSystemChunkStorage extends BaseChunkStorage {
     }
 
     private ChunkStorageException convertExeption(String chunkName, String message, Exception e) {
+        if (e instanceof ChunkStorageException) {
+            return (ChunkStorageException) e;
+        }
         if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
             return new ChunkNotFoundException(chunkName, message, e);
         }
