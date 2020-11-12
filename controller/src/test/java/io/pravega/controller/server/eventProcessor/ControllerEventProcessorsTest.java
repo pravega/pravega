@@ -16,7 +16,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
@@ -37,7 +36,6 @@ import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +50,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
-import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
