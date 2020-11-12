@@ -475,7 +475,7 @@ public class ReaderGroupStateManager {
     public void updateTruncationStreamCutIfNeeded() {
         ReaderGroupState state = sync.getState();
         // here add check if RG is Subscriber and autoPublishTruncationStreamCut = true
-        if (state.getConfig().getRetentionConfig().equals(ReaderGroupConfig.RetentionConfig.CONSUMPTION_BASED_AT_LAST_CHECKPOINT)
+        if (state.getConfig().getRetentionConfig().equals(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_AT_LAST_CHECKPOINT)
         && !state.getCheckpointState().isLastCheckpointPublished()) {
             // we get here only when this is the reader that has completed the lastCheckpoint
             Optional<Map<Stream, Map<Segment, Long>>> cuts = state.getPositionsForLastCompletedCheckpoint();

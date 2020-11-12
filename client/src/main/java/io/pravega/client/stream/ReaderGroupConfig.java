@@ -50,17 +50,26 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    private final RetentionConfig retentionConfig;
+    private final StreamDataRetention retentionConfig;
 
-    public enum RetentionConfig {
-        NONE(false, false),
+    /**
+     * The values of this enum indicate if a ReaderGroup chooses Consumption based data retention for Streams it reads from.
+     * For Consumption based retention to work, in addition to setting the appropriate value here,
+     * the Streams' Retention Policy must be set to 'CONSUMPTION'.
+     *
+     * NO_IMPACT - Read Positions of Readers do not impact Stream truncation.
+     * CONSUMPTION_BASED_USER_STREAMCUT - ConsumptionBasedRetention, user provides the StreamCut for truncation.
+     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - ConsumptionBasedRetention, StreamCut corresponding to lastCompletedCheckpoint is used as truncation point.
+     * */
+    public enum StreamDataRetention {
+        NO_IMPACT(false, false),
         CONSUMPTION_BASED_USER_STREAMCUT(true, false),
         CONSUMPTION_BASED_AT_LAST_CHECKPOINT(true, true);
 
         private boolean isReaderGroupASubscriber;
         private boolean autoTruncateAtLastCheckpoint;
 
-        RetentionConfig(boolean isSubscriber, boolean autoTruncateAtLastCheckpoint) {
+        StreamDataRetention(boolean isSubscriber, boolean autoTruncateAtLastCheckpoint) {
             this.isReaderGroupASubscriber = isSubscriber;
             this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
         }
@@ -71,7 +80,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private RetentionConfig retentionConfig = RetentionConfig.NONE; //default value
+       private StreamDataRetention retentionConfig = StreamDataRetention.NO_IMPACT; //default value
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -197,11 +206,14 @@ public class ReaderGroupConfig implements Serializable {
 
        /**
         * Set the retention config for the {@link ReaderGroup}.
+        * For Consumption based retention of data in the Stream, this field should be set to
+        * CONSUMPTION_BASED_USER_STREAMCUT or CONSUMPTION_BASED_AT_LAST_CHECKPOINT.
+        * Default value is NO_IMPACT.
         *
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder retentionConfig(RetentionConfig retentionConfig) {
+       public ReaderGroupConfigBuilder retentionConfig(StreamDataRetention retentionConfig) {
            this.retentionConfig = retentionConfig;
            return this;
        }
@@ -337,7 +349,7 @@ public class ReaderGroupConfig implements Serializable {
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
             int ordinal = revisionDataInput.readCompactInt();
-            builder.retentionConfig(RetentionConfig.values()[ordinal]);
+            builder.retentionConfig(StreamDataRetention.values()[ordinal]);
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
