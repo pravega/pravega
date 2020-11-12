@@ -38,7 +38,7 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
  */
 @Slf4j
 public abstract class SimpleStorageTests extends StorageTestBase {
-
+    private static final int CONTAINER_ID = 42;
     private static final int WRITE_COUNT = 5;
     ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
@@ -56,7 +56,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
                 chunkStorage = getChunkStorage();
             }
         }
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, chunkMetadataStore, executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         return chunkedSegmentStorage;
     }
 
@@ -73,7 +73,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      */
     protected Storage forkStorage(ChunkedSegmentStorage storage) throws Exception {
         Executor executor = executorService();
-        ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(storage.getChunkStorage(),
+        ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
@@ -87,7 +87,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore();
+        return new InMemoryMetadataStore(executorService());
     }
 
     /**
