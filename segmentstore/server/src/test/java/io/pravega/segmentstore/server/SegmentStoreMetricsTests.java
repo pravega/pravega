@@ -9,24 +9,29 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.AbstractTimer;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -36,9 +41,6 @@ import static org.junit.Assert.assertNull;
  */
 @Slf4j
 public class SegmentStoreMetricsTests {
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(10);
-
     @Before
     public void setUp() {
         MetricsProvider.initialize(MetricsConfig.builder()
@@ -167,7 +169,6 @@ public class SegmentStoreMetricsTests {
         int generationSpread = 10;
         long managerIterationDuration = 1;
 
-        int containerId = new Random().nextInt(Integer.MAX_VALUE);
         @Cleanup
         SegmentStoreMetrics.CacheManager cache = new SegmentStoreMetrics.CacheManager();
         cache.report(new CacheState(storedBytes, usedBytes, 0, allocatedBytes, storedBytes), generationSpread, managerIterationDuration);
@@ -187,5 +188,37 @@ public class SegmentStoreMetricsTests {
         assertNull(MetricRegistryUtils.getTimer(MetricsNames.CACHE_MANAGER_ITERATION_DURATION));
     }
 
+    @Test
+    public void testOperationProcessorMetrics() {
+        int containerId = 1;
+        final String[] containerTag = containerTag(containerId);
+        @Cleanup
+        val op = new SegmentStoreMetrics.OperationProcessor(containerId);
+        val ops = Arrays.<CompletableOperation>asList(
+                new TestCompletableOperation(10),
+                new TestCompletableOperation(20));
+        op.operationsCompleted(Collections.singletonList(ops), Duration.ZERO);
+        val opf = Arrays.<CompletableOperation>asList(
+                new TestCompletableOperation(20),
+                new TestCompletableOperation(30));
+        op.operationsFailed(opf);
+        assertEquals(15, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
+        op.close();
+    }
+
+    private static class TestCompletableOperation extends CompletableOperation {
+        private final ManualTimer timer;
+
+        public TestCompletableOperation(long millis) {
+            super(new MetadataCheckpointOperation(), OperationPriority.Normal, new CompletableFuture<>());
+            this.timer = new ManualTimer();
+            this.timer.setElapsedMillis(millis);
+        }
+
+        @Override
+        public AbstractTimer getTimer() {
+            return timer;
+        }
+    }
 
 }

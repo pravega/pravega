@@ -51,7 +51,8 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 3;
+        // Use an InlineExecutor to help with the async operations (they will be executed synchronously).
+        return 0;
     }
 
     @Test(timeout = 20000)

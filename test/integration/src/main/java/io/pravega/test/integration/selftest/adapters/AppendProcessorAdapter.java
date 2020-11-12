@@ -19,6 +19,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -50,6 +52,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
     @GuardedBy("handlers")
     private final HashMap<String, SegmentHandler> handlers;
     private final ConnectionTracker connectionTracker;
+    private AutoScaleMonitor autoScaleMonitor;
 
     //endregion
 
@@ -76,11 +79,16 @@ public class AppendProcessorAdapter extends StoreAdapter {
     @Override
     protected void startUp() throws Exception {
         this.segmentStoreAdapter.startUp();
+        this.autoScaleMonitor = new AutoScaleMonitor(this.segmentStoreAdapter.getStreamSegmentStore(), AutoScalerConfig.builder().build());
     }
 
     @Override
     protected void shutDown() {
         this.segmentStoreAdapter.shutDown();
+        if (this.autoScaleMonitor != null) {
+            this.autoScaleMonitor.close();
+            this.autoScaleMonitor = null;
+        }
     }
 
     @Override
@@ -96,7 +104,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String segmentName, Event event, Duration timeout) {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
         SegmentHandler handler;
         synchronized (this.handlers) {
             handler = this.handlers.get(segmentName);
@@ -109,7 +118,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStream(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
                 .createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, timeout)
@@ -124,7 +134,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStream(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
                 .deleteStreamSegment(segmentName, timeout)
@@ -133,6 +144,10 @@ public class AppendProcessorAdapter extends StoreAdapter {
                         this.handlers.remove(segmentName);
                     }
                 });
+    }
+
+    private String streamToSegment(String streamName) {
+        return streamName + "/segment0";
     }
 
     //endregion
@@ -217,6 +232,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
                                                   .store(segmentStore)
                                                   .connection(this)
                                                   .connectionTracker(connectionTracker)
+                                                  .statsRecorder(autoScaleMonitor.getStatsRecorder())
                                                   .build();
             this.nextSequence = 1;
             this.resultFutures = new HashMap<>();

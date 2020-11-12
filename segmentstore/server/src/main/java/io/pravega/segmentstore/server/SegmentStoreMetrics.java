@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import lombok.val;
 
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
@@ -242,19 +243,28 @@ public final class SegmentStoreMetrics {
 
         public void operationsCompleted(Collection<List<CompletableOperation>> operations, Duration commitElapsed) {
             operationsCompleted(operations.size(), commitElapsed);
-            operations.stream().flatMap(List::stream).forEach(o -> {
-                long millis = o.getTimer().getElapsedMillis();
+            int count = 0;
+            long millis = 0;
+            for (val ol : operations) {
+                count += ol.size();
+                for (val o : ol) {
+                    millis += o.getTimer().getElapsedMillis();
+                }
+            }
+            if (count > 0) {
+                millis /= count;
                 this.operationLatency.reportSuccessValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportSuccessValue(millis);
-            });
+            }
         }
 
         public void operationsFailed(Collection<CompletableOperation> operations) {
-            operations.forEach(o -> {
-                long millis = o.getTimer().getElapsedMillis();
+            if (!operations.isEmpty()) {
+                long millis = operations.stream().mapToLong(o -> o.getTimer().getElapsedMillis()).sum();
+                millis /= operations.size();
                 this.operationLatency.reportFailValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportFailValue(millis);
-            });
+            }
         }
     }
 

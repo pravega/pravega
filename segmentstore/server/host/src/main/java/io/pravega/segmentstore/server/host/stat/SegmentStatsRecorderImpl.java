@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.host.stat;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
@@ -22,16 +24,20 @@ import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.segment.ScaleType;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_SIZE;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
@@ -60,6 +66,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+    private static final String GLOBAL_SEGMENT_WRITE_BYTES = globalMetricName(SEGMENT_WRITE_BYTES);
+    private static final String GLOBAL_SEGMENT_WRITE_EVENTS = globalMetricName(SEGMENT_WRITE_EVENTS);
+    private static final String GLOBAL_SEGMENT_READ_BYTES = globalMetricName(SEGMENT_READ_BYTES);
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
     @Getter(AccessLevel.PROTECTED)
@@ -80,6 +89,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private final StreamSegmentStore store;
     private final ScheduledFuture<?> cacheCleanup;
     private final ScheduledExecutorService executor;
+    private final BlockingDrainingQueue<AppendInfo> appendQueue;
 
     SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store, ScheduledExecutorService executor) {
         this(reporter, store, DEFAULT_REPORTING_DURATION, DEFAULT_EXPIRY_DURATION, executor);
@@ -101,10 +111,15 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.reportingDuration = reportingDuration;
         this.store = store;
         this.reporter = reporter;
+        this.appendQueue = new BlockingDrainingQueue<>();
+        Futures.loop(() -> true, // This will stop when appendQueue is closed.
+                () -> this.appendQueue.take(10000).thenAcceptAsync(this::processAppendInfo, this.executor),
+                executor);
     }
 
     @Override
     public void close() {
+        this.appendQueue.close();
         this.cacheCleanup.cancel(true);
         this.createStreamSegment.close();
         this.readStreamSegment.close();
@@ -204,28 +219,57 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
-        getWriteStreamSegment().reportSuccessEvent(elapsed);
+        this.appendQueue.add(new AppendInfo(streamSegmentName, dataLength, numOfEvents, elapsed));
+    }
+
+    private void processAppendInfo(Queue<AppendInfo> appendInfoQueue) {
         DynamicLogger dl = getDynamicLogger();
-        dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
-        dl.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), numOfEvents);
-        getAppendSizeDistribution().reportSuccessValue(dataLength);
-        if (!NameUtils.isTransactionSegment(streamSegmentName)) {
-            //Don't report segment specific metrics if segment is a transaction
-            //The parent segment metrics will be updated once the transaction is merged
-            dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
-            dl.incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, segmentTags(streamSegmentName));
-            try {
-                SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
+        long totalBytes = 0;
+        int totalEvents = 0;
+        val bySegment = new HashMap<String, SegmentInfo>();
+        try {
+            while (!appendInfoQueue.isEmpty()) {
+                AppendInfo a = appendInfoQueue.poll();
+                totalBytes += a.getDataLength();
+                totalEvents += a.getNumOfEvents();
+                getWriteStreamSegment().reportSuccessEvent(a.getElapsed());
+                getAppendSizeDistribution().reportSuccessValue(a.getDataLength());
+
+                if (!NameUtils.isTransactionSegment(a.getStreamSegmentName())) {
+                    //Don't report segment specific metrics if segment is a transaction
+                    //The parent segment metrics will be updated once the transaction is merged
+                    SegmentInfo si = bySegment.getOrDefault(a.getStreamSegmentName(), null);
+                    if (si == null) {
+                        si = new SegmentInfo();
+                        bySegment.put(a.getStreamSegmentName(), si);
+                    }
+
+                    si.bytes += a.getDataLength();
+                    si.events += a.getNumOfEvents();
+                }
+            }
+
+            dl.incCounterValue(GLOBAL_SEGMENT_WRITE_BYTES, totalBytes);
+            dl.incCounterValue(GLOBAL_SEGMENT_WRITE_EVENTS, totalEvents);
+            for (val e : bySegment.entrySet()) {
+                String segmentName = e.getKey();
+                SegmentInfo si = e.getValue();
+                String[] tags = segmentTags(segmentName);
+                dl.incCounterValue(SEGMENT_WRITE_BYTES, si.bytes, tags);
+                dl.incCounterValue(SEGMENT_WRITE_EVENTS, si.events, tags);
+
+                SegmentAggregates aggregates = getSegmentAggregate(e.getKey());
                 // Note: we could get stats for a transaction segment. We will simply ignore this as we
                 // do not maintain intermittent txn segment stats. Txn stats will be accounted for
                 // only upon txn commit. This is done via merge method. So here we can get a txn which
                 // we do not know about and hence we can get null and ignore.
-                if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
-                    report(streamSegmentName, aggregates);
+                if (aggregates != null && aggregates.update(si.bytes, si.events)) {
+                    report(segmentName, aggregates);
                 }
-            } catch (Exception e) {
-                log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            log.warn("Record statistic failed", e);
         }
     }
 
@@ -255,7 +299,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void read(String segment, int length) {
-        getDynamicLogger().incCounterValue(globalMetricName(SEGMENT_READ_BYTES), length);
+        getDynamicLogger().incCounterValue(GLOBAL_SEGMENT_READ_BYTES, length);
         getDynamicLogger().incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
         getReadSizeDistribution().reportSuccessValue(length);
     }
@@ -278,5 +322,18 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @VisibleForTesting
     SegmentAggregates getIfPresent(String streamSegmentName) {
         return cache.getIfPresent(streamSegmentName);
+    }
+
+    private static class SegmentInfo {
+        long bytes = 0;
+        int events = 0;
+    }
+
+    @Data
+    private static class AppendInfo {
+        final String streamSegmentName;
+        final long dataLength;
+        final int numOfEvents;
+        final Duration elapsed;
     }
 }
