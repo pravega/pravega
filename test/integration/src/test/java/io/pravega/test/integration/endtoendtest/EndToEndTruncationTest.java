@@ -528,7 +528,7 @@ public class EndToEndTruncationTest {
             // Instantiate readers to consume from Stream up to truncatedEvents.
             List<CompletableFuture<Integer>> futures = ReadWriteUtils.readEvents(clientFactory, readerGroupName, parallelism, truncatedEvents);
             Futures.allOf(futures).join();
-
+            int eventsReadBeforeTruncation = futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get();
             // Perform truncation on stream segment
             Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint" + i, executor).join();
             StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
@@ -539,7 +539,7 @@ public class EndToEndTruncationTest {
             groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
             futures = readEvents(clientFactory, newGroupName, parallelism);
             Futures.allOf(futures).join();
-            assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
+            assertEquals("Expected read events: ", totalEvents - eventsReadBeforeTruncation,
                     (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
             assertTrue(streamManager.sealStream(scope, streamName));
             assertTrue(streamManager.deleteStream(scope, streamName));
