@@ -565,6 +565,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 if (e instanceof RetriesExhaustedException) {
                     //throw an exception to the external world that the flush failed due to RetriesExhaustedException
                     Exceptions.sneakyThrow(e);
+                    return;
                 }
             }
             state.waitForInflight();
