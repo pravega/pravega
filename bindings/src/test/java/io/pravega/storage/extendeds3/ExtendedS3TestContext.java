@@ -28,12 +28,14 @@ public class ExtendedS3TestContext {
     public final ExtendedS3StorageConfig adapterConfig;
     public final S3JerseyClient client;
     public final S3ImplBase s3Proxy;
-    public final int port = TestUtils.getAvailableListenPort();
-    public final String configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
+    public final int port;
+    public final String configUri;
     public final S3Config s3Config;
 
     public ExtendedS3TestContext() throws Exception {
         try {
+            this.port = TestUtils.getAvailableListenPort();
+            this.configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
             String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
             this.adapterConfig = ExtendedS3StorageConfig.builder()
                     .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
@@ -56,18 +58,6 @@ public class ExtendedS3TestContext {
             close();
             throw e;
         }
-    }
-
-    public ExtendedS3TestContext(S3JerseyClient client) throws Exception {
-        String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
-        this.adapterConfig = ExtendedS3StorageConfig.builder()
-                .with(ExtendedS3StorageConfig.CONFIGURI, configUri)
-                .with(ExtendedS3StorageConfig.BUCKET, bucketName)
-                .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
-                .build();
-        s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
-        s3Proxy = null;
-        this.client = client;
     }
 
     public void close() throws Exception {
