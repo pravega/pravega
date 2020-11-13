@@ -686,7 +686,7 @@ public class StreamMetadataTasks extends TaskBase {
                              } else {
                                  // if min limit is 0 then latest effectively becomes the min. and we truncate at the lowerbound.
                                  if (latest != null && policy.getConsumptionLimits().getMinValue() == 0L) {
-                                    // truncate at the lower bound 
+                                     // truncate at the lower bound 
                                      return CompletableFuture.completedFuture(lowerBound);
                                  } else {
                                      return CompletableFuture.completedFuture(null);
