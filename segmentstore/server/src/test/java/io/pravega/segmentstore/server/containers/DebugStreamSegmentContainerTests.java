@@ -100,6 +100,14 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(DurableLogConfig.START_RETRY_DELAY_MILLIS, 20)
             .build();
 
+    // DL config that can be used to simulate no DurableLog truncations.
+    private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
+            .build();
+
     private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
@@ -108,14 +116,15 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
             .build();
 
-    private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig
+    private static final WriterConfig INFREQUENT_FLUSH_WRITER_CONFIG = WriterConfig
             .builder()
-            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
-            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3)
-            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
-            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1024 * 1024 * 1024)
+            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3000)
+            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 250000L)
+            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
+            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
             .build();
+
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
@@ -360,7 +369,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
                 executorService(), TIMEOUT);
 
-        OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG,
+        OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
                 new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
         // Starts a DebugSegmentContainer with new Durable Log
         @Cleanup
@@ -487,7 +496,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
-            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(INFREQUENT_FLUSH_WRITER_CONFIG, scheduledExecutorService);
         }
 
         public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {

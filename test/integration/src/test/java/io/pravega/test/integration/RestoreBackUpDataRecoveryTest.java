@@ -82,6 +82,7 @@ import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -149,11 +150,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
-    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
+
+    // DL config that can be used to simulate no DurableLog truncations.
+    private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
             .build();
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
@@ -163,11 +166,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     private StorageFactory storageFactory;
     private BookKeeperLogFactory dataLogFactory;
+    private MiniDFSCluster hdfsCluster = null;
 
     @After
     public void tearDown() throws Exception {
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
+        }
+        if (hdfsCluster != null) {
+            hdfsCluster.shutdown();
         }
         timer.set(0);
     }
@@ -385,7 +392,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  8. Reads all 600 events again.
      * @throws Exception    In case of an exception occurred while execution.
      */
-    @Test(timeout = 180000)
+    @Test(timeout = 600000)
     public void testDurableDataLogFailRecoverySingleContainer() throws Exception {
         testRecovery(1, 1, false);
     }
@@ -477,7 +484,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         Storage storage = new AsyncStorageWrapper(new RollingStorage(this.storageFactory.createSyncStorage(),
                 new SegmentRollingPolicy(DEFAULT_ROLLING_SIZE)), executorService());
-
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
                 executorService(), TIMEOUT);
 
@@ -519,7 +525,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                                                                                   StorageFactory storageFactory) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < containerCount; containerId++) {
@@ -585,7 +591,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  9. Starts segment store and controller.
      *  10. Let readers read rest of the 300-N number of events.
      * @throws Exception    In case of an exception occurred while execution.
-    */
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryReadersPaused() throws Exception {
         int instanceId = 0;
@@ -729,7 +735,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
-    */
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryWatermarking() throws Exception {
         int instanceId = 0;
@@ -913,7 +919,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Adds water marks to the watermarks queue.
      */
     private CompletableFuture<Void> fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
-                                 AtomicBoolean stop) {
+                                                    AtomicBoolean stop) {
         AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
         return Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
             if (stop.get()) {
