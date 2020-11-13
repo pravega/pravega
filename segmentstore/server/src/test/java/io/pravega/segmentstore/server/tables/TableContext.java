@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -173,7 +174,9 @@ class MockSegmentContainer implements SegmentContainer {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStreamSegment(String segmentName, SegmentType segmentType,
+                                                       Collection<AttributeUpdate> attributes, Duration timeout) {
+        Assert.assertTrue("Expected Table Segment type.", segmentType.isTableSegment());
         if (this.segment.get() != null) {
             return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
         }

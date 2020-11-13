@@ -124,14 +124,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
         //Properties set to override defaults for system tests
         String hostSystemProperties = "-Xmx1024m" +
-                setSystemProperty("autoScale.muteInSeconds", "120") +
-                setSystemProperty("autoScale.cooldownInSeconds", "120") +
-                setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
-                setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
-                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+                buildSystemProperty("autoScale.muteInSeconds", "120") +
+                buildSystemProperty("autoScale.cooldownInSeconds", "120") +
+                buildSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
+                buildSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
+                buildSystemProperty("log.level", "DEBUG") +
+                buildSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
+                buildSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
+                buildSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);

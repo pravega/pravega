@@ -25,6 +25,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -107,6 +108,41 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getVersionedConfigurationRecord();
+
+    /**
+     * Create subscribers record for storing metadata about Stream Subscribers.
+     * Also add this new Subscriber to the Record.
+     * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> createSubscriber(String subscriber);
+
+    /**
+     * Fetches the record corresponding to the subscriber
+     * @return record holding information about this subscriber for the Stream.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber);
+
+    /**
+     * Fetches names for all subscribers of the Stream
+     * @return iterator to iterate over all subscribers for the Stream.
+     */
+    CompletableFuture<List<String>> listSubscribers();
+
+    /**
+     * Update subscribers record for the Stream.
+     * @param previous - Subscriber Record that would be replaced by this update API
+     * @param subscriberData  new Subscriber Record that would replace the previous one.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber subscriberData);
+
+    /**
+     * Remove subscriber from list of Subscribers for the Stream.
+     * @param subscriber  subscriber to be removed.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> removeSubscriber(final String subscriber);
 
     /**
      * Starts truncating an existing stream.

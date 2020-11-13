@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -20,16 +21,6 @@ import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendO
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.Builder;
-import lombok.Cleanup;
-import lombok.Getter;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
-import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,6 +34,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Builder;
+import lombok.Cleanup;
+import lombok.Getter;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for the {@link TableEntryDeltaIterator} class. It tests various scenarios, without consideration of compaction.
@@ -78,7 +78,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testUsingInvalidArgs() {
         TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        val segment = context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an IllegalArgumentException if 'fromPosition' > segment length.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 1, TIMEOUT),
@@ -88,7 +88,7 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
     @Test
     public void testSortedTableSegment() {
         TableContext context = new TableContext(COMPACTION_SIZE, executorService());
-        val segment = context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
         AssertExtensions.assertSuppliedFutureThrows(
                 "entryDeltaIterator should throw an UnsupportedOperationException on a sorted TableSegment.",
                 () -> context.ext.entryDeltaIterator(SEGMENT_NAME, 0, TIMEOUT),
@@ -156,10 +156,6 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
         Assert.assertEquals(actual.size(), expected.size());
         AssertExtensions.assertListEquals("Assert equivalency by TableKey and Value (ignoring version).", expected, actual,
                 (t1, t2) -> compareKeys(t1, t2) &&  t1.getValue().equals(t2.getValue()));
-    }
-
-    private static boolean isDeletion(TableEntry entry) {
-        return entry.getValue().getContents().isEmpty();
     }
 
     private TestData createTestData(int numEntriesToGenerate) {
@@ -343,12 +339,8 @@ public class TableEntryDeltaIteratorTests extends ThreadPooledTestSuite {
             return reader.getCompactionOffset(context.segment().getInfo()) > 0;
         }
 
-        SegmentMock getSegment() {
-            return context.segment();
-        }
-
         public void createSegment() {
-            context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+            context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
     }

@@ -11,23 +11,25 @@ package io.pravega.segmentstore.server.logs;
 
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.MetricsTags;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Random;
 import java.util.Collections;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -336,6 +338,50 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the throttler when it is temporarily disabled.
+     */
+    @Test
+    public void testTemporaryDisabled() throws Exception {
+        testTemporaryDisabled(10000); // Non-max delay.
+        testTemporaryDisabled(ThrottlerCalculator.MAX_DELAY_MILLIS); // Max delay (different code path).
+    }
+
+    private void testTemporaryDisabled(int delayMillis) throws Exception {
+        val delays = new ArrayList<>();
+        val calculator = new TestCalculatorThrottler(ThrottlerCalculator.ThrottlerName.Cache);
+
+        val disabled = new AtomicBoolean(true);
+        @Cleanup
+        TestThrottler t = new TestThrottler(this.containerId, wrap(calculator), disabled::get, executorService(), metrics, delays::add);
+
+        // Test 1: Do not throttle if temporarily disabled.
+        calculator.setDelayMillis(delayMillis);
+        val disabledThrottle = t.throttle();
+        Assert.assertTrue("Expected throttle() result to be completed for disabled throttle.", disabledThrottle.isDone());
+
+        // Test 2: Interrupt the current throttle cycle.
+        disabled.set(false);
+        val t1 = t.throttle();
+        Assert.assertFalse("Not expected non-disabled throttle to be completed yet.", t1.isDone());
+        disabled.set(true);
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t1.isDone());
+        t.notifyThrottleSourceChanged();
+        TestUtils.await(t1::isDone, 5, TIMEOUT_MILLIS);
+
+        // Test 2: When the current delay future completes normally.
+        disabled.set(false);
+        val t2 = t.throttle();
+        Assert.assertFalse("Not expected non-disabled throttle to be completed yet.", t2.isDone());
+        disabled.set(true);
+        Assert.assertFalse("Not expected throttle future to be completed yet.", t2.isDone());
+        if (delayMillis < ThrottlerCalculator.MAX_DELAY_MILLIS) {
+            // This is only set for non-maximum delays.
+            t.completeDelayFuture();
+        }
+        TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
+    }
+
     private ThrottlerCalculator wrap(ThrottlerCalculator.Throttler calculatorThrottler) {
         return ThrottlerCalculator.builder().throttler(calculatorThrottler).build();
     }
@@ -361,7 +407,12 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
 
         TestThrottler(int containerId, ThrottlerCalculator calculator, ScheduledExecutorService executor,
                       SegmentStoreMetrics.OperationProcessor metrics, Consumer<Integer> newDelay) {
-            super(containerId, calculator, executor, metrics);
+            this(containerId, calculator, () -> false, executor, metrics, newDelay);
+        }
+
+        TestThrottler(int containerId, ThrottlerCalculator calculator, Supplier<Boolean> isDisabled, ScheduledExecutorService executor,
+                      SegmentStoreMetrics.OperationProcessor metrics, Consumer<Integer> newDelay) {
+            super(containerId, calculator, isDisabled, executor, metrics);
             this.newDelay = newDelay;
         }
 

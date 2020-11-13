@@ -25,6 +25,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -39,6 +40,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -120,6 +122,7 @@ public abstract class MetadataStore implements AutoCloseable {
      * Creates a new Segment with given name.
      *
      * @param segmentName The case-sensitive Segment Name.
+     * @param segmentType Type of Segment.
      * @param attributes  The initial attributes for the StreamSegment, if any.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the Segment has been created.
@@ -128,7 +131,7 @@ public abstract class MetadataStore implements AutoCloseable {
      * <li>{@link StreamSegmentExistsException} If the Segment already exists.
      * </ul>
      */
-    CompletableFuture<Void> createSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "createSegment", segmentName);
         long segmentId = this.connector.containerMetadata.getStreamSegmentId(segmentName, true);
         if (isValidSegmentId(segmentId)) {
@@ -136,7 +139,7 @@ public abstract class MetadataStore implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
         }
 
-        ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, attributes));
+        ArrayView segmentInfo = SegmentInfo.serialize(SegmentInfo.newSegment(segmentName, segmentType, attributes));
         CompletableFuture<Void> result = createSegment(segmentName, segmentInfo, new TimeoutTimer(timeout));
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createSegment", traceId, segmentName));
@@ -690,13 +693,15 @@ public abstract class MetadataStore implements AutoCloseable {
         private final long segmentId;
         private final SegmentProperties properties;
 
-        static SegmentInfo newSegment(String name, Collection<AttributeUpdate> attributeUpdates) {
+        static SegmentInfo newSegment(String name, SegmentType segmentType, Collection<AttributeUpdate> attributeUpdates) {
             val infoBuilder = StreamSegmentInformation
                     .builder()
                     .name(name);
-            if (attributeUpdates != null) {
-                infoBuilder.attributes(attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue)));
-            }
+            val attributes = attributeUpdates == null
+                    ? new HashMap<UUID, Long>()
+                    : attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+            attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, segmentType.getValue());
+            infoBuilder.attributes(attributes);
 
             return builder()
                     .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)

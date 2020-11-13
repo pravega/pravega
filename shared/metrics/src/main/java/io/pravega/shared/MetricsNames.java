@@ -112,6 +112,29 @@ public final class MetricsNames {
     public static final String STORAGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.concat_count";      // Counter
     public static final String STORAGE_LARGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.large_concat_count"; // Counter
 
+    // SLTS stats
+    public static final String SLTS_READ_LATENCY = PREFIX + "segmentstore.storage.slts.read_latency_ms";            // Histogram
+    public static final String SLTS_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.write_latency_ms";          // Histogram
+    public static final String SLTS_CREATE_LATENCY = PREFIX + "segmentstore.storage.slts.create_latency_ms";        // Histogram
+    public static final String SLTS_DELETE_LATENCY = PREFIX + "segmentstore.storage.slts.delete_latency_ms";        // Histogram
+    public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
+    public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
+    public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index_scan_latency_ms"; // Histogram
+
+    public static final String SLTS_READ_BYTES = PREFIX + "segmentstore.storage.slts.read_bytes";          // Counter
+    public static final String SLTS_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.write_bytes";        // Counter
+    public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+    public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
+    public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
+    public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
+    public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+
+    // SLTS Metadata stats
+    public static final String STORAGE_METADATA_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_get_latency_ms";                  // Histogram
+    public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
+    public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram
+    public static final String STORAGE_METADATA_TABLE_WRITE_LATENCY = PREFIX + "segmentstore.storage.metadata_table_write_latency_ms";  // Histogram
+
     // Cache stats
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";                                     // Counter
     public static final String CACHE_APPEND_BYTES = PREFIX + "segmentstore.cache.append_bytes";                                   // Counter
@@ -210,6 +233,15 @@ public final class MetricsNames {
     public static final String TRUNCATE_STREAM = PREFIX + "controller.stream.truncated";                     // Counter and Per-stream Counter
     public static final String TRUNCATE_STREAM_LATENCY = PREFIX + "controller.stream.truncated_latency_ms";  // Histogram
     public static final String TRUNCATE_STREAM_FAILED = PREFIX + "controller.stream.truncate_failed";        // Counter and Per-stream Counter
+    public static final String ADD_SUBSCRIBER = PREFIX + "controller.stream.add_subscriber";                     // Counter and Per-stream Counter
+    public static final String ADD_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.add_subscriber_latency_ms";  // Histogram
+    public static final String ADD_SUBSCRIBER_FAILED = PREFIX + "controller.stream.add_subscriber_failed";        // Counter and Per-stream Counter
+    public static final String REMOVE_SUBSCRIBER = PREFIX + "controller.stream.remove_subscriber";                     // Counter and Per-stream Counter
+    public static final String REMOVE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.remove_subscriber_latency_ms";  // Histogram
+    public static final String REMOVE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.remove_subscriber_failed";        // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER = PREFIX + "controller.stream.update_subscriber";                     // Counter and Per-stream Counter
+    public static final String UPDATE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.update_subscriber_latency_ms";  // Histogram
+    public static final String UPDATE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.update_subscriber_failed";        // Counter and Per-stream Counter
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter

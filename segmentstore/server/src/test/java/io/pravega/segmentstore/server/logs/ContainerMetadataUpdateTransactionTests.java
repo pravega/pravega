@@ -15,12 +15,14 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -78,6 +80,7 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
+    private static final SegmentType DEFAULT_TYPE = SegmentType.STREAM_SEGMENT;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(30);
     private ManualTimer timeProvider;
@@ -278,6 +281,25 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     /**
+     * Tests the ability of the ContainerMetadataUpdateTransaction to reject UpdateAttributeOperations that attempt to
+     * modify immutable Attributes
+     */
+    @Test
+    public void testUpdateAttributesImmutable() {
+        final UUID immutableAttribute = Attributes.ATTRIBUTE_SEGMENT_TYPE;
+        Assert.assertTrue(Attributes.isUnmodifiable(immutableAttribute));
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        val txn = createUpdateTransaction(metadata);
+        val coreUpdate = new UpdateAttributesOperation(SEGMENT_ID,
+                Collections.singleton(new AttributeUpdate(immutableAttribute, AttributeUpdateType.Replace, 1L)));
+        AssertExtensions.assertThrows(
+                "Immutable attribute update succeeded.",
+                () -> txn.preProcessOperation(coreUpdate),
+                ex -> ex instanceof MetadataUpdateException);
+    }
+
+    /**
      * Tests the ability of the ContainerMetadataUpdateTransaction to handle UpdateAttributeOperations after the segment
      * has been sealed.
      */
@@ -346,6 +368,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 1)); // Need to initialize to something.
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        expectedValues.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, DEFAULT_TYPE.getValue());
 
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
@@ -427,6 +450,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE));
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        expectedValues.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, DEFAULT_TYPE.getValue());
 
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
@@ -588,6 +612,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn.commit(metadata);
 
         // Check attributes.
+        DEFAULT_TYPE.intoAttributes(segmentAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected set of attributes after commit.", segmentAttributes, segmentMetadata);
     }
 
@@ -868,8 +893,19 @@ public class ContainerMetadataUpdateTransactionTests {
         metadata.enterRecoveryMode();
         val txn1 = createUpdateTransaction(metadata);
 
-        // Brand new StreamSegment.
-        StreamSegmentMapOperation mapOp = createMap();
+        // Brand new Table Segment. Play around with Segment Type to verify that it is properly propagated to the SegmentMetadata.
+        val initialAttributes = createAttributes();
+        DEFAULT_TYPE.intoAttributes(initialAttributes);
+        initialAttributes.put(TableAttributes.INDEX_OFFSET, 0L);
+        val expectedSegmentType = SegmentType.builder(DEFAULT_TYPE).tableSegment().build();
+        val mapOp = new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+                .name(SEGMENT_NAME)
+                .length(SEGMENT_LENGTH)
+                .startOffset(SEGMENT_LENGTH / 2)
+                .sealed(true)
+                .attributes(initialAttributes)
+                .build());
+
         txn1.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.",
                 ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
@@ -907,8 +943,11 @@ public class ContainerMetadataUpdateTransactionTests {
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertFalse("Not expecting segment to be pinned yet.", segmentMetadata.isPinned());
+
+        val expectedAttributes = new HashMap<>(mapOp.getAttributes());
+        expectedSegmentType.intoAttributes(expectedAttributes);
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().",
-                mapOp.getAttributes(), segmentMetadata.getAttributes());
+                expectedAttributes, segmentMetadata.getAttributes());
 
         // StreamSegmentName already exists (metadata) and we try to map with new id.
         AssertExtensions.assertThrows(
@@ -1303,9 +1342,11 @@ public class ContainerMetadataUpdateTransactionTests {
         SegmentMetadata transactionMetadata = targetMetadata.getStreamSegmentMetadata(SEALED_SOURCE_ID);
         Assert.assertTrue("Unexpected value for isSealed in Source metadata after commit.", transactionMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in Source metadata after commit.", transactionMetadata.isMerged());
-        int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0);
+        int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0) + 1;
         Assert.assertEquals("Unexpected number of attributes for Target segment.", expectedParentAttributeCount, parentMetadata.getAttributes().size());
-        Assert.assertEquals("Unexpected number of attributes for Source.", 0, transactionMetadata.getAttributes().size());
+        Assert.assertEquals(DEFAULT_TYPE.getValue(), (long) parentMetadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
+        Assert.assertEquals("Unexpected number of attributes for Source.", 1, transactionMetadata.getAttributes().size());
+        Assert.assertEquals(DEFAULT_TYPE.getValue(), (long) transactionMetadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
         checkLastKnownSequenceNumber("Unexpected lastUsed for Source after commit.", expectedLastUsedTransaction, transactionMetadata);
     }
 
@@ -1454,15 +1495,18 @@ public class ContainerMetadataUpdateTransactionTests {
         UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
         segmentMetadata.setLength(SEGMENT_LENGTH);
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
+        segmentMetadata.refreshType();
 
         segmentMetadata = metadata.mapStreamSegmentId(SEALED_SOURCE_NAME, SEALED_SOURCE_ID);
         segmentMetadata.setLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.setStorageLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.markSealed();
+        segmentMetadata.refreshType();
 
         segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_SOURCE_NAME, NOTSEALED_SOURCE_ID);
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
+        segmentMetadata.refreshType();
 
         return metadata;
     }
