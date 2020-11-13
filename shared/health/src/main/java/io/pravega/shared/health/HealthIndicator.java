@@ -92,7 +92,6 @@ public abstract class HealthIndicator implements HealthContributor {
        *
        * The {@link Details} object may be constructed ahead of time and provided during registration
        *
-       *
        * @param builder The {@link Health.HealthBuilder} object.
        * @throws Exception An exception to be thrown if the underlying health check fails.
        */

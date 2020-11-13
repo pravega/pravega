@@ -53,14 +53,14 @@ public class HealthServiceImpl implements HealthService {
     private URI uri;
     private HttpServer server;
     /**
+     * Due to the use of a SINGLETON to simplify {@link HealthContributor} registration, this flag is used to signal
+     * when the {@link HealthService} is ready to accept registration.
+     */
+    private boolean initialized = false;
+    /**
      * The base under which all other {@link HealthComponent} will be registered.
      */
     private final HealthComponent root;
-    /**
-     * Due to the use of a SINGLETON to simplify {@link HealthContributor} registration, this flag is used to signal
-     * when the {@link HealthService} is ready to be started (client configuration has been applied).
-     */
-    private boolean initialized = false;
     /**
      * The {@link ScheduledExecutorService} used for recurring health checks.
      */
@@ -79,19 +79,13 @@ public class HealthServiceImpl implements HealthService {
     }
 
    public synchronized void configure(HealthServiceConfig serverConfig, HealthComponentConfig componentConfig) {
-        if (!this.initialized) {
-            // Setup the server.
-            this.uri = UriBuilder.fromUri(String.format("http://%s/", serverConfig.getAddress()))
-                    .port(serverConfig.getPort())
-                    .build();
-            // Provide configuration.
-            this.serverConfig = serverConfig;
-            this.componentConfig = componentConfig;
-            // Now considered initialized.
-            this.initialized = true;
-        } else {
-            log.warn("Attempted to call configure() on an already initialized HealthService.");
-        }
+       // Setup the server.
+       this.uri = UriBuilder.fromUri(String.format("http://%s/", serverConfig.getAddress()))
+               .port(serverConfig.getPort())
+               .build();
+       // Provide configuration.
+       this.serverConfig = serverConfig;
+       this.componentConfig = componentConfig;
     }
 
     public void register(HealthContributor contributor) {
@@ -103,12 +97,10 @@ public class HealthServiceImpl implements HealthService {
     }
 
     public synchronized void start() throws IOException {
+        // Initialize the server, but don't start.
+        this.server = createHttpServer(uri);
         // If has not already been configured, do so now. May use default configuration classes.
-        if (!initialized) {
-            // Initialize the server, but don't start.
-            configure();
-            this.server = createHttpServer(uri);
-        }
+        configure();
         if (!server.isStarted()) {
             server.start();
             log.info("Starting Health HTTP Server @ {}", uri);
