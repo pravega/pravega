@@ -62,7 +62,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext(Duration.ofSeconds(10), false);
         context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
-        assertEquals(0, (int) context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate());
+        assertEquals(0, (int) context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME).getTwoMinuteRate());
 
         // record for over 5 seconds
         long startTime = System.currentTimeMillis();
@@ -74,7 +74,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
                 context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, elapsed);
             }
         }
-        AssertExtensions.assertGreaterThan("", 0, (long) context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate());
+        AssertExtensions.assertGreaterThan("", 0, (long) context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME).getTwoMinuteRate());
     }
 
     @Test(timeout = 10000)
@@ -83,16 +83,16 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         val context = new TestContext(Duration.ofSeconds(2), true);
         context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
 
-        assertNotNull(context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
+        assertNotNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
         Thread.sleep(2500);
 
         // Verify that segment has been removed from the cache
-        assertNull(context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
+        assertNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
 
         // this should result in asynchronous loading of STREAM_SEGMENT_NAME
         context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, Duration.ofSeconds(2));
         context.getLoadAsyncCompletion().get(10000, TimeUnit.MILLISECONDS);
-        assertNotNull(context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
+        assertNotNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
     }
 
     @Test(timeout = 10000)

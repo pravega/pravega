@@ -10,10 +10,11 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
+import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BlockingDrainingQueue;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -55,7 +57,6 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final Duration DEFAULT_REPORTING_DURATION = Duration.ofMinutes(2);
     private static final Duration DEFAULT_EXPIRY_DURATION = Duration.ofMinutes(20);
     private static final Duration CACHE_CLEANUP_INTERVAL = Duration.ofMinutes(2);
-    private static final int INITIAL_CAPACITY = 1000;
     private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
     // At 100k * with each aggregate approximately ~80 bytes = 8 Mb of memory foot print.
     // Assuming 32 bytes for streamSegmentName used as the key in the cache = 3Mb
@@ -64,6 +65,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     // So we will lose relevant traffic history if we have 100k active 'stream segments' across containers
     // where traffic is flowing concurrently.
 
+    private static final int MAX_APPEND_QUEUE_PROCESS_BATCH_SIZE = 10000;
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final String GLOBAL_SEGMENT_WRITE_BYTES = globalMetricName(SEGMENT_WRITE_BYTES);
@@ -83,7 +85,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
     private final Set<String> pendingCacheLoads;
-    private final Cache<String, SegmentAggregates> cache;
+    private final SimpleCache<String, SegmentAggregates> cache;
     private final Duration reportingDuration;
     private final AutoScaleProcessor reporter;
     private final StreamSegmentStore store;
@@ -101,20 +103,33 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.executor = executor;
         this.pendingCacheLoads = Collections.synchronizedSet(new HashSet<>());
 
-        this.cache = CacheBuilder.newBuilder()
-                .initialCapacity(INITIAL_CAPACITY)
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(expiryDuration.toMillis(), TimeUnit.MILLISECONDS)
-                .build();
+        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, expiryDuration.toMillis(), null);
 
         this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, CACHE_CLEANUP_INTERVAL.toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
         this.store = store;
         this.reporter = reporter;
         this.appendQueue = new BlockingDrainingQueue<>();
-        Futures.loop(() -> true, // This will stop when appendQueue is closed.
-                () -> this.appendQueue.take(10000).thenAcceptAsync(this::processAppendInfo, this.executor),
-                executor);
+        startAppendQueueProcessor();
+    }
+
+    private void startAppendQueueProcessor() {
+        // We begin an async loop. We do not need to hold on to it or even tell it when to stop. When we invoke
+        // SegmentStatsRecorderImpl.close(), the appendQueue will also close, so an invocation to take() will throw
+        // an ObjectClosedException, thus ending this loop.
+        Futures.loop(() -> true,
+                () -> this.appendQueue.take(MAX_APPEND_QUEUE_PROCESS_BATCH_SIZE)
+                        .thenAcceptAsync(this::processAppendInfo, this.executor),
+                this.executor)
+                .exceptionally(ex -> {
+                    ex = Exceptions.unwrap(ex);
+                    // Log the error, unless it's because we're shutting down.
+                    if (!(ex instanceof ObjectClosedException)
+                            && !(ex instanceof CancellationException)) {
+                        log.error("SegmentStatsRecorder append queue processor failed. ", ex);
+                    }
+                    return null;
+                });
     }
 
     @Override
@@ -129,7 +144,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
-        SegmentAggregates aggregates = cache.getIfPresent(streamSegmentName);
+        SegmentAggregates aggregates = cache.get(streamSegmentName);
 
         if (aggregates == null &&
                 !NameUtils.isTransactionSegment(streamSegmentName)) {
@@ -141,21 +156,20 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @VisibleForTesting
     protected CompletableFuture<Void> loadAsynchronously(String streamSegmentName) {
-        if (!pendingCacheLoads.contains(streamSegmentName)) {
-            pendingCacheLoads.add(streamSegmentName);
-            if (store != null) {
-                return store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
-                            .thenAcceptAsync(prop -> {
-                            if (prop != null &&
-                                    prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
-                                    prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
-                                byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
-                                int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
-                                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), rate));
-                            }
-                            pendingCacheLoads.remove(streamSegmentName);
-                        }, executor);
-            }
+        if (store == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (pendingCacheLoads.add(streamSegmentName)) {
+            return store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
+                    .thenAcceptAsync(prop -> {
+                        long policyType = prop.getAttributes().getOrDefault(Attributes.SCALE_POLICY_TYPE, Long.MIN_VALUE);
+                        long policyRate = prop.getAttributes().getOrDefault(Attributes.SCALE_POLICY_RATE, Long.MIN_VALUE);
+                        if (policyType >= 0 && policyRate >= 0) {
+                            val sa = SegmentAggregates.forPolicy(ScaleType.fromValue((byte) policyType), (int) policyRate);
+                            cache.put(streamSegmentName, sa);
+                        }
+                        pendingCacheLoads.remove(streamSegmentName);
+                    }, executor);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -174,9 +188,10 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void deleteSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when deleting transaction segment.
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
-            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
+            val tags = segmentTags(streamSegmentName);
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, tags);
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, tags);
+            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, tags);
         }
     }
 
@@ -184,11 +199,12 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void sealSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when sealing transaction segment.
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+            val tags = segmentTags(streamSegmentName);
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, tags);
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, tags);
         }
-        if (getSegmentAggregate(streamSegmentName) != null) {
-            cache.invalidate(streamSegmentName);
+
+        if (cache.remove(streamSegmentName) != null) {
             reporter.notifySealed(streamSegmentName);
         }
     }
@@ -223,13 +239,13 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private void processAppendInfo(Queue<AppendInfo> appendInfoQueue) {
-        DynamicLogger dl = getDynamicLogger();
+        val dl = getDynamicLogger();
+        val bySegment = new HashMap<String, SegmentInfo>();
         long totalBytes = 0;
         int totalEvents = 0;
-        val bySegment = new HashMap<String, SegmentInfo>();
         try {
             while (!appendInfoQueue.isEmpty()) {
-                AppendInfo a = appendInfoQueue.poll();
+                val a = appendInfoQueue.poll();
                 totalBytes += a.getDataLength();
                 totalEvents += a.getNumOfEvents();
                 getWriteStreamSegment().reportSuccessEvent(a.getElapsed());
@@ -264,11 +280,10 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 // only upon txn commit. This is done via merge method. So here we can get a txn which
                 // we do not know about and hence we can get null and ignore.
                 if (aggregates != null && aggregates.update(si.bytes, si.events)) {
-                    report(segmentName, aggregates);
+                    reportIfNeeded(segmentName, aggregates);
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
             log.warn("Record statistic failed", e);
         }
     }
@@ -283,12 +298,13 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
-        getDynamicLogger().incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
-        getDynamicLogger().incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, segmentTags(streamSegmentName));
+        val tags = segmentTags(streamSegmentName);
+        getDynamicLogger().incCounterValue(SEGMENT_WRITE_BYTES, dataLength, tags);
+        getDynamicLogger().incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, tags);
 
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
-            report(streamSegmentName, aggregates);
+            reportIfNeededAsync(streamSegmentName, aggregates);
         }
     }
 
@@ -304,24 +320,32 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         getReadSizeDistribution().reportSuccessValue(length);
     }
 
-    private void report(String streamSegmentName, SegmentAggregates aggregates) {
+    private void reportIfNeededAsync(String streamSegmentName, SegmentAggregates aggregates) {
         if (aggregates.reportIfNeeded(reportingDuration)) {
-            this.executor.execute(() -> {
-                try {
-                    reporter.report(streamSegmentName,
-                            aggregates.getTargetRate(), aggregates.getStartTime(),
-                            aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                            aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
-                } catch (Exception ex) {
-                    log.error("Unable to report Segment Aggregates for '{}'.", streamSegmentName, ex);
-                }
-            });
+            this.executor.execute(() -> report(streamSegmentName, aggregates));
+        }
+    }
+
+    private void reportIfNeeded(String streamSegmentName, SegmentAggregates aggregates) {
+        if (aggregates.reportIfNeeded(reportingDuration)) {
+            report(streamSegmentName, aggregates);
+        }
+    }
+
+    private void report(String streamSegmentName, SegmentAggregates aggregates) {
+        try {
+            reporter.report(streamSegmentName,
+                    aggregates.getTargetRate(), aggregates.getStartTime(),
+                    aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
+        } catch (Exception ex) {
+            log.error("Unable to report Segment Aggregates for '{}'.", streamSegmentName, ex);
         }
     }
 
     @VisibleForTesting
-    SegmentAggregates getIfPresent(String streamSegmentName) {
-        return cache.getIfPresent(streamSegmentName);
+    SegmentAggregates getSegmentAggregates(String streamSegmentName) {
+        return cache.get(streamSegmentName);
     }
 
     private static class SegmentInfo {
