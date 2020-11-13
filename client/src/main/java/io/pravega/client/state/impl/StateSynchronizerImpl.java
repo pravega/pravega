@@ -30,6 +30,8 @@ import lombok.ToString;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static java.lang.String.format;
+
 @Slf4j
 @ToString(of = { "segment", "currentState" })
 public class StateSynchronizerImpl<StateT extends Revisioned>
@@ -100,24 +102,25 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
     
     private Void handleTruncation() {
-        log.info(this + " Encountered truncation");
         Revision revision = getRevisionToReadFrom(false);
-        log.trace("Fetching updates after {} ", revision);
+        log.info("{} encountered truncation, attempting to read from revision {}", this, revision);
         boolean foundInit = false;
         val iter = client.readFrom(revision);
+        Revision currentRevision = null;
         while (!foundInit && iter.hasNext()) {
             Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
+            currentRevision = entry.getKey();
             if (entry.getValue().isInit()) {
                 log.trace("Found entry {} ", entry.getValue());
                 InitialUpdate<StateT> init = entry.getValue().getInit();
-                if (isNewer(entry.getKey())) {
-                    updateCurrentState(init.create(segment.getScopedStreamName(), entry.getKey()));
+                if (isNewer(currentRevision)) {
+                    updateCurrentState(init.create(segment.getScopedStreamName(), currentRevision));
                     foundInit = true;
                 }
             }
         }
         if (!foundInit) {
-            throw new IllegalStateException("Data was truncated but there is not init after the truncation point.");
+            throw new IllegalStateException(format("Data was truncated but there is no Init state after the truncation point. Last read revision is %s", currentRevision));
         }
         fetchUpdates();
         return null;
