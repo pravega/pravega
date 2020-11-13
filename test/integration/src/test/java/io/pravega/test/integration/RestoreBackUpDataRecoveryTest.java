@@ -124,9 +124,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TRANSACTION_TIMEOUT = Duration.ofMillis(10000);
 
     /**
-     * Write 10 events to verify recovery.
+     * Write {@link #TOTAL_NUM_EVENTS} events to verify recovery.
      */
-    private static final int TOTAL_NUM_EVENTS = 10;
+    private static final int TOTAL_NUM_EVENTS = 300;
 
     private static final String APPEND_FORMAT = "Segment_%s_Append_%d";
     private static final long DEFAULT_ROLLING_SIZE = (int) (APPEND_FORMAT.length() * 1.5);
@@ -376,16 +376,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with just one segment container. Segments recovery is attained using just one
      * debug segment container.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just one segment container.
-     *  2. Writes 10 events.
-     *  3. Waits for Tier1 to be entirely flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6. Starts just one debug segment container using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  8. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
-     *  9. Starts segment store and controller.
-     *  10.Reads all events.
+     *  1.  Starts Pravega locally with just one segment container.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
+     *  6.  Starts one debug segment container using a new bookeeper/zookeeper and the old LTS.
+     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 90000)
@@ -397,16 +397,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with multiple segment containers. Segments recovery is attained using multiple
      * debug segment containers as well.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 10 events.
-     *  3. Waits for Tier1 to be entirely flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  8. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
-     *  9. Starts segment store and controller.
-     *  10.Reads all events.
+     *  1.  Starts Pravega locally with just 4 segment containers.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
+     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 180000)
@@ -417,16 +417,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Tests the data recovery scenario with transactional writer. Events are written using a transactional writer.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 10 events in the form of transactions.
-     *  3. Waits for Tier1 to be entirely flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  8. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
-     *  9. Starts segment store and controller.
-     *  10.Reads all events.
+     *  1.  Starts Pravega locally with just 4 segment containers.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events in the form of transactions.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
+     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 180000)
@@ -565,13 +565,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * events.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 10 events.
+     *  2. Writes {@link #TOTAL_NUM_EVENTS} events.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Let a reader read N number of events.
      *  5. Shuts down the controller, segment store and bookeeper/zookeeper.
      *  6. Deletes container metadata segment and its attribute segment from the old LTS.
      *  7. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  8. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  8. Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
      *  9. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
      *  10. Starts segment store and controller.
      *  11. Let the reader read rest of the 10-N number of events.
@@ -692,12 +692,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with watermarking events.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 10 events to a segment with watermarks.
+     *  2. Writes {@link #TOTAL_NUM_EVENTS} events to a segment with watermarks.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
      *  5. Deletes container metadata segment and its attribute segment from the old LTS.
      *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  7. Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
