@@ -242,7 +242,7 @@ class ReadIndexCache {
                 val headMap = segmentReadIndex.chunkIndex.headMap(startOffset);
                 if (null != headMap) {
                     int removed = 0;
-                    ArrayList<Long> keysToRemove = new ArrayList<Long>();
+                    val keysToRemove = new ArrayList<Long>();
                     keysToRemove.addAll(headMap.keySet());
                     for (val keyToRemove : keysToRemove) {
                         segmentReadIndex.chunkIndex.remove(keyToRemove);

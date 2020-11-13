@@ -39,9 +39,11 @@ public class BlockingDrainingQueueTests {
 
         for (int i = 0; i < ITEM_COUNT; i++) {
             queue.add(i);
+            Assert.assertEquals("Unexpected first element.", i, (int) queue.peek());
             Queue<Integer> entries = queue.poll(MAX_READ_COUNT);
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
             Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
+            Assert.assertNull("Unexpected first element after removal", queue.peek());
         }
 
         val remainingItems = queue.poll(1);

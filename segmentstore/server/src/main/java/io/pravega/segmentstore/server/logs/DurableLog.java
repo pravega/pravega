@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogCorruptedException;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
@@ -297,9 +298,9 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region OperationLog Implementation
 
     @Override
-    public CompletableFuture<Void> add(Operation operation, Duration timeout) {
+    public CompletableFuture<Void> add(Operation operation, OperationPriority priority, Duration timeout) {
         ensureRunning();
-        return this.operationProcessor.process(operation);
+        return this.operationProcessor.process(operation, priority);
     }
 
     @Override
@@ -325,7 +326,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
         // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
         // info will be readily available upon recovery without delay.
-        return add(new StorageMetadataCheckpointOperation(), timer.getRemaining())
+        return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
@@ -342,7 +343,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
         MetadataCheckpointOperation op = new MetadataCheckpointOperation();
         return this.operationProcessor
-                .process(op)
+                .process(op, OperationPriority.Normal)
                 .thenApply(v -> {
                     log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId);
                     return op.getSequenceNumber();

@@ -64,6 +64,11 @@ public class DeleteSegmentOperation extends StorageOperation {
         return String.format("%s, SegmentId = %d", super.toString(), getStreamSegmentId());
     }
 
+    @Override
+    public OperationType getType() {
+        return OperationType.Deletion; // Deletion operation type gets elevated priority.
+    }
+
     static class Serializer extends OperationSerializer<DeleteSegmentOperation> {
         private static final int SERIALIZATION_LENGTH = 3 * Long.BYTES;
 
