@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -40,6 +42,45 @@ public class StreamSegmentMetadataTests {
     private static final int ATTRIBUTE_COUNT = 100;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
+
+    /**
+     * Tests {@link StreamSegmentMetadata#getType()} and {@link StreamSegmentMetadata#refreshType()}.
+     */
+    @Test
+    public void testSegmentType() {
+        SegmentType expectedType = SegmentType.STREAM_SEGMENT;
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+        Assert.assertEquals("Unexpected value for non-initialized type.", expectedType, metadata.getType());
+
+        // Segment type exists in Core attributes.
+        expectedType = SegmentType.builder().critical().internal().build();
+        metadata.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_TYPE, expectedType.getValue()));
+        metadata.refreshType();
+        Assert.assertEquals("Unexpected value for single type.", expectedType, metadata.getType());
+
+        // Segment type exists in Core attributes, but other attributes indicate this is a Table Segment.
+        expectedType = SegmentType.builder(expectedType).tableSegment().build();
+        metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, 0L));
+        metadata.refreshType();
+        Assert.assertEquals("Unexpected value for simple table segment type.", expectedType, metadata.getType());
+        Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
+                expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
+
+        // ... and now a Sorted Table Segment.
+        expectedType = SegmentType.builder(expectedType).sortedTableSegment().build();
+        metadata.updateAttributes(Collections.singletonMap(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE));
+        metadata.refreshType();
+        Assert.assertEquals("Unexpected value for sorted table segment type.", expectedType, metadata.getType());
+        Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
+                expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
+
+        // CopyFrom.
+        val m2 = new StreamSegmentMetadata(metadata.getName(), metadata.getId(), metadata.getContainerId());
+        metadata.setLength(0);
+        metadata.setStorageLength(0);
+        m2.copyFrom(metadata);
+        Assert.assertEquals("copyFrom().", metadata.getType(), m2.getType());
+    }
 
     /**
      * Tests that Attributes are properly recorded and updated
@@ -197,6 +238,8 @@ public class StreamSegmentMetadataTests {
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(baseMetadata.getName(), baseMetadata.getId(), baseMetadata.getContainerId());
         newMetadata.copyFrom(baseMetadata);
         Assert.assertTrue("copyFrom copied the Active flag too.", newMetadata.isActive());
+        // Force the base metadata to update its core attributes with the correct type. Do this after the copyFrom call.
+        baseMetadata.refreshType();
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
         Assert.assertEquals("Metadata copy: getLastUsed differs.",
                 baseMetadata.getLastUsed(), newMetadata.getLastUsed());

@@ -11,6 +11,9 @@ package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.annotations.Beta;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+
 /**
  * Storage Metadata store.
  * All storage related metadata is stored using set of key-value pairs.
@@ -21,13 +24,13 @@ import com.google.common.annotations.Beta;
  *
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}.
  *
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of
  * {@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
  * Transactions are atomic - either all changes in the transaction are committed or none at all.
- * In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata records
+ * In addition, Transactions provide snapshot isolation which means that transaction fails if any of the metadata records
  * read during the transactions are changed outside the transaction after they were read.
  *
  * Within a transaction you can perform following actions on per record basis.
@@ -78,10 +81,11 @@ public interface ChunkMetadataStore extends AutoCloseable {
     /**
      * Begins a new transaction.
      *
+     * @param keysToLock Array of keys to lock for this transaction.
+     * @param isReadonly Whether transaction is read only or not.
      * @return Returns a new instance of {@link MetadataTransaction}.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    MetadataTransaction beginTransaction() throws StorageMetadataException;
+    MetadataTransaction beginTransaction(boolean isReadonly, String... keysToLock);
 
     /**
      * Retrieves the metadata for given key.
@@ -89,27 +93,30 @@ public interface ChunkMetadataStore extends AutoCloseable {
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
      * @return Metadata for given key. Null if key was not found.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    StorageMetadata get(MetadataTransaction txn, String key) throws StorageMetadataException;
+    CompletableFuture<StorageMetadata> get(MetadataTransaction txn, String key);
 
     /**
      * Updates existing metadata.
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    void update(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException;
+    void update(MetadataTransaction txn, StorageMetadata metadata);
 
     /**
      * Creates a new metadata record.
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    void create(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException;
+    void create(MetadataTransaction txn, StorageMetadata metadata);
 
     /**
      * Marks given single record as pinned.
@@ -117,68 +124,74 @@ public interface ChunkMetadataStore extends AutoCloseable {
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    void markPinned(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException;
+    void markPinned(MetadataTransaction txn, StorageMetadata metadata);
 
     /**
      * Deletes a metadata record given the key.
-     * The transaction data is validated and changes are commited to underlying storage.
+     * The transaction data is validated and changes are committed to underlying storage.
      * This call blocks until write to underlying storage is confirmed.
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    void delete(MetadataTransaction txn, String key) throws StorageMetadataException;
+    void delete(MetadataTransaction txn, String key);
 
     /**
      * Commits given transaction.
-     * If  skipStoreCheck is set to true then the transaction data is validated without realoding.
+     * If  skipStoreCheck is set to true then the transaction data is validated without reloading.
      * This call blocks until write to underlying storage is confirmed. This helps avoid circular dependency on storage
      * system segments.
-     * If lazyWrite is true then the transaction data is validated but the changes are not commited to underlying storage.
+     * If lazyWrite is true then the transaction data is validated but the changes are not committed to underlying storage.
      * Changes are put in the in memory buffer only. Note that in case of crash, the changes in the in buffer are lost.
-     * In this case the state must be re-created using application specific recovery/failover logic.
+     * In this case the state must be re-created using application specific recovery/fail-over logic.
      * Do not commit lazily if such recovery is not possible.
      * This call does not blocks until write to underlying storage is confirmed if lazyWrite is true.
      *
      * @param txn            transaction to commit.
      * @param lazyWrite      true if data can be written lazily.
      * @param skipStoreCheck true if data is not to be reloaded from store.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} If transaction can not be committed.
      */
-    void commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) throws StorageMetadataException;
+    CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck);
 
     /**
      * Commits given transaction.
-     * If lazyWrite is true then the transaction data is validated but the changes are not commited to underlying storage.
+     * If lazyWrite is true then the transaction data is validated but the changes are not committed to underlying storage.
      * Changes are put in the in memory buffer only. Note that in case of crash, the changes in the in buffer are lost.
-     * In this case the state must be re-created using application specific recovery/failover logic.
+     * In this case the state must be re-created using application specific recovery/fail-over logic.
      * Do not commit lazily if such recovery is not possible.
      * This call does not blocks until write to underlying storage is confirmed if lazyWrite is true.
      *
      * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} If transaction can not be committed.
      */
-    void commit(MetadataTransaction txn, boolean lazyWrite) throws StorageMetadataException;
+    CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite);
 
     /**
      * Commits given transaction.
      *
      * @param txn transaction to commit.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} If transaction can not be committed.
      */
-    void commit(MetadataTransaction txn) throws StorageMetadataException;
+    CompletableFuture<Void> commit(MetadataTransaction txn);
 
     /**
      * Aborts given transaction.
      *
      * @param txn transaction to abort.
-     * @throws StorageMetadataException If there are any errors.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
-    void abort(MetadataTransaction txn) throws StorageMetadataException;
+    CompletableFuture<Void> abort(MetadataTransaction txn);
 
     /**
      * Explicitly marks the store as fenced.
