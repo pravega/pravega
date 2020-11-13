@@ -293,6 +293,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
+        private List<PendingEvent> getAllInflightEventsAndClear() {
+            synchronized (lock) {
+                List<PendingEvent> inflightEvents = getAllInflightEvents();
+                inflight.clear();
+                return inflightEvents;
+            }
+        }
+
         private boolean isClosed() {
             synchronized (lock) {
                 return closed;
@@ -564,8 +572,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 failConnection(e);
                 if (e instanceof RetriesExhaustedException) {
                     //throw an exception to the external world that the flush failed due to RetriesExhaustedException
-                    Exceptions.sneakyThrow(e);
-                    return;
+                    throw Exceptions.sneakyThrow(e);
                 }
             }
             state.waitForInflight();
@@ -650,8 +657,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
                       }, connectionPool.getInternalExecutor());
               }, connectionPool.getInternalExecutor()).exceptionally(t -> {
-                 log.error("Error will attempting to establish connection", t);
-                 failUnackedEvents(t);
+                 log.error("Error while attempting to establish connection for writer {}", writerId, t);
+                 failAndRemoveUnackedEvents(t);
                  return null;
              });
 
@@ -666,8 +673,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
-    private void failUnackedEvents(Throwable t) {
-        state.getAllInflightEvents().parallelStream().forEach(event -> event.getAckFuture().completeExceptionally(t));
+    private void failAndRemoveUnackedEvents(Throwable t) {
+        state.getAllInflightEventsAndClear().parallelStream().forEach(event -> event.getAckFuture().completeExceptionally(t));
         state.failConnection(t);
     }
 

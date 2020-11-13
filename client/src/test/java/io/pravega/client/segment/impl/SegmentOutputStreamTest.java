@@ -268,8 +268,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         // try sending an event.
         byte[] eventData = "test data".getBytes();
-        CompletableFuture<Void> acked = new CompletableFuture<>();
-        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), acked));
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack1));
         verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(eventData), null, output.getRequestId()));
         reset(connection);
         //simulate a connection drop and verify if the writer tries to establish a new connection.
@@ -283,13 +283,13 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
         // Verify that the inflight event future is completed exceptionally.
-        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(acked));
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack1));
 
         //Write an additional event to a writer that has failed with RetriesExhaustedException.
-        CompletableFuture<Void> ack = new CompletableFuture<>();
-        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack));
+        CompletableFuture<Void> ack2 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(eventData), ack2));
         verify(connection, never()).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack));
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(ack2));
 
     }
 
