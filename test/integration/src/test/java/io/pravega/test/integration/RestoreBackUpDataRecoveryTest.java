@@ -463,7 +463,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to Long Term Storage
+        // Flush all DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -617,7 +617,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to Long Term Storage
+        // Flush all DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -749,7 +749,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to Long Term Storage
+        // Flush all DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
