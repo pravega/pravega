@@ -12,6 +12,7 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 import java.time.Duration;
 
+import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -76,6 +77,8 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy byConsumption(ConsumptionLimits.Type type, Long minLimit, Long maxLimit) {
+        Preconditions.checkArgument(minLimit >= 0, "minLimit should be greater than 0");
+        Preconditions.checkArgument(maxLimit >= minLimit, "maxLimit should be greater than minLimit");
         return RetentionPolicy.builder().retentionType(RetentionType.CONSUMPTION)
                               .consumptionLimits(ConsumptionLimits.builder().type(type)
                                                                   .minValue(minLimit)

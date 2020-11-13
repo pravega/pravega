@@ -561,7 +561,7 @@ public class StreamMetadataTasks extends TaskBase {
                            .thenCompose(list -> Futures.allOfWithResults(list.stream().map(x -> 
                                    streamMetadataStore.getSubscriber(scope, stream, x, context, executor)).collect(Collectors.toList())))
                            .thenCompose(subscribers -> {
-                               // if the range for which we are looking at is 
+                               // convert all streamcuts to include the segment range
                                return Futures.allOfWithResults(subscribers.stream().map(x -> {
                                    ImmutableSet<Map.Entry<Long, Long>> entries = x.getObject().getTruncationStreamCut().entrySet();
 

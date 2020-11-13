@@ -688,7 +688,7 @@ public abstract class StreamTestBase {
         stream.completeCommittingTransactions(ctr).join();
     }
 
-    @Test//(timeout = 30000L)
+    @Test(timeout = 30000L)
     public void truncationTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
         // epoch 0 --> 0, 1
