@@ -473,7 +473,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupName + "1", readerGroupName,
                 new UTF8StringSerializer(), ReaderConfig.builder().build());
-        assertEquals(reader.readNextEvent(1000).getEvent(), "0");
+        assertEquals(reader.readNextEvent(5000).getEvent(), "0");
         reader.close();
 
         // Create a Checkpoint, get StreamCut and truncate the Stream at that point.
@@ -488,8 +488,8 @@ public class EndToEndTruncationTest {
         final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
                 newReaderGroupName, new UTF8StringSerializer(), ReaderConfig.builder().build());
 
-        assertEquals("Expected read event: ", "1", newReader.readNextEvent(1000).getEvent());
-        assertNull(newReader.readNextEvent(1000).getEvent());
+        assertEquals("Expected read event: ", "1", newReader.readNextEvent(5000).getEvent());
+        assertNull(newReader.readNextEvent(5000).getEvent());
     }
 
     /**
