@@ -632,6 +632,7 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
+            out.writeInt(-1);
             if (data == null) {
                 out.writeInt(0);
             } else {
@@ -642,18 +643,52 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            if(in.available() != length) {
+                throw new InvalidMessageException("Was expecting length: " + in.available() + " but found: " + length);
+            }
+
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            int dataLength = in.readInt();
-            ByteBuf data;
-            if (dataLength > 0) {
-                data = in.readFully(dataLength);
+            int typeCode = in.readInt();
+            if(typeCode == -1) {
+                int dataLength = in.readInt();
+                ByteBuf data;
+                if (dataLength > 0) {
+                    if(dataLength > in.available()) {
+                        throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+                    }
+                    data = in.readFully(dataLength);
+                } else {
+                    data = EMPTY_BUFFER;
+                }
+                if(in.available() < Long.BYTES) {
+                    throw new InvalidMessageException("Was expecting request id but not found");
+                }
+
+                long requestId = in.readLong();
+                return new ConditionalAppend(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
             } else {
-                data = EMPTY_BUFFER;
+                ByteBuf data = readEvent(in, length, typeCode);
+                long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+                return new ConditionalAppend(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
             }
-            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
+        }
+
+        private static ByteBuf readEvent(EnhancedByteBufInputStream in, int length, int typeCode) throws IOException {
+            ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
+
+            if (typeCode != WireCommandType.EVENT.getCode()) {
+                throw new InvalidMessageException("Was expecting EVENT type code:" + WireCommandType.EVENT.getCode() + " but found: " + typeCode);
+            }
+            header.writeInt(typeCode);
+            int eventLength = in.readInt();
+            if (eventLength > in.available()) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
+            }
+            header.writeInt(eventLength);
+            ByteBuf data = in.readFully(eventLength);
+            return Unpooled.wrappedUnmodifiableBuffer(header, data);
         }
 
         @Override
