@@ -380,9 +380,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
      *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
      *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6.  Starts one debug segment container using a new bookeeper/zookeeper and the old LTS.
-     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts one debug segment container using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segment in DurableLog and let's it to be flushed to the Long Term Storage.
      *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
      *  9.  Starts segment store and controller.
      *  10. Reads all events.
@@ -401,9 +401,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
      *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
      *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
      *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
      *  9.  Starts segment store and controller.
      *  10. Reads all events.
@@ -421,9 +421,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  2.  Writes {@link #TOTAL_NUM_EVENTS} events in the form of transactions.
      *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
      *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5.  Creates back up of container metadata segment and its attribute segment from the old LTS before deleting them.
-     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7.  Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
      *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
      *  9.  Starts segment store and controller.
      *  10. Reads all events.
@@ -463,7 +463,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush all Tier 1 to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -569,9 +569,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Let a reader read N number of events.
      *  5. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  6. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  7. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  8. Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  6. Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  7. Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  8. Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
      *  9. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
      *  10. Starts segment store and controller.
      *  11. Let the reader read rest of the 10-N number of events.
@@ -617,7 +617,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush all Tier 1 to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -681,7 +681,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Update core attributes from the backUp Metadata segments
         ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
-        // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
+        // Waits for metadata segments to be flushed to Long Term Storage and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
         log.info("Segments have been recovered.");
 
@@ -695,9 +695,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  2. Writes {@link #TOTAL_NUM_EVENTS} events to a segment with watermarks.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in DurableLog and let's it flushed to the LTS.
+     *  5. Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7. Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
@@ -749,7 +749,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush all Tier 1 to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
