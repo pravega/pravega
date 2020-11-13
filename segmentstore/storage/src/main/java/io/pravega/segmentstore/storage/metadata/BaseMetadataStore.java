@@ -12,10 +12,16 @@ package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ConcurrentHashMultiset;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -29,11 +35,19 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
 
 /**
  * Implements base metadata store that provides core functionality of metadata store by encapsulating underlying key value store.
@@ -49,12 +63,12 @@ import java.util.stream.Collectors;
  *
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}
  *
  * Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload of{@link MetadataTransaction#commit()}.
  * Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.
  * Transactions are atomic - either all changes in the transaction are committed or none at all.
- * In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata records read during the transactions are changed outside the transaction after they were read.
+ * In addition, Transactions provide snapshot isolation which means that transaction fails if any of the metadata records read during the transactions are changed outside the transaction after they were read.
  *
  * Within a transaction you can perform following actions on per record basis.
  * <ul>
@@ -100,12 +114,17 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
      */
-    private static final int MAX_ENTRIES_IN_TXN_BUFFER = 5000;
+    private static final int MAX_ENTRIES_IN_TXN_BUFFER = 1000;
 
     /**
-     * Lock for synchronization.
+     * Maximum number of metadata entries to keep in cache.
      */
-    private final Object lock = new Object();
+    private static final int MAX_ENTRIES_IN_CACHE = 5000;
+
+    /**
+     * Percentage of cache evicted at any time. (1 / CACHE_EVICTION_RATIO) entries are evicted at once.
+     */
+    private static final int CACHE_EVICTION_RATIO = 10;
 
     /**
      * Indicates whether this instance is fenced or not.
@@ -120,9 +139,31 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Buffer for reading and writing transaction data entries to underlying KV store.
      * This allows lazy storing and avoiding unnecessary load for recently/frequently updated key value pairs.
+     * Note that entries in this buffer should not be evicted while transaction using them are in flight.
      */
-    @GuardedBy("lock")
     private final ConcurrentHashMap<String, TransactionData> bufferedTxnData;
+
+    /**
+     * Set of active records from commits that are in-flight. These records should not be evicted until the active commits finish.
+     */
+    private final ConcurrentHashMultiset<String> activeKeys;
+
+    /**
+     * Set of keys from commits that are actively being processed. No concurrent commits on the same keys are allowed to proceed.
+     */
+    @GuardedBy("lockedKeys")
+    private final HashSet<String> lockedKeys = new HashSet<>();
+
+    /**
+     * Cache for reading and writing transaction data entries to underlying KV store.
+     */
+    private final Cache<String, TransactionData> cache;
+
+    /**
+     * Storage executor object.
+     */
+    @Getter(AccessLevel.PROTECTED)
+    private final Executor executor;
 
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
@@ -132,24 +173,53 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     int maxEntriesInTxnBuffer = MAX_ENTRIES_IN_TXN_BUFFER;
 
     /**
-     * Constructs a BaseMetadataStore object.
+     * Maximum number of metadata entries to keep in recent transaction buffer.
      */
-    public BaseMetadataStore() {
+    @Getter
+    @Setter
+    int maxEntriesInCache = MAX_ENTRIES_IN_CACHE;
+
+    /**
+     * Keep count of records in buffer. ConcurrentHashMap.size() is an expensive operation.
+     */
+    private final AtomicInteger bufferCount = new AtomicInteger(0);
+
+    /**
+     * Flag to keep track of whether the eviction is currently running.
+     */
+    private final AtomicBoolean isEvictionRunning = new AtomicBoolean();
+
+    /**
+     * Lock object to synchronize on during eviction.
+     */
+    private final Object evictionLock = new Object();
+
+    /**
+     * Constructs a BaseMetadataStore object.
+     *
+     * @param executor Executor to use for async operations.
+     */
+    public BaseMetadataStore(Executor executor) {
         version = new AtomicLong(System.currentTimeMillis()); // Start with unique number.
         fenced = new AtomicBoolean(false);
         bufferedTxnData = new ConcurrentHashMap<>(); // Don't think we need anything fancy here. But we'll measure and see.
+        activeKeys = ConcurrentHashMultiset.create();
+        cache = CacheBuilder.newBuilder()
+                .maximumSize(maxEntriesInCache)
+                .build();
+        this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
     /**
      * Begins a new transaction.
      *
+     * @param keysToLock Array of keys to lock for this transaction.
      * @return Returns a new instance of MetadataTransaction.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public MetadataTransaction beginTransaction() throws StorageMetadataException {
-        // Each transaction gets a unique number which is monotinically increasing.
-        return new MetadataTransaction(this, version.incrementAndGet());
+    public MetadataTransaction beginTransaction(boolean isReadonly, String... keysToLock) {
+        // Each transaction gets a unique number which is monotonically increasing.
+        return new MetadataTransaction(this, isReadonly, version.incrementAndGet(), keysToLock);
     }
 
     /**
@@ -157,22 +227,26 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
-    public void commit(MetadataTransaction txn, boolean lazyWrite) throws StorageMetadataException {
-        commit(txn, lazyWrite, false);
+    public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite) {
+        return commit(txn, lazyWrite, false);
     }
 
     /**
      * Commits given transaction.
      *
      * @param txn transaction to commit.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
-    public void commit(MetadataTransaction txn) throws StorageMetadataException {
-        commit(txn, false, false);
+    public CompletableFuture<Void> commit(MetadataTransaction txn) {
+        return commit(txn, false, false);
     }
 
     /**
@@ -180,117 +254,248 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn       transaction to commit.
      * @param lazyWrite true if data can be written lazily.
-     * @throws StorageMetadataException StorageMetadataVersionMismatchException if transaction can not be commited.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed.
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
+     * {@link StorageMetadataException} if transaction can not be committed.
      */
     @Override
-    public void commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) throws StorageMetadataException {
+    public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) {
         Preconditions.checkArgument(null != txn);
-        if (fenced.get()) {
-            throw new StorageMetadataWritesFencedOutException("Transaction writer is fenced off.");
-        }
+        Preconditions.checkState(!txn.isReadonly(), "Attempt to modify in readonly transaction");
 
-        Map<String, TransactionData> txnData = txn.getData();
+        val txnData = txn.getData();
 
-        ArrayList<String> modifiedKeys = new ArrayList<>();
-        ArrayList<TransactionData> modifiedValues = new ArrayList<>();
+        val modifiedKeys = new ArrayList<String>();
+        val modifiedValues = new ArrayList<TransactionData>();
+        val t = new Timer();
+        val shouldReleaseKeys = new AtomicBoolean(false);
+        val retValue = CompletableFuture.runAsync(() -> {
+                    if (fenced.get()) {
+                        throw new CompletionException(new StorageMetadataWritesFencedOutException(
+                                String.format("Transaction writer is fenced off. transaction=%s", txn.getVersion())));
+                    }
+                }, executor)
+                .thenComposeAsync(v -> {
+                    // Mark keys in transaction as active to prevent their eviction.
+                    txn.getData().keySet().forEach(this::addToActiveKeySet);
+                    // Prevent any concurrent transactions on keys.
+                    acquireKeys(txn);
+                    shouldReleaseKeys.set(true);
+                    // Step 1 : If bufferedTxnData data was flushed, then read it back from external source and re-insert in bufferedTxnData buffer.
+                    return loadMissingKeys(txn, skipStoreCheck, txnData)
+                            .thenComposeAsync(v1 -> {
+                                // This check needs to be atomic, with absolutely no possibility of re-entry
+                                return performCommit(txn, lazyWrite, txnData, modifiedKeys, modifiedValues);
+                            }, executor);
+                }, executor)
+                .thenRunAsync(() -> {
+                    //  Step 5 : Mark transaction as commited.
+                    txn.setCommitted();
+                    txnData.clear();
+                }, executor)
+                .whenCompleteAsync((v, ex) -> {
+                    if (shouldReleaseKeys.get()) {
+                        // Release keys.
+                        releaseKeys(txn);
+                    }
+                    // Remove keys from active set.
+                    txn.getData().keySet().forEach(this::removeFromActiveKeySet);
+                    COMMIT_LATENCY.reportSuccessEvent(t.getElapsed());
+                }, executor);
 
-        // Step 1 : If bufferedTxnData data was flushed, then read it back from external source and re-insert in bufferedTxnData buffer.
-        // This step is kind of thread safe
+        // Trigger evict
+        retValue.thenAcceptAsync(v4 -> {
+            //  Step 6 : evict if required.
+            evictIfNeeded();
+        }, executor);
+
+        return retValue;
+    }
+
+    /**
+     * Loads missing keys.
+     */
+    private CompletableFuture<Void> loadMissingKeys(MetadataTransaction txn, boolean skipStoreCheck, Map<String, TransactionData> txnData) {
+        val loadFutures = new ArrayList<CompletableFuture<TransactionData>>();
         for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-            String key = entry.getKey();
+            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
+            val key = entry.getKey();
             if (skipStoreCheck || entry.getValue().isPinned()) {
                 log.trace("Skipping loading key from the store key = {}", key);
             } else {
                 // This check is safe to be outside the lock
-                if (!bufferedTxnData.containsKey(key)) {
-                    loadFromStore(key);
+                val dataFromBuffer = bufferedTxnData.get(key);
+                if (null == dataFromBuffer) {
+                    loadFutures.add(loadFromStore(key));
                 }
             }
         }
-        // Step 2 : Check whether transaction is safe to commit.
-        // This check needs to be atomic, with absolutely no possibility of re-entry
-        synchronized (lock) {
-            for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-                String key = entry.getKey();
-                val transactionData = entry.getValue();
-                Preconditions.checkState(null != transactionData.getKey());
-
-                // See if this entry was modified in this transaction.
-                if (transactionData.getVersion() == txn.getVersion()) {
-                    modifiedKeys.add(key);
-                    transactionData.setPersisted(false);
-                    modifiedValues.add(transactionData);
-                }
-                // make sure none of the keys used in this transaction have changed.
-                TransactionData dataFromBuffer = bufferedTxnData.get(key);
-                if (null != dataFromBuffer) {
-                    if (dataFromBuffer.getVersion() > transactionData.getVersion()) {
-                        throw new StorageMetadataVersionMismatchException(
-                                String.format("Transaction uses stale data. Key version changed key:%s buffer:%s transaction:%s",
-                                        key, dataFromBuffer.getVersion(), txnData.get(key).getVersion()));
+        return Futures.allOf(loadFutures)
+                .thenRunAsync(() -> {
+                    // validate everything is alright.
+                    for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
+                        val dataFromBuffer = bufferedTxnData.get(entry.getKey());
+                        if (!(entry.getValue().isPinned())) {
+                            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
+                            Preconditions.checkState(null != dataFromBuffer, "Data from buffer must not be null.");
+                            if (!dataFromBuffer.isPinned()) {
+                                Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
+                            }
+                        }
                     }
+                }, executor);
+    }
 
-                    // Pin it if it is already pinned.
-                    transactionData.setPinned(transactionData.isPinned() || dataFromBuffer.isPinned());
+    /**
+     * Performs commit.
+     */
+    private CompletableFuture<Void> performCommit(MetadataTransaction txn, boolean lazyWrite, Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys, ArrayList<TransactionData> modifiedValues) {
+        return CompletableFuture.runAsync(() -> {
+                    // Step 2 : Check whether transaction is safe to commit.
+                    validateCommit(txn, txnData, modifiedKeys, modifiedValues);
+                }, executor)
+                .thenComposeAsync(v -> {
+                    // Step 3: Commit externally.
+                    // This operation may call external storage.
+                    return writeToMetadataStore(lazyWrite, modifiedValues);
+                }, executor)
+                .thenComposeAsync(v -> executeExternalCommitAction(txn), executor)
+                .thenRunAsync(() -> {
+                    // If we reach here then it means transaction is safe to commit.
+                    // Step 4: Update buffer.
+                    val committedVersion = version.incrementAndGet();
+                    val toAdd = new HashMap<String, TransactionData>();
+                    for (String key : modifiedKeys) {
+                        TransactionData data = txnData.get(key);
+                        data.setVersion(committedVersion);
+                        toAdd.put(key, data);
+                    }
+                    bufferedTxnData.putAll(toAdd);
+                    bufferCount.addAndGet(toAdd.size());
+                }, executor);
+    }
 
-                    // Set the database object.
-                    transactionData.setDbObject(dataFromBuffer.getDbObject());
-                }
+    /**
+     * Writes modified values to the metadata store.
+     */
+    private CompletableFuture<Void> writeToMetadataStore(boolean lazyWrite, ArrayList<TransactionData> modifiedValues) {
+        if (!lazyWrite || (bufferCount.get() > maxEntriesInTxnBuffer)) {
+            log.trace("Persisting all modified keys (except pinned)");
+            val toWriteList = modifiedValues.stream().filter(entry -> !entry.isPinned()).collect(Collectors.toList());
+            if (toWriteList.size() > 0) {
+                return writeAll(toWriteList)
+                        .thenRunAsync(() -> {
+                            log.trace("Done persisting all modified keys");
+                            for (val writtenData : toWriteList) {
+                                // Mark written keys as persisted.
+                                writtenData.setPersisted(true);
+                                // Put it in cache.
+                                cache.put(writtenData.getKey(), writtenData);
+                            }
+                        }, executor);
+            } else {
+                return CompletableFuture.completedFuture(null);
             }
-
-            // Step 3: Commit externally.
-            // This operation may call external storage.
-            if (!lazyWrite || (bufferedTxnData.size() > maxEntriesInTxnBuffer)) {
-                log.trace("Persisting all modified keys (except pinned)");
-                val toWriteList = modifiedValues.stream().filter(entry -> !entry.isPinned()).collect(Collectors.toList());
-                writeAll(toWriteList);
-                log.trace("Done persisting all modified keys");
-
-                // Mark written keys as persisted.
-                for (val writtenData : toWriteList) {
-                    writtenData.setPersisted(true);
-                }
-            }
-
-            // Execute external commit step.
-            try {
-                if (null != txn.getExternalCommitStep()) {
-                    txn.getExternalCommitStep().call();
-                }
-            } catch (Exception e) {
-                log.error("Exception during execution of external commit step", e);
-                throw new StorageMetadataException("Exception during execution of external commit step", e);
-            }
-
-            // If we reach here then it means transaction is safe to commit.
-            // Step 4: Insert
-            long committedVersion = version.incrementAndGet();
-            HashMap<String, TransactionData> toAdd = new HashMap<String, TransactionData>();
-            for (String key : modifiedKeys) {
-                TransactionData data = txnData.get(key);
-                data.setVersion(committedVersion);
-                toAdd.put(key, data);
-            }
-            bufferedTxnData.putAll(toAdd);
         }
+        return CompletableFuture.completedFuture(null);
+    }
 
-        //  Step 5 : evict if required.
-        if (bufferedTxnData.size() > maxEntriesInTxnBuffer) {
-            bufferedTxnData.entrySet().removeIf(entry -> entry.getValue().isPersisted() && !entry.getValue().isPinned());
+    /**
+     * Executes external commit step.
+     */
+    private CompletableFuture<Void> executeExternalCommitAction(MetadataTransaction txn) {
+        // Execute external commit step.
+        try {
+            if (null != txn.getExternalCommitStep()) {
+                txn.getExternalCommitStep().call();
+            }
+        } catch (Exception e) {
+            log.error("Exception during execution of external commit step", e);
+            throw new CompletionException(new StorageMetadataException("Exception during execution of external commit step", e));
         }
+        return CompletableFuture.completedFuture(null);
+    }
 
-        //  Step 6: finally clear
-        txnData.clear();
+    private void validateCommit(MetadataTransaction txn, Map<String, TransactionData> txnData, ArrayList<String> modifiedKeys, ArrayList<TransactionData> modifiedValues) {
+        for (val entry : txnData.entrySet()) {
+            val key = entry.getKey();
+            val transactionData = entry.getValue();
+            Preconditions.checkState(null != transactionData.getKey(), "Missing key.");
+
+            // See if this entry was modified in this transaction.
+            if (transactionData.getVersion() == txn.getVersion()) {
+                modifiedKeys.add(key);
+                transactionData.setPersisted(false);
+                modifiedValues.add(transactionData);
+            }
+            // make sure none of the keys used in this transaction have changed.
+            val dataFromBuffer = bufferedTxnData.get(key);
+            if (null != dataFromBuffer) {
+                if (!dataFromBuffer.isPinned()) {
+                    Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
+                }
+                if (dataFromBuffer.getVersion() > transactionData.getVersion()) {
+                    throw new CompletionException(new StorageMetadataVersionMismatchException(
+                            String.format("Transaction uses stale data. Key version changed key=%s committed=%s transaction=%s",
+                                    key, dataFromBuffer.getVersion(), txnData.get(key).getVersion())));
+                }
+
+                // Pin it if it is already pinned.
+                transactionData.setPinned(transactionData.isPinned() || dataFromBuffer.isPinned());
+
+                // Set the database object.
+                transactionData.setDbObject(dataFromBuffer.getDbObject());
+            } else {
+                Preconditions.checkState(entry.getValue().isPinned(), "Transaction data evicted unexpectedly.");
+            }
+        }
+    }
+
+    /**
+     * Evict entries if needed.
+     * Only evict keys that are persisted, not pinned or active.
+     */
+    private void evictIfNeeded() {
+        if (isEvictionRunning.compareAndSet(false, true)) {
+            val limit = 1 + maxEntriesInTxnBuffer / CACHE_EVICTION_RATIO;
+            if (bufferCount.get() > maxEntriesInTxnBuffer) {
+                val toEvict = bufferedTxnData.entrySet().parallelStream()
+                        .filter(entry -> entry.getValue().isPersisted() && !entry.getValue().isPinned()
+                                && !activeKeys.contains(entry.getKey()))
+                        .map(Map.Entry::getKey)
+                        .limit(limit)
+                        .collect(Collectors.toList());
+                int count = 0;
+                for (val key : toEvict) {
+                    // synchronize so that we don't accidentally delete a key that becomes active after check here.
+                    synchronized (evictionLock) {
+                        if (0 == activeKeys.count(key)) {
+                            // Synchronization prevents error when key becomes active between the check and remove.
+                            // Move the key to cache
+                            cache.put(key, bufferedTxnData.get(key));
+                            // Remove from buffer.
+                            bufferedTxnData.remove(key);
+                            count++;
+                        }
+                    }
+                }
+                bufferCount.addAndGet(-1 * count);
+                log.debug("{} entries evicted from transaction buffer.", count);
+            }
+            isEvictionRunning.set(false);
+
+        }
     }
 
     /**
      * Aborts given transaction.
      *
      * @param txn transaction to abort.
-     * @throws StorageMetadataException If there are any errors.
+     *            throws StorageMetadataException If there are any errors.
      */
-    public void abort(MetadataTransaction txn) throws StorageMetadataException {
+    public CompletableFuture<Void> abort(MetadataTransaction txn) {
         // Do nothing
+        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -298,82 +503,176 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @return Metadata for given key. Null if key was not found.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @return A CompletableFuture that, when completed, will contain metadata for given key. Null if key was not found.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                             {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     @Override
-    public StorageMetadata get(MetadataTransaction txn, String key) throws StorageMetadataException {
+    public CompletableFuture<StorageMetadata> get(MetadataTransaction txn, String key) {
         Preconditions.checkArgument(null != txn);
-        TransactionData dataFromBuffer = null;
         if (null == key) {
-            return null;
+            return CompletableFuture.completedFuture(null);
         }
-        StorageMetadata retValue = null;
+        val t = new Timer();
+        val txnData = txn.getData();
 
-        Map<String, TransactionData> txnData = txn.getData();
+        // Record is found in transaction data itself.
         TransactionData data = txnData.get(key);
-
-        // Search in the buffer.
-        if (null == data) {
-            synchronized (lock) {
-                dataFromBuffer = bufferedTxnData.get(key);
-            }
-            // If we did not find in buffer then load it from store
-            if (null == dataFromBuffer) {
-                // NOTE: This call to read MUST be outside the lock, it is most likely cause re-entry.
-                loadFromStore(key);
-                dataFromBuffer = bufferedTxnData.get(key);
-                Preconditions.checkState(null != dataFromBuffer);
-            }
-
-            if (null != dataFromBuffer && null != dataFromBuffer.getValue()) {
-                // Make copy.
-                data = dataFromBuffer.toBuilder()
-                        .key(key)
-                        .value(dataFromBuffer.getValue().deepCopy())
-                        .build();
-                txnData.put(key, data);
-            }
+        if (null != data) {
+            GET_LATENCY.reportSuccessEvent(t.getElapsed());
+            return CompletableFuture.completedFuture(data.getValue());
         }
 
-        if (data != null) {
-            retValue = data.getValue();
-        }
+        // Prevent the key from getting evicted.
+        addToActiveKeySet(key);
 
+        return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
+                .thenApplyAsync(dataFromBuffer -> {
+                    if (dataFromBuffer != null) {
+                        // Make sure it is a deep copy.
+                        val retValue = dataFromBuffer.getValue();
+                        if (null != retValue) {
+                            return retValue.deepCopy();
+                        }
+                        return null;
+                    }
+                    return null;
+                }, executor)
+                .thenComposeAsync(retValue -> {
+                    if (retValue != null) {
+                        return CompletableFuture.completedFuture(retValue);
+                    }
+                    // We did not find it in the buffer either.
+                    // Try to find it in store.
+                    return loadFromStore(key)
+                            .thenApplyAsync(TransactionData::getValue, executor);
+                }, executor)
+                .whenCompleteAsync((v, ex) -> {
+                    removeFromActiveKeySet(key);
+                    GET_LATENCY.reportSuccessEvent(t.getElapsed());
+                }, executor);
+    }
+
+    private void removeFromActiveKeySet(String key) {
+        // No need to synchronize as activeKeys is already a ConcurrentHashMultiset.
+        // In case of any race with eviction logic, the key will simply be evicted next iteration.
+        // This is not incorrect and the race should be rare.
+        activeKeys.remove(key);
+    }
+
+    private void addToActiveKeySet(String key) {
+        // No need to synchronize if the eviction is not running as activeKeys is ConcurrentHashMultiset
+        if (isEvictionRunning.get()) {
+            // However this is required when eviction is happening in background because eviction code checks the count
+            // and should evict key only if the count is zero.
+            // These two steps are not atomic hence the use of synchronized in this narrow case to prevent race.
+            synchronized (evictionLock) {
+                activeKeys.add(key);
+            }
+        } else {
+            activeKeys.add(key);
+        }
+    }
+
+    /**
+     * When called marks the keys in the transaction as "locked".
+     * Until they are unlocked all further commits on the same keys will fail with VersionMismatch.
+     *
+     * @param txn Transaction which should get exclusive access to the keys.
+     */
+    private void acquireKeys(MetadataTransaction txn) {
+        synchronized (lockedKeys) {
+            for (String key : txn.getKeysToLock()) {
+                if (lockedKeys.contains(key)) {
+                    throw new CompletionException(new StorageMetadataVersionMismatchException(
+                            String.format("Concurrent transaction commits not allowed. key=%s transaction=%s",
+                                    key, txn.getVersion())));
+                }
+            }
+            // Now that we have validated, mark all keys as "locked".
+            for (String key : txn.getKeysToLock()) {
+                lockedKeys.add(key);
+            }
+        }
+    }
+
+    /**
+     * When called unmarks the keys in the transaction as "locked".
+     *
+     * @param txn Transaction which should get exclusive access to the keys.
+     */
+    private void releaseKeys(MetadataTransaction txn) {
+        synchronized (lockedKeys) {
+            for (String key : txn.getKeysToLock()) {
+                lockedKeys.remove(key);
+            }
+        }
+    }
+
+    /**
+     * Loads value from store.
+     */
+    private CompletableFuture<TransactionData> loadFromStore(String key) {
+        log.trace("Loading key from the store key = {}", key);
+        return readFromStore(key)
+                .thenApplyAsync(this::makeCopyForBuffer, executor)
+                .thenApplyAsync(copyForBuffer -> {
+                    Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
+                    Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
+                    return insertInBuffer(key, copyForBuffer);
+                }, executor);
+    }
+
+    private CompletableFuture<TransactionData> readFromStore(String key) {
+        val fromCache = cache.getIfPresent(key);
+        if (null != fromCache) {
+            return CompletableFuture.completedFuture(fromCache);
+        }
+        return read(key);
+    }
+
+    /**
+     * Inserts a copy of metadata into the buffer.
+     */
+    private TransactionData insertInBuffer(String key, TransactionData copyForBuffer) {
+        Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
+        Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
+        // If some other transaction beat us then use that value.
+        val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
+        final TransactionData retValue;
+        if (oldValue != null) {
+            retValue = oldValue;
+        } else {
+            retValue = copyForBuffer;
+            bufferCount.incrementAndGet();
+        }
+        Preconditions.checkState(activeKeys.contains(key), "key must be marked active.");
+        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key");
+        if (!retValue.isPinned()) {
+            Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
+        }
         return retValue;
     }
 
     /**
-     * Loads value from store
-     *
-     * @param key Key to load
-     * @return Value if found null otherwise.
-     * @throws StorageMetadataException Any exceptions.
+     * Gets a copy from buffer.
      */
-    private TransactionData loadFromStore(String key) throws StorageMetadataException {
-        // NOTE: This call to read MUST be outside the lock, it is most likely cause re-entry.
-        log.trace("Loading key from the store key = {}", key);
-        TransactionData fromDb = read(key);
-        Preconditions.checkState(null != fromDb);
-        log.trace("Done Loading key from the store key = {}", key);
+    private TransactionData makeCopyForBuffer(TransactionData fromDb) {
+        Preconditions.checkState(null != fromDb, "Data from table store must not be null.");
+        Preconditions.checkState(null != fromDb.dbObject, "Missing tracking object");
+        log.trace("Done Loading key from the store key = {}", fromDb.getKey());
 
-        TransactionData copyForBuffer = fromDb.toBuilder()
-                .key(key)
+        val copyForBuffer = fromDb.toBuilder()
+                .key(fromDb.getKey())
                 .build();
-
+        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
         if (null != fromDb.getValue()) {
             Preconditions.checkState(0 != fromDb.getVersion(), "Version is not initialized");
             // Make sure it is a deep copy.
             copyForBuffer.setValue(fromDb.getValue().deepCopy());
         }
-        // Put this value in bufferedTxnData buffer.
-        synchronized (lock) {
-            // If some other transaction beat us then use that value.
-            TransactionData oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
-            if (oldValue != null) {
-                copyForBuffer = oldValue;
-            }
-        }
+        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
+        Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject, "Missing tracking object");
         return copyForBuffer;
     }
 
@@ -381,34 +680,33 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Reads a metadata record for the given key.
      *
      * @param key Key for the metadata record.
-     * @return Associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @return A CompletableFuture that, when completed, will contain associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
      */
-    abstract protected TransactionData read(String key) throws StorageMetadataException;
+    abstract protected CompletableFuture<TransactionData> read(String key);
 
     /**
      * Writes transaction data from a given list to the metadata store.
      *
      * @param dataList List of transaction data to write.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded.
      */
-    abstract protected void writeAll(Collection<TransactionData> dataList) throws StorageMetadataException;
+    abstract protected CompletableFuture<Void> writeAll(Collection<TransactionData> dataList);
 
     /**
      * Updates existing metadata.
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     *                 throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public void update(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException {
+    public void update(MetadataTransaction txn, StorageMetadata metadata) {
         Preconditions.checkArgument(null != txn);
         Preconditions.checkArgument(null != metadata);
         Preconditions.checkArgument(null != metadata.getKey());
-        Map<String, TransactionData> txnData = txn.getData();
+        val txnData = txn.getData();
 
-        String key = metadata.getKey();
+        val key = metadata.getKey();
 
         TransactionData data = TransactionData.builder().key(key).build();
         TransactionData oldData = txnData.putIfAbsent(key, data);
@@ -426,14 +724,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     *                 throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public void markPinned(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException {
+    public void markPinned(MetadataTransaction txn, StorageMetadata metadata) {
         Preconditions.checkArgument(null != txn);
         Preconditions.checkArgument(null != metadata);
-        Map<String, TransactionData> txnData = txn.getData();
-        String key = metadata.getKey();
+        val txnData = txn.getData();
+        val key = metadata.getKey();
 
         TransactionData data = TransactionData.builder().key(key).build();
         TransactionData oldData = txnData.putIfAbsent(key, data);
@@ -451,14 +749,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn      Transaction.
      * @param metadata metadata record.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     *                 throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public void create(MetadataTransaction txn, StorageMetadata metadata) throws StorageMetadataException {
+    public void create(MetadataTransaction txn, StorageMetadata metadata) {
         Preconditions.checkArgument(null != txn);
         Preconditions.checkArgument(null != metadata);
         Preconditions.checkArgument(null != metadata.getKey());
-        Map<String, TransactionData> txnData = txn.getData();
+        val txnData = txn.getData();
         txnData.put(metadata.getKey(), TransactionData.builder()
                 .key(metadata.getKey())
                 .value(metadata)
@@ -471,13 +769,13 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *
      * @param txn Transaction.
      * @param key key to use to retrieve metadata.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
+     *            throws StorageMetadataException Exception related to storage metadata operations.
      */
     @Override
-    public void delete(MetadataTransaction txn, String key) throws StorageMetadataException {
+    public void delete(MetadataTransaction txn, String key) {
         Preconditions.checkArgument(null != txn);
         Preconditions.checkArgument(null != key);
-        Map<String, TransactionData> txnData = txn.getData();
+        val txnData = txn.getData();
 
         TransactionData data = TransactionData.builder().key(key).build();
         TransactionData oldData = txnData.putIfAbsent(key, data);
@@ -493,9 +791,11 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * {@link AutoCloseable#close()} implementation.
      */
     @Override
-    public void close() throws Exception {
-        ArrayList<TransactionData> modifiedValues = new ArrayList<>();
-        bufferedTxnData.entrySet().stream().filter(entry -> !entry.getValue().isPersisted() && !entry.getValue().isPinned()).forEach(entry -> modifiedValues.add(entry.getValue()));
+    public void close() {
+        val modifiedValues = new ArrayList<TransactionData>();
+        bufferedTxnData.entrySet().stream()
+                .filter(entry -> !entry.getValue().isPersisted() && !entry.getValue().isPinned())
+                .forEach(entry -> modifiedValues.add(entry.getValue()));
         if (modifiedValues.size() > 0) {
             writeAll(modifiedValues);
         }
@@ -598,7 +898,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             private void read00(RevisionDataInput input, TransactionDataBuilder b) throws IOException {
                 b.version(input.readLong());
                 b.key(input.readUTF());
-                boolean hasValue = input.readBoolean();
+                val hasValue = input.readBoolean();
                 if (hasValue) {
                     b.value(SERIALIZER.deserialize(input.getBaseStream()));
                 }
@@ -607,7 +907,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             private void write00(TransactionData object, RevisionDataOutput output) throws IOException {
                 output.writeLong(object.version);
                 output.writeUTF(object.key);
-                boolean hasValue = object.value != null;
+                val hasValue = object.value != null;
                 output.writeBoolean(hasValue);
                 if (hasValue) {
                     SERIALIZER.serialize(output, object.value);
