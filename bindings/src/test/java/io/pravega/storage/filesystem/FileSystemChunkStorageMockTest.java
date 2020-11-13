@@ -13,6 +13,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkHandle;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Unit tests for {@link FileSystemChunkStorage} that uses mocks.
  */
-public class FileSystemChunkStorageMockTest {
+public class FileSystemChunkStorageMockTest extends ThreadPooledTestSuite {
     static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -65,15 +66,15 @@ public class FileSystemChunkStorageMockTest {
         when(fileSystemWrapper.exists(any())).thenReturn(true);
         when(fileSystemWrapper.isRegularFile(any())).thenReturn(false);
 
-        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
-        AssertExtensions.assertThrows(
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
+        AssertExtensions.assertFutureThrows(
                 " openRead should throw ChunkStorageException.",
-                () -> testStorage.openRead(chunkName),
+                testStorage.openRead(chunkName),
                 ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 " openRead should throw ChunkStorageException.",
-                () -> testStorage.openWrite(chunkName),
+                testStorage.openWrite(chunkName),
                 ex -> ex instanceof ChunkStorageException && -1 != ex.getMessage().indexOf("chunk is not a regular file"));
     }
 
@@ -88,7 +89,7 @@ public class FileSystemChunkStorageMockTest {
         when(fileSystemWrapper.createDirectories(any())).thenThrow(new IOException("Random"));
         doThrow(new IOException("Random")).when(fileSystemWrapper).delete(any());
 
-        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
         AssertExtensions.assertThrows(
                 " doDelete should throw ChunkStorageException.",
                 () -> testStorage.doDelete(ChunkHandle.writeHandle(chunkName)),
@@ -113,21 +114,21 @@ public class FileSystemChunkStorageMockTest {
                 ex -> ex instanceof ChunkStorageException
                         && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 " write should throw exception.",
-                () -> testStorage.write(ChunkHandle.writeHandle(chunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
+                testStorage.write(ChunkHandle.writeHandle(chunkName), 0, 1, new ByteArrayInputStream(new byte[1])),
                 ex -> ex instanceof ChunkStorageException
                         && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 " read should throw exception.",
-                () -> testStorage.read(ChunkHandle.writeHandle(chunkName), 0, 1, new byte[1], 0),
+                testStorage.read(ChunkHandle.writeHandle(chunkName), 0, 1, new byte[1], 0),
                 ex -> ex instanceof ChunkStorageException
                         && ex.getCause() instanceof IOException && ex.getCause().getMessage().equals("Random"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 " concat should throw exception.",
-                () -> testStorage.concat(new ConcatArgument[]{
+                testStorage.concat(new ConcatArgument[]{
                                 ConcatArgument.builder().name("A").length(0).build(),
                                 ConcatArgument.builder().name("B").length(1).build()
                         }),
@@ -158,7 +159,7 @@ public class FileSystemChunkStorageMockTest {
         when(fileSystemWrapper.getFileChannel(any(), any())).thenReturn(channel);
         when(fileSystemWrapper.getFileSize(any())).thenReturn(2L * bufferSize);
 
-        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper);
+        FileSystemChunkStorage testStorage = new FileSystemChunkStorage(storageConfig, fileSystemWrapper, executorService());
 
         ChunkHandle handle = ChunkHandle.readHandle(chunkName);
 
