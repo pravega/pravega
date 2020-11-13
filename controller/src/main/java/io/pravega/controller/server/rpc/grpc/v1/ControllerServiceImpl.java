@@ -237,12 +237,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getScope();
         String stream = request.getStream();
         String subscriber = request.getSubscriber();
+        long generation = request.getOperationGeneration();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "addSubscriber",
                 scope, stream);
         log.info(requestTag.getRequestId(), "addSubscriber called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.addSubscriber(scope, stream, subscriber),
+                delegationToken -> controllerService.addSubscriber(scope, stream, subscriber, generation),
                 responseObserver, requestTag);
     }
 
@@ -264,12 +265,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getScope();
         String stream = request.getStream();
         String subscriber = request.getSubscriber();
+        long generation = request.getOperationGeneration();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteSubscriber",
                 scope, stream);
         log.info(requestTag.getRequestId(), "deleteSubscriber called for stream {}/{} and subscriber {}.", scope, stream, subscriber);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.deleteSubscriber(scope, stream, subscriber),
+                delegationToken -> controllerService.deleteSubscriber(scope, stream, subscriber, generation),
                 responseObserver, requestTag);
     }
 

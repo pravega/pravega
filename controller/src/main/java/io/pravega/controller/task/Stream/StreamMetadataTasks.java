@@ -288,11 +288,12 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope      scope.
      * @param stream     stream name.
      * @param newSubscriber  Id of the ReaderGroup to be added as subscriber
+     * @param generation  subscriber generation
      * @param contextOpt optional context
      * @return update status.
      */
     public CompletableFuture<AddSubscriberStatus.Status> addSubscriber(String scope, String stream,
-                                                                     String newSubscriber,
+                                                                     String newSubscriber, long generation,
                                                                      OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
@@ -304,18 +305,9 @@ public class StreamMetadataTasks extends TaskBase {
                 return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
             } else {
                 // 2. get subscribers data
-                return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, newSubscriber, context, executor),
-                     e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                    .thenCompose(subscribersData -> {
-                    //4. If SubscriberRecord does not exist create one...
-                    if (subscribersData == null) {
-                        return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, context, executor)
-                                .thenApply(v -> AddSubscriberStatus.Status.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
-                    }
-                    })
-                    .exceptionally(ex -> {
+                return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, generation, context, executor)
+                       .thenApply(v -> AddSubscriberStatus.Status.SUCCESS)
+                       .exceptionally(ex -> {
                         log.warn(requestId, "Exception thrown in trying to add subscriber {}",
                                     ex.getMessage());
                         Throwable cause = Exceptions.unwrap(ex);
@@ -336,11 +328,12 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope      scope.
      * @param stream     stream name.
      * @param subscriber  Id of the ReaderGroup to be added as subscriber.
+     * @param generation  subscriber generation.
      * @param contextOpt optional context
      * @return update status.
      */
     public CompletableFuture<DeleteSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
-                                                                             String subscriber,
+                                                                             String subscriber, long generation,
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("removeSubscriber", scope, stream);
@@ -352,7 +345,7 @@ public class StreamMetadataTasks extends TaskBase {
                    return CompletableFuture.completedFuture(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND);
                }
                // 2. remove subscriber
-               return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, context, executor)
+               return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, generation, context, executor)
                        .thenApply(x -> DeleteSubscriberStatus.Status.SUCCESS)
                        .exceptionally(ex -> {
                            log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());

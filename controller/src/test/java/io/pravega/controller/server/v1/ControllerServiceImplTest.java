@@ -548,20 +548,20 @@ public abstract class ControllerServiceImplTest {
 
         // Add Subscriber for non-existent stream.
         ResultObserver<AddSubscriberStatus> result1 = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber"), result1);
+        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber", 0L), result1);
         AddSubscriberStatus  addStatus = result1.get();
         Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.STREAM_NOT_FOUND);
 
         ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber"), result);
+        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 0L), result);
         addStatus = result.get();
         Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
 
         // Add existing Subscriber again.
         ResultObserver<AddSubscriberStatus> result3 = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber"), result3);
+        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 1L), result3);
         addStatus = result3.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUBSCRIBER_EXISTS);
+        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
     }
 
     @Test
@@ -570,23 +570,23 @@ public abstract class ControllerServiceImplTest {
 
         // delete subscriber from non-existing stream
         ResultObserver<DeleteSubscriberStatus> result1 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber"), result1);
+        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber", 2L), result1);
         DeleteSubscriberStatus deleteStatus = result1.get();
         Assert.assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, deleteStatus.getStatus());
 
         // delete non-exitsing subscriber from existing stream
         ResultObserver<DeleteSubscriberStatus> result2 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber"), result2);
+        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result2);
         deleteStatus = result2.get();
         Assert.assertEquals(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, deleteStatus.getStatus());
 
         ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber"), result);
+        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result);
         AddSubscriberStatus addStatus = result.get();
         Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
 
         ResultObserver<DeleteSubscriberStatus> result3 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber"), result3);
+        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result3);
         deleteStatus = result3.get();
         Assert.assertEquals(DeleteSubscriberStatus.Status.SUCCESS, deleteStatus.getStatus());
     }
@@ -610,7 +610,7 @@ public abstract class ControllerServiceImplTest {
         Assert.assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus.getStatus());
 
         ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber1"), result);
+        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber1", 0L), result);
         AddSubscriberStatus addStatus = result.get();
         Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
 

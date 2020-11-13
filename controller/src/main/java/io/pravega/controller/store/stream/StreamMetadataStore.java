@@ -296,12 +296,13 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scopeName         stream scope name.
      * @param streamName        stream name.
      * @param subscriber        new stream subscriber.
+     * @param generation        subscriber generation.
      * @param context           operation context
      * @param executor          callers executor
      * @return Future of operation
      */
     CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
-                                                           final OperationContext context, final Executor executor);
+                                              final long generation, final OperationContext context, final Executor executor);
 
     /**
      * Updates the subscribers metadata for an existing stream.
@@ -329,6 +330,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param subscriber    subscriber to be removed.
+     * @param generation    subscriber generation.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
@@ -336,6 +338,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> deleteSubscriber(final String scope,
                                              final String name,
                                              final String subscriber,
+                                             final long generation,
                                              final OperationContext context,
                                              final Executor executor);
 

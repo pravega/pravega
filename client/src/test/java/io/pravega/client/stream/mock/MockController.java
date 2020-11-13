@@ -240,12 +240,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String readerGroupId) {
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String readerGroupId) {
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 

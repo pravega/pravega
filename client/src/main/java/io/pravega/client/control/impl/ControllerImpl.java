@@ -527,7 +527,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber) {
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber, long generation) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
@@ -538,7 +538,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<AddSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<AddSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriber);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "addSubscriber", scope, streamName)
-                    .addSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
+                    .addSubscriber(ModelHelper.decode(scope, streamName, subscriber, generation), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -549,9 +549,6 @@ public class ControllerImpl implements Controller {
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}/{}", scope, streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + scope + "/" + streamName);
-                case SUBSCRIBER_EXISTS:
-                    log.warn(requestId, "Subscriber {} for stream {}/{} already exists {}.", subscriber, scope, streamName);
-                    return false;
                 case SUCCESS:
                     log.info(requestId, "Successfully updated stream: {}", streamName);
                     return true;
@@ -569,7 +566,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber) {
+    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
@@ -580,7 +577,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DeleteSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "deleteSubscriber", scope, streamName, subscriber);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteSubscriber", scope, streamName)
-                    .deleteSubscriber(ModelHelper.decode(scope, streamName, subscriber), callback);
+                    .deleteSubscriber(ModelHelper.decode(scope, streamName, subscriber, generation), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

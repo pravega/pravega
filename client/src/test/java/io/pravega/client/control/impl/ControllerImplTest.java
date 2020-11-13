@@ -341,11 +341,6 @@ public class ControllerImplTest {
                             .setStatus(AddSubscriberStatus.Status.UNRECOGNIZED)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getStream().equals("stream5")) {
-                    responseObserver.onNext(AddSubscriberStatus.newBuilder()
-                            .setStatus(AddSubscriberStatus.Status.SUBSCRIBER_EXISTS)
-                            .build());
-                    responseObserver.onCompleted();
                 } else if (request.getStream().equals("deadline")) {
                     // dont send any response
                 } else {
@@ -1456,43 +1451,43 @@ public class ControllerImplTest {
     @Test
     public void testAddSubscriber() throws Exception {
         CompletableFuture<Boolean> addSubscriberStatus;
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream1", "subscriber1");
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream1", "subscriber1", 0L);
         assertTrue(addSubscriberStatus.get());
 
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream2", "subscriber1");
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream2", "subscriber1", 0L);
         AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
                 addSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
 
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream3", "subscriber1");
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream3", "subscriber1", 0L);
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 addSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream4", "subscriber1");
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream4", "subscriber1", 0L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 addSubscriberStatus, Throwable -> true);
 
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream5", "subscriber1");
+        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream5", "subscriber1", 0L);
         assertFalse(addSubscriberStatus.get());
     }
 
     @Test
     public void testRemoveSubscriber() throws Exception {
         CompletableFuture<Boolean> removeSubscriberStatus;
-        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream1", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream1", "subscriber1", 2L);
         assertTrue(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream2", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream2", "subscriber1", 2L);
         AssertExtensions.assertFutureThrows("Server should throw ControllerFailureException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof ControllerFailureException);
 
-        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream3", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream3", "subscriber1", 2L);
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream4", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream4", "subscriber1", 2L);
         assertFalse(removeSubscriberStatus.get());
 
-        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream5", "subscriber1");
+        removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream5", "subscriber1", 2L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 removeSubscriberStatus, Throwable -> true);
     }
