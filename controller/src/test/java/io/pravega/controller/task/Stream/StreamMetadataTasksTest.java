@@ -1452,8 +1452,8 @@ public abstract class StreamMetadataTasksTest {
 
         // call retention and verify that retention policy applies
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
-        // now retention set has one stream cut 6/2
-        // subscriber lowerbound is 0/1, 2/1, 5/-1.. trucation should happen at lowerbound
+        // now retention set has one stream cut 10/2
+        // subscriber lowerbound is 0/1, 1/1.. trucation should happen at lowerbound
 
         VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
@@ -1465,7 +1465,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoBounds() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, Long.MAX_VALUE);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 0L, Long.MAX_VALUE);
 
         String stream1 = "consumptionSize3";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1542,8 +1542,8 @@ public abstract class StreamMetadataTasksTest {
 
         // call retention and verify that retention policy applies
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
-        // now retention set has one stream cut 6/2
-        // subscriber lowerbound is 0/1, 2/1, 5/-1.. trucation should happen at lowerbound
+        // now retention set has one stream cut 10/2
+        // subscriber lowerbound is 0/1, 1/1.. trucation should happen at lowerbound
 
         VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);

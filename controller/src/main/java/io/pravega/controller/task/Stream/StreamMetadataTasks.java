@@ -652,7 +652,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                  RetentionPolicy policy, RetentionSet retentionSet,
                                                                                  Map<Long, Long> lowerBound, StreamCutRecord latest) {
         Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> limits =
-                getBoundStreamCuts(policy.getConsumptionLimits(), retentionSet, latest);
+                getBoundStreamCuts(policy.getConsumptionLimits(), retentionSet);
         // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time 
         // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
         // exists
@@ -684,7 +684,13 @@ public class StreamMetadataTasks extends TaskBase {
                                                         }
                                                     });
                              } else {
-                                return CompletableFuture.completedFuture(null);  
+                                 // if min limit is 0 then latest effectively becomes the min. and we truncate at the lowerbound.
+                                 if (latest != null && policy.getConsumptionLimits().getMinValue() == 0L) {
+                                    // truncate at the lower bound 
+                                     return CompletableFuture.completedFuture(lowerBound);
+                                 } else {
+                                     return CompletableFuture.completedFuture(null);
+                                 }
                              }
                          });
     }
@@ -820,7 +826,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy.ConsumptionLimits policy,
-                                                                                             RetentionSet retentionSet, StreamCutRecord newRecord) {
+                                                                                             RetentionSet retentionSet) {
         assert RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
         AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
         AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
