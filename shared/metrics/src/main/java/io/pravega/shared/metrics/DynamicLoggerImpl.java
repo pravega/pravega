@@ -13,6 +13,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.SimpleCache;
 import io.pravega.shared.MetricsNames;
+import java.time.Duration;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,7 +32,7 @@ class DynamicLoggerImpl implements DynamicLogger {
         this.underlying = statsLogger;
 
         int cacheSize = metricsConfig.getDynamicCacheSize();
-        long cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMinutes().toMillis();
+        Duration cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMinutes();
         this.countersCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);
         this.gaugesCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);
         this.metersCache = new SimpleCache<>(cacheSize, cacheEvictionDuration, this::unregister);

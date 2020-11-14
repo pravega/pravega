@@ -105,8 +105,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         this.clientFactory = clientFactory;
         this.startInitWriter = new AtomicBoolean(false);
 
-        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry().toMillis(),
-                (k, v) -> triggerScaleDown(k, true));
+        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
 
         // Even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
         // caches do not perform clean up if there is no activity. This is because they do not maintain their

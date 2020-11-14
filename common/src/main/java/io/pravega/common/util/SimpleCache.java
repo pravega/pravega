@@ -9,9 +9,14 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.AbstractTimer;
+import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -20,6 +25,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -35,7 +41,7 @@ public class SimpleCache<KeyT, ValueT> {
     private final int maxSize;
     private final long expirationTimeNanos;
     private final BiConsumer<KeyT, ValueT> onExpiration;
-    private final Supplier<Long> currentTime = System::nanoTime;
+    private final Supplier<Long> currentTime;
     @GuardedBy("lock")
     private Entry<KeyT, ValueT> leastRecent;
     @GuardedBy("lock")
@@ -49,24 +55,37 @@ public class SimpleCache<KeyT, ValueT> {
     /**
      * Creates a new instance of the {@link SimpleCache} class.
      *
-     * @param maxSize              Maximum number of elements in the cache. If {@link #size()} exceeds this value as a
-     *                             result of an insertion, the oldest entries will be evicted, in order, until {@link #size()}
-     *                             falls below this value.
-     * @param expirationTimeMillis Maximum amount of time, in millis, since the last access of an entry, until such an
-     *                             entry is "expired" and will be evicted. Entries will not be evicted exactly when
-     *                             they expire, rather upon calls to {@link #cleanUp()} or any other accessor or mutator
-     *                             invocations.
-     * @param onExpiration         (Optional) A {@link Consumer} that will be invoked when an Entry is evicted. This
-     *                             will not be invoked when the entry is replaced (i.e., via {@link #put} or removed
-     *                             (via {@link #remove}.
+     * @param maxSize        Maximum number of elements in the cache. If {@link #size()} exceeds this value as a result
+     *                       of an insertion, the oldest entries will be evicted, in order, until {@link #size()} falls
+     *                       below this value.
+     * @param expirationTime Maximum amount of time, since the last access of an entry, until such an entry is "expired"
+     *                       and will be evicted. Entries will not be evicted exactly when they expire, rather upon calls
+     *                       to {@link #cleanUp()} or any other accessor or mutator invocations.
+     * @param onExpiration   (Optional) A {@link Consumer} that will be invoked when an Entry is evicted. This will not be
+     *                       invoked when the entry is replaced (i.e., via {@link #put} or removed (via {@link #remove}.
      */
-    public SimpleCache(int maxSize, long expirationTimeMillis, @Nullable BiConsumer<KeyT, ValueT> onExpiration) {
+    public SimpleCache(int maxSize, @NonNull Duration expirationTime, @Nullable BiConsumer<KeyT, ValueT> onExpiration) {
+        this(maxSize, expirationTime, onExpiration, System::nanoTime);
+    }
+
+    /**
+     * Creates a new instance of the {@link SimpleCache} class for testing purposes.
+     *
+     * @param maxSize        See {@link #SimpleCache(int, Duration, BiConsumer)}.
+     * @param expirationTime See {@link #SimpleCache(int, Duration, BiConsumer)}.
+     * @param onExpiration   See {@link #SimpleCache(int, Duration, BiConsumer)}.
+     * @param currentTime    A {@link Supplier} that will return the current time, expressed in nanoseconds.
+     */
+    @VisibleForTesting
+    SimpleCache(int maxSize, @NonNull Duration expirationTime, @Nullable BiConsumer<KeyT, ValueT> onExpiration,
+                @NonNull Supplier<Long> currentTime) {
         Preconditions.checkArgument(maxSize > 0, "maxSize must be a positive number.");
-        Preconditions.checkArgument(expirationTimeMillis > 0, "expirationTimeMillis must be a positive number.");
-        this.map = new HashMap<>(maxSize);
+        this.expirationTimeNanos = expirationTime.toNanos();
+        Preconditions.checkArgument(this.expirationTimeNanos > 0, "expirationTime must be a positive duration.");
+        this.map = new HashMap<>();
         this.onExpiration = onExpiration;
+        this.currentTime = currentTime;
         this.maxSize = maxSize;
-        this.expirationTimeNanos = expirationTimeMillis * AbstractTimer.NANOS_TO_MILLIS;
         this.leastRecent = null;
         this.mostRecent = null;
     }
@@ -108,15 +127,12 @@ public class SimpleCache<KeyT, ValueT> {
                     prevValue = null;
                 } else {
                     // Not expired. We need to manually unlink it.
-                    unlink(prevValue);
+                    unregister(prevValue);
                 }
             }
 
-            // Insertion
-            setMostRecent(e);
-            if (this.leastRecent == null) {
-                this.leastRecent = e;
-            }
+            // Insertion.
+            register(e);
         }
 
         if (prevValue == null) {
@@ -151,10 +167,7 @@ public class SimpleCache<KeyT, ValueT> {
 
             if (prevValue == null) {
                 // Insertion successful. Update mostRecent and leastRecent.
-                setMostRecent(e);
-                if (this.leastRecent == null) {
-                    this.leastRecent = e;
-                }
+                register(e);
             }
         }
 
@@ -181,7 +194,7 @@ public class SimpleCache<KeyT, ValueT> {
             if (e != null) {
                 // Removal successful. Remove this entry from our chain (a cleanup may not catch it until it actually was
                 // set to expire, so we'll have to do it this way).
-                unlink(e);
+                unregister(e);
                 if (isExpired(e, currentTime)) {
                     return null;
                 }
@@ -212,17 +225,8 @@ public class SimpleCache<KeyT, ValueT> {
                 } else {
                     // Not expired. Update its last access time and set it as most recent.
                     e.lastAccessTime = currentTime;
-                    if (e == this.leastRecent) {
-                        this.leastRecent = e.next;
-                        e.next = null;
-                        if (this.leastRecent != null) {
-                            this.leastRecent.prev = null;
-                        }
-                    }
-                    e.unlink();
-                    if (e != this.mostRecent) {
-                        setMostRecent(e);
-                    }
+                    unregister(e);
+                    register(e);
                 }
             }
         }
@@ -272,7 +276,7 @@ public class SimpleCache<KeyT, ValueT> {
             while (lastEvicted != null) {
                 try {
                     this.onExpiration.accept(lastEvicted.key, lastEvicted.value);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
                     // Log and move on. There is no way we can handle this anyway here, and this shouldn't prevent us
                     // from invoking it for subsequent entries or fail whatever called us anyway.
                     log.error("Eviction callback for {} failed.", lastEvicted.key, ex);
@@ -281,6 +285,27 @@ public class SimpleCache<KeyT, ValueT> {
                 lastEvicted = lastEvicted.prev;
             }
         }
+    }
+
+    /**
+     * Gets the unexpired Entries within the cache, in order (from least used to most recent used).
+     *
+     * @return A list.
+     */
+    @VisibleForTesting
+    List<Map.Entry<KeyT, ValueT>> getUnexpiredEntriesInOrder() {
+        val result = new ArrayList<Map.Entry<KeyT, ValueT>>();
+        synchronized (this.lock) {
+            Entry<KeyT, ValueT> current = this.leastRecent;
+            val currentTime = this.currentTime.get();
+            while (current != null) {
+                if (!isExpired(current, currentTime)) {
+                    result.add(new AbstractMap.SimpleImmutableEntry<>(current.key, current.value));
+                }
+                current = current.next;
+            }
+        }
+        return result;
     }
 
     //endregion
@@ -292,7 +317,8 @@ public class SimpleCache<KeyT, ValueT> {
      *
      * @param v The Entry to unlink.
      */
-    private void unlink(Entry<KeyT, ValueT> v) {
+    private void unregister(Entry<KeyT, ValueT> v) {
+        // Update leastRecent and mostRecent.
         if (this.leastRecent == v) {
             this.leastRecent = v.next;
         }
@@ -300,21 +326,42 @@ public class SimpleCache<KeyT, ValueT> {
             this.mostRecent = v.prev;
         }
 
-        v.unlink();
+        // Unlink the Entry from its adjacent neighbors.
+        if (v.prev != null) {
+            v.prev.next = v.next;
+        }
+
+        if (v.next != null) {
+            v.next.prev = v.prev;
+        }
+
+        v.prev = null;
+        v.next = null;
+
+        // Sanity checks.
+        assert this.leastRecent == null || this.leastRecent.prev == null;
+        assert this.mostRecent == null || this.mostRecent.next == null;
     }
 
     /**
      * Updates {@link #mostRecent} to the given Entry and creates the appropriate links.
+     * May also update {@link #leastRecent} if previously null.
      *
-     * @param e The Entry to set as {@link #mostRecent}.
+     * @param e The Entry.
      */
-    private void setMostRecent(Entry<KeyT, ValueT> e) {
+    private void register(Entry<KeyT, ValueT> e) {
         e.prev = this.mostRecent;
         if (this.mostRecent != null) {
             this.mostRecent.next = e;
         }
 
         this.mostRecent = e;
+        if (this.leastRecent == null) {
+            this.leastRecent = e;
+        }
+
+        // Sanity checks.
+        assert this.map.size() > 0 && this.leastRecent.prev == null && this.mostRecent.next == null;
     }
 
     /**
@@ -342,25 +389,9 @@ public class SimpleCache<KeyT, ValueT> {
         Entry<KeyT, ValueT> next;
         boolean replaced = false;
 
-        /**
-         * Removes this Entry from its adjacent neighbors and links those neighbors together.
-         */
-        void unlink() {
-            if (this.prev != null) {
-                this.prev.next = this.next;
-            }
-
-            if (this.next != null) {
-                this.next.prev = this.prev;
-            }
-
-            this.prev = null;
-            this.next = null;
-        }
-
         @Override
         public String toString() {
-            return String.format("%s = %s", this.key, this.value);
+            return String.format("%s -> %s", this.key, this.value);
         }
     }
 
