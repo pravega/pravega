@@ -16,8 +16,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import lombok.Getter;
-
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -28,7 +26,6 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     @VisibleForTesting
     protected SharedStorage baseStorage;
     @VisibleForTesting
-    @Getter
     protected ScheduledExecutorService executor;
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {

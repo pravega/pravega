@@ -23,7 +23,6 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -170,11 +169,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(@NonNull String segmentName, SegmentType segmentType, Duration timeout) {
+    public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
-        if (segmentType.isSortedTableSegment()) {
+        if (sorted) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
 
@@ -186,9 +185,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        segmentType = SegmentType.builder(segmentType).tableSegment().build(); // Ensure at least a TableSegment type.
-        logRequest("createSegment", segmentName, segmentType);
-        return this.segmentContainer.createStreamSegment(segmentName, segmentType, attributeUpdates, timeout);
+        logRequest("createSegment", segmentName);
+        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
     }
 
     @Override

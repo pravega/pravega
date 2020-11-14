@@ -10,13 +10,11 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
-import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import lombok.Getter;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,8 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
-public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
-    @Getter
+public class InMemorySimpleStorageFactory implements StorageFactory {
     protected ScheduledExecutorService executor;
 
     private Storage singletonStorage;
@@ -37,12 +34,12 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     }
 
     @Override
-    public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
+    public Storage createStorageAdapter() {
         synchronized (this) {
             if (null != singletonStorage) {
                 return singletonStorage;
             }
-            Storage storage = newStorage(containerId, executor, new InMemoryChunkStorage(executor), metadataStore);
+            Storage storage = newStorage(executor, new InMemoryChunkStorage());
             if (reuseStorage) {
                 singletonStorage = storage;
             }
@@ -51,17 +48,15 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     }
 
     /**
-     * Creates a new instance of a Storage adapter.
+     * Creates a new InMemory Storage, without a rolling wrapper.
+     *
+     * @param executor     An Executor to use for async operations.
+     * @param chunkStorage ChunkStorage to use.
+     * @return A new InMemoryStorage.
      */
-    @Override
-    public Storage createStorageAdapter() {
-        throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
-    }
-
-    static Storage newStorage(int containerId, Executor executor, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore) {
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+    static Storage newStorage(Executor executor, ChunkStorage chunkStorage) {
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(
                 chunkStorage,
-                metadataStore,
                 executor,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         chunkedSegmentStorage.initialize(1);

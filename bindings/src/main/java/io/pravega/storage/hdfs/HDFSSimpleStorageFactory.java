@@ -9,12 +9,10 @@
  */
 package io.pravega.storage.hdfs;
 
-import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
-import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +22,7 @@ import java.util.concurrent.Executor;
  * Factory for HDFS {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link HDFSChunkStorage}.
  */
 @RequiredArgsConstructor
-public class HDFSSimpleStorageFactory implements SimpleStorageFactory {
+public class HDFSSimpleStorageFactory implements StorageFactory {
 
     @NonNull
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
@@ -33,24 +31,14 @@ public class HDFSSimpleStorageFactory implements SimpleStorageFactory {
     private final HDFSStorageConfig config;
 
     @NonNull
-    @Getter
     private final Executor executor;
 
     @Override
-    public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new HDFSChunkStorage(this.config, this.executor),
-                metadataStore,
+    public Storage createStorageAdapter() {
+        ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
+                new HDFSChunkStorage(this.config),
                 this.executor,
                 this.chunkedSegmentStorageConfig);
-        return chunkedSegmentStorage;
-    }
-
-    /**
-     * Creates a new instance of a Storage adapter.
-     */
-    @Override
-    public Storage createStorageAdapter() {
-        throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
+        return storageProvider;
     }
 }

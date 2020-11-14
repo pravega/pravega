@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.ObjectClosedException;
@@ -87,7 +86,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
     }
 
     @Test
-    public void testIterateBuffers() {
+    public void testGetContents() {
         val data = newData();
         @Cleanup("release")
         val buf = wrap(data);
@@ -95,7 +94,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         val bufferView = toBufferView(data);
 
         val expectedBuffers = Arrays.asList(buf.nioBuffers());
-        val actualBuffers = Lists.newArrayList(bufferView.iterateBuffers());
+        val actualBuffers = bufferView.getContents();
         AssertExtensions.assertListEquals("", expectedBuffers, actualBuffers, ByteBuffer::equals);
     }
 

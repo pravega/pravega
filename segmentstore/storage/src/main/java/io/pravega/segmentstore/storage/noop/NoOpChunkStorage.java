@@ -16,7 +16,6 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
-import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import io.pravega.segmentstore.storage.mocks.AbstractInMemoryChunkStorage;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,7 +24,6 @@ import lombok.val;
 
 import java.io.InputStream;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 
 /**
  * NoOp implementation.
@@ -35,10 +33,6 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
     @Getter
     @Setter
     ConcurrentHashMap<String, ChunkData> chunkMetadata = new ConcurrentHashMap<>();
-
-    public NoOpChunkStorage(Executor executor) {
-        super(executor);
-    }
 
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
@@ -129,7 +123,7 @@ public class NoOpChunkStorage extends AbstractInMemoryChunkStorage {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
         }
         if (offset != chunkData.length) {
-            throw new InvalidOffsetException(handle.getChunkName(), chunkData.length, offset, "doWrite");
+            throw new IllegalArgumentException(String.format("fileSize (%d) did not match offset (%d) for chunk %s", chunkData.length, offset, handle.getChunkName()));
         }
         chunkData.length = offset + length;
         chunkMetadata.put(handle.getChunkName(), chunkData);

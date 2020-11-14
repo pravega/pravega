@@ -14,7 +14,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -29,9 +28,9 @@ public class HDFSStorageFactory implements StorageFactory {
     private final HDFSStorageConfig config;
 
     @NonNull
-    @Getter
     private final Executor executor;
 
+    @Override
     public Storage createStorageAdapter() {
         HDFSStorage s = new HDFSStorage(this.config);
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);

@@ -468,7 +468,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         metadata.updateAttributes(mapping.getAttributes());
-        metadata.refreshType();
     }
 
     //endregion

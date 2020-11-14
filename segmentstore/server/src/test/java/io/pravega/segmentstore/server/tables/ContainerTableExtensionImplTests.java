@@ -11,10 +11,9 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.BufferViewComparator;
+import io.pravega.common.util.ByteArrayComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -68,7 +67,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
+    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -87,7 +86,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         Assert.assertNotNull("Segment not created", context.segment());
 
         val attributes = context.segment().getAttributes(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES.keySet(), false, TIMEOUT).join();
@@ -113,7 +112,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testInvalidIteratorState() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val iteratorArgs = IteratorArgs
                 .builder()
                 .fetchTimeout(TIMEOUT)
@@ -131,7 +130,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testDeleteIfEmpty() {
         @Cleanup
         val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
         val value = new ByteArraySegment("value".getBytes());
@@ -194,7 +193,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testOffsetAcceptingMethods() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
         val value = new ByteArraySegment("value".getBytes());
@@ -370,7 +369,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(maxCompactionLength, executorService());
 
         // Create the segment and the Table Writer Processor.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
@@ -445,7 +444,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(executorService());
 
         // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_SORTED, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, true, TIMEOUT).join();
 
         // Close the initial extension, as we don't need it anymore.
         context.ext.close();
@@ -514,7 +513,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 .collect(Collectors.toList());
 
         // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
         Assert.assertNotNull(processor);
@@ -570,7 +569,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Create the segment and the Table Writer Processor. We make `sortedTableSegment` configurable because some tests
         // explicitly test the offsets that are written to the segment, which would be very hard to do in the presence of
         // sorted table segment indexing.
-        context.ext.createSegment(SEGMENT_NAME, sortedTableSegment ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        context.ext.createSegment(SEGMENT_NAME, sortedTableSegment, TIMEOUT).join();
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
         val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);

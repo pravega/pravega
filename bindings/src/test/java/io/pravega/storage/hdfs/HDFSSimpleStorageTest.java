@@ -35,7 +35,7 @@ import static org.junit.Assert.assertEquals;
 public class HDFSSimpleStorageTest extends SimpleStorageTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    private TestContext testContext = new TestContext(executorService());
+    private TestContext testContext = new TestContext();
 
     @Before
     public void before() throws Exception {
@@ -50,7 +50,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
     }
 
     protected ChunkStorage getChunkStorage()  throws Exception {
-        return testContext.getChunkStorage(executorService());
+        return testContext.getChunkStorage();
     }
 
     /**
@@ -59,7 +59,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
     public static class HDFSRollingTests extends ChunkedRollingStorageTests {
         @Rule
         public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-        private TestContext testContext = new TestContext(executorService());
+        private TestContext testContext = new TestContext();
 
         @Before
         public void before() throws Exception {
@@ -73,8 +73,8 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
             super.after();
         }
 
-        protected ChunkStorage getChunkStorage()  throws Exception {
-            return testContext.getChunkStorage(executorService());
+        protected ChunkStorage getChunkStorage(Executor executor)  throws Exception {
+            return testContext.getChunkStorage();
         }
     }
 
@@ -84,7 +84,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
     public static class HDFSChunkStorageTests extends ChunkStorageTests {
         @Rule
         public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-        private TestContext testContext = new TestContext(executorService());
+        private TestContext testContext = new TestContext();
 
         @Before
         public void before() throws Exception {
@@ -100,7 +100,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() throws Exception {
-            return testContext.getChunkStorage(executorService());
+            return testContext.getChunkStorage();
         }
 
         /**
@@ -118,7 +118,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
      * {@link SystemJournalTests} tests for {@link HDFSChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
     public static class HDFSChunkStorageSystemJournalTests extends SystemJournalTests {
-        private TestContext testContext = new TestContext(executorService());
+        private TestContext testContext = new TestContext();
 
         @Before
         public void before() throws Exception {
@@ -134,7 +134,7 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() throws Exception {
-            return testContext.getChunkStorage(executorService());
+            return testContext.getChunkStorage();
         }
     }
 
@@ -150,12 +150,6 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
 
         @Getter
         private HDFSStorageConfig adapterConfig = null;
-
-        private Executor executor;
-
-        private TestContext(Executor executor) {
-            this.executor = executor;
-        }
 
         private void setUp() throws Exception {
             this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
@@ -176,8 +170,8 @@ public class HDFSSimpleStorageTest extends SimpleStorageTests {
             }
         }
 
-        private ChunkStorage getChunkStorage(Executor executor)  throws Exception {
-            return new HDFSChunkStorage(adapterConfig, executor);
+        private ChunkStorage getChunkStorage()  throws Exception {
+            return new HDFSChunkStorage(adapterConfig);
         }
     }
 }

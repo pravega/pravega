@@ -18,7 +18,6 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -293,22 +292,21 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, Duration timeout) {
+    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
         BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor;
         synchronized (this.lock) {
             interceptor = this.notifyAttributesPersistedInterceptor;
         }
 
         if (interceptor == null) {
-            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, true), this.executor);
+            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, true), this.executor);
         } else {
             return interceptor.apply(rootPointer, lastSequenceNumber)
-                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, validate), this.executor);
+                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, validate), this.executor);
         }
     }
 
-    private void notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
-        Preconditions.checkArgument(segmentType.equals(this.metadata.getStreamSegmentMetadata(segmentId).getType()));
+    private void notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
         synchronized (this.lock) {
             Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
             if (!validateRootPointer || expectedRootPointer == rootPointer) {

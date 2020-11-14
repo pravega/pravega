@@ -15,7 +15,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -29,9 +28,9 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     @NonNull
     private final ExtendedS3StorageConfig config;
     @NonNull
-    @Getter
     private final ExecutorService executor;
 
+    @Override
     public Storage createStorageAdapter() {
         return new AsyncStorageWrapper(new RollingStorage(createS3Storage()), this.executor);
     }

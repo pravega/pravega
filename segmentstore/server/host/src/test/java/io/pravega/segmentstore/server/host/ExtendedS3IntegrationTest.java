@@ -15,14 +15,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
-import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
@@ -31,8 +29,6 @@ import io.pravega.storage.extendeds3.S3FileSystemImpl;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
-
-import lombok.Getter;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,8 +79,8 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
-        private final ExtendedS3StorageConfig config;
-        private final ScheduledExecutorService storageExecutor;
+        protected final ExtendedS3StorageConfig config;
+        protected final ScheduledExecutorService storageExecutor;
 
         LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
             this.config = Preconditions.checkNotNull(config, "config");
@@ -110,41 +106,17 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         }
     }
 
-    private class LocalExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
-        private final ExtendedS3StorageConfig config;
-
-        @Getter
-        private final ScheduledExecutorService executor;
+    private class LocalExtendedS3SimpleStorageFactory extends LocalExtendedS3StorageFactory {
 
         LocalExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
-            this.config = Preconditions.checkNotNull(config, "config");
-            this.executor = Preconditions.checkNotNull(executor, "executor");
+            super(config, executor);
         }
 
-        @Override
-        public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
-            URI uri = URI.create(s3ConfigUri);
-            S3Config s3Config = new S3Config(uri);
-
-            s3Config = s3Config
-                    .withRetryEnabled(false)
-                    .withInitialRetryDelay(1)
-                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
-
-            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService()),
-                    metadataStore,
-                    this.executor,
+        protected Storage getStorage(S3JerseyClient client) {
+            return new ChunkedSegmentStorage(
+                    new ExtendedS3ChunkStorage(client, this.config),
+                    this.storageExecutor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        }
-
-        /**
-         * Creates a new instance of a Storage adapter.
-         */
-        @Override
-        public Storage createStorageAdapter() {
-            throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
         }
     }
     //endregion

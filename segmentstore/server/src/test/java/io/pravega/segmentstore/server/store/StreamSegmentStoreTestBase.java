@@ -27,7 +27,6 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -44,6 +43,7 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -118,7 +118,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
             .build();
 
-    private static final SegmentType BASIC_SEGMENT_TYPE = SegmentType.STREAM_SEGMENT;
+    private StorageFactory storageFactory = null;
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -670,10 +670,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(store.createStreamSegment(segmentName, BASIC_SEGMENT_TYPE, null, TIMEOUT));
+            futures.add(store.createStreamSegment(segmentName, null, TIMEOUT));
         }
 
-        futures.add(store.createStreamSegment(EMPTY_SEGMENT_NAME, BASIC_SEGMENT_TYPE, null, TIMEOUT));
+        futures.add(store.createStreamSegment(EMPTY_SEGMENT_NAME, null, TIMEOUT));
         Futures.allOf(futures).join();
         return segmentNames;
     }
@@ -692,7 +692,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
-                futures.add(store.createStreamSegment(txnName, BASIC_SEGMENT_TYPE, null, TIMEOUT));
+                futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
             }
         }
 

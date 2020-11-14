@@ -14,12 +14,18 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 
+import java.io.IOException;
+
 /**
  * Unit tests for {@link NoOpChunkStorage} using {@link SimpleStorageTests}.
  */
 public class NoOpSimpleStorageTests extends SimpleStorageTests {
+    private static ChunkStorage getChunkStorageProvider() throws IOException {
+        return new NoOpChunkStorage();
+    }
+
     protected ChunkStorage getChunkStorage() throws Exception {
-        return new NoOpChunkStorage(executorService());
+        return getChunkStorageProvider();
     }
 
     @Override
@@ -31,8 +37,8 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
      * Unit tests for {@link NoOpChunkStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class NoOpRollingStorageTests extends ChunkedRollingStorageTests {
-        protected ChunkStorage getChunkStorage() {
-            return new NoOpChunkStorage(executorService());
+        protected ChunkStorage getChunkStorage() throws Exception {
+            return getChunkStorageProvider();
         }
 
         @Override
@@ -46,8 +52,8 @@ public class NoOpSimpleStorageTests extends SimpleStorageTests {
      */
     public static class NoOpChunkStorageTests extends ChunkStorageTests {
         @Override
-        protected ChunkStorage createChunkStorage() {
-            return new NoOpChunkStorage(executorService());
+        protected ChunkStorage createChunkStorage() throws Exception {
+            return getChunkStorageProvider();
         }
 
         @Override

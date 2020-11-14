@@ -15,7 +15,6 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
-import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -58,13 +57,6 @@ public abstract class OperationTestsBase<T extends Operation> {
         OperationComparer.DEFAULT.assertEquals(baseOp, newOp);
     }
 
-    @Test
-    public void testOperationType() {
-        Random random = RandomFactory.create();
-        T op = createOperation(random);
-        Assert.assertEquals(getExpectedOperationType(), op.getType());
-    }
-
     /**
      * Creates a new operation of a given type.
      */
@@ -82,10 +74,6 @@ public abstract class OperationTestsBase<T extends Operation> {
      */
     protected void configurePreSerialization(T operation, Random random) {
         // Base method intentionally left blank.
-    }
-
-    protected OperationType getExpectedOperationType() {
-        return OperationType.Normal;
     }
 
     String getStreamSegmentName(long id) {

@@ -17,7 +17,6 @@ import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -33,7 +32,6 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -46,13 +44,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Members
 
     private final String traceObjectId;
-    @Getter
     private final String name;
     private final long streamSegmentId;
-    @Getter
     private final int containerId;
-    @GuardedBy("this")
-    private SegmentType type;
     @GuardedBy("this")
     private final Map<UUID, Long> coreAttributes;
     @GuardedBy("this")
@@ -116,12 +110,16 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
-        this.type = SegmentType.STREAM_SEGMENT; // Uninitialized.
     }
 
     //endregion
 
     //region SegmentProperties Implementation
+
+    @Override
+    public String getName() {
+        return this.name;
+    }
 
     @Override
     public synchronized boolean isSealed() {
@@ -145,6 +143,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getId() {
         return this.streamSegmentId;
+    }
+
+    @Override
+    public int getContainerId() {
+        return this.containerId;
     }
 
     @Override
@@ -185,13 +188,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
         return getAttributes().entrySet().stream()
-                .filter(e -> filter.test(e.getKey(), e.getValue()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    @Override
-    public synchronized SegmentType getType() {
-        return this.type;
+                              .filter(e -> filter.test(e.getKey(), e.getValue()))
+                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
@@ -300,14 +298,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void refreshType() {
-        this.type = SegmentType.fromAttributes(this.coreAttributes);
-        if (this.type.intoAttributes(this.coreAttributes)) {
-            log.info("{}: Updated Segment Type '{}' into Core Attributes.", this.traceObjectId, this.type);
-        }
-    }
-
-    @Override
     public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
@@ -320,7 +310,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStartOffset(base.getStartOffset());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
-        refreshType();
 
         if (base.isSealed()) {
             markSealed();

@@ -19,7 +19,6 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -145,8 +144,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         private final Object lock = new Object();
 
         @Override
-        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType,
-                                                           Collection<AttributeUpdate> attributes, Duration timeout) {
+        public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (this.lock) {
                     if (this.segments.put(streamSegmentName, 0L) == null) {
@@ -256,7 +254,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     private static class MockTableStore implements TableStore {
         @Override
-        public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+        public CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout) {
             throw new UnsupportedOperationException("createTableSegment");
         }
 

@@ -10,7 +10,6 @@
 package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
@@ -18,9 +17,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.SneakyThrows;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
@@ -172,26 +171,42 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     }
 
     @Override
+    @SneakyThrows(IOException.class)
     public boolean equals(BufferView other) {
         if (this.length != other.getLength()) {
             return false;
         } else if (other instanceof ArrayView) {
-            // ByteBuffer-optimized equality check.
-            return this.asByteBuffer().equals(((ArrayView) other).asByteBuffer());
+            return equals((ArrayView) other);
         }
 
-        // No good optimization available; default to AbstractBufferView.equals().
-        return super.equals(other);
+        InputStream otherReader = other.getReader();
+        for (int i = 0; i < this.length; i++) {
+            if ((byte) otherReader.read() != this.array[this.startOffset + i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean equals(ArrayView other) {
+        if (this.length != other.getLength()) {
+            return false;
+        }
+
+        byte[] otherArray = other.array();
+        int otherOffset = other.arrayOffset();
+        for (int i = 0; i < this.length; i++) {
+            if (this.array[this.startOffset + i] != otherArray[otherOffset + i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         bufferCollector.accept(ByteBuffer.wrap(this.array, this.startOffset, this.length));
-    }
-
-    @Override
-    public Iterator<ByteBuffer> iterateBuffers() {
-        return Iterators.singletonIterator(ByteBuffer.wrap(this.array, this.startOffset, this.length));
     }
 
     //endregion

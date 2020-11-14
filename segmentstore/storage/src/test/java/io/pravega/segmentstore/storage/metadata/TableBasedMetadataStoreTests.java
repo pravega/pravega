@@ -28,8 +28,8 @@ import java.util.concurrent.Executors;
 public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
     @Before
     public void setUp() throws Exception {
-        val tableStore = new InMemoryTableStore(executorService());
-        metadataStore = new TableBasedMetadataStore("TEST", tableStore, executorService());
+        val tableStore = new InMemoryTableStore(Executors.newScheduledThreadPool(10));
+        metadataStore = new TableBasedMetadataStore("TEST", tableStore);
     }
 
     /**
@@ -38,13 +38,13 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
     public static class TableBasedMetadataSimpleStorageTests extends SimpleStorageTests {
 
         protected ChunkStorage getChunkStorage() throws Exception {
-            return new InMemoryChunkStorage(executorService());
+            return new InMemoryChunkStorage();
         }
 
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore);
         }
 
         @Override
@@ -52,7 +52,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             TableBasedMetadataStore tableBasedMetadataStore = (TableBasedMetadataStore) metadataStore;
             TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) tableBasedMetadataStore.getTableStore());
             String tableName =  tableBasedMetadataStore.getTableName();
-            val retValue = new TableBasedMetadataStore(tableName, tableStore, executorService());
+            val retValue = new TableBasedMetadataStore(tableName, tableStore);
             TableBasedMetadataStore.copyVersion(tableBasedMetadataStore, retValue);
             return retValue;
         }
@@ -63,13 +63,13 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
      */
     public static class InMemorySimpleStorageRollingTests extends ChunkedRollingStorageTests {
         protected ChunkStorage getChunkStorage() throws Exception {
-            return new InMemoryChunkStorage(executorService());
+            return new InMemoryChunkStorage();
         }
 
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore);
         }
     }
 
@@ -81,7 +81,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
         public ChunkMetadataStore createMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(Executors.newScheduledThreadPool(1));
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore);
         }
 
         public TestContext getTestContext() throws Exception {
@@ -111,7 +111,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
                 val thisMetadataStore = (TableBasedMetadataStore) this.metadataStore;
                 TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) thisMetadataStore.getTableStore());
                 String tableName =  thisMetadataStore.getTableName();
-                val retValue = new TableBasedMetadataStore(tableName, tableStore, executor);
+                val retValue = new TableBasedMetadataStore(tableName, tableStore);
                 TableBasedMetadataStore.copyVersion(thisMetadataStore, retValue);
                 return retValue;
             }
@@ -119,7 +119,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             private ChunkMetadataStore createChunkMetadataStore() {
                 TableStore tableStore = new InMemoryTableStore(executor);
                 String tableName = "TableBasedMetadataSimpleStorageTests";
-                return new TableBasedMetadataStore(tableName, tableStore, executor);
+                return new TableBasedMetadataStore(tableName, tableStore);
             }
         }
     }

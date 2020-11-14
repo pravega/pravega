@@ -9,10 +9,8 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
-import io.netty.buffer.CompositeByteBuf;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
@@ -21,7 +19,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.List;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -78,21 +77,15 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
     }
 
     @Override
+    public List<ByteBuffer> getContents() {
+        return Arrays.asList(this.buf.nioBuffers());
+    }
+
+    @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         for (ByteBuffer bb : this.buf.duplicate().nioBuffers()) {
             bufferCollector.accept(bb);
         }
-    }
-
-    @Override
-    public Iterator<ByteBuffer> iterateBuffers() {
-        ByteBuf bb = this.buf.duplicate();
-        if (bb instanceof CompositeByteBuf) {
-            return Iterators.transform(((CompositeByteBuf) bb).iterator(), ByteBuf::nioBuffer);
-        } else if (bb.nioBufferCount() == 1) {
-            return Iterators.singletonIterator(bb.nioBuffer());
-        }
-        return Iterators.forArray(bb.nioBuffers());
     }
 
     @Override

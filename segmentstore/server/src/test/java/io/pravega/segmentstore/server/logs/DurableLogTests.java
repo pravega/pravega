@@ -38,7 +38,6 @@ import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
-import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -482,7 +481,7 @@ public class DurableLogTests extends OperationLogTestBase {
         OperationComparer operationComparer = new OperationComparer(true);
         for (int appendId = 0; appendId < operationCount; appendId++) {
             Operation operation = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(("foo" + Integer.toString(appendId)).getBytes()), null);
-            durableLog.add(operation, OperationPriority.Normal, TIMEOUT).join();
+            durableLog.add(operation, TIMEOUT).join();
             for (int readId = 0; readId < readFutures.size(); readId++) {
                 val readFuture = readFutures.get(readId);
                 boolean expectedComplete = readId <= appendId;
@@ -908,7 +907,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Verify all operations fail with the right exception.
             AssertExtensions.assertSuppliedFutureThrows(
                     "add() did not fail with the right exception when offline.",
-                    () -> durableLog.add(new StreamSegmentSealOperation(123), OperationPriority.Normal, TIMEOUT),
+                    () -> durableLog.add(new StreamSegmentSealOperation(123), TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
             AssertExtensions.assertSuppliedFutureThrows(
                     "read() did not fail with the right exception when offline.",
@@ -994,7 +993,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Map the segment again.
             val reMapOp = new StreamSegmentMapOperation(originalSegmentInfo);
             reMapOp.setStreamSegmentId(segmentId);
-            durableLog.add(reMapOp, OperationPriority.Normal, TIMEOUT).join();
+            durableLog.add(reMapOp, TIMEOUT).join();
 
             // Stop.
             durableLog.stopAsync().awaitTerminated();
@@ -1017,7 +1016,7 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertEquals("Unexpected number of segments evicted.", 1, cleanedUpSegments.size());
 
             // ... and re-map it with a new Id. This is a perfectly valid operation, and we can't prevent it.
-            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), OperationPriority.Normal, TIMEOUT).join();
+            durableLog.add(new StreamSegmentMapOperation(originalSegmentInfo), TIMEOUT).join();
 
             // Stop.
             durableLog.stopAsync().awaitTerminated();
@@ -1060,7 +1059,7 @@ public class DurableLogTests extends OperationLogTestBase {
         val append1 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[MAX_DATA_LOG_APPEND_SIZE]), null);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected the operation to have failed.",
-                () -> dl1.add(append1, OperationPriority.Normal, TIMEOUT),
+                () -> dl1.add(append1, TIMEOUT),
                 ex -> ex instanceof DurableDataLogException);
 
         AssertExtensions.assertThrows(
@@ -1081,7 +1080,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Add a new operation. This one should succeed.
         val append2 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[10]), null);
-        dl2.add(append2, OperationPriority.Normal, TIMEOUT).join();
+        dl2.add(append2, TIMEOUT).join();
         dl2.stopAsync().awaitTerminated();
         dl2.close();
 
@@ -1202,12 +1201,12 @@ public class DurableLogTests extends OperationLogTestBase {
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
-                durableLog.add(lastCheckpoint, OperationPriority.Normal, TIMEOUT).join();
+                durableLog.add(lastCheckpoint, TIMEOUT).join();
                 awaitLastOperationAdded(durableLog, metadata);
                 durableLog.truncate(lastCheckpoint.getSequenceNumber(), TIMEOUT).join();
             }
 
-            durableLog.add(newOp, OperationPriority.Normal, TIMEOUT).join();
+            durableLog.add(newOp, TIMEOUT).join();
             awaitLastOperationAdded(durableLog, metadata);
             final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
             List<Operation> newOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
@@ -1470,7 +1469,7 @@ public class DurableLogTests extends OperationLogTestBase {
             index++;
             CompletableFuture<Void> completionFuture;
             try {
-                completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
+                completionFuture = durableLog.add(o, TIMEOUT);
             } catch (Exception ex) {
                 completionFuture = Futures.failedFuture(ex);
             }

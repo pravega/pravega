@@ -20,7 +20,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -33,7 +32,6 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     //region Members
 
     private final ThrottlerCalculator throttlerCalculator;
-    private final Supplier<Boolean> isSuspended;
     private final String traceObjectId;
     private final ScheduledExecutorService executor;
     private final SegmentStoreMetrics.OperationProcessor metrics;
@@ -49,15 +47,12 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
      *
      * @param containerId Id of the Segment Container for this Throttler. Used for logging purposes only.
      * @param calculator  A {@link ThrottlerCalculator} to be used for determining how much to throttle.
-     * @param isSuspended A Supplier that will be invoked upon every call to {@link #throttle()}. If it returns true,
-     *                    no throttling will be applied; if it returns false, normal throttling logic is executed.
      * @param executor    An Executor for async operations.
      * @param metrics     Metrics for reporting.
      */
-    Throttler(int containerId, @NonNull ThrottlerCalculator calculator, @NonNull Supplier<Boolean> isSuspended,
-              @NonNull ScheduledExecutorService executor, @NonNull SegmentStoreMetrics.OperationProcessor metrics) {
+    Throttler(int containerId, @NonNull ThrottlerCalculator calculator, @NonNull ScheduledExecutorService executor,
+              @NonNull SegmentStoreMetrics.OperationProcessor metrics) {
         this.throttlerCalculator = calculator;
-        this.isSuspended = isSuspended;
         this.executor = executor;
         this.metrics = metrics;
         this.traceObjectId = String.format("Throttler[%d]", containerId);
@@ -114,13 +109,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
      * some time in the future based on the throttling delay value returned by {@link ThrottlerCalculator}.
      */
     CompletableFuture<Void> throttle() {
-        if (this.isSuspended.get()) {
-            // Temporarily disabled. Do not throttle.
-            log.debug("{}: Throttler suspended.", this.traceObjectId);
-            return CompletableFuture.completedFuture(null);
-        }
-
-        val delay = new AtomicReference<>(this.throttlerCalculator.getThrottlingDelay());
+        val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
         if (!delay.get().isMaximum()) {
             // We are not delaying the maximum amount. We only need to do this once.
             val existingDelay = this.currentDelay.get();
@@ -142,7 +131,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
             // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
             // as needed until the pressure is relieved.
             return Futures.loop(
-                    () -> delay.get().isMaximum() && !this.isSuspended.get(),
+                    () -> delay.get().isMaximum(),
                     () -> throttleOnce(delay.get())
                             .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
                     this.executor);
@@ -161,7 +150,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
 
         val delayFuture = createDelayFuture(delay.getDurationMillis());
         if (isInterruptible(delay.getThrottlerName())) {
-            // This throttling source is eligible for interruption. Set it up so that a call to notifyThrottleSourceChanged()
+            // This throttling source is eligible for interruption. Set it up so that a call to cacheCleanupComplete()
             // may find it and act on it.
             val result = new InterruptibleDelay(delayFuture, delay.getDurationMillis(), delay.getThrottlerName());
             this.currentDelay.set(result);

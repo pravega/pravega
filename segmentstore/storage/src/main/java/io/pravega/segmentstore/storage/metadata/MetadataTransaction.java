@@ -17,8 +17,6 @@ import lombok.Setter;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,13 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * All access to and modifications to the metadata the {@link ChunkMetadataStore} must be done through a transaction.
  * This implementation delegates all calls to underlying {@link ChunkMetadataStore}.
  *
- * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction(boolean, String...)}
+ * A transaction is created by calling {@link ChunkMetadataStore#beginTransaction()}
  * <ul>
  * <li>Changes made to metadata inside a transaction are not visible until a transaction is committed using any overload
  * of{@link MetadataTransaction#commit()}.</li>
  * <li>Transaction is aborted automatically unless committed or when {@link MetadataTransaction#abort()} is called.</li>
  * <li>Transactions are atomic - either all changes in the transaction are committed or none at all.</li>
- * <li>In addition, Transactions provide snapshot isolation which means that transaction fails if any of the metadata
+ * <li>In addition, Transactions provide snaphot isolation which means that transaction fails if any of the metadata
  * records read during the transactions are changed outside the transaction after they were read.</li>
  * </ul>
  *
@@ -68,7 +66,7 @@ public class MetadataTransaction implements AutoCloseable {
     private final ChunkMetadataStore store;
 
     /**
-     * Indicates whether the transaction is committed or not.
+     * Indicates whether the transaction is commited or not.
      */
     @Getter
     private boolean isCommitted = false;
@@ -86,12 +84,6 @@ public class MetadataTransaction implements AutoCloseable {
     private final long version;
 
     /**
-     * Whether the transaction is readonly or not.
-     */
-    @Getter
-    private final boolean isReadonly;
-
-    /**
      * Local data in the transaction.
      */
     @Getter
@@ -106,26 +98,15 @@ public class MetadataTransaction implements AutoCloseable {
     private Callable<Void> externalCommitStep;
 
     /**
-     * Array of keys to lock for this transaction.
-     */
-    @Getter
-    private final String[] keysToLock;
-
-    /**
      * Constructor.
      *
      * @param store   Underlying metadata store.
-     * @param isReadonly Whether transaction is read only or not.
      * @param version Version number of the transactions.
-     * @param keysToLock Array of keys to lock for this transaction.
      */
-    public MetadataTransaction(ChunkMetadataStore store, boolean isReadonly, long version, String... keysToLock) {
+    public MetadataTransaction(ChunkMetadataStore store, long version) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.version = version;
-        this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
-        this.isReadonly = isReadonly;
-        Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
-        data = new ConcurrentHashMap<>();
+        data = new ConcurrentHashMap<String, BaseMetadataStore.TransactionData>();
     }
 
     /**
@@ -133,10 +114,9 @@ public class MetadataTransaction implements AutoCloseable {
      *
      * @param key key to use to retrieve metadata.
      * @return Metadata for given key. Null if key was not found.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    public CompletableFuture<StorageMetadata> get(String key) {
+    public StorageMetadata get(String key) throws StorageMetadataException {
         return store.get(this, key);
     }
 
@@ -144,11 +124,9 @@ public class MetadataTransaction implements AutoCloseable {
      * Updates existing metadata.
      *
      * @param metadata metadata record.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    public void update(StorageMetadata metadata) {
-        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
+    public void update(StorageMetadata metadata) throws StorageMetadataException {
         store.update(this, metadata);
     }
 
@@ -156,11 +134,9 @@ public class MetadataTransaction implements AutoCloseable {
      * Creates a new metadata record.
      *
      * @param metadata metadata record.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    public void create(StorageMetadata metadata) {
-        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
+    public void create(StorageMetadata metadata) throws StorageMetadataException {
         store.create(this, metadata);
     }
 
@@ -168,10 +144,9 @@ public class MetadataTransaction implements AutoCloseable {
      * Marks given record as pinned.
      *
      * @param metadata metadata record.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    public void markPinned(StorageMetadata metadata) {
+    public void markPinned(StorageMetadata metadata) throws StorageMetadataException {
         store.markPinned(this, metadata);
     }
 
@@ -179,81 +154,69 @@ public class MetadataTransaction implements AutoCloseable {
      * Deletes a metadata record given the key.
      *
      * @param key key to use to retrieve metadata.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    public void delete(String key) {
-        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
+    public void delete(String key) throws StorageMetadataException {
         store.delete(this, key);
     }
 
     /**
      * Commits the transaction.
      *
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public CompletableFuture<Void> commit() {
-        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
+    public void commit() throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
-        return store.commit(this);
+        store.commit(this);
+        isCommitted = true;
     }
 
     /**
      * Commits the transaction.
      *
      * @param lazyWrite true if data can be written lazily.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public CompletableFuture<Void> commit(boolean lazyWrite) {
-        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
+    public void commit(boolean lazyWrite) throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
-        return store.commit(this, lazyWrite);
+        store.commit(this, lazyWrite);
+        isCommitted = true;
     }
-
 
     /**
      * Commits the transaction.
      *
      * @param lazyWrite      true if data can be written lazily.
      * @param skipStoreCheck true if data is not to be reloaded from store.
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public CompletableFuture<Void> commit(boolean lazyWrite, boolean skipStoreCheck) {
+    public void commit(boolean lazyWrite, boolean skipStoreCheck) throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
-        return store.commit(this, lazyWrite, skipStoreCheck);
-    }
-
-    /**
-     * Marks transaction as committed.
-     */
-    public void setCommitted() {
+        store.commit(this, lazyWrite, skipStoreCheck);
         isCommitted = true;
     }
 
     /**
      * Aborts the transaction.
      *
-     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
-     * {@link StorageMetadataException} Exception related to storage metadata operations.
+     * @throws StorageMetadataException If transaction could not be commited.
      */
-    public CompletableFuture<Void> abort() {
+    public void abort() throws StorageMetadataException {
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         isAborted = true;
-        return store.abort(this);
+        store.abort(this);
     }
 
     /**
      * {@link AutoCloseable#close()} implementation.
      *
+     * @throws Exception In case of any errors.
      */
-    public void close() {
+    public void close() throws Exception {
         if (!isCommitted || isAborted) {
             store.abort(this);
         }

@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -18,7 +17,6 @@ import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
-import io.pravega.common.util.PriorityBlockingDrainingQueue;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -26,7 +24,6 @@ import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -65,7 +62,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final MemoryStateUpdater stateUpdater;
     @GuardedBy("stateLock")
     private final OperationMetadataUpdater metadataUpdater;
-    private final PriorityBlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final BlockingDrainingQueue<List<CompletableOperation>> commitQueue;
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
@@ -96,7 +93,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.metadata = metadata;
         this.stateUpdater = Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         this.metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.operationQueue = new PriorityBlockingDrainingQueue<>(OperationPriority.getMaxPriorityValue());
+        this.operationQueue = new BlockingDrainingQueue<>();
         this.commitQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
@@ -109,7 +106,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .batchingThrottler(durableDataLog::getQueueStatistics)
                 .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
                 .build();
-        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
     }
@@ -129,13 +126,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // OperationProcessor starts and is shut down as soon as doStop() is invoked.
         val queueProcessor = Futures
                 .loop(this::isRunning,
-                        () -> getThrottler().throttle()
+                        () -> this.throttler.throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(getFetchCount()), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
 
         // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
-        // DurableDataLog and now need to be added to the in-memory State.
+        // DurableDataLong and now need to be added to the in-memory State.
         // As opposed from the QueueProcessor, this needs to process all pending commits and not discard them, even when
         // we receive a stop signal (from doStop()), otherwise we could be left with an inconsistent in-memory state.
         val commitProcessor = Futures
@@ -214,33 +211,25 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Processes the given Operation. This method returns when the given Operation has been added to the internal queue.
      *
      * @param operation The Operation to process.
-     * @param priority  Operation Priority.
      * @return A CompletableFuture that, when completed, will indicate the Operation has finished processing. If the
      * Operation completed successfully, the Future will contain the Sequence Number of the Operation. If the Operation
      * failed, it will contain the exception that caused the failure.
      * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
-    CompletableFuture<Void> process(Operation operation, OperationPriority priority) {
+    public CompletableFuture<Void> process(Operation operation) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         if (!isRunning()) {
             result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
         } else {
-            log.debug("{}: process[{}] {}.", this.traceObjectId, priority, operation);
+            log.debug("{}: process {}.", this.traceObjectId, operation);
             try {
-                this.operationQueue.add(new CompletableOperation(operation, priority, result));
+                this.operationQueue.add(new CompletableOperation(operation, result));
             } catch (Throwable e) {
                 if (Exceptions.mustRethrow(e)) {
                     throw e;
                 }
 
                 result.completeExceptionally(e);
-            }
-
-            if (priority.isThrottlingExempt()) {
-                // A throttle-exempt operation has just been added (these are time-critical operations, which must execute
-                // right away). If there is a throttling delay in progress, we must abort it, otherwise this operation
-                // may not get a chance to execute.
-                getThrottler().notifyThrottleSourceChanged();
             }
         }
 
@@ -256,26 +245,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     private int getFetchCount() {
         return Math.max(1, (int) (this.cacheUtilizationProvider.getCacheInsertionCapacity() * MAX_READ_AT_ONCE));
-    }
-
-    /**
-     * Determines if the {@link #operationQueue} has any {@link CompletableOperation} with an {@link OperationPriority}
-     * that requires an immediate execution (i.e., {@link OperationPriority#isThrottlingExempt()} is true).
-     *
-     * @return True if throttling needs to be suspended, false otherwise.
-     */
-    @VisibleForTesting
-    protected boolean hasThrottleExemptOperations() {
-        val o = this.operationQueue.peek();
-        return o != null && o.getPriority().isThrottlingExempt();
-    }
-
-    /**
-     * Gets the throttler.
-     */
-    @VisibleForTesting
-    protected Throttler getThrottler() {
-        return this.throttler;
     }
 
     /**
@@ -328,7 +297,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (hasThrottleExemptOperations() || !getThrottler().isThrottlingRequired()) {
+                    if (!this.throttler.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(getFetchCount());

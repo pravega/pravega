@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
@@ -23,7 +22,6 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -299,12 +297,6 @@ public class PravegaRequestProcessorTest {
         assertTrue(append(streamSegmentName, 2, store));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         order.verify(connection).send(Mockito.any(WireCommands.StreamSegmentInfo.class));
-
-        // Verify the correct type of Segment is created and that it has the correct roles.
-        val si = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT).join();
-        val segmentType = SegmentType.fromAttributes(si.getAttributes());
-        Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem()
-                || segmentType.isSortedTableSegment() || segmentType.isTableSegment());
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
@@ -588,11 +580,6 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testCreateTableSegment() throws Exception {
-        testCreateTableSegment(false);
-        testCreateTableSegment(true);
-    }
-
-    private void testCreateTableSegment(boolean sorted) throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         String tableSegmentName = "testCreateTableSegment";
         @Cleanup
@@ -607,19 +594,12 @@ public class PravegaRequestProcessorTest {
                 recorderMock, new PassingTokenVerifier(), false);
 
         // Execute and Verify createTableSegment calling stack is executed as design.
-        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, sorted, ""));
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
-        processor.createTableSegment(new WireCommands.CreateTableSegment(2, tableSegmentName, sorted, ""));
+        processor.createTableSegment(new WireCommands.CreateTableSegment(2, tableSegmentName, false, ""));
         order.verify(connection).send(new WireCommands.SegmentAlreadyExists(2, tableSegmentName, ""));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
         verifyNoMoreInteractions(recorderMock);
-
-        // Verify the correct type of Segment is created and that it has the correct roles.
-        val si = store.getStreamSegmentInfo(tableSegmentName, PravegaRequestProcessor.TIMEOUT).join();
-        val segmentType = SegmentType.fromAttributes(si.getAttributes());
-        Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem());
-        Assert.assertTrue(segmentType.isTableSegment());
-        Assert.assertEquals(sorted, segmentType.isSortedTableSegment());
     }
 
     /**
@@ -1297,8 +1277,8 @@ public class PravegaRequestProcessorTest {
     }
 
     private ByteBuf toByteBuf(BufferView bufferView) {
-        val iterators = Iterators.transform(bufferView.iterateBuffers(), Unpooled::wrappedBuffer);
-        return Unpooled.wrappedUnmodifiableBuffer(Iterators.toArray(iterators, ByteBuf.class));
+        val buffers = bufferView.getContents().stream().map(Unpooled::wrappedBuffer).toArray(ByteBuf[]::new);
+        return Unpooled.wrappedUnmodifiableBuffer(buffers);
     }
 
     //endregion
