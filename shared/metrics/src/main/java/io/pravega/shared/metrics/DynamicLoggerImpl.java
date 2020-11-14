@@ -45,7 +45,9 @@ class DynamicLoggerImpl implements DynamicLogger {
 
     @Override
     public void updateCounterValue(String name, long value, String... tags) {
-        getCounter(name, tags).add(value);
+        Counter c = getCounter(name, tags);
+        c.clear();
+        c.add(value);
     }
 
     private Counter getCounter(String name, String... tags) {

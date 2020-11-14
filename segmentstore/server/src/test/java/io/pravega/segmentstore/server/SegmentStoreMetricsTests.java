@@ -196,14 +196,24 @@ public class SegmentStoreMetricsTests {
         val op = new SegmentStoreMetrics.OperationProcessor(containerId);
         val ops = Arrays.<CompletableOperation>asList(
                 new TestCompletableOperation(10),
-                new TestCompletableOperation(20));
+                new TestCompletableOperation(20),
+                new TestCompletableOperation(30));
         op.operationsCompleted(Collections.singletonList(ops), Duration.ZERO);
         val opf = Arrays.<CompletableOperation>asList(
                 new TestCompletableOperation(20),
                 new TestCompletableOperation(30));
         op.operationsFailed(opf);
-        assertEquals(15, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
+        assertEquals(20, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
+
+        assertEquals(3, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
+        op.operationLogTruncate(1);
+        assertEquals(2, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
+
+        op.operationLogInit();
+        assertEquals(0, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
+
         op.close();
+        assertNull(MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag));
     }
 
     private static class TestCompletableOperation extends CompletableOperation {

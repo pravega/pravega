@@ -166,9 +166,10 @@ public final class SegmentStoreMetrics {
          */
         private final OpStatsLogger processOperationsLatency;
         private final OpStatsLogger processOperationsBatchSize;
+        private final Counter operationLogSize;
         private final int containerId;
         private final String[] containerTag;
-        private Set<String> throttlers = Collections.synchronizedSet(new HashSet<>());
+        private final Set<String> throttlers = Collections.synchronizedSet(new HashSet<>());
 
         public OperationProcessor(int containerId) {
             this.containerId = containerId;
@@ -182,6 +183,7 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_COUNT, this.containerTag);
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_LATENCY, this.containerTag);
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
+            this.operationLogSize = STATS_LOGGER.createCounter(MetricsNames.OPERATION_LOG_SIZE, this.containerTag);
         }
 
         @Override
@@ -195,6 +197,7 @@ public final class SegmentStoreMetrics {
             this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
+            this.operationLogSize.close();
             for (String throttler : throttlers) {
                 DYNAMIC_LOGGER.freezeGaugeValue(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, throttlerTag(containerId, throttler));
             }
@@ -224,11 +227,11 @@ public final class SegmentStoreMetrics {
         }
 
         public void operationLogTruncate(int count) {
-            DYNAMIC_LOGGER.incCounterValue(MetricsNames.OPERATION_LOG_SIZE, -count, this.containerTag);
+            this.operationLogSize.add(-count);
         }
 
         public void operationLogInit() {
-            DYNAMIC_LOGGER.updateCounterValue(MetricsNames.OPERATION_LOG_SIZE, 0, this.containerTag);
+            this.operationLogSize.clear();
         }
 
         public void processOperations(int batchSize, long millis) {
@@ -237,12 +240,11 @@ public final class SegmentStoreMetrics {
         }
 
         public void operationsCompleted(int operationCount, Duration commitElapsed) {
-            DYNAMIC_LOGGER.incCounterValue(MetricsNames.OPERATION_LOG_SIZE, operationCount, this.containerTag);
+            this.operationLogSize.add(operationCount);
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
         }
 
         public void operationsCompleted(Collection<List<CompletableOperation>> operations, Duration commitElapsed) {
-            operationsCompleted(operations.size(), commitElapsed);
             int count = 0;
             long millis = 0;
             for (val ol : operations) {
@@ -252,6 +254,7 @@ public final class SegmentStoreMetrics {
                 }
             }
             if (count > 0) {
+                operationsCompleted(count, commitElapsed);
                 millis /= count;
                 this.operationLatency.reportSuccessValue(millis);
                 GLOBAL_OPERATION_LATENCY.reportSuccessValue(millis);
