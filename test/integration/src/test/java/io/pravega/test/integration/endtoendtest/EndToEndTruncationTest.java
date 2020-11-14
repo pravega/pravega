@@ -473,7 +473,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerGroupName + "1", readerGroupName,
                 new UTF8StringSerializer(), ReaderConfig.builder().build());
-        assertEquals(reader.readNextEvent(1000).getEvent(), "0");
+        assertEquals(reader.readNextEvent(5000).getEvent(), "0");
         reader.close();
 
         // Create a Checkpoint, get StreamCut and truncate the Stream at that point.
@@ -488,8 +488,8 @@ public class EndToEndTruncationTest {
         final EventStreamReader<String> newReader = clientFactory.createReader(newReaderGroupName + "2",
                 newReaderGroupName, new UTF8StringSerializer(), ReaderConfig.builder().build());
 
-        assertEquals("Expected read event: ", "1", newReader.readNextEvent(1000).getEvent());
-        assertNull(newReader.readNextEvent(1000).getEvent());
+        assertEquals("Expected read event: ", "1", newReader.readNextEvent(5000).getEvent());
+        assertNull(newReader.readNextEvent(5000).getEvent());
     }
 
     /**
@@ -528,7 +528,7 @@ public class EndToEndTruncationTest {
             // Instantiate readers to consume from Stream up to truncatedEvents.
             List<CompletableFuture<Integer>> futures = ReadWriteUtils.readEvents(clientFactory, readerGroupName, parallelism, truncatedEvents);
             Futures.allOf(futures).join();
-
+            int eventsReadBeforeTruncation = futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get();
             // Perform truncation on stream segment
             Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint" + i, executor).join();
             StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
@@ -539,7 +539,7 @@ public class EndToEndTruncationTest {
             groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
             futures = readEvents(clientFactory, newGroupName, parallelism);
             Futures.allOf(futures).join();
-            assertEquals("Expected read events: ", totalEvents - (truncatedEvents * parallelism),
+            assertEquals("Expected read events: ", totalEvents - eventsReadBeforeTruncation,
                     (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
             assertTrue(streamManager.sealStream(scope, streamName));
             assertTrue(streamManager.deleteStream(scope, streamName));

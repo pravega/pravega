@@ -57,6 +57,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     @Override
@@ -257,21 +258,21 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         when(position3.getOwnedSegmentsWithOffsets()).thenReturn(map3);
         when(position3.asImpl()).thenReturn(position3);
         
-        doAnswer(x -> getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
+        doReturn(getProcessor()).when(system).createEventProcessorGroup(any(), any(), any());
 
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(controller).createScope(anyString());
-        doAnswer(x -> CompletableFuture.completedFuture(null)).when(controller).createStream(anyString(), anyString(), any());
+        doReturn(CompletableFuture.completedFuture(null)).when(controller).createScope(anyString());
+        doReturn(CompletableFuture.completedFuture(null)).when(controller).createStream(anyString(), anyString(), any());
 
-        doAnswer(x -> null).when(streamMetadataTasks).initializeStreamWriters(any(), anyString());
-        doAnswer(x -> null).when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
+        doNothing().when(streamMetadataTasks).initializeStreamWriters(any(), anyString());
+        doNothing().when(streamTransactionMetadataTasks).initializeStreamWriters(any(EventStreamClientFactory.class),
                 any(ControllerEventProcessorConfig.class));
         
         // first throw checkpoint store exception
         CompletableFuture<Void> signal = new CompletableFuture<>();
-        doAnswer(x -> {
+        when(checkpointStore.getProcesses()).thenAnswer(x -> {
             signal.complete(null);
             throw new CheckpointStoreException("checkpointstoreexception");
-        }).when(checkpointStore).getProcesses();
+        });
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
@@ -290,16 +291,28 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         verify(checkpointStore, atLeastOnce()).getProcesses();
         verify(checkpointStore, never()).getPositions(anyString(), anyString());
         verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any(), anyLong());
-        
+
+        reset(checkpointStore);
         // now set the checkpoint store to return correct values
-        doAnswer(x -> Sets.newHashSet("p1", "p2", "p3")).when(checkpointStore).getProcesses();
-        doAnswer(x -> Collections.singletonMap("r1", position1)).when(checkpointStore).getPositions(eq("p1"), anyString());
-        doAnswer(x -> Collections.singletonMap("r2", position2)).when(checkpointStore).getPositions(eq("p2"), anyString());
-        doAnswer(x -> Collections.singletonMap("r3", position3)).when(checkpointStore).getPositions(eq("p3"), anyString());
+        Set<String> processes = Sets.newHashSet("p1", "p2", "p3");
+        when(checkpointStore.getProcesses()).thenReturn(processes);
+        when(checkpointStore.getPositions(any(), anyString())).thenAnswer(i -> {
+            String key = i.getArgument(0);
+            switch (key) {
+                case "p1":
+                    return Collections.singletonMap("r1", position1);
+                case "p2":
+                    return Collections.singletonMap("r2", position2);
+                case "p3":
+                    return Collections.singletonMap("r3", position3);
+                default:
+                    return Collections.emptyMap();
+            }
+        });
 
         CountDownLatch latch = new CountDownLatch(4);
         AtomicInteger counter = new AtomicInteger();
-        doAnswer(x -> {
+        when(streamMetadataTasks.startTruncation(anyString(), anyString(), any(), any(), anyLong())).thenAnswer(x -> {
             latch.countDown();
             counter.getAndIncrement();
             try {
@@ -315,8 +328,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 return CompletableFuture.completedFuture(false);
             }
             return CompletableFuture.completedFuture(true);
-        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
-
+        });
         latch.await();
 
         // verify that truncate method is being called periodically. 
