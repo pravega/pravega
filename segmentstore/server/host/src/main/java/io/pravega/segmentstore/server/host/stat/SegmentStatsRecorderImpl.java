@@ -39,6 +39,7 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -87,7 +88,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
     private final Set<String> pendingCacheLoads;
-    private final SimpleCache<String, SegmentAggregates> cache;
+    private final SimpleCache<String, SegmentWriteContext> cache;
     private final Duration reportingDuration;
     private final AutoScaleProcessor reporter;
     private final StreamSegmentStore store;
@@ -105,7 +106,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.executor = executor;
         this.pendingCacheLoads = Collections.synchronizedSet(new HashSet<>());
 
-        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, expiryDuration, null);
+        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, expiryDuration, (segment, context) -> context.close());
 
         this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, CACHE_CLEANUP_INTERVAL.toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
@@ -148,8 +149,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.globalSegmentReadBytes.close();
     }
 
-    private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
-        SegmentAggregates aggregates = cache.get(streamSegmentName);
+    private SegmentWriteContext getWriteContext(String streamSegmentName) {
+        SegmentWriteContext aggregates = cache.get(streamSegmentName);
 
         if (aggregates == null &&
                 !NameUtils.isTransactionSegment(streamSegmentName)) {
@@ -171,7 +172,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                         long policyRate = prop.getAttributes().getOrDefault(Attributes.SCALE_POLICY_RATE, Long.MIN_VALUE);
                         if (policyType >= 0 && policyRate >= 0) {
                             val sa = SegmentAggregates.forPolicy(ScaleType.fromValue((byte) policyType), (int) policyRate);
-                            cache.put(streamSegmentName, sa);
+                            cache.put(streamSegmentName, new SegmentWriteContext(streamSegmentName, sa));
                         }
                         pendingCacheLoads.remove(streamSegmentName);
                     }, executor);
@@ -183,7 +184,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
         getCreateStreamSegment().reportSuccessEvent(elapsed);
         SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
-        cache.put(streamSegmentName, sa);
+        cache.put(streamSegmentName, new SegmentWriteContext(streamSegmentName, sa));
         if (sa.isScalingEnabled()) {
             reporter.notifyCreated(streamSegmentName);
         }
@@ -193,10 +194,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void deleteSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when deleting transaction segment.
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
-            val tags = segmentTags(streamSegmentName);
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, tags);
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, tags);
-            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, tags);
+            segmentClosedForWrites(streamSegmentName);
+            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
         }
     }
 
@@ -204,9 +203,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void sealSegment(String streamSegmentName) {
         // Do not close the counter of parent segment when sealing transaction segment.
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
-            val tags = segmentTags(streamSegmentName);
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, tags);
-            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, tags);
+            segmentClosedForWrites(streamSegmentName);
         }
 
         if (cache.remove(streamSegmentName) != null) {
@@ -214,13 +211,21 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         }
     }
 
+    private void segmentClosedForWrites(String streamSegmentName) {
+        val context = this.cache.remove(streamSegmentName);
+        if (context != null) {
+            context.close();
+        }
+    }
+
     @Override
     public void policyUpdate(String streamSegmentName, byte type, int targetRate) {
-        SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        if (aggregates != null) {
+        SegmentWriteContext context = getWriteContext(streamSegmentName);
+        if (context != null) {
+            val aggregates = context.getSegmentAggregates();
             // if there is a scale type change, discard the old object and create a new object
             if (aggregates.getScaleType().getValue() != type) {
-                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate));
+                context.setSegmentAggregates(SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate));
             } else {
                 aggregates.setTargetRate(targetRate);
             }
@@ -244,8 +249,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private void processAppendInfo(Queue<AppendInfo> appendInfoQueue) {
-        val dl = getDynamicLogger();
-        val bySegment = new HashMap<String, SegmentInfo>();
+        val bySegment = new HashMap<String, SegmentWrite>();
         long totalBytes = 0;
         int totalEvents = 0;
         try {
@@ -259,9 +263,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 if (!NameUtils.isTransactionSegment(a.getStreamSegmentName())) {
                     //Don't report segment specific metrics if segment is a transaction
                     //The parent segment metrics will be updated once the transaction is merged
-                    SegmentInfo si = bySegment.getOrDefault(a.getStreamSegmentName(), null);
+                    SegmentWrite si = bySegment.getOrDefault(a.getStreamSegmentName(), null);
                     if (si == null) {
-                        si = new SegmentInfo();
+                        si = new SegmentWrite();
                         bySegment.put(a.getStreamSegmentName(), si);
                     }
 
@@ -274,18 +278,18 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             getGlobalSegmentWriteEvents().add(totalEvents);
             for (val e : bySegment.entrySet()) {
                 String segmentName = e.getKey();
-                SegmentInfo si = e.getValue();
-                String[] tags = segmentTags(segmentName);
-                dl.incCounterValue(SEGMENT_WRITE_BYTES, si.bytes, tags);
-                dl.incCounterValue(SEGMENT_WRITE_EVENTS, si.events, tags);
-
-                SegmentAggregates aggregates = getSegmentAggregate(e.getKey());
-                // Note: we could get stats for a transaction segment. We will simply ignore this as we
-                // do not maintain intermittent txn segment stats. Txn stats will be accounted for
-                // only upon txn commit. This is done via merge method. So here we can get a txn which
-                // we do not know about and hence we can get null and ignore.
-                if (aggregates != null && aggregates.update(si.bytes, si.events)) {
-                    reportIfNeeded(segmentName, aggregates);
+                SegmentWrite si = e.getValue();
+                val context = getWriteContext(e.getKey());
+                if (context != null) {
+                    context.recordWrite(si.bytes, si.events);
+                    // Note: we could get stats for a transaction segment. We will simply ignore this as we
+                    // do not maintain intermittent txn segment stats. Txn stats will be accounted for
+                    // only upon txn commit. This is done via merge method. So here we can get a txn which
+                    // we do not know about and hence we can get null and ignore.
+                    val aggregates = context.getSegmentAggregates();
+                    if (aggregates.update(si.bytes, si.events)) {
+                        reportIfNeeded(segmentName, aggregates);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -303,13 +307,13 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
-        val tags = segmentTags(streamSegmentName);
-        getDynamicLogger().incCounterValue(SEGMENT_WRITE_BYTES, dataLength, tags);
-        getDynamicLogger().incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, tags);
-
-        SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
-            reportIfNeededAsync(streamSegmentName, aggregates);
+        SegmentWriteContext context = getWriteContext(streamSegmentName);
+        if (context != null) {
+            context.recordWrite(dataLength, numOfEvents);
+            val aggregates = context.getSegmentAggregates();
+            if (aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
+                reportIfNeededAsync(streamSegmentName, aggregates);
+            }
         }
     }
 
@@ -350,10 +354,11 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @VisibleForTesting
     SegmentAggregates getSegmentAggregates(String streamSegmentName) {
-        return cache.get(streamSegmentName);
+        SegmentWriteContext context = cache.get(streamSegmentName);
+        return context == null ? null : context.getSegmentAggregates();
     }
 
-    private static class SegmentInfo {
+    private static class SegmentWrite {
         long bytes = 0;
         int events = 0;
     }
@@ -364,5 +369,31 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         final long dataLength;
         final int numOfEvents;
         final Duration elapsed;
+    }
+
+    private static class SegmentWriteContext implements AutoCloseable {
+        final Counter writeBytes;
+        final Counter writeEvents;
+        @Getter
+        @Setter
+        private volatile SegmentAggregates segmentAggregates;
+
+        SegmentWriteContext(String segmentName, SegmentAggregates segmentAggregates) {
+            this.segmentAggregates = segmentAggregates;
+            String[] tags = segmentTags(segmentName);
+            this.writeBytes = STATS_LOGGER.createCounter(SEGMENT_WRITE_BYTES, tags);
+            this.writeEvents = STATS_LOGGER.createCounter(SEGMENT_WRITE_EVENTS, tags);
+        }
+
+        void recordWrite(long bytes, int events) {
+            this.writeBytes.add(bytes);
+            this.writeEvents.add(events);
+        }
+
+        @Override
+        public void close() {
+            this.writeBytes.close();
+            this.writeEvents.close();
+        }
     }
 }

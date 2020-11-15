@@ -20,6 +20,9 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricRegistryUtils;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
@@ -33,6 +36,7 @@ import lombok.AccessLevel;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
+import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsTags.segmentTags;
@@ -41,14 +45,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
-    private static final String STREAM_SEGMENT_NAME = "scope/stream/0";
-    private static final String[] SEGMENT_TAGS = segmentTags(STREAM_SEGMENT_NAME);
+    private static final String STREAM_SEGMENT_NAME_BASE = "scope/stream/";
+    private static final long NO_COUNTER_VALUE = Long.MIN_VALUE;
 
     @Override
     protected int getThreadPoolSize() {
@@ -56,14 +59,27 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         return 0;
     }
 
+    private String getStreamSegmentName() {
+        return STREAM_SEGMENT_NAME_BASE + UUID.randomUUID().getLeastSignificantBits();
+    }
+
+    @Before
+    public void setUp() {
+        MetricsProvider.initialize(MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .build());
+        MetricsProvider.getMetricsProvider().startWithoutExporting();
+    }
+
     @Test(timeout = 20000)
     public void testRecordTraffic() {
+        val segmentName = getStreamSegmentName();
         // Do not mock metrics here. We are making a huge number of invocations and mockito will record every single one
         // of them, possibly causing OOMs.
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(10), false);
-        context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
-        assertEquals(0, (int) context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME).getTwoMinuteRate());
+        val context = new TestContext(segmentName, Duration.ofSeconds(10), false);
+        context.statsRecorder.createSegment(segmentName, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
+        assertEquals(0, (int) context.statsRecorder.getSegmentAggregates(segmentName).getTwoMinuteRate());
 
         // record for over 5 seconds
         long startTime = System.currentTimeMillis();
@@ -72,90 +88,108 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         val elapsed = Duration.ofSeconds(1);
         while (System.currentTimeMillis() - startTime < Duration.ofSeconds(6).toMillis()) {
             for (int i = 0; i < 11; i++) {
-                context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, elapsed);
+                context.statsRecorder.recordAppend(segmentName, 0, 1, elapsed);
             }
         }
-        AssertExtensions.assertGreaterThan("", 0, (long) context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME).getTwoMinuteRate());
+        AssertExtensions.assertGreaterThan("", 0, (long) context.statsRecorder.getSegmentAggregates(segmentName).getTwoMinuteRate());
     }
 
     @Test(timeout = 10000)
     public void testExpireSegment() throws Exception {
+        val segmentName = getStreamSegmentName();
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(2), true);
-        context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
+        val context = new TestContext(segmentName, Duration.ofSeconds(2), true);
+        context.statsRecorder.createSegment(segmentName, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
+        assertEquals(0, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(0, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
-        assertNotNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
+        assertNotNull(context.statsRecorder.getSegmentAggregates(segmentName));
         Thread.sleep(2500);
 
         // Verify that segment has been removed from the cache
-        assertNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
+        assertNull(context.statsRecorder.getSegmentAggregates(segmentName));
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
         // this should result in asynchronous loading of STREAM_SEGMENT_NAME
-        context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, Duration.ofSeconds(2));
+        context.statsRecorder.recordAppend(segmentName, 0, 1, Duration.ofSeconds(2));
         context.getLoadAsyncCompletion().get(10000, TimeUnit.MILLISECONDS);
-        assertNotNull(context.statsRecorder.getSegmentAggregates(STREAM_SEGMENT_NAME));
+        assertNotNull(context.statsRecorder.getSegmentAggregates(segmentName));
+
+        context.statsRecorder.recordAppend(segmentName, 10, 11, Duration.ofSeconds(2));
+        assertEquals(10, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(11, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
     }
 
     @Test(timeout = 10000)
     public void testMetrics() {
+        val segmentName = getStreamSegmentName();
+        val segmentTags = segmentTags(segmentName);
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(2), true);
+        val context = new TestContext(segmentName, Duration.ofSeconds(10), true);
         val elapsed = Duration.ofSeconds(1);
 
         // Create Segment metrics.
-        context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, elapsed);
+        context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, elapsed);
         verify(context.createStreamSegment).reportSuccessEvent(eq(elapsed));
 
         // Append metrics non-txn.
-        context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 123L, 2, elapsed);
+        context.statsRecorder.recordAppend(segmentName, 123L, 2, elapsed);
         verify(context.globalSegmentWriteBytes).add(123L);
         verify(context.globalSegmentWriteEvents).add(2);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
+        assertEquals(123L, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(2, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
         // Append the 1st metrics txn.
-        val txnName = NameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
+        val txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
         verify(context.globalSegmentWriteBytes, times(1)).add(123L);
         verify(context.globalSegmentWriteBytes, times(1)).add(321L);
         verify(context.globalSegmentWriteEvents, times(1)).add(2);
         verify(context.globalSegmentWriteEvents, times(1)).add(5);
-        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 321L, segmentTags(txnName));
-        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 5, segmentTags(txnName));
+
+        // Verify the transaction metrics did not get recorded. Txn segment tags are the same as the parent segment tags.
+        assertEquals(123L, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(2, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
         // Delete the 1st txn segment, this shouldn't affect the parent segment
         context.statsRecorder.deleteSegment(txnName);
 
         // Append the 2nd metrics txn.
-        val txnName2 = NameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
+        val txnName2 = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName2, 321L, 5, elapsed);
 
         // Seal the 2nd txn segment, this shouldn't affect the parent segment
         context.statsRecorder.sealSegment(txnName2);
 
         // Read metrics.
-        context.statsRecorder.read(STREAM_SEGMENT_NAME, 123);
+        context.statsRecorder.read(segmentName, 123);
         verify(context.globalSegmentReadBytes).add(123);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_READ_BYTES, 123, SEGMENT_TAGS);
+        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_READ_BYTES, 123, segmentTags);
 
         context.statsRecorder.readComplete(elapsed);
         verify(context.readStreamSegment).reportSuccessEvent(eq(elapsed));
 
-        // Seal metrics.
-        context.statsRecorder.sealSegment(STREAM_SEGMENT_NAME);
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_WRITE_BYTES, SEGMENT_TAGS);
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_WRITE_EVENTS, SEGMENT_TAGS);
-
         // Merge metrics.
-        context.statsRecorder.merge(STREAM_SEGMENT_NAME, 123L, 2, 234L);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
+        context.statsRecorder.merge(segmentName, 123L, 2, 234L);
+        assertEquals(123L * 2, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(2 * 2, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
+
+        // Seal metrics.
+        context.statsRecorder.sealSegment(segmentName);
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
         // Delete metrics.
-        context.statsRecorder.deleteSegment(STREAM_SEGMENT_NAME);
-        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.SEGMENT_WRITE_BYTES, SEGMENT_TAGS);
-        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.SEGMENT_WRITE_EVENTS, SEGMENT_TAGS);
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_READ_BYTES, SEGMENT_TAGS);
+        context.statsRecorder.deleteSegment(segmentName);
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
+        assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_READ_BYTES, segmentName));
+    }
+
+    private long getCounterValue(String counter, String segment) {
+        val c = MetricRegistryUtils.getCounter(counter, segmentTags(segment));
+        return c == null ? NO_COUNTER_VALUE : (long) c.count();
     }
 
     private class TestContext implements AutoCloseable {
@@ -168,17 +202,17 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         final DynamicLogger dynamicLogger;
         final SegmentStatsRecorderImpl statsRecorder;
 
-        TestContext(Duration expiryTime, boolean mockMetrics) {
+        TestContext(String segmentName, Duration expiryTime, boolean mockMetrics) {
             AutoScaleProcessor processor = mock(AutoScaleProcessor.class);
             StreamSegmentStore store = mock(StreamSegmentStore.class);
             CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
                     StreamSegmentInformation.builder()
-                            .name(STREAM_SEGMENT_NAME)
+                            .name(segmentName)
                             .attributes(ImmutableMap.<UUID, Long>builder()
                                     .put(Attributes.SCALE_POLICY_TYPE, 0L)
                                     .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                             .build());
-            when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+            when(store.getStreamSegmentInfo(segmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
             val reportingDuration = Duration.ofSeconds(10000);
             if (mockMetrics) {
                 dynamicLogger = mock(DynamicLogger.class);
