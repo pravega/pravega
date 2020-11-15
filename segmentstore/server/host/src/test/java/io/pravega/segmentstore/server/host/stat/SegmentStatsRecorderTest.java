@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -107,18 +108,18 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
         // Append metrics non-txn.
         context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 123L, 2, elapsed);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 2);
+        verify(context.globalSegmentWriteBytes).add(123L);
+        verify(context.globalSegmentWriteEvents).add(2);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
 
         // Append the 1st metrics txn.
         val txnName = NameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
-        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
-        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 321L);
-        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 2);
-        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 5);
+        verify(context.globalSegmentWriteBytes, times(1)).add(123L);
+        verify(context.globalSegmentWriteBytes, times(1)).add(321L);
+        verify(context.globalSegmentWriteEvents, times(1)).add(2);
+        verify(context.globalSegmentWriteEvents, times(1)).add(5);
         verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 321L, segmentTags(txnName));
         verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 5, segmentTags(txnName));
 
@@ -134,7 +135,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
         // Read metrics.
         context.statsRecorder.read(STREAM_SEGMENT_NAME, 123);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_READ_BYTES), 123);
+        verify(context.globalSegmentReadBytes).add(123);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_READ_BYTES, 123, SEGMENT_TAGS);
 
         context.statsRecorder.readComplete(elapsed);
@@ -158,6 +159,9 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     }
 
     private class TestContext implements AutoCloseable {
+        final Counter globalSegmentWriteBytes;
+        final Counter globalSegmentWriteEvents;
+        final Counter globalSegmentReadBytes;
         final OpStatsLogger createStreamSegment;
         final OpStatsLogger readStreamSegment;
         final OpStatsLogger writeStreamSegment;
@@ -181,13 +185,20 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
                 createStreamSegment = mock(OpStatsLogger.class);
                 readStreamSegment = mock(OpStatsLogger.class);
                 writeStreamSegment = mock(OpStatsLogger.class);
+                globalSegmentReadBytes = mock(Counter.class);
+                globalSegmentWriteBytes = mock(Counter.class);
+                globalSegmentWriteEvents = mock(Counter.class);
                 statsRecorder = new TestRecorder(processor, store, reportingDuration, expiryTime, executorService(),
-                        dynamicLogger, createStreamSegment, readStreamSegment, writeStreamSegment);
+                        dynamicLogger, createStreamSegment, readStreamSegment, writeStreamSegment, globalSegmentWriteBytes,
+                        globalSegmentWriteEvents, globalSegmentReadBytes);
             } else {
                 dynamicLogger = null;
                 createStreamSegment = null;
                 readStreamSegment = null;
                 writeStreamSegment = null;
+                globalSegmentReadBytes = null;
+                globalSegmentWriteBytes = null;
+                globalSegmentWriteEvents = null;
                 statsRecorder = new SegmentStatsRecorderImpl(processor, store, reportingDuration, expiryTime, executorService());
             }
         }
@@ -215,16 +226,26 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         @Getter(AccessLevel.PROTECTED)
         private final OpStatsLogger writeStreamSegment;
         @Getter(AccessLevel.PROTECTED)
+        private final Counter globalSegmentWriteBytes;
+        @Getter(AccessLevel.PROTECTED)
+        private final Counter globalSegmentWriteEvents;
+        @Getter(AccessLevel.PROTECTED)
+        private final Counter globalSegmentReadBytes;
+        @Getter(AccessLevel.PROTECTED)
         private final DynamicLogger dynamicLogger;
 
         TestRecorder(AutoScaleProcessor reporter, StreamSegmentStore store, Duration reportingDuration, Duration expiryDuration,
                      ScheduledExecutorService executor, DynamicLogger dynamicLogger, OpStatsLogger createStreamSegment,
-                     OpStatsLogger readStreamSegment, OpStatsLogger writeStreamSegment) {
+                     OpStatsLogger readStreamSegment, OpStatsLogger writeStreamSegment, Counter globalWriteBytes,
+                     Counter globalWriteEvents, Counter globalReadBytes) {
             super(reporter, store, reportingDuration, expiryDuration, executor);
             this.dynamicLogger = dynamicLogger;
             this.createStreamSegment = createStreamSegment;
             this.readStreamSegment = readStreamSegment;
             this.writeStreamSegment = writeStreamSegment;
+            this.globalSegmentWriteBytes = globalWriteBytes;
+            this.globalSegmentWriteEvents = globalWriteEvents;
+            this.globalSegmentReadBytes = globalReadBytes;
             this.loadAsyncCompletion = new CompletableFuture<>();
         }
 

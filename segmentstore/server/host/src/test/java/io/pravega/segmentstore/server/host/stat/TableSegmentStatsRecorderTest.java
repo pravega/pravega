@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Test;
 
-import static io.pravega.shared.MetricsTags.segmentTags;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 

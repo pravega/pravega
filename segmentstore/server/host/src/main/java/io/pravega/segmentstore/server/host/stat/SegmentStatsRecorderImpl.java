@@ -18,6 +18,7 @@ import io.pravega.common.util.SimpleCache;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
@@ -68,18 +69,19 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final int MAX_APPEND_QUEUE_PROCESS_BATCH_SIZE = 10000;
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final String GLOBAL_SEGMENT_WRITE_BYTES = globalMetricName(SEGMENT_WRITE_BYTES);
-    private static final String GLOBAL_SEGMENT_WRITE_EVENTS = globalMetricName(SEGMENT_WRITE_EVENTS);
-    private static final String GLOBAL_SEGMENT_READ_BYTES = globalMetricName(SEGMENT_READ_BYTES);
+    @Getter(AccessLevel.PROTECTED)
+    private final Counter globalSegmentWriteBytes = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_WRITE_BYTES));
+    @Getter(AccessLevel.PROTECTED)
+    private final Counter globalSegmentWriteEvents = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_WRITE_EVENTS));
+    @Getter(AccessLevel.PROTECTED)
+    private final Counter globalSegmentReadBytes = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_READ_BYTES));
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger readStreamSegment = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger writeStreamSegment = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
-    @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger appendSizeDistribution = STATS_LOGGER.createStats(SEGMENT_APPEND_SIZE);
-    @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger readSizeDistribution = STATS_LOGGER.createStats(SEGMENT_READ_SIZE);
     @Getter(AccessLevel.PROTECTED)
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
@@ -141,6 +143,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         this.writeStreamSegment.close();
         this.appendSizeDistribution.close();
         this.readSizeDistribution.close();
+        this.globalSegmentWriteEvents.close();
+        this.globalSegmentWriteBytes.close();
+        this.globalSegmentReadBytes.close();
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
@@ -248,8 +253,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 val a = appendInfoQueue.poll();
                 totalBytes += a.getDataLength();
                 totalEvents += a.getNumOfEvents();
-                getWriteStreamSegment().reportSuccessEvent(a.getElapsed());
-                getAppendSizeDistribution().reportSuccessValue(a.getDataLength());
+                this.writeStreamSegment.reportSuccessEvent(a.getElapsed());
+                this.appendSizeDistribution.reportSuccessValue(a.getDataLength());
 
                 if (!NameUtils.isTransactionSegment(a.getStreamSegmentName())) {
                     //Don't report segment specific metrics if segment is a transaction
@@ -265,8 +270,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 }
             }
 
-            dl.incCounterValue(GLOBAL_SEGMENT_WRITE_BYTES, totalBytes);
-            dl.incCounterValue(GLOBAL_SEGMENT_WRITE_EVENTS, totalEvents);
+            getGlobalSegmentWriteBytes().add(totalBytes);
+            getGlobalSegmentWriteEvents().add(totalEvents);
             for (val e : bySegment.entrySet()) {
                 String segmentName = e.getKey();
                 SegmentInfo si = e.getValue();
@@ -315,9 +320,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void read(String segment, int length) {
-        getDynamicLogger().incCounterValue(GLOBAL_SEGMENT_READ_BYTES, length);
+        getGlobalSegmentReadBytes().add(length);
         getDynamicLogger().incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
-        getReadSizeDistribution().reportSuccessValue(length);
+        this.readSizeDistribution.reportSuccessValue(length);
     }
 
     private void reportIfNeededAsync(String streamSegmentName, SegmentAggregates aggregates) {
