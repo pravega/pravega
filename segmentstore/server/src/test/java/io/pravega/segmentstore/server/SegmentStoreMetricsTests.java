@@ -79,17 +79,17 @@ public class SegmentStoreMetricsTests {
         containerMetrics.seal();
         containerMetrics.truncate();
 
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag(containerId)));
-        assertNotNull(MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag(containerId)));
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag(containerId)).count());
+        assertEquals(1, MetricRegistryUtils.getMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag(containerId)).count());
 
         containerMetrics.close();
 

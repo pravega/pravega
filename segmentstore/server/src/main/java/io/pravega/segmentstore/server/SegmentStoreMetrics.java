@@ -16,6 +16,7 @@ import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.Meter;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
@@ -298,69 +299,90 @@ public final class SegmentStoreMetrics {
      * StreamSegmentContainer Metrics.
      */
     public final static class Container implements AutoCloseable {
-        private final String[] containerTag;
+        private final Meter createSegment;
+        private final Meter deleteSegment;
+        private final Meter append;
+        private final Meter appendWithOffset;
+        private final Meter updateAttributes;
+        private final Meter getAttributes;
+        private final Meter read;
+        private final Meter getInfo;
+        private final Meter mergeSegment;
+        private final Meter seal;
+        private final Meter truncate;
 
         public Container(int containerId) {
-            this.containerTag = containerTag(containerId);
+            String[] containerTag = containerTag(containerId);
+            this.createSegment = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag);
+            this.deleteSegment = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag);
+            this.append = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag);
+            this.appendWithOffset = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag);
+            this.updateAttributes = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag);
+            this.getAttributes = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag);
+            this.read = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag);
+            this.getInfo = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag);
+            this.mergeSegment = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag);
+            this.seal = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
+            this.truncate = STATS_LOGGER.createMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
         }
 
         public void createSegment() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, 1, containerTag);
+            this.createSegment.recordEvent();
         }
 
         public void deleteSegment() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, 1, containerTag);
+            this.deleteSegment.recordEvent();
         }
 
         public void append() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_APPEND_COUNT, 1, containerTag);
+            this.append.recordEvent();
         }
 
         public void appendWithOffset() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, 1, containerTag);
+            this.appendWithOffset.recordEvent();
         }
 
         public void updateAttributes() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, 1, containerTag);
+            this.updateAttributes.recordEvent();
         }
 
         public void getAttributes() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, 1, containerTag);
+            this.getAttributes.recordEvent();
         }
 
         public void read() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_READ_COUNT, 1, containerTag);
+            this.read.recordEvent();
         }
 
         public void getInfo() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_GET_INFO_COUNT, 1, containerTag);
+            this.getInfo.recordEvent();
         }
 
         public void mergeSegment() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, 1, containerTag);
+            this.mergeSegment.recordEvent();
         }
 
         public void seal() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_SEAL_COUNT, 1, containerTag);
+            this.seal.recordEvent();
         }
 
         public void truncate() {
-            DYNAMIC_LOGGER.recordMeterEvents(MetricsNames.CONTAINER_TRUNCATE_COUNT, 1, containerTag);
+            this.truncate.recordEvent();
         }
 
         @Override
         public void close() {
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_MERGE_SEGMENT_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_ATTRIBUTES_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_READ_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_GET_INFO_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
-            DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
+            this.createSegment.close();
+            this.deleteSegment.close();
+            this.append.close();
+            this.appendWithOffset.close();
+            this.updateAttributes.close();
+            this.getAttributes.close();
+            this.read.close();
+            this.getInfo.close();
+            this.mergeSegment.close();
+            this.seal.close();
+            this.truncate.close();
         }
     }
 
