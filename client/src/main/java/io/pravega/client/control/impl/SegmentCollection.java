@@ -17,7 +17,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.NavigableMap;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 /**
  * Organizes Segments by key ranges.
@@ -34,19 +33,15 @@ public abstract class SegmentCollection {
      * segment's keys may not contain the full assigned range.
      */
     protected final NavigableMap<Double, SegmentWithRange> segments;
-    @Getter
-    private final String delegationToken;
 
     /**
      * Creates a new instance of the SegmentCollection class.
      *
      * @param segments Segments keyed by the largest key in their key range.
      *                 i.e. If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
-     * @param delegationToken Delegation token to access the segments in the segmentstore
      */
-    public SegmentCollection(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
+    public SegmentCollection(NavigableMap<Double, SegmentWithRange> segments) {
         this.segments = Collections.unmodifiableNavigableMap(segments);
-        this.delegationToken = delegationToken;
         verifySegments();
     }
 
