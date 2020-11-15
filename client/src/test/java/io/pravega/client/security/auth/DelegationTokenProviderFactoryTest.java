@@ -11,6 +11,7 @@ package io.pravega.client.security.auth;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.JwtBody;
 import java.time.Instant;
@@ -37,38 +38,38 @@ public class DelegationTokenProviderFactoryTest {
     @Test
     public void testCreateWithNullInputThrowsException() {
         AssertExtensions.assertThrows("Null controller argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(null, "test-scope", "test-stream"),
+                () -> DelegationTokenProviderFactory.create(null, "test-scope", "test-stream", AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null Controller argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), null, mock(Segment.class)),
+                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), null, mock(Segment.class), AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null scopeName argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyController, null, "test-stream"),
+                () -> DelegationTokenProviderFactory.create(dummyController, null, "test-stream", AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null streamName argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyController, "test-scope", null),
+                () -> DelegationTokenProviderFactory.create(dummyController, "test-scope", null, AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null segment argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyController, null),
+                () -> DelegationTokenProviderFactory.create(dummyController, null, AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Null segment argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), dummyController, null),
+                () -> DelegationTokenProviderFactory.create(createEmptyDummyToken(), dummyController, null, AccessOperation.ANY),
                 e -> e instanceof NullPointerException);
     }
 
     @Test
     public void testCreateWithEmptyInputThrowsException() {
         AssertExtensions.assertThrows("Empty scopeName argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyController, "", "test-stream"),
+                () -> DelegationTokenProviderFactory.create(dummyController, "", "test-stream", AccessOperation.ANY),
                 e -> e instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows("Empty streamName argument wasn't rejected.",
-                () -> DelegationTokenProviderFactory.create(dummyController, "test-scope", ""),
+                () -> DelegationTokenProviderFactory.create(dummyController, "test-scope", "", AccessOperation.ANY),
                 e -> e instanceof IllegalArgumentException);
     }
 
@@ -76,7 +77,7 @@ public class DelegationTokenProviderFactoryTest {
     public void testCreateWithNonJwtToken() {
         String nonJwtDelegationToken = "non-jwt-token";
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(nonJwtDelegationToken,
-                dummyController, new Segment("test-scope", "test-stream", 1));
+                dummyController, new Segment("test-scope", "test-stream", 1), AccessOperation.ANY);
         assertEquals(nonJwtDelegationToken, tokenProvider.retrieveToken().join());
 
         String newNonJwtDelegationToken = "new-non-jwt-token";
@@ -89,17 +90,17 @@ public class DelegationTokenProviderFactoryTest {
         String jwtDelegationToken = String.format("base-64-encoded-header.%s.base-64-encoded-signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(jwtDelegationToken,
-                dummyController, new Segment("test-scope", "test-stream", 1));
+                dummyController, new Segment("test-scope", "test-stream", 1), AccessOperation.ANY);
         assertEquals(jwtDelegationToken, tokenProvider.retrieveToken().join());
     }
 
     @Test
     public void testCreateWithNullDelegationToken() {
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(null,
-                dummyController, new Segment("test-scope", "test-stream", 1));
+                dummyController, new Segment("test-scope", "test-stream", 1), AccessOperation.ANY);
         assertTrue(tokenProvider instanceof JwtTokenProviderImpl);
 
-        tokenProvider = DelegationTokenProviderFactory.create(dummyController, "test-scope", "test-stream");
+        tokenProvider = DelegationTokenProviderFactory.create(dummyController, "test-scope", "test-stream", AccessOperation.ANY);
         assertTrue(tokenProvider instanceof JwtTokenProviderImpl);
     }
 }

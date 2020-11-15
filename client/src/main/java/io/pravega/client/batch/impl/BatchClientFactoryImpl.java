@@ -35,6 +35,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.SortedSet;
@@ -106,7 +107,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 RuntimeException::new);
         final SortedSet<Segment> segmentSet = new TreeSet<>(segments.getSegments());
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
-                .create(segments.getDelegationToken(), controller, stream.getScope(), stream.getStreamName());
+                .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
         log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
 
         Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),
