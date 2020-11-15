@@ -10,34 +10,24 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.StatusAggregatorImpl;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor> {
+public abstract class CompositeHealthContributor implements HealthContributor {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
      */
     public final StatusAggregator aggregator;
 
-    @Getter
-    @Setter
-    private Set<HealthContributor> contributors;
-
     CompositeHealthContributor() {
         this(StatusAggregatorImpl.DEFAULT);
     }
 
     CompositeHealthContributor(StatusAggregator aggregator) {
-        this.contributors = new HashSet<>();
         this.aggregator = aggregator;
     }
 
@@ -47,7 +37,9 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
 
     public Health health(boolean includeDetails) {
         // Fetch the Health Status of all dependencies.
-        val children = contributors.stream()
+        val children =  registry()
+                .get(getName())
+                .stream()
                 .map(contributor -> {
                     Health health = contributor.health(includeDetails);
                     if (health.getStatus() == Status.UNKNOWN) {
@@ -65,38 +57,9 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
         return Health.builder().status(status).children(includeDetails ? children : null).build();
     }
 
-    /**
-     * Removes a {@link HealthContributor} as a dependency from this {@link HealthComponent}.
-     *
-     * @param contributor The {@link HealthContributor} to remove.
-     */
-    public void unregister(HealthContributor contributor) {
-        if (!contributors.contains(contributor)) {
-            log.warn("A request to remove {} failed. {} is not listed as a dependency.", contributor, contributor);
-            return;
-        }
-        contributors.remove(contributor);
-    }
-
-    /**
-     * Adds a {@link HealthContributor} as a dependency to this {@link HealthComponent}.
-     *
-     * @param contributor The {@link HealthContributor} to add.
-     */
-    public void register(HealthContributor contributor) {
-        contributors.add(contributor);
-    }
-
-    public Optional<HealthContributor> get(String name) {
-        return contributors.stream()
-                .filter(val -> val.getName() == name)
-                .findFirst();
-    }
-
-    public void clear() {
-        contributors.clear();
-    }
 
     abstract public String getName();
+
+    abstract public ContributorRegistry registry();
 
 }

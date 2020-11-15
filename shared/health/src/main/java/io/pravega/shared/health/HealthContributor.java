@@ -9,14 +9,29 @@
  */
 package io.pravega.shared.health;
 
+import java.util.Optional;
+
 public interface HealthContributor {
+
+    /**
+     * A {@link HealthContributor} may optionally have a parent, which represents a {@link HealthContributor} that
+     * depends on the health status of this {@link HealthContributor}.
+     *
+     * @return The parent of this {@link HealthContributor} if it exists.
+     */
+    default Optional<HealthContributor> parent() {
+        return Optional.empty();
+    }
+
     /**
      * From an abstract view, a {@link HealthContributor} is anything that has an impact on the health of the system.
      * As such it should provide a window into it's current state, I.E some {@link Health} object.
      *
      * @return The {@link Health} object produced by this {@link HealthContributor}.
      */
-    Health health();
+    default Health health() {
+        return health(false);
+    }
 
     /**
      * Logically equivalent to the above, but instead of just returning an encapsulated {@link Health} object,

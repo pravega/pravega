@@ -10,103 +10,114 @@
 package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.HealthComponent;
-import io.pravega.shared.health.HealthComponentConfig;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.ContributorRegistry;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class ContributorRegistryImpl implements ContributorRegistry {
 
+    private static final String ROOT_HEALTH_CONTRIBUTOR = "";
+
     /**
      * Maintains a *flattened* {@link Map} of all {@link HealthComponent} objects to avoid following references.
      */
-    @Getter
-    final Map<String, HealthComponent> components;
+    private final Map<String, HealthContributor> contributors = new HashMap<>();
 
     /**
      * A {@link Set} that maintains references to all {@link HealthContributor} objects. This {@link Set} is kept for
      * de-registration purposes.
      */
-    final Set<HealthContributor> contributors = new HashSet<>();
+    private final Map<String, Set<HealthContributor>> relations = new HashMap<>();
 
     /**
-     * The default {@link HealthComponent} to register any {@link HealthContributor} under.
+     * The base under which all other {@link HealthComponent} will be registered.
      */
-    private final HealthComponent root;
 
     @NonNull
-    ContributorRegistryImpl(HealthComponent root) {
-        this.root = root;
-        this.components = new HashMap<>();
-        this.components.put(root.getName(), root);
+    ContributorRegistryImpl() {
+        relations.put(ROOT_HEALTH_CONTRIBUTOR, new HashSet<>());
     }
 
-    ContributorRegistryImpl(HealthComponent root, HealthComponentConfig config) {
-        this.root = root;
-        this.components = config.getComponents();
-        // Anchor the parent-less components at this ROOT component.
-        this.root.setContributors(components.entrySet()
-                .stream()
-                .map(entry -> entry.getValue())
-                .filter(component -> component.isRoot())
-                .collect(Collectors.toSet()));
-        // Put the configured ROOT component into the set.
-        this.components.put(root.getName(), root);
-    }
-
+    @NonNull
     @Override
-    @NonNull
     public void register(HealthContributor contributor) {
-        register(contributor, root);
+        register(contributor, ROOT_HEALTH_CONTRIBUTOR);
     }
 
-    @NonNull
-    public void register(HealthContributor contributor, HealthComponent parent) {
+    public void register(HealthContributor contributor, String parent) {
+        // A null string should map to the default/root HealthContributor.
+        parent = defaultContributorName(parent);
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
-        if (!components.containsKey(parent.getName())) {
-            log.warn("Attempting to register {} under an unrecognized HealthComponent {}.", contributor, parent.getName());
+        if (!relations.containsKey(parent) && parent != ROOT_HEALTH_CONTRIBUTOR) {
+            log.warn("Attempting to register {} under an unrecognized HealthComponent {}.", contributor, parent);
             return;
         }
         log.info("Registering {} to the {}.", contributor, parent);
-        // HealthComponent -> Set { HealthContributor }
-        parent.register(contributor);
         // HealthContributor -> Set { HealthComponent }
-        contributors.add(parent);
-        contributors.add(contributor);
+        relations.get(parent).add(contributor);
+        // Another HealthComponent may also depend on this HealthContributor.
+        relations.putIfAbsent(contributor.getName(), new HashSet<>());
+        // If 'contributor' it mapped to by a non-root, remove it from the root references.
+        if (parent != ROOT_HEALTH_CONTRIBUTOR) {
+            relations.get(ROOT_HEALTH_CONTRIBUTOR).remove(contributor);
+        }
     }
 
-    @Override
     @NonNull
+    public void register(HealthContributor contributor, HealthContributor parent) {
+        register(contributor, parent.getName());
+    }
+
+    @NonNull
+    @Override
     public void unregister(HealthContributor contributor) {
-        String name = contributor.getName();
-        if (!contributors.contains(contributor)) {
-            log.warn("A request to unregister {} failed -- not found in the registry.", contributor);
+        unregister(contributor.getName());
+    }
+
+    @NonNull
+    @Override
+    public void unregister(String name) {
+        // Acts as a guard from removing HealthComponents.
+        if (!relations.get(name).isEmpty()) {
+            log.warn("Attempting to unregister a component with existing dependencies -- aborting.");
             return;
         }
-        if (components.containsKey(name)) {
-            log.warn("Attempting to remove a HealthComponent -- this action should not normally be done.");
-            components.remove(contributor);
+        if (!contributors.containsKey(name)) {
+            log.warn("Attempted to remove an unregistered HealthContributor -- {}", name);
+            return;
         }
-        contributors.remove(contributor);
+        relations.remove(contributors.get(name));
+        contributors.remove(contributors.get(name));
+
     }
 
     public Optional<HealthContributor> get(String name) {
-        return Optional.ofNullable(components.get(name));
+        return Optional.ofNullable(contributors.get(defaultContributorName(name)));
+    }
+
+    public Collection<HealthContributor> contributors(String name) {
+        return this.relations.get(name);
+    }
+
+    public Collection<HealthContributor> contributors() {
+        return contributors(ROOT_HEALTH_CONTRIBUTOR);
     }
 
     public void clear() {
-        root.clear();
-        components.clear();
         contributors.clear();
+        relations.clear();
+    }
+
+    private String defaultContributorName(String name)  {
+        return name == null ? ROOT_HEALTH_CONTRIBUTOR : name;
     }
 }

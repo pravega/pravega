@@ -11,6 +11,7 @@ package io.pravega.shared.health;
 
 
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.AbstractMap;
@@ -33,17 +34,15 @@ public abstract class HealthIndicator implements HealthContributor {
       @Getter
       private final String name;
 
+      @NonNull
       HealthIndicator(String name) {
             this(name, new Details());
       }
 
+      @NonNull
       HealthIndicator(String name, Details details) {
             this.name = name;
             this.details = details;
-      }
-
-      public Health health() {
-            return health(false);
       }
 
       public Health health(boolean includeDetails) {
@@ -60,11 +59,11 @@ public abstract class HealthIndicator implements HealthContributor {
             return builder.name(name).build();
       }
 
-      private String healthCheckFailedMessage() {
+      String healthCheckFailedMessage() {
             return String.format("A Health Check on the {} has failed.", this.name);
       }
 
-      private Collection<Map.Entry<String, String>> getDetails() {
+      Collection<Map.Entry<String, String>> getDetails() {
             return this.details.getDetails()
                     .entrySet()
                     .stream()

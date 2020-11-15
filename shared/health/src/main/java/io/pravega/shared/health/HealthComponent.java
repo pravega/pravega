@@ -11,7 +11,6 @@ package io.pravega.shared.health;
 
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -24,28 +23,30 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HealthComponent extends CompositeHealthContributor {
 
-    /**
-     * Flag used for defining if it is a root (parent-less) component.
-     */
-    @Getter
-    @Setter
-    boolean root = true;
-
     @Getter
     @NonNull
     private final String name;
 
-    public HealthComponent(String name) {
+    private final ContributorRegistry registry;
+
+    public HealthComponent(String name, ContributorRegistry registry) {
         this.name = name;
+        this.registry = registry;
     }
 
-    public HealthComponent(String name, StatusAggregator aggregator) {
+    public HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
         super(aggregator);
         this.name = name;
+        this.registry = registry;
     }
 
     @Override
     public String toString() {
         return String.format("HealthComponent::%s", this.name);
+    }
+
+    @Override
+    public ContributorRegistry registry() {
+        return this.registry;
     }
 }

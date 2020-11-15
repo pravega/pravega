@@ -7,33 +7,47 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.health;
+package io.pravega.shared.health.impl;
 
-import lombok.Getter;
+import io.pravega.shared.health.HealthComponent;
+import io.pravega.shared.health.HealthConfig;
+import io.pravega.shared.health.StatusAggregator;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * The {@link HealthComponentConfig} class allows a client to define a (logical) tree-like structure of {@link HealthComponent}
+ * The {@link HealthConfig} class allows a client to define a (logical) tree-like structure of {@link HealthComponent}
  * to {@link HealthComponent} relations.
  */
 @Slf4j
-public class HealthComponentConfig {
+public class HealthConfigImpl implements HealthConfig {
 
-    @Getter
-    private final Map<String, HealthComponent> components;
+    private final Collection<HealthComponent> components;
 
-    private HealthComponentConfig(Map<String, HealthComponent> components) {
+    private final Map<String, Set<String>> relations;
+
+    private HealthConfigImpl(Collection<HealthComponent> components, Map<String, Set<String>> relations) {
         this.components = components;
+        this.relations = relations;
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public Collection<HealthComponent> components() {
+        return this.components;
+    }
+
+    public Map<String, Set<String>> relations() {
+        return  this.relations;
     }
 
     public static class Builder {
@@ -47,7 +61,7 @@ public class HealthComponentConfig {
                 log.warn("Overwriting a pre-existing component definition -- aborting.");
                 return this;
             }
-            components.put(name, new HealthComponent(name, aggregator));
+            components.put(name, new HealthComponent(name, aggregator, null));
             relations.put(name, new HashSet<>());
             return this;
         }
@@ -62,10 +76,6 @@ public class HealthComponentConfig {
                 return this;
             }
             relations.get(parent).add(child);
-            // Also add the relation in the underlying HealthComponent.
-            components.get(parent).register(components.get(child));
-            // Is not a root node.
-            components.get(child).setRoot(false);
             return this;
         }
 
@@ -95,9 +105,9 @@ public class HealthComponentConfig {
             return cycle;
         }
 
-        public HealthComponentConfig build() throws Exception {
+        public HealthConfigImpl build() throws Exception {
             if (validate()) {
-                return new HealthComponentConfig(components);
+                return new HealthConfigImpl(components.values(), relations);
             } else {
                 throw new RuntimeException("Invalid HealthComponentConfig definition -- cyclic references.");
             }
@@ -108,7 +118,7 @@ public class HealthComponentConfig {
         return components.isEmpty();
     }
 
-    public static HealthComponentConfig empty() {
-        return new HealthComponentConfig(new HashMap<>());
+    public static HealthConfig empty() {
+        return new HealthConfigImpl(Collections.EMPTY_LIST, new HashMap<>());
     }
 }

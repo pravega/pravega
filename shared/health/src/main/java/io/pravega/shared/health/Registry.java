@@ -18,19 +18,12 @@ public interface Registry<T> {
      *
      * @param object The object to register.
      */
-    void register(T object);
-
-    /**
-     * Unregister some object of arbitrary type to the registry.
-     *
-     * @param object The object to unregister.
-     */
-    void unregister(T object);
+    default void register(T object) {}
 
     /**
      * Provides some mechanism to clear all registered entries from the underlying store.
      */
-    void clear();
+    default void clear() {}
 
     /**
      * Returns the object associated with the identifier. A key of type {@link String} is used, therefore we should
@@ -38,5 +31,7 @@ public interface Registry<T> {
      * @param id The identifier used to query the underlying store.
      * @return The object of type *T* associated with {@param id}.
      */
-    Optional<T> get(String id);
+    default Optional<T> get(String id) {
+        return Optional.empty();
+    }
 }

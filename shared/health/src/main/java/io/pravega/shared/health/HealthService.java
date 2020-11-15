@@ -22,37 +22,9 @@ import java.util.Collection;
  *  * /health/liveness      Exposes the top level 'liveness' status.
  *  * /health/details       Exposes the aggregate {@link Health} details.
  */
-public interface HealthService extends HealthServer {
-    public final static String ROOT_COMPONENT_NAME = "root";
+public interface HealthService {
 
-    /**
-     * Initializes various structures using the provided configurations classes, which may be defaults when this
-     * method is called.
-     */
-    void configure();
-
-    /**
-     * Initializes various structures using explicit {@link HealthComponentConfig} and {@link HealthServiceConfig} classes.
-     * @param serviceConfig The {@link HealthServiceConfig} to use.
-     * @param componentConfig The {@link HealthComponentConfig} to use.
-     */
-    void configure(HealthServiceConfig serviceConfig, HealthComponentConfig componentConfig);
-
-    /**
-     * Registers the contributor to the default {@link HealthComponent} registry.
-     *
-     * @param contributor The {@link HealthContributor} object to add to the registry.
-     */
-    void register(HealthContributor contributor);
-
-    /**
-     * Registers the contributor to the registry.
-     *
-     * @param contributor The {@link HealthContributor} object to add to the registry.
-     * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
-     *                    health will be predicated on this {@link HealthContributor}'s health.
-     */
-    void register(HealthContributor contributor, HealthComponent parent);
+    final static int HEALTH_MONITOR_INTERVAL_SECONDS = 10;
 
     /**
      * Similar to a {@link HealthContributor}, a {@link HealthService} should also provide some way to access the {@link Health}
@@ -72,4 +44,22 @@ public interface HealthService extends HealthServer {
      * @return
      */
     Collection<HealthComponent> components();
+
+    /**
+     * The {@link ContributorRegistry} acts as the means to organize and references to the various {@link HealthContributor}
+     * objects we wish to track.
+     *
+     * @return The {@link ContributorRegistry} backing the {@link HealthService}.
+     */
+    ContributorRegistry registry();
+
+    /**
+     * Initializes the {@link ContributorRegistry} such that the logical {@link HealthComponent} hierarchy defined
+     * by {@link HealthServer.HealthConfig} is properly represented in the {@link ContributorRegistry}. This should be called in
+     * the constructor, before the {@link HealthService} is fully initialized.
+     *
+     * @param registry The {@link ContributorRegistry} to apply the changes on.
+     * @param config The {@link HealthServer.HealthConfig} from which to get the definition(s).
+     */
+    void initialize(ContributorRegistry registry, HealthConfig config);
 }
