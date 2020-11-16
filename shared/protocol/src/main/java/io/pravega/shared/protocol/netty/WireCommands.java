@@ -643,7 +643,7 @@ public final class WireCommands {
         }
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
-            if(in.available() != length) {
+            if (in.available() != length) {
                 throw new InvalidMessageException("Was expecting length: " + in.available() + " but found: " + length);
             }
 
@@ -651,18 +651,18 @@ public final class WireCommands {
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
             int typeCode = in.readInt();
-            if(typeCode == -1) {
+            if (typeCode == -1) {
                 int dataLength = in.readInt();
                 ByteBuf data;
                 if (dataLength > 0) {
-                    if(dataLength > in.available()) {
+                    if (dataLength > in.available()) {
                         throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
                     }
                     data = in.readFully(dataLength);
                 } else {
                     data = EMPTY_BUFFER;
                 }
-                if(in.available() < Long.BYTES) {
+                if (in.available() < Long.BYTES) {
                     throw new InvalidMessageException("Was expecting request id but not found");
                 }
 
