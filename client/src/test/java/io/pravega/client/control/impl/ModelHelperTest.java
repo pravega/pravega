@@ -18,6 +18,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 import java.util.Arrays;
@@ -255,6 +256,24 @@ public class ModelHelperTest {
                 .setScope("scope").setKvtName("kvtable").setPartitionCount(2).build();
         KeyValueTableConfiguration configuration = ModelHelper.encode(config);
         assertEquals(config.getPartitionCount(), configuration.getPartitionCount());
+    }
+
+    @Test
+    public void createStreamInfoWithMissingAccessOperation() {
+        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo("testScope", "testStream");
+        assertEquals("testScope", streamInfo.getScope());
+        assertEquals("testStream", streamInfo.getStream());
+        assertEquals(Controller.StreamInfo.AccessOperation.UNSPECIFIED, streamInfo.getAccessOperation());
+    }
+
+    @Test
+    public void createStreamInfoWithAccessOperation() {
+        assertEquals(Controller.StreamInfo.AccessOperation.READ,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ).getAccessOperation());
+        assertEquals(Controller.StreamInfo.AccessOperation.WRITE,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.WRITE).getAccessOperation());
+        assertEquals(Controller.StreamInfo.AccessOperation.READ_WRITE,
+                ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ_WRITE).getAccessOperation());
     }
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {

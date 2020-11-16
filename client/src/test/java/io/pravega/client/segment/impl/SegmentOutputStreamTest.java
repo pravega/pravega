@@ -21,6 +21,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
@@ -139,11 +140,12 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                RETRY_SCHEDULE, DelegationTokenProviderFactory.create(controller, "scope", "stream"));
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.create(controller, "scope", "stream", AccessOperation.ANY));
         output.reconnect();
 
         signal.join();
-        verify(controller, times(1)).getOrRefreshDelegationTokenFor("scope", "stream");
+        verify(controller, times(1)).getOrRefreshDelegationTokenFor("scope", "stream",
+                AccessOperation.ANY);
     }
 
     @Test(timeout = 10000)
@@ -1216,7 +1218,8 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         }
 
         @Override
-        public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+        public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName,
+                                                                        AccessOperation accessOperation) {
             return CompletableFuture.supplyAsync(() -> {
                 signal.complete(null);
                 return "my-test-token";

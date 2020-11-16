@@ -10,6 +10,8 @@
 package io.pravega.controller.server.security.auth;
 
 import io.pravega.common.Exceptions;
+import io.pravega.shared.NameUtils;
+import lombok.NonNull;
 
 /**
  * The main implementation of the {@link AuthorizationResource} class.
@@ -63,5 +65,16 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");
         return String.format("%s/%s:%s", ofScope(scopeName), TAG_KEYVALUETABLE, keyValueTableName);
+    }
+
+    @Override
+    public String ofInternalStream(String scopeName, @NonNull String streamName) {
+        if (streamName.startsWith(NameUtils.READER_GROUP_STREAM_PREFIX)) {
+            return ofReaderGroupInScope(scopeName, streamName.replace(NameUtils.READER_GROUP_STREAM_PREFIX, ""));
+        } else if (streamName.startsWith(NameUtils.getMARK_PREFIX())) {
+            return ofStreamInScope(scopeName, streamName.replace(NameUtils.getMARK_PREFIX(), ""));
+        } else {
+            return ofStreamInScope(scopeName, streamName);
+        }
     }
 }

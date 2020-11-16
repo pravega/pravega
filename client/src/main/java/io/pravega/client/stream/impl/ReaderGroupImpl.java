@@ -44,6 +44,7 @@ import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -322,8 +323,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     totalLength += endPositions.get(s);
                 } else {
                     if (tokenProvider == null) {
-                        tokenProvider = DelegationTokenProviderFactory.create(
-                                unreadVal.getDelegationToken(), controller, s);
+                        tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.READ);
                     }
                     @Cleanup
                     SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);

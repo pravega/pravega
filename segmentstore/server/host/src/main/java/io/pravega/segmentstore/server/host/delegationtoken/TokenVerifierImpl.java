@@ -60,8 +60,8 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                     .findFirst();
 
         if (!matchingClaim.isPresent()) {
-            log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
-                        resource, expectedLevel, token));
+            log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token.",
+                        resource, expectedLevel));
 
             throw new InvalidClaimException(String.format(
                         "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
@@ -90,9 +90,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
          *      3) claimKey = "_system/_requeststream", resource = "_system/_requeststream/0.#epoch.0"
          *      4) claimKey = "*" (the wildcard character)
          */
-        return resource.equals(claimKey) // example 1
-               || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
-               || resource.startsWith(claimKey + "/") // example 3
-               || claimKey.equals("*"); // 4
+        boolean result = resource.equals(claimKey) // example 1
+                || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
+                || resource.startsWith(claimKey + "/") // example 3
+                || claimKey.equals("*");
+        log.trace("claimKey: [{}], resource: [{}], result: [{}]", claimKey, resource, result);
+        return result;
     }
 }
