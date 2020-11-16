@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
@@ -35,6 +36,7 @@ import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -68,7 +70,7 @@ public class StorageFactoryTests {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
         Assert.assertTrue(factory1 instanceof HDFSSimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -114,7 +116,7 @@ public class StorageFactoryTests {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
         Assert.assertTrue(factory1 instanceof ExtendedS3SimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -155,7 +157,7 @@ public class StorageFactoryTests {
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
         Assert.assertTrue(factory1 instanceof FileSystemSimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage

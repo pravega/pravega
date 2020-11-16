@@ -70,6 +70,7 @@ public class ClusterWrapper implements AutoCloseable {
     // Configuration
     private boolean isAuthEnabled;
     private String tokenSigningKeyBasis;
+    private boolean isRGWritesWithReadPermEnabled;
     private int tokenTtlInSeconds;
     private List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries;
     private int containerCount = 4; // default container count
@@ -84,6 +85,13 @@ public class ClusterWrapper implements AutoCloseable {
 
     public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
                           List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries, int containerCount) {
+        this(isAuthEnabled, tokenSigningKeyBasis, tokenTtlInSeconds, true,
+                passwordAuthHandlerEntries, containerCount);
+    }
+
+    public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
+                          boolean isRGWritesWithReadPermEnabled,
+                          List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries, int containerCount) {
         executor = Executors.newSingleThreadScheduledExecutor();
 
         this.isAuthEnabled = isAuthEnabled;
@@ -97,6 +105,7 @@ public class ClusterWrapper implements AutoCloseable {
                 this.passwordAuthHandlerEntries = passwordAuthHandlerEntries;
             }
         }
+        this.isRGWritesWithReadPermEnabled = isRGWritesWithReadPermEnabled;
         this.containerCount = containerCount;
     }
 
@@ -182,7 +191,7 @@ public class ClusterWrapper implements AutoCloseable {
                 false, true,
                 controllerPort, serviceHost, segmentStorePort, containerCount, -1,
                 isAuthEnabled, passwordInputFilePath,
-                tokenSigningKeyBasis, tokenTtlInSeconds);
+                tokenSigningKeyBasis, this.isRGWritesWithReadPermEnabled, tokenTtlInSeconds);
     }
 
     public String controllerUri() {
