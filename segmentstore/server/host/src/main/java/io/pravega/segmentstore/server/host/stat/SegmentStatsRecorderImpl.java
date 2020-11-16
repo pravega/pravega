@@ -35,7 +35,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
@@ -70,21 +69,14 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     private static final int MAX_APPEND_QUEUE_PROCESS_BATCH_SIZE = 10000;
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    @Getter(AccessLevel.PROTECTED)
     private final Counter globalSegmentWriteBytes = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_WRITE_BYTES));
-    @Getter(AccessLevel.PROTECTED)
     private final Counter globalSegmentWriteEvents = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_WRITE_EVENTS));
-    @Getter(AccessLevel.PROTECTED)
     private final Counter globalSegmentReadBytes = STATS_LOGGER.createCounter(globalMetricName(SEGMENT_READ_BYTES));
-    @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
-    @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger readStreamSegment = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
-    @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger writeStreamSegment = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
     private final OpStatsLogger appendSizeDistribution = STATS_LOGGER.createStats(SEGMENT_APPEND_SIZE);
     private final OpStatsLogger readSizeDistribution = STATS_LOGGER.createStats(SEGMENT_READ_SIZE);
-    @Getter(AccessLevel.PROTECTED)
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
     private final Set<String> pendingCacheLoads;
@@ -182,7 +174,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
-        getCreateStreamSegment().reportSuccessEvent(elapsed);
+        this.createStreamSegment.reportSuccessEvent(elapsed);
         SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
         cache.put(streamSegmentName, new SegmentWriteContext(streamSegmentName, sa));
         if (sa.isScalingEnabled()) {
@@ -195,7 +187,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         // Do not close the counter of parent segment when deleting transaction segment.
         if (!NameUtils.isTransactionSegment(streamSegmentName)) {
             segmentClosedForWrites(streamSegmentName);
-            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
+            this.dynamicLogger.freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
         }
     }
 
@@ -274,8 +266,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 }
             }
 
-            getGlobalSegmentWriteBytes().add(totalBytes);
-            getGlobalSegmentWriteEvents().add(totalEvents);
+            this.globalSegmentWriteBytes.add(totalBytes);
+            this.globalSegmentWriteEvents.add(totalEvents);
             for (val e : bySegment.entrySet()) {
                 String segmentName = e.getKey();
                 SegmentWrite si = e.getValue();
@@ -319,13 +311,13 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void readComplete(Duration elapsed) {
-        getReadStreamSegment().reportSuccessEvent(elapsed);
+        this.readStreamSegment.reportSuccessEvent(elapsed);
     }
 
     @Override
     public void read(String segment, int length) {
-        getGlobalSegmentReadBytes().add(length);
-        getDynamicLogger().incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
+        this.globalSegmentReadBytes.add(length);
+        this.dynamicLogger.incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
         this.readSizeDistribution.reportSuccessValue(length);
     }
 

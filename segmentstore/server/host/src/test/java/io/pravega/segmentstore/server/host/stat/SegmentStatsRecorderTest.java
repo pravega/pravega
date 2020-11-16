@@ -18,12 +18,9 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.metrics.Counter;
-import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -32,21 +29,20 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import lombok.AccessLevel;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
@@ -126,27 +122,25 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         val segmentName = getStreamSegmentName();
         val segmentTags = segmentTags(segmentName);
         @Cleanup
-        val context = new TestContext(segmentName, Duration.ofSeconds(10), true);
+        val context = new TestContext(segmentName, Duration.ofSeconds(10), false);
         val elapsed = Duration.ofSeconds(1);
 
         // Create Segment metrics.
         context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, elapsed);
-        verify(context.createStreamSegment).reportSuccessEvent(eq(elapsed));
+        assertEquals(elapsed.toMillis(), getTimerMillis(MetricsNames.SEGMENT_CREATE_LATENCY));
 
         // Append metrics non-txn.
         context.statsRecorder.recordAppend(segmentName, 123L, 2, elapsed);
-        verify(context.globalSegmentWriteBytes).add(123L);
-        verify(context.globalSegmentWriteEvents).add(2);
+        assertEquals(123L, getCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), null));
+        assertEquals(2, getCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), null));
         assertEquals(123L, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
         assertEquals(2, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
 
         // Append the 1st metrics txn.
         val txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
-        verify(context.globalSegmentWriteBytes, times(1)).add(123L);
-        verify(context.globalSegmentWriteBytes, times(1)).add(321L);
-        verify(context.globalSegmentWriteEvents, times(1)).add(2);
-        verify(context.globalSegmentWriteEvents, times(1)).add(5);
+        assertEquals(123L + 321L, getCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), null));
+        assertEquals(2 + 5, getCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), null));
 
         // Verify the transaction metrics did not get recorded. Txn segment tags are the same as the parent segment tags.
         assertEquals(123L, getCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, segmentName));
@@ -164,11 +158,11 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
         // Read metrics.
         context.statsRecorder.read(segmentName, 123);
-        verify(context.globalSegmentReadBytes).add(123);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_READ_BYTES, 123, segmentTags);
+        assertEquals(123L, getCounterValue(globalMetricName(SEGMENT_READ_BYTES), null));
+        assertEquals(123L, getCounterValue(SEGMENT_READ_BYTES, segmentName));
 
         context.statsRecorder.readComplete(elapsed);
-        verify(context.readStreamSegment).reportSuccessEvent(eq(elapsed));
+        assertEquals(elapsed.toMillis(), getTimerMillis(MetricsNames.SEGMENT_READ_LATENCY));
 
         // Merge metrics.
         context.statsRecorder.merge(segmentName, 123L, 2, 234L);
@@ -188,21 +182,19 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     }
 
     private long getCounterValue(String counter, String segment) {
-        val c = MetricRegistryUtils.getCounter(counter, segmentTags(segment));
+        val c = MetricRegistryUtils.getCounter(counter, segment == null ? new String[0] : segmentTags(segment));
         return c == null ? NO_COUNTER_VALUE : (long) c.count();
     }
 
+    private long getTimerMillis(String timerName) {
+        val t = MetricRegistryUtils.getTimer(timerName);
+        return (long) t.totalTime(TimeUnit.MILLISECONDS);
+    }
+
     private class TestContext implements AutoCloseable {
-        final Counter globalSegmentWriteBytes;
-        final Counter globalSegmentWriteEvents;
-        final Counter globalSegmentReadBytes;
-        final OpStatsLogger createStreamSegment;
-        final OpStatsLogger readStreamSegment;
-        final OpStatsLogger writeStreamSegment;
-        final DynamicLogger dynamicLogger;
         final SegmentStatsRecorderImpl statsRecorder;
 
-        TestContext(String segmentName, Duration expiryTime, boolean mockMetrics) {
+        TestContext(String segmentName, Duration expiryTime, boolean mockLoadAsync) {
             AutoScaleProcessor processor = mock(AutoScaleProcessor.class);
             StreamSegmentStore store = mock(StreamSegmentStore.class);
             CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
@@ -214,25 +206,9 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
                             .build());
             when(store.getStreamSegmentInfo(segmentName, Duration.ofMinutes(1))).thenReturn(toBeReturned);
             val reportingDuration = Duration.ofSeconds(10000);
-            if (mockMetrics) {
-                dynamicLogger = mock(DynamicLogger.class);
-                createStreamSegment = mock(OpStatsLogger.class);
-                readStreamSegment = mock(OpStatsLogger.class);
-                writeStreamSegment = mock(OpStatsLogger.class);
-                globalSegmentReadBytes = mock(Counter.class);
-                globalSegmentWriteBytes = mock(Counter.class);
-                globalSegmentWriteEvents = mock(Counter.class);
-                statsRecorder = new TestRecorder(processor, store, reportingDuration, expiryTime, executorService(),
-                        dynamicLogger, createStreamSegment, readStreamSegment, writeStreamSegment, globalSegmentWriteBytes,
-                        globalSegmentWriteEvents, globalSegmentReadBytes);
+            if (mockLoadAsync) {
+                statsRecorder = new TestRecorder(processor, store, reportingDuration, expiryTime, executorService());
             } else {
-                dynamicLogger = null;
-                createStreamSegment = null;
-                readStreamSegment = null;
-                writeStreamSegment = null;
-                globalSegmentReadBytes = null;
-                globalSegmentWriteBytes = null;
-                globalSegmentWriteEvents = null;
                 statsRecorder = new SegmentStatsRecorderImpl(processor, store, reportingDuration, expiryTime, executorService());
             }
         }
@@ -253,33 +229,10 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
     private static class TestRecorder extends SegmentStatsRecorderImpl {
         final CompletableFuture<Void> loadAsyncCompletion;
-        @Getter(AccessLevel.PROTECTED)
-        private final OpStatsLogger createStreamSegment;
-        @Getter(AccessLevel.PROTECTED)
-        private final OpStatsLogger readStreamSegment;
-        @Getter(AccessLevel.PROTECTED)
-        private final OpStatsLogger writeStreamSegment;
-        @Getter(AccessLevel.PROTECTED)
-        private final Counter globalSegmentWriteBytes;
-        @Getter(AccessLevel.PROTECTED)
-        private final Counter globalSegmentWriteEvents;
-        @Getter(AccessLevel.PROTECTED)
-        private final Counter globalSegmentReadBytes;
-        @Getter(AccessLevel.PROTECTED)
-        private final DynamicLogger dynamicLogger;
 
         TestRecorder(AutoScaleProcessor reporter, StreamSegmentStore store, Duration reportingDuration, Duration expiryDuration,
-                     ScheduledExecutorService executor, DynamicLogger dynamicLogger, OpStatsLogger createStreamSegment,
-                     OpStatsLogger readStreamSegment, OpStatsLogger writeStreamSegment, Counter globalWriteBytes,
-                     Counter globalWriteEvents, Counter globalReadBytes) {
+                     ScheduledExecutorService executor) {
             super(reporter, store, reportingDuration, expiryDuration, executor);
-            this.dynamicLogger = dynamicLogger;
-            this.createStreamSegment = createStreamSegment;
-            this.readStreamSegment = readStreamSegment;
-            this.writeStreamSegment = writeStreamSegment;
-            this.globalSegmentWriteBytes = globalWriteBytes;
-            this.globalSegmentWriteEvents = globalWriteEvents;
-            this.globalSegmentReadBytes = globalReadBytes;
             this.loadAsyncCompletion = new CompletableFuture<>();
         }
 
