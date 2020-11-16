@@ -12,18 +12,35 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
-import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.val;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * InMemoryMetadataStore stores the key-values in memory.
  */
 public class InMemoryMetadataStore extends BaseMetadataStore {
+    /**
+     * Optional callback to invoke  during {@link BaseMetadataStore#read(String)} call.
+     */
+    @Getter
+    @Setter
+    Function<TransactionData, CompletableFuture<TransactionData>> readCallback;
+
+    /**
+     * Optional callback to invoke during {@link BaseMetadataStore#writeAll(Collection)} call.
+     */
+    @Getter
+    @Setter
+    Function<Collection<TransactionData>, CompletableFuture<TransactionData>> writeCallback;
 
     private final AtomicBoolean entryTracker = new AtomicBoolean(false);
 
@@ -33,23 +50,42 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
     private final Map<String, TransactionData> backingStore = new ConcurrentHashMap<>();
 
     /**
+     * Creates a new instance.
+     *
+     * @param executor Executor to use.
+     */
+    public InMemoryMetadataStore(Executor executor) {
+        super(executor);
+    }
+
+    /**
      * Reads a metadata record for the given key.
      *
      * @param key Key for the metadata record.
      * @return Associated {@link io.pravega.segmentstore.storage.metadata.BaseMetadataStore.TransactionData}.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    protected TransactionData read(String key) throws StorageMetadataException {
+    protected CompletableFuture<TransactionData> read(String key) {
         synchronized (this) {
-            val retValue = backingStore.get(key);
-            if (null == retValue) {
-                return TransactionData.builder()
+            TransactionData data = backingStore.get(key);
+            if (null == data) {
+                data = TransactionData.builder()
                         .key(key)
                         .persisted(true)
                         .dbObject(this)
                         .build();
             }
-            return retValue;
+
+            val retValue = data;
+            CompletableFuture<TransactionData> future = CompletableFuture.completedFuture(retValue);
+
+            if (readCallback != null) {
+                future = future.thenComposeAsync(v ->
+                    readCallback.apply(retValue)
+                        .thenApplyAsync(vv -> retValue, getExecutor()),
+                getExecutor());
+            }
+
+            return future;
         }
     }
 
@@ -57,30 +93,37 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      * Writes transaction data from a given list to the metadata store.
      *
      * @param dataList List of transaction data to write.
-     * @throws StorageMetadataException Exception related to storage metadata operations.
      */
-    protected void writeAll(Collection<TransactionData> dataList) throws StorageMetadataException {
-        synchronized (this) {
-            Preconditions.checkState(!entryTracker.getAndSet(true), "writeAll should never be called concurrently");
-            try {
-                for (TransactionData data : dataList) {
-                    Preconditions.checkState(null != data.getKey());
-                    val key = data.getKey();
-                    if (backingStore.containsKey(key)) {
-                        Preconditions.checkState(this == data.getDbObject(), "Data is not owned.");
-                        val oldValue = backingStore.get(key);
-                        if (!(oldValue.getVersion() < data.getVersion())) {
-                            Preconditions.checkState(oldValue.getVersion() <= data.getVersion(), "Attempt to overwrite newer version");
-                        }
-                    }
-                    data.setDbObject(this);
-                    Preconditions.checkState(!data.isPinned(), "Pinned data should not be stored");
-                    backingStore.put(key, data);
-                }
-            } finally {
-                entryTracker.set(false);
-            }
+    protected CompletableFuture<Void> writeAll(Collection<TransactionData> dataList) {
+        CompletableFuture<TransactionData> f;
+        if (writeCallback != null) {
+            f = writeCallback.apply(dataList);
+        } else {
+            f = CompletableFuture.completedFuture(null);
         }
+        return f.thenRunAsync(() -> {
+            synchronized (this) {
+                Preconditions.checkState(!entryTracker.getAndSet(true), "writeAll should never be called concurrently");
+                try {
+                    for (TransactionData data : dataList) {
+                        Preconditions.checkState(null != data.getKey());
+                        val key = data.getKey();
+                        val oldValue = backingStore.get(key);
+                        if (oldValue != null) {
+                            Preconditions.checkState(this == oldValue.getDbObject(), "Data is not owned.");
+                            if (!(oldValue.getVersion() < data.getVersion())) {
+                                Preconditions.checkState(oldValue.getVersion() <= data.getVersion(), "Attempt to overwrite newer version");
+                            }
+                        }
+                        data.setDbObject(this);
+                        Preconditions.checkState(!data.isPinned(), "Pinned data should not be stored");
+                        backingStore.put(key, data);
+                    }
+                } finally {
+                    entryTracker.set(false);
+                }
+            }
+        }, getExecutor());
     }
 
     /**
@@ -90,7 +133,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      * @return Clone of given instance.
      */
     public static InMemoryMetadataStore clone(InMemoryMetadataStore original) {
-        InMemoryMetadataStore cloneStore = new InMemoryMetadataStore();
+        InMemoryMetadataStore cloneStore = new InMemoryMetadataStore(original.getExecutor());
         synchronized (original) {
             synchronized (cloneStore) {
                 cloneStore.setVersion(original.getVersion());

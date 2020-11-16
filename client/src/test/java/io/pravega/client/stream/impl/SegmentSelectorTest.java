@@ -66,7 +66,7 @@ public class SegmentSelectorTest {
         addNewSegment(segments, 1, 0.25, 0.5);
         addNewSegment(segments, 2, 0.5, 0.75);
         addNewSegment(segments, 3, 0.75, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -98,7 +98,7 @@ public class SegmentSelectorTest {
         addNewSegment(segments, 1, 0.25, 0.5);
         addNewSegment(segments, 2, 0.5, 0.75);
         addNewSegment(segments, 3, 0.75, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -126,7 +126,7 @@ public class SegmentSelectorTest {
         addNewSegment(segments, 1, 0.25, 0.5);
         addNewSegment(segments, 2, 0.5, 0.75);
         addNewSegment(segments, 3, 0.75, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -165,7 +165,7 @@ public class SegmentSelectorTest {
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.5);
         addNewSegment(segments, 1, 0.5, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -210,7 +210,7 @@ public class SegmentSelectorTest {
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.5);
         addNewSegment(segments, 1, 0.5, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -256,7 +256,7 @@ public class SegmentSelectorTest {
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         addNewSegment(segments, 0, 0.0, 0.5);
         addNewSegment(segments, 1, 0.5, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                 .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -281,7 +281,7 @@ public class SegmentSelectorTest {
 
         TreeMap<Double, SegmentWithRange> segmentBeforeScale = new TreeMap<>();
         addNewSegment(segmentBeforeScale, 0, 0.0, 1.0);
-        StreamSegments streamSegmentsBeforeScale = new StreamSegments(segmentBeforeScale, "");
+        StreamSegments streamSegmentsBeforeScale = new StreamSegments(segmentBeforeScale);
 
         Map<SegmentWithRange, List<Long>> newRange = new HashMap<>();
         newRange.put(new SegmentWithRange(segment1, 0.0, 0.5), ImmutableList.of(segment0.getSegmentId()));
