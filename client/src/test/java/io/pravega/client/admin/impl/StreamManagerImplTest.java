@@ -176,7 +176,7 @@ public class StreamManagerImplTest {
                 connectionFactory, true));
 
         doReturn(CompletableFuture.completedFuture(true)).when(mockController).sealStream(defaultScope, streamName);
-        StreamSegments empty = new StreamSegments(new TreeMap<>(), "");
+        StreamSegments empty = new StreamSegments(new TreeMap<>());
         doReturn(CompletableFuture.completedFuture(empty) ).when(mockController).getCurrentSegments(defaultScope, streamName);
 
         // Create a StreamManager
