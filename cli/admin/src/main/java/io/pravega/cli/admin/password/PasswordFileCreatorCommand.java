@@ -11,7 +11,7 @@ package io.pravega.cli.admin.password;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.StrongPasswordProcessor;
 
 import java.io.FileWriter;
 import java.io.IOException;

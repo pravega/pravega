@@ -11,7 +11,7 @@ package io.pravega.controller.server.security.auth.handler;
 
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.security.auth.UserPrincipal;
+import io.pravega.shared.security.UserPrincipal;
 
 import java.security.Principal;
 

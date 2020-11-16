@@ -24,7 +24,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.StrongPasswordProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;

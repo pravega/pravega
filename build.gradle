@@ -193,6 +193,22 @@ project('shared:authplugin') {
     }
 }
 
+project('shared:basic-authplugin') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile project(':shared:security')
+        compile project(':controller')
+    }
+
+    javadoc {
+        title = "AuthHandler supporting HTTP Basic Authentication"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('shared:security') {
     dependencies {
         compile project(':common')
@@ -694,6 +710,7 @@ project('controller') {
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
+        testCompile project(':shared:basic-authplugin')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE

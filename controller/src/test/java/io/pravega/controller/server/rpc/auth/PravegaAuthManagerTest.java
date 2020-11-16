@@ -15,7 +15,7 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.StrongPasswordProcessor;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;

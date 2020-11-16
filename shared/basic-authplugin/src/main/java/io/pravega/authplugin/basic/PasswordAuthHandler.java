@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler.impl;
+package io.pravega.authplugin.basic;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
@@ -18,8 +18,8 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
-import io.pravega.controller.server.security.auth.UserPrincipal;
+import io.pravega.shared.security.StrongPasswordProcessor;
+import io.pravega.shared.security.UserPrincipal;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
