@@ -14,6 +14,8 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
+import java.util.Properties;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -112,5 +114,12 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 .append(")")
                 .toString();
+    }
+
+    @Override
+    public Properties toProperties() {
+        Properties props = new Properties();
+        props.setProperty("basic.authplugin.dbfile", this.userPasswordFile);
+        return props;
     }
 }

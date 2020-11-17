@@ -17,10 +17,8 @@ import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.auth.ServerConfig;
 import io.pravega.shared.security.StrongPasswordProcessor;
 import io.pravega.shared.security.UserPrincipal;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -31,9 +29,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -134,8 +135,8 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     @Override
-    public void initialize(ServerConfig serverConfig) {
-        loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
+    public void initialize(@NonNull Properties properties) {
+        initialize(properties.getProperty("basic.authplugin.dbfile"));
     }
 
     private static String[] parseToken(String token) {

@@ -10,8 +10,7 @@
 package io.pravega.authplugin.basic;
 
 import io.pravega.auth.AuthHandler;
-import io.pravega.controller.server.security.auth.AuthorizationResource;
-import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
+import io.pravega.common.Exceptions;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -20,7 +19,6 @@ import static org.junit.Assert.assertEquals;
 
 public class AclAuthorizerImplTest {
     private final static String DUMMY_ENCRYPTED_PWD = "Dummy encrypted value";
-    private AuthorizationResource resource = new AuthorizationResourceImpl();
 
     @Test
     public void testSuperUserAcl() {
@@ -31,13 +29,13 @@ public class AclAuthorizerImplTest {
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
 
         // Root resource
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScopes()));
 
         // Specific resources
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testScope")));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofStreamInScope("testScope", "testStream")));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofReaderGroupInScope("testScope", "testRgt")));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofKeyValueTableInScope("testScope", "testKvt")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScope("testScope")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofStreamInScope("testScope", "testStream")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofReaderGroupInScope("testScope", "testRgt")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofKeyValueTableInScope("testScope", "testKvt")));
     }
 
     @Test
@@ -47,7 +45,7 @@ public class AclAuthorizerImplTest {
         ));
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScopes()));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScopes()));
     }
 
     @Test
@@ -57,7 +55,7 @@ public class AclAuthorizerImplTest {
         ));
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScope("testscope")));
     }
 
     @Test
@@ -67,8 +65,8 @@ public class AclAuthorizerImplTest {
         ));
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope1")));
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, resource.ofScope("testscope2")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScope("testscope1")));
+        assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl, ResourceRepresentation.ofScope("testscope2")));
     }
 
     @Test
@@ -78,9 +76,9 @@ public class AclAuthorizerImplTest {
         ));
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
-        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope1")));
-        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofScope("testscope2")));
-        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, resource.ofStreamInScope(
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, ResourceRepresentation.ofScope("testscope1")));
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, ResourceRepresentation.ofScope("testscope2")));
+        assertEquals(AuthHandler.Permissions.READ, authorizer.authorize(acl, ResourceRepresentation.ofStreamInScope(
                 "testscope", "teststream")));
     }
 
@@ -92,20 +90,20 @@ public class AclAuthorizerImplTest {
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
 
-        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("abcscope")));
-        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, resource.ofScope("xyzscope")));
+        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, ResourceRepresentation.ofScope("abcscope")));
+        assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl, ResourceRepresentation.ofScope("xyzscope")));
 
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "stream123")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "stream123")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "stream456")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "stream456")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofReaderGroupInScope("abcscope", "rg123")));
+                ResourceRepresentation.ofReaderGroupInScope("abcscope", "rg123")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofKeyValueTableInScope("abcscope", "kvt123")));
+                ResourceRepresentation.ofKeyValueTableInScope("abcscope", "kvt123")));
 
         assertEquals(AuthHandler.Permissions.NONE, authorizer.authorize(acl,
-                resource.ofStreamInScope("xyzscope", "stream123")));
+                ResourceRepresentation.ofStreamInScope("xyzscope", "stream123")));
     }
 
     @Test
@@ -116,11 +114,11 @@ public class AclAuthorizerImplTest {
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "str123")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "str123")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "streaMMMMMMMMMMM")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "streaMMMMMMMMMMM")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "str")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "str")));
     }
 
     @Test
@@ -131,10 +129,55 @@ public class AclAuthorizerImplTest {
 
         AclAuthorizerImpl authorizer = new AclAuthorizerImpl();
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("abcscope", "mystream")));
+                ResourceRepresentation.ofStreamInScope("abcscope", "mystream")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("mnoscope", "mystream")));
+                ResourceRepresentation.ofStreamInScope("mnoscope", "mystream")));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authorizer.authorize(acl,
-                resource.ofStreamInScope("xyzscope", "mystream")));
+                ResourceRepresentation.ofStreamInScope("xyzscope", "mystream")));
+    }
+}
+
+class ResourceRepresentation {
+    public static final String DOMAIN_PART_SUFFIX = "prn::";
+    private static final String TAG_SCOPE = "scope";
+    private static final String TAG_STREAM = "stream";
+    private static final String TAG_READERGROUP = "reader-group";
+    private static final String TAG_KEYVALUETABLE = "key-value-table";
+
+    private static final String ROOT_RESOURCE = String.format("%s/", DOMAIN_PART_SUFFIX);
+
+    public static String ofScopes() {
+        return ROOT_RESOURCE;
+    }
+
+    public static String ofScope(String scopeName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        return String.format("%s/%s:%s", DOMAIN_PART_SUFFIX, TAG_SCOPE, scopeName);
+    }
+
+    public static String ofStreamsInScope(String scopeName) {
+        return ofScope(scopeName);
+    }
+
+    public static String ofStreamInScope(String scopeName, String streamName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_STREAM, streamName);
+    }
+
+    public static String ofReaderGroupsInScope(String scopeName) {
+        return ofScope(scopeName);
+    }
+
+    public static String ofReaderGroupInScope(String scopeName, String readerGroupName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_READERGROUP, readerGroupName);
+    }
+
+    public static String ofKeyValueTableInScope(String scopeName, String keyValueTableName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");
+        return String.format("%s/%s:%s", ofScope(scopeName), TAG_KEYVALUETABLE, keyValueTableName);
     }
 }

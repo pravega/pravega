@@ -65,7 +65,7 @@ public class GrpcAuthHelper {
             return "";
         } else {
             if (ctx == null || ctx.getPrincipal() == null) {
-                throw new AuthenticationException("Could't extract Principal");
+                throw new AuthenticationException("Couldn't extract Principal");
             }
             String message = String.format("Principal [%s] not allowed [%s] access for resource [%s]",
                     ctx.getPrincipal(), expectedLevel, resource);

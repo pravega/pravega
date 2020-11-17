@@ -198,7 +198,6 @@ project('shared:basic-authplugin') {
         compile project(':common')
         compile project(':shared:authplugin')
         compile project(':shared:security')
-        compile project(':controller')
     }
 
     javadoc {
@@ -692,6 +691,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')

@@ -10,7 +10,6 @@
 package io.pravega.controller.server.security.auth.handler;
 
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.ServerConfig;
 import io.pravega.shared.security.UserPrincipal;
 
 import java.security.Principal;
@@ -37,11 +36,6 @@ public class TestAuthHandler implements AuthHandler {
         } else {
             return Permissions.READ_UPDATE;
         }
-    }
-
-    @Override
-    public void initialize(ServerConfig serverConfig) {
-
     }
 
     public static String testAuthToken(String userName) {
