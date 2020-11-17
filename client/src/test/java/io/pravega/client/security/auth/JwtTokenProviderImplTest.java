@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.RetriesExhaustedException;
 import java.net.URI;
 import java.time.Instant;
@@ -45,7 +46,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testIsWithinThresholdForRefresh() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                createEmptyDummyToken(), dummyController, "somescope", "somestream");
+                createEmptyDummyToken(), dummyController, "somescope", "somestream", AccessOperation.ANY);
 
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
         assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
@@ -59,7 +60,7 @@ public class JwtTokenProviderImplTest {
         String token = String.format("header.%s.signature", toCompact(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, mock(Controller.class), "somescope", "somestream");
+                token, mock(Controller.class), "somescope", "somestream", AccessOperation.ANY);
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
@@ -78,12 +79,12 @@ public class JwtTokenProviderImplTest {
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
-        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream", AccessOperation.ANY))
                 .thenReturn(future);
 
         // Setup the object under test
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                token, mockController, "somescope", "somestream");
+                token, mockController, "somescope", "somestream", AccessOperation.ANY);
 
         // Act
         String newToken = objectUnderTest.retrieveToken().join();
@@ -104,12 +105,12 @@ public class JwtTokenProviderImplTest {
                 return token + System.currentTimeMillis();
             }
         });
-        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream", AccessOperation.ANY))
                 .thenReturn(future);
 
         // Setup the object under test
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
-                "somescope", "somestream");
+                "somescope", "somestream", AccessOperation.ANY);
 
         String firstToken = objectUnderTest.retrieveToken().join();
         String secondToken = objectUnderTest.retrieveToken().join();
@@ -131,12 +132,12 @@ public class JwtTokenProviderImplTest {
                 return token;
             }
         });
-        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream", AccessOperation.ANY))
                 .thenReturn(future);
 
         // Setup the object under test
         DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
-                "somescope", "somestream");
+                "somescope", "somestream", AccessOperation.ANY);
 
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
@@ -144,7 +145,7 @@ public class JwtTokenProviderImplTest {
     @Test
     public void testDefaultTokenRefreshThreshold() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
-                createEmptyDummyToken(), dummyController, "some-scope", "some-stream");
+                createEmptyDummyToken(), dummyController, "some-scope", "some-stream", AccessOperation.ANY);
         assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD_SECONDS,
                 objectUnderTest.getRefreshThresholdInSeconds());
     }
@@ -157,7 +158,7 @@ public class JwtTokenProviderImplTest {
         String token = String.format("header.%s.signature", encodedJwtBody);
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(token, dummyController, "testscope",
-                "teststream");
+                "teststream", AccessOperation.ANY);
         assertEquals(token, objectUnderTest.retrieveToken().join());
     }
 
@@ -172,11 +173,11 @@ public class JwtTokenProviderImplTest {
                         JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
-        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream", AccessOperation.ANY))
                 .thenReturn(future);
 
         // Setup the object under test
-        DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController, "somescope", "somestream");
+        DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController, "somescope", "somestream", AccessOperation.ANY);
 
         // Act
         String token = objectUnderTest.retrieveToken().join();
@@ -187,35 +188,35 @@ public class JwtTokenProviderImplTest {
 
     @Test(expected = NullPointerException.class)
     public void testCtorRejectsNullControllerInput() {
-        new JwtTokenProviderImpl(null, "somescope", "somestream");
+        new JwtTokenProviderImpl(null, "somescope", "somestream", AccessOperation.ANY);
     }
 
     @Test(expected = NullPointerException.class)
     public void testCtorRejectsNullScopeInput() {
-        new JwtTokenProviderImpl(dummyController, null, "somestream");
+        new JwtTokenProviderImpl(dummyController, null, "somestream", AccessOperation.ANY);
     }
 
     @Test(expected = NullPointerException.class)
     public void testCtorRejectsNullStreamInput() {
-        new JwtTokenProviderImpl(dummyController, "somescope", null);
+        new JwtTokenProviderImpl(dummyController, "somescope", null, AccessOperation.ANY);
     }
 
     @Test
     public void testPopulateTokenReturnsTrueWhenInputIsEmptyAndExistingTokenIsNull() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream", AccessOperation.ANY);
         assertTrue(objectUnderTest.populateToken(""));
     }
 
     @Test
     public void testPopulateTokenReturnsFalseWhenInputIsEmptyAndExistingTokenIsEmpty() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream", AccessOperation.ANY);
         objectUnderTest.populateToken("");
         assertFalse(objectUnderTest.populateToken(""));
     }
 
     @Test
     public void testPopulateTokenReturnsFalseWhenInputIsNull() {
-        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream", AccessOperation.ANY);
         assertFalse(objectUnderTest.populateToken(null));
     }
 
@@ -226,7 +227,7 @@ public class JwtTokenProviderImplTest {
                 "base64-encoded-signature");
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(initialToken, this.dummyController,
-                "somescope", "somestream");
+                "somescope", "somestream", AccessOperation.ANY);
 
         String newToken = String.format("%s.%s.%s", "base64-encoded-header",
                 JwtTestUtils.toCompact(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
@@ -241,9 +242,10 @@ public class JwtTokenProviderImplTest {
         CompletableFuture<String> tokenFuture = new CompletableFuture<>();
         tokenFuture.completeExceptionally(new CompletionException(new RuntimeException("Failed to connect to server")));
 
-        when(mockController.getOrRefreshDelegationTokenFor("test-scope", "test-stream"))
+        when(mockController.getOrRefreshDelegationTokenFor("test-scope", "test-stream", AccessOperation.ANY))
                 .thenReturn(tokenFuture);
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(mockController, "test-scope", "test-stream");
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(mockController,
+                "test-scope", "test-stream", AccessOperation.ANY);
         try {
             tokenProvider.retrieveToken().join();
         } catch (CompletionException e) {
@@ -259,7 +261,8 @@ public class JwtTokenProviderImplTest {
                 ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
                 Executors.newScheduledThreadPool(1));
 
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient, "bob-0", "bob-0");
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient,
+                "bob-0", "bob-0", AccessOperation.ANY);
         try {
             tokenProvider.retrieveToken().join();
         } catch (CompletionException e) {
@@ -278,7 +281,7 @@ public class JwtTokenProviderImplTest {
                 Executors.newScheduledThreadPool(1));
 
         JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl) DelegationTokenProviderFactory.create(controllerClient,
-                "bob-0", "bob-0");
+                "bob-0", "bob-0", AccessOperation.ANY);
 
         try {
             String token = tokenProvider.retrieveToken().join();
