@@ -49,10 +49,9 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    private final boolean subscribedForRetention;
-    private final boolean autoTruncateAtLastCheckpoint;
+    private final RetentionConfig retentionConfig;
 
-    public enum ReaderGroupRetentionConfig {
+    public enum RetentionConfig {
         /**
          * This {@link ReaderGroup} is not a subscriber and does not participate in Consumption Based Retention.
          *
@@ -66,7 +65,7 @@ public class ReaderGroupConfig implements Serializable {
          * {@link ReaderGroup} to truncate the stream according to its read positions. These read positions have to be provided
          * manually in the form of a {@link StreamCut}, see this method:
          *
-         * {@link ReaderGroup#updateRetentionStreamCut(Stream, StreamCut)}
+         * {@link ReaderGroup#updateRetentionStreamCut(Map)}
          *
          * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
          *
@@ -85,7 +84,7 @@ public class ReaderGroupConfig implements Serializable {
         private final boolean isReaderGroupASubscriber;
         private final boolean autoTruncateAtLastCheckpoint;
 
-        ReaderGroupRetentionConfig(boolean isReaderGroupASubscriber, boolean autoTruncateAtLastCheckpoint) {
+        RetentionConfig(boolean isReaderGroupASubscriber, boolean autoTruncateAtLastCheckpoint) {
             this.isReaderGroupASubscriber = isReaderGroupASubscriber;
             this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
         }
@@ -96,7 +95,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private ReaderGroupRetentionConfig readerGroupRetentionConfig = ReaderGroupRetentionConfig.NONE;
+       private RetentionConfig readerGroupRetentionConfig = RetentionConfig.NONE;
 
        /**
         * Set the retention config for the {@link ReaderGroup}.
@@ -104,7 +103,7 @@ public class ReaderGroupConfig implements Serializable {
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
-       public ReaderGroupConfigBuilder retentionConfig(ReaderGroupRetentionConfig retentionConfig) {
+       public ReaderGroupConfigBuilder retentionConfig(RetentionConfig retentionConfig) {
            this.readerGroupRetentionConfig = retentionConfig;
            return this;
        }
@@ -253,8 +252,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest,
-                   readerGroupRetentionConfig.isReaderGroupASubscriber, readerGroupRetentionConfig.autoTruncateAtLastCheckpoint);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, readerGroupRetentionConfig);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -362,36 +360,12 @@ public class ReaderGroupConfig implements Serializable {
         }
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
-            builder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
-            builder.groupRefreshTimeMillis(revisionDataInput.readLong());
-            ElementDeserializer<Stream> keyDeserializer = in -> Stream.of(in.readUTF());
-            ElementDeserializer<StreamCut> valueDeserializer = in -> StreamCut.fromBytes(ByteBuffer.wrap(in.readArray()));
-            builder.startFromStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
-            builder.endingStreamCuts(revisionDataInput.readMap(keyDeserializer, valueDeserializer));
-            builder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
-            boolean isASubscriber = revisionDataInput.readBoolean();
-            boolean autoTruncate = revisionDataInput.readBoolean();
-            if (isASubscriber) {
-                if (autoTruncate) {
-                    builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT);
-                } else {
-                    builder.retentionConfig(ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT);
-                }
-            } else {
-                builder.retentionConfig(ReaderGroupRetentionConfig.NONE);
-            }
+            int ordinal = revisionDataInput.readCompactInt();
+            builder.retentionConfig(RetentionConfig.values()[ordinal]);
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
-            revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
-            ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
-            revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
-            revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
-            revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());
-            revisionDataOutput.writeBoolean(object.isSubscribedForRetention());
-            revisionDataOutput.writeBoolean(object.isAutoTruncateAtLastCheckpoint());
+            revisionDataOutput.writeCompactInt(object.retentionConfig.ordinal());
         }
     }
 

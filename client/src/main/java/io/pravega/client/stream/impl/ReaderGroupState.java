@@ -42,6 +42,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -53,9 +54,10 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.Synchronized;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
@@ -90,6 +92,20 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<SegmentWithRange, Long> lastReadPosition;
     private final Map<Segment, Long> endSegments;
+    @Getter
+    private final long generation;
+    @Getter
+    @Setter
+    private ConfigState configState;
+    @Getter
+    private final ReaderGroupConfig newConfig;
+
+    public enum ConfigState {
+        INITIALIZING,
+        DELETING,
+        REINITIALIZING,
+        READY
+    }
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments) {
@@ -107,6 +123,9 @@ public class ReaderGroupState implements Revisioned {
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
         this.lastReadPosition = new HashMap<>(segmentsToOffsets);
         this.endSegments = ImmutableMap.copyOf(endSegments);
+        this.generation = 0;
+        this.configState = ConfigState.INITIALIZING;
+        this.newConfig = null;
     }
     
     /**
@@ -418,6 +437,9 @@ public class ReaderGroupState implements Revisioned {
         private final Map<SegmentWithRange, Long> lastReadPosition;
         @NonNull
         private final Map<Segment, Long> endSegments;
+        private final long generation;
+        private final ConfigState configState;
+        private final ReaderGroupConfig newConfig;
         
         CompactReaderGroupState(ReaderGroupState state) {
             synchronized (state.$lock) {
@@ -435,13 +457,17 @@ public class ReaderGroupState implements Revisioned {
                 unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
                 lastReadPosition = new HashMap<>(state.lastReadPosition);
                 endSegments = state.endSegments;
+                generation = state.generation;
+                configState = state.configState;
+                newConfig = state.newConfig;
             }
         }
 
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
-                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments);
+                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments,
+                                        generation, configState, newConfig);
         }
 
         @VisibleForTesting
@@ -463,7 +489,8 @@ public class ReaderGroupState implements Revisioned {
             @Override
             protected void declareVersions() {
                 version(0).revision(0, this::write00, this::read00)
-                          .revision(1, this::write01, this::read01);
+                          .revision(1, this::write01, this::read01)
+                          .revision(2, this::write02, this::read02);
             }
 
             private void read00(RevisionDataInput revisionDataInput,
@@ -521,6 +548,14 @@ public class ReaderGroupState implements Revisioned {
                                                                               e -> e.getValue())));
             }
 
+            private void read02(RevisionDataInput revisionDataInput,
+                                CompactReaderGroupStateBuilder builder) throws IOException {
+                builder.generation(revisionDataInput.readLong());
+                int ordinal = revisionDataInput.readCompactInt();
+                builder.configState(ConfigState.values()[ordinal]);
+                builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+            }
+
             private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
@@ -559,6 +594,12 @@ public class ReaderGroupState implements Revisioned {
                                             RevisionDataOutput::writeLong);
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
                 revisionDataOutput.writeMap(ranges, segmentSerializer, ReaderGroupState::writeRange);
+            }
+
+            private void write02(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeLong(object.generation);
+                revisionDataOutput.writeCompactInt(object.configState.ordinal());
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
             }
         }
     }
@@ -1194,12 +1235,166 @@ public class ReaderGroupState implements Revisioned {
         }
     }
 
+    @Builder
+    @Data
+    @RequiredArgsConstructor
+    public static class ReaderGroupStateResetComplete implements InitialUpdate<ReaderGroupState> {
+        private final long generation;
+        private final ReaderGroupConfig newConfig;
+
+        @Override
+        public ReaderGroupState create(String scopedStreamName, Revision revision) {
+            return null;
+        }
+
+        @Override
+        public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
+            if (oldState.generation == generation && oldState.getConfigState() == ConfigState.REINITIALIZING) {
+                return new ReaderGroupState(oldState.getScopedStreamName(), newConfig, newRevision, oldState.checkpointState,
+                        oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
+                        oldState.lastReadPosition, oldState.endSegments, generation, ConfigState.READY, null);
+            }
+            // NEED TO CONFIRM
+            return oldState;
+        }
+
+        static class ReaderGroupStateResetCompleteBuilder implements ObjectBuilder<ReaderGroupStateResetComplete> {
+        }
+
+        static class ReaderGroupStateResetCompleteSerializer
+                extends VersionedSerializer.WithBuilder<ReaderGroupStateResetComplete, ReaderGroupStateResetCompleteBuilder> {
+            @Override
+            protected ReaderGroupStateResetCompleteBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput revisionDataInput, ReaderGroupStateResetCompleteBuilder builder) throws IOException {
+                builder.generation(revisionDataInput.readLong());
+                builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+            }
+
+            private void write00(ReaderGroupStateResetComplete object, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeLong(object.generation);
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+            }
+        }
+    }
+
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class ReaderGroupStateResetStart extends ReaderGroupStateUpdate {
+        private final ReaderGroupConfig newConfig;
+        private final Consumer<ReaderGroupState> backlog;
+
+        /**
+         * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+        }
+
+        @Override
+        public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
+            if (oldState.configState != ConfigState.READY) {
+                backlog.accept(oldState);
+                return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getNewConfig(), newRevision, oldState.checkpointState,
+                        oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
+                        oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
+            }
+            // NEED TO CONFIRM
+            return oldState;
+        }
+
+        private static class ReaderGroupStateResetStartBuilder implements ObjectBuilder<ReaderGroupStateResetStart> {
+        }
+
+        private static class ReaderGroupStateResetStartSerializer
+                extends VersionedSerializer.WithBuilder<ReaderGroupStateResetStart, ReaderGroupStateResetStartBuilder> {
+            @Override
+            protected ReaderGroupStateResetStartBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, ReaderGroupStateResetStartBuilder builder) throws IOException {
+                builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(in.readArray())));
+            }
+
+            private void write00(ReaderGroupStateResetStart object, RevisionDataOutput out) throws IOException {
+                out.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+            }
+        }
+    }
+
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class ChangeConfigState extends ReaderGroupStateUpdate {
+        private final ConfigState newConfigState;
+
+        @Override
+        void update(ReaderGroupState state) {
+            state.setConfigState(newConfigState);
+        }
+
+        private static class ChangeConfigStateBuilder implements ObjectBuilder<ChangeConfigState> {
+        }
+
+        private static class ChangeConfigStateSerializer
+                extends VersionedSerializer.WithBuilder<ChangeConfigState, ChangeConfigStateBuilder> {
+            @Override
+            protected ChangeConfigStateBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, ChangeConfigStateBuilder builder) throws IOException {
+                int ordinal = in.readCompactInt();
+                builder.newConfigState(ConfigState.values()[ordinal]);
+            }
+
+            private void write00(ChangeConfigState object, RevisionDataOutput out) throws IOException {
+                out.writeCompactInt(object.newConfigState.ordinal());
+            }
+        }
+    }
+
     public static class ReaderGroupInitSerializer
             extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
         @Override
         protected void declareSerializers(Builder b) {
             b.serializer(ReaderGroupStateInit.class, 0, new ReaderGroupStateInit.ReaderGroupStateInitSerializer())
-             .serializer(CompactReaderGroupState.class, 1, new CompactReaderGroupState.CompactReaderGroupStateSerializer());
+             .serializer(CompactReaderGroupState.class, 1, new CompactReaderGroupState.CompactReaderGroupStateSerializer())
+             .serializer(ReaderGroupStateResetComplete.class, 2, new ReaderGroupStateResetComplete.ReaderGroupStateResetCompleteSerializer());
         }
     }
 
@@ -1218,7 +1413,10 @@ public class ReaderGroupState implements Revisioned {
              .serializer(SegmentCompleted.class, 7, new SegmentCompleted.SegmentCompletedSerializer())
              .serializer(CheckpointReader.class, 8, new CheckpointReader.CheckpointReaderSerializer())
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
-             .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer());
+             .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer())
+             .serializer(ReaderGroupStateResetStart.class, 11, new ReaderGroupStateResetStart.ReaderGroupStateResetStartSerializer())
+             .serializer(ReaderGroupStateResetComplete.class, 12, new ReaderGroupStateResetComplete.ReaderGroupStateResetCompleteSerializer())
+             .serializer(ChangeConfigState.class, 13, new ChangeConfigState.ChangeConfigStateSerializer());
         }
     }
     

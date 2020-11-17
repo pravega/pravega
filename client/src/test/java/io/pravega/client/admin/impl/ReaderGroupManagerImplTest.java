@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -59,11 +60,8 @@ public class ReaderGroupManagerImplTest {
     @Mock
     private ReaderGroupState state;
 
-    @SuppressWarnings("unchecked")
     @Before
     public void setUp() throws Exception {
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         when(clientFactory.getConnectionPool()).thenReturn(connectionPool);
 
@@ -72,44 +70,79 @@ public class ReaderGroupManagerImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testCreateAndDeleteSubscriberReaderGroup() {
+    public void testCreateSubscriberReaderGroup() {
         // Setup mocks
         when(controller.addSubscriber(SCOPE, "s1", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.addSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build())).thenReturn(CompletableFuture.completedFuture(true));
-
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.INITIALIZING);
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionConfig(ReaderGroupConfig.ReaderGroupRetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
+                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build();
+        when(state.getConfig()).thenReturn(config);
 
+        // Create a ReaderGroup
+        readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        verify(controller, times(1)).addSubscriber(SCOPE, "s1", GROUP_NAME);
+        verify(controller, times(1)).addSubscriber(SCOPE, "s2", GROUP_NAME);
+        verify(controller, times(1)).createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        verify(clientFactory, times(2)).createStateSynchronizer(anyString(), any(Serializer.class),
+                any(Serializer.class), any(SynchronizerConfig.class));
+        verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDeleteSubscriberReaderGroupSuccess() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
+                .build();
+        // Setup mocks
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.READY, ReaderGroupState.ConfigState.DELETING);
         when(state.getConfig()).thenReturn(config);
         when(controller.deleteSubscriber(SCOPE, "s1", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteSubscriber(SCOPE, "s2", GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.sealStream(SCOPE, getStreamForReaderGroup(GROUP_NAME))).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteStream(SCOPE, getStreamForReaderGroup(GROUP_NAME))).thenReturn(CompletableFuture.completedFuture(true));
 
-        // Create a ReaderGroup
-        readerGroupManager.createReaderGroup(GROUP_NAME, config);
-
-        verify(controller, times(1)).addSubscriber(SCOPE, "s1", GROUP_NAME);
-        verify(controller, times(1)).addSubscriber(SCOPE, "s2", GROUP_NAME);
-        verify(controller, times(1)).createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build());
-        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class));
-
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
 
+        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
+                any(Serializer.class), any(SynchronizerConfig.class));
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
         verify(controller, times(1)).deleteSubscriber(SCOPE, "s1", GROUP_NAME);
         verify(controller, times(1)).deleteSubscriber(SCOPE, "s2", GROUP_NAME);
         verify(controller, times(1)).sealStream(SCOPE, getStreamForReaderGroup(GROUP_NAME));
         verify(controller, times(1)).deleteStream(SCOPE, getStreamForReaderGroup(GROUP_NAME));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    @SuppressWarnings("unchecked")
+    public void testDeleteSubscriberReaderGroupFailure() {
+        // Setup mocks
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.REINITIALIZING);
+
+        // Delete ReaderGroup
+        readerGroupManager.deleteReaderGroup(GROUP_NAME);
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

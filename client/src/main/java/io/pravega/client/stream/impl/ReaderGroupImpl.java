@@ -37,7 +37,9 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
-import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateResetComplete;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateResetStart;
+import io.pravega.client.stream.impl.ReaderGroupState.ChangeConfigState;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -48,7 +50,6 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -119,10 +120,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return synchronizer.getState().getStreamNames();
     }
 
-    @Override
-    public ReaderGroupConfig getReaderGroupConfig() {
+    public ReaderGroupState getReaderGroupState() {
         synchronizer.fetchUpdates();
-        return synchronizer.getState().getConfig();
+        return synchronizer.getState();
+    }
+
+    public void updateConfigState(ReaderGroupState.ConfigState configState) {
+        synchronizer.updateState((s, updates) -> {
+            updates.add(new ChangeConfigState(configState));
+        });
+    }
+
+    public void fetchStateUpdates() {
+        synchronizer.fetchUpdates();
     }
 
     @Override
@@ -194,23 +204,31 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        manageSubscriptions(config);
-        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new ReaderGroupStateResetStart(config, (oldState) -> {
+                val oldConfig = oldState.getConfig();
+                val newConfig = oldState.getNewConfig();
+                manageSubscriptions(oldConfig, newConfig);
+            }));
+        });
+
+        val generation = synchronizer.getState().getGeneration();
+        val currentConfig = synchronizer.getState().getConfig();
+        manageSubscriptions(currentConfig, config);
+
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new ReaderGroupStateResetComplete(generation, config));
+        });
     }
 
-    private void manageSubscriptions(ReaderGroupConfig config) {
-        ReaderGroupConfig oldConfig = getReaderGroupConfig();
-        Set<Stream> oldStreams = oldConfig.isSubscribedForRetention() ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
-        Set<Stream> newStreams = config.isSubscribedForRetention() ? config.getStartingStreamCuts().keySet() : Collections.emptySet();
-
-        Collection<Stream> streamsToSub = filterOut(newStreams, oldStreams);
-        Collection<Stream> streamsToUnsub = filterOut(oldStreams, newStreams);
-
-        // Unsubscribe to older streams
-        streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
-        // Subscribe to newer streams
-        streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
+    private void manageSubscriptions(ReaderGroupConfig oldConfig, ReaderGroupConfig newConfig) {
+        Set<Stream> oldStreams = oldConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> newStreams = newConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? newConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<String> streamsToSub = filterOut(newStreams, oldStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
+        Set<String> streamsToUnsub = filterOut(oldStreams, newStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
+        // subscriptions with the above gen
+        streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s, groupName)));
+        streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s, groupName)));
     }
 
     @Override
@@ -401,8 +419,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public void updateRetentionStreamCut(Stream stream, StreamCut streamCut) {
-        getAndHandleExceptions(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, streamCut), RuntimeException::new);
+    public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
+        if (getReaderGroupState().getConfigState() != ReaderGroupState.ConfigState.READY) {
+            throw new IllegalStateException("Update failed as ReaderGroup not in READY state. Retry again later.");
+        }
+        streamCuts.forEach((stream, cut) -> getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, cut)));
     }
 
     /**

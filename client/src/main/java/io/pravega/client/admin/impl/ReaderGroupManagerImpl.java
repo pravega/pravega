@@ -46,6 +46,7 @@ import java.util.Set;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -97,36 +98,58 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
 
-        if (config.isSubscribedForRetention()) {
-            Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
+        synchronizer.fetchUpdates();
+        val state = synchronizer.getState();
+        val generation = state.getGeneration();
+        if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
+            if (config.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE) {
+                Set<Stream> streams = config.getStartingStreamCuts().keySet();
+                // use new api with generation
+                streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
+            }
+            groupImpl.updateConfigState(ReaderGroupState.ConfigState.READY);
         }
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        ReaderGroup group = getReaderGroup(groupName);
-        ReaderGroupConfig config = group.getReaderGroupConfig();
+        ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
+        ReaderGroupState state = groupImpl.getReaderGroupState();
+        ReaderGroupState.ConfigState currentConfigState = state.getConfigState();
+        long currentGen = state.getGeneration();
 
-        if (config.isSubscribedForRetention()) {
-            Set<Stream> streams = config.getStartingStreamCuts().keySet();
-            streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
+        if (currentConfigState == ReaderGroupState.ConfigState.READY) {
+            groupImpl.updateConfigState(ReaderGroupState.ConfigState.DELETING);
+            groupImpl.fetchStateUpdates();
+        } else if (currentConfigState != ReaderGroupState.ConfigState.DELETING) {
+            throw new IllegalStateException("Delete failed as ReaderGroup is not in READY state. Retry again later.");
         }
 
-        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
-                                         .thenCompose(b -> controller.deleteStream(scope,
-                                                                                   getStreamForReaderGroup(groupName)))
-                                         .exceptionally(e -> {
-                                             if (e instanceof InvalidStreamException) {
-                                                 return null;
-                                             } else {
-                                                 log.warn("Failed to delete stream", e);
-                                             }
-                                             throw Exceptions.sneakyThrow(e);
-                                         }),
-                               RuntimeException::new);
+        currentConfigState = state.getConfigState();
+        ReaderGroupConfig currentConfig = state.getConfig();
+        if (currentConfigState == ReaderGroupState.ConfigState.DELETING) {
+            if (currentConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE) {
+                Set<Stream> streams = currentConfig.getStartingStreamCuts().keySet();
+                // use new api with generation
+                streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName)));
+            }
+
+            getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                            .thenCompose(b -> controller.deleteStream(scope,
+                                    getStreamForReaderGroup(groupName)))
+                            .exceptionally(e -> {
+                                if (e instanceof InvalidStreamException) {
+                                    return null;
+                                } else {
+                                    log.warn("Failed to delete stream", e);
+                                }
+                                throw Exceptions.sneakyThrow(e);
+                            }),
+                    RuntimeException::new);
+        }
     }
 
     @Override

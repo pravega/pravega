@@ -122,13 +122,6 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     Set<String> getStreamNames();
 
     /**
-     * Returns the {@link ReaderGroupConfig} used to configure this group.
-     *
-     * @return The ReaderGroupConfig for this group.
-     */
-    ReaderGroupConfig getReaderGroupConfig();
-
-    /**
      * Returns a {@link StreamCut} for each stream that this reader group is reading from.
      * The stream cut corresponds to the last checkpointed read offsets of the readers, and
      * it can be used by the application as reference to such a position.
@@ -189,10 +182,9 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * that point. Hence, it is safe for Pravega to truncate the stream using this {@link StreamCut} for this
      * {@link ReaderGroup}.
      *
-     * @param stream the stream to be truncated.
-     * @param streamCut the stream-cut with which truncation should be done.
+     * @param streamCuts Map of streams to their corresponding cuts with which truncation should be done.
      */
-    void updateRetentionStreamCut(Stream stream, StreamCut streamCut);
+    void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
 
     /**
      * Closes the reader group, freeing any resources associated with it.
