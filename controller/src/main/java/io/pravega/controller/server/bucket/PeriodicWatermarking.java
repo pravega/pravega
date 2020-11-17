@@ -38,6 +38,8 @@ import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
+
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -83,7 +85,7 @@ public class PeriodicWatermarking {
                                                 .maximumSize(MAX_CACHE_SIZE)
                                                 .expireAfterAccess(10, TimeUnit.MINUTES)
                                                 .removalListener((RemovalListener<Stream, WatermarkClient>) notification -> {
-                                                    notification.getValue().client.close();
+                                                    notification.getValue().close();
                                                 })
                                                 .build(new CacheLoader<Stream, WatermarkClient>() {
                                                     @ParametersAreNonnullByDefault
@@ -372,8 +374,10 @@ public class PeriodicWatermarking {
         return watermarkClientCache.asMap().containsKey(stream);
     }
         
-    static class WatermarkClient {
+    static class WatermarkClient implements Closeable {
         private final RevisionedStreamClient<Watermark> client;
+        private final SynchronizerClientFactory synchronizerClientFactory;
+        private final boolean closeClientFactory;
         
         private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
         private final AtomicReference<Revision> markRevision = new AtomicReference<>();
@@ -387,14 +391,28 @@ public class PeriodicWatermarking {
         private final ConcurrentHashMap<String, Long> inactiveWriters;
         
         WatermarkClient(Stream stream, ClientConfig clientConfig) {
-            this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
+            this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig), true);
         }
         
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
-            this.client = clientFactory.createRevisionedStreamClient(
-                    NameUtils.getMarkStreamForStream(stream.getStreamName()), 
-                    new WatermarkSerializer(), SynchronizerConfig.builder().build());
+            this(stream, clientFactory, false);
+        }
+        
+        @VisibleForTesting
+        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory, boolean closeClientFactory) {
+            this.synchronizerClientFactory = clientFactory;
+            this.closeClientFactory = closeClientFactory;
+            try {
+                this.client = clientFactory.createRevisionedStreamClient(
+                        NameUtils.getMarkStreamForStream(stream.getStreamName()),
+                        new WatermarkSerializer(), SynchronizerConfig.builder().build());
+            } catch (Throwable t) {
+                if (clientFactory != null && closeClientFactory) {
+                    clientFactory.close();
+                }
+                throw t;
+            }
             this.inactiveWriters = new ConcurrentHashMap<>();
         }
 
@@ -486,6 +504,14 @@ public class PeriodicWatermarking {
         @VisibleForTesting
         boolean isWriterTracked(String writerId) {
             return inactiveWriters.containsKey(writerId);
+        }
+
+        @Override
+        public void close() {
+            this.client.close();
+            if (this.closeClientFactory) {
+                this.synchronizerClientFactory.close();
+            }
         }
     }
 }

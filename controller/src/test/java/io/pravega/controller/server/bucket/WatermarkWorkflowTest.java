@@ -72,6 +72,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -259,6 +261,30 @@ public class WatermarkWorkflowTest {
         assertTrue(client.isWriterActive(entry5, 0L));
         assertFalse(client.isWriterParticipating(4L));
         assertTrue(client.isWriterParticipating(5L));
+    }
+    
+    @Test(timeout = 10000L)
+    public void testWatermarkClientClose() {
+        Stream stream = new StreamImpl("scope", "stream");
+        SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
+        
+        MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
+        doAnswer(x -> revisionedClient).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
+        doNothing().when(clientFactory).close();
+
+        PeriodicWatermarking.WatermarkClient client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
+        client.close();
+        verify(clientFactory, never()).close();
+
+        client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory, true);
+        client.close();
+        verify(clientFactory, times(1)).close();
+
+        String s = "failing creation";
+        doThrow(new RuntimeException(s)).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
+        AssertExtensions.assertThrows("constructor should throw", 
+                () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory, true), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
+        verify(clientFactory, times(2)).close();
     }
 
     @Test(timeout = 30000L)
