@@ -12,6 +12,7 @@ package io.pravega.shared.security;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import org.junit.Assert;
 import org.junit.Test;
 

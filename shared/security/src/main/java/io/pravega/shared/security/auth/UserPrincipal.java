@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.security;
+package io.pravega.shared.security.auth;
 
 import io.pravega.common.Exceptions;
 

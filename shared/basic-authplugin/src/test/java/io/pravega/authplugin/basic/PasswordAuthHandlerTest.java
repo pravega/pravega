@@ -12,7 +12,7 @@ package io.pravega.authplugin.basic;
 import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.shared.security.StrongPasswordProcessor;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;

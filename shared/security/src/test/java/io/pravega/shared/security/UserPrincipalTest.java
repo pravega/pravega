@@ -11,6 +11,7 @@ package io.pravega.shared.security;
 
 import static org.junit.Assert.assertEquals;
 
+import io.pravega.shared.security.auth.UserPrincipal;
 import org.junit.Test;
 
 /**

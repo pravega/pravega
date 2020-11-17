@@ -10,7 +10,7 @@
 package io.pravega.controller.mocks;
 
 import io.pravega.auth.AuthHandler;
-import io.pravega.shared.security.UserPrincipal;
+import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
 
