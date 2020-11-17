@@ -59,28 +59,44 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.ParametersAreNonnullByDefault;
+
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
-    private static final int MAX_CACHE_SIZE = 1000;
+    private static final int MAX_CACHE_SIZE = 500;
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final LoadingCache<Stream, WatermarkClient> watermarkClientCache;
+    private final LoadingCache<String, SynchronizerClientFactory> syncFactoryCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor);
     }
 
     @VisibleForTesting
-    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore, 
-                                Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
+    PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                                 Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
+                                 ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
+        this.syncFactoryCache = CacheBuilder.newBuilder()
+                                                .maximumSize(MAX_CACHE_SIZE)
+                                                .expireAfterAccess(10, TimeUnit.MINUTES)
+                                                .removalListener((RemovalListener<String, SynchronizerClientFactory>) notification -> {
+                                                    notification.getValue().close();
+                                                })
+                                                .build(new CacheLoader<String, SynchronizerClientFactory>() {
+                                                    @ParametersAreNonnullByDefault
+                                                    @Override
+                                                    public SynchronizerClientFactory load(final String scope) {
+                                                        return synchronizerClientFactoryFactory.apply(scope);
+                                                    }
+                                                });
         this.watermarkClientCache = CacheBuilder.newBuilder()
                                                 .maximumSize(MAX_CACHE_SIZE)
                                                 .expireAfterAccess(10, TimeUnit.MINUTES)
@@ -91,7 +107,7 @@ public class PeriodicWatermarking {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        return watermarkClientSupplier.apply(stream);
+                                                        return new WatermarkClient(stream, syncFactoryCache.getUnchecked(stream.getScope()));
                                                     }
                                                 });
     }
@@ -373,11 +389,19 @@ public class PeriodicWatermarking {
     boolean checkExistsInCache(Stream stream) {
         return watermarkClientCache.asMap().containsKey(stream);
     }
+
+    @VisibleForTesting
+    boolean checkExistsInCache(String scope) {
+        return syncFactoryCache.asMap().containsKey(scope);
+    }
+
+    @VisibleForTesting
+    void evictFromCache(String scope) {
+        syncFactoryCache.invalidate(scope);
+    }
         
     static class WatermarkClient implements Closeable {
         private final RevisionedStreamClient<Watermark> client;
-        private final SynchronizerClientFactory synchronizerClientFactory;
-        private final boolean closeClientFactory;
         
         private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
         private final AtomicReference<Revision> markRevision = new AtomicReference<>();
@@ -390,29 +414,11 @@ public class PeriodicWatermarking {
          */
         private final ConcurrentHashMap<String, Long> inactiveWriters;
         
-        WatermarkClient(Stream stream, ClientConfig clientConfig) {
-            this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig), true);
-        }
-        
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
-            this(stream, clientFactory, false);
-        }
-        
-        @VisibleForTesting
-        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory, boolean closeClientFactory) {
-            this.synchronizerClientFactory = clientFactory;
-            this.closeClientFactory = closeClientFactory;
-            try {
-                this.client = clientFactory.createRevisionedStreamClient(
-                        NameUtils.getMarkStreamForStream(stream.getStreamName()),
-                        new WatermarkSerializer(), SynchronizerConfig.builder().build());
-            } catch (Throwable t) {
-                if (clientFactory != null && closeClientFactory) {
-                    clientFactory.close();
-                }
-                throw t;
-            }
+            this.client = clientFactory.createRevisionedStreamClient(
+                    NameUtils.getMarkStreamForStream(stream.getStreamName()), 
+                    new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.inactiveWriters = new ConcurrentHashMap<>();
         }
 
@@ -509,9 +515,6 @@ public class PeriodicWatermarking {
         @Override
         public void close() {
             this.client.close();
-            if (this.closeClientFactory) {
-                this.synchronizerClientFactory.close();
-            }
         }
     }
 }

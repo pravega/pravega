@@ -53,7 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
@@ -265,9 +264,12 @@ public class WatermarkWorkflowTest {
     
     @Test(timeout = 10000L)
     public void testWatermarkClientClose() {
-        Stream stream = new StreamImpl("scope", "stream");
+        String scope = "scope1";
+        String streamName = "stream1";
+        StreamImpl stream = new StreamImpl(scope, streamName);
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
-        
+        String markStreamName = NameUtils.getMarkStreamForStream(streamName);
+
         MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
         doAnswer(x -> revisionedClient).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
         doNothing().when(clientFactory).close();
@@ -276,15 +278,34 @@ public class WatermarkWorkflowTest {
         client.close();
         verify(clientFactory, never()).close();
 
-        client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory, true);
+        client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
         client.close();
-        verify(clientFactory, times(1)).close();
+        verify(clientFactory, never()).close();
 
         String s = "failing creation";
         doThrow(new RuntimeException(s)).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
         AssertExtensions.assertThrows("constructor should throw", 
-                () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory, true), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
-        verify(clientFactory, times(2)).close();
+                () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
+        
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        streamMetadataStore.createScope(scope).join();
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.createStream(scope, markStreamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis(), null, executor).join();
+        streamMetadataStore.setState(scope, markStreamName, State.ACTIVE, null, executor).join();
+        streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
+
+        String writer1 = "writer1";
+        Map<Long, Long> map1 = ImmutableMap.of(0L, 100L, 1L, 100L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 100L, map1, null, executor).join();
+
+        // 2. run watermarking workflow. 
+        periodicWatermarking.watermark(stream).join();
+        assertTrue(periodicWatermarking.checkExistsInCache(scope));
+
+        periodicWatermarking.evictFromCache(scope);
+        // verify that the scope was closed
     }
 
     @Test(timeout = 30000L)
@@ -304,19 +325,7 @@ public class WatermarkWorkflowTest {
             });
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
-        ConcurrentHashMap<Stream, PeriodicWatermarking.WatermarkClient> watermarkClientMap = new ConcurrentHashMap<>();
-        
-        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = stream -> {
-            return watermarkClientMap.compute(stream, (s, wc) -> {
-               if (wc != null) {
-                   return wc;
-               } else {
-                   return new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
-               }
-            });
-        };
-
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
 
         String streamName = "stream";
         String scope = "scope";
@@ -480,10 +489,7 @@ public class WatermarkWorkflowTest {
                     streamMetadataStore.getActiveSegments(scope, name, null, executor).join().get(0).segmentId()));
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
         
-        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = x -> 
-                    new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
-        
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
 
         streamMetadataStore.createScope(scope).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(), 
@@ -557,21 +563,9 @@ public class WatermarkWorkflowTest {
             });
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
-        ConcurrentHashMap<Stream, PeriodicWatermarking.WatermarkClient> watermarkClientMap = new ConcurrentHashMap<>();
-
-        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = stream -> {
-            return watermarkClientMap.compute(stream, (s, wc) -> {
-                if (wc != null) {
-                    return wc;
-                } else {
-                    return new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
-                }
-            });
-        };
-
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, supplier, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, sp -> clientFactory, executor);
 
         String streamName = "stream";
         String scope = "scope";
