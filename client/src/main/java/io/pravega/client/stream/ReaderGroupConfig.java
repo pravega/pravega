@@ -53,13 +53,21 @@ public class ReaderGroupConfig implements Serializable {
     private final StreamDataRetention retentionConfig;
 
     /**
-     * The values of this enum indicate if a ReaderGroup chooses Consumption based data retention for Streams it reads from.
-     * For Consumption based retention to work, in addition to setting the appropriate value here,
-     * the Streams' Retention Policy must be set to 'CONSUMPTION'.
+     * If a Stream's Retention Policy {@link RetentionPolicy} is set to 'CONSUMPTION' based,
+     * the Reader Group needs to register with the Stream as a Subscriber
+     * and periodically publish retention StreamCuts either manually or at checkpoints.
+     * This can be done by setting retentionConfig to 'CONSUMPTION_BASED_USER_STREAMCUT' or
+     * 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
+     * If the Stream's RetentionPolicy is not Consumption based, retentionConfig should be 'NO_IMPACT'.
      *
-     * NO_IMPACT - Read Positions of Readers do not impact Stream truncation.
-     * CONSUMPTION_BASED_USER_STREAMCUT - ConsumptionBasedRetention, user provides the StreamCut for truncation.
-     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - ConsumptionBasedRetention, StreamCut corresponding to lastCompletedCheckpoint is used as truncation point.
+     * If the Streams' Retention Policy is set to 'CONSUMPTION', but the ReaderGroup retentionConfig is set at
+     * 'NO_IMPACT', the ReaderGroup will not get registered as a Subscriber with the Stream
+     * and retention StreamCuts cannot be published for this ReaderGroup.
+     * This will break the promise of ConsumptionBased Retention.
+     *
+     * NO_IMPACT - Read Positions of Readers do not impact Stream truncation/retention.
+     * CONSUMPTION_BASED_USER_STREAMCUT - User provides the StreamCut for truncation using Consumption Based Retention.
+     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - StreamCut corresponding to lastCompletedCheckpoint is published as truncation point for Consumption Based Retention.
      * */
     public enum StreamDataRetention {
         NO_IMPACT(false, false),
@@ -208,7 +216,7 @@ public class ReaderGroupConfig implements Serializable {
         * Set the retention config for the {@link ReaderGroup}.
         * For Consumption based retention of data in the Stream, this field should be set to
         * CONSUMPTION_BASED_USER_STREAMCUT or CONSUMPTION_BASED_AT_LAST_CHECKPOINT.
-        * Default value is NO_IMPACT.
+        * Default value NO_IMPACT, is to be used when Stream's RetentionPolicy is not Consumption based.
         *
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
