@@ -30,6 +30,23 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+/**
+ * Lightweight, thread-safe, key-value pair cache built on top of Java {@link HashMap} that supports eviction based on
+ * a maximum size or last-access-time.
+ *
+ * Eviction of items is triggered by one of the following:
+ * - Invoking {@link #cleanUp()}.
+ * - Invoking {@link #putIfAbsent}, {@link #put} or {@link #get} for a Key that has expired or if the {@link #size()}
+ * of the cache has exceeded {@link #getMaxSize()}.
+ *
+ * Every item access (upon insertion, updating or retrieval) will update the "last-access-time" of that item to the current
+ * time. Upon eviction, items will be evicted beginning with the least-accessed one (i.e, the ones that have not been used
+ * recently), in order of access time (oldest items first). Every eviction event will remove all expired items and any
+ * unexpired items as needed if {@link #size()} exceeds {@link #getMaxSize()}.
+ *
+ * @param <KeyT>   Key Type.
+ * @param <ValueT> Value Type.
+ */
 @ThreadSafe
 @Slf4j
 public class SimpleCache<KeyT, ValueT> {
