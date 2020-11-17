@@ -38,6 +38,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -416,10 +418,18 @@ public final class ModelHelper {
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
     }
 
-    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+    public static final StreamInfo createStreamInfo(final String scope, final String stream, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
+        StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
+        if (accessOperation != null) {
+            builder.setAccessOperation(StreamInfo.AccessOperation.valueOf(accessOperation.name()));
+        }
+        return builder.build();
+    }
+
+    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+        return createStreamInfo(scope, stream, null);
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

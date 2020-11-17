@@ -33,6 +33,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
@@ -410,7 +411,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges));
     }
 
     @Override
@@ -515,7 +516,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         String retVal = "";
         if (authorizationEnabled) {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
@@ -608,7 +609,7 @@ public class LocalController implements Controller {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
-        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new KeyValueTableSegments(getRangeMap(ranges));
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {

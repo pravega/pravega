@@ -99,6 +99,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.io.File;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -954,7 +955,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SegmentsAtTime> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentsAtTime> callback = new RPCAsyncCallback<>(traceId, "getSegmentsAtTime", stream, timestamp);
-            StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName());
+            StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName(), AccessOperation.NONE);
             GetSegmentsRequest request = GetSegmentsRequest.newBuilder()
                     .setStreamInfo(streamInfo)
                     .setTimestamp(timestamp)
@@ -1040,7 +1041,6 @@ public class ControllerImpl implements Controller {
 
         final Stream stream = fromStreamCut.asImpl().getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSegments", stream);
-        CompletableFuture<String> token = getOrRefreshDelegationTokenFor(stream.getScope(), stream.getStreamName());
         final CompletableFuture<StreamCutRangeResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<StreamCutRangeResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessorsFromCut");
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
@@ -1074,7 +1074,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments", scope, stream);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
+                  .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream, AccessOperation.NONE), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::getStreamSegments)
@@ -1125,7 +1125,7 @@ public class ControllerImpl implements Controller {
                     r.getMinKey(), r.getMaxKey(), r.getSegmentId());
             rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
-        return new StreamSegments(rangeMap, ranges.getDelegationToken());
+        return new StreamSegments(rangeMap);
     }
 
     @Override
@@ -1207,7 +1207,7 @@ public class ControllerImpl implements Controller {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
             rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
+        StreamSegments segments = new StreamSegments(rangeMap);
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
@@ -1410,7 +1410,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
@@ -1419,7 +1419,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor", scope, streamName);
             client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
+                  .getDelegationToken(ModelHelper.createStreamInfo(scope, streamName, accessOperation), callback);
             return callback.getFuture();
         }, this.executor);
 
@@ -1576,7 +1576,7 @@ public class ControllerImpl implements Controller {
                             r.getMinKey(), r.getMaxKey(), r.getSegmentId());
                     rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
                 }
-                return new KeyValueTableSegments(rangeMap, ranges.getDelegationToken());
+                return new KeyValueTableSegments(rangeMap);
             }).whenComplete((x, e) -> {
                 if (e != null) {
                     log.warn("getCurrentSegmentsForKeyValueTable for {}/{} failed: ", scope, kvtName, e);

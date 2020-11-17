@@ -20,6 +20,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final String streamName;
 
+    private final AccessOperation accessOperation;
+
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
     private final AtomicBoolean tokenExpirySignal = new AtomicBoolean(false);
@@ -66,21 +70,24 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<CompletableFuture<Void>> tokenRefreshFuture = new AtomicReference<>();
 
-    JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
+    JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName, AccessOperation accessOperation) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
-                REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD_SECONDS));
+                REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD_SECONDS),
+                accessOperation);
     }
 
     private JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName,
-                                 int refreshThresholdInSeconds) {
+                                 int refreshThresholdInSeconds, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+        Preconditions.checkNotNull(accessOperation, "accessOperation");
 
         this.scopeName = scopeName;
         this.streamName = streamName;
         this.controllerClient = controllerClient;
         this.refreshThresholdInSeconds = refreshThresholdInSeconds;
+        this.accessOperation = accessOperation;
     }
 
     /**
@@ -93,11 +100,11 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
      */
     JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName,
-                                String streamName) {
+                                String streamName, AccessOperation accessOperation) {
         this(token, controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 "pravega.client.auth.token-refresh.threshold",
                 "pravega_client_auth_token-refresh.threshold",
-                DEFAULT_REFRESH_THRESHOLD_SECONDS));
+                DEFAULT_REFRESH_THRESHOLD_SECONDS), accessOperation);
     }
 
     /**
@@ -111,7 +118,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * @param refreshThresholdInSeconds the time in seconds before expiry that should trigger a token refresh
      */
     JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName, String streamName,
-                                    int refreshThresholdInSeconds) {
+                                    int refreshThresholdInSeconds, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(token, "delegationToken");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
@@ -123,6 +130,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this.streamName = streamName;
         this.controllerClient = controllerClient;
         this.refreshThresholdInSeconds = refreshThresholdInSeconds;
+        this.accessOperation = accessOperation;
     }
 
     /**
@@ -211,7 +219,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     private CompletableFuture<Void> recreateToken() {
-        return controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName)
+        return controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName, accessOperation)
                 .thenAccept(token -> this.delegationToken.set(new DelegationToken(token, extractExpirationTime(token))));
     }
 }
