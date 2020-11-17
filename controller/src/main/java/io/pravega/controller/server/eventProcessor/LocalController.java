@@ -209,8 +209,6 @@ public class LocalController implements Controller {
                     throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUBSCRIBER_NOT_FOUND:
-                    return false;
                 case SUCCESS:
                     return true;
                 default:

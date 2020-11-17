@@ -589,9 +589,6 @@ public class ControllerImpl implements Controller {
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUBSCRIBER_NOT_FOUND:
-                    log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
-                    return false;
                 case SUCCESS:
                     log.info(requestId, "Successfully delete subscriber {} from stream: {}/{}", subscriber, scope, streamName);
                     return true;

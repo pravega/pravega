@@ -577,7 +577,7 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<DeleteSubscriberStatus> result2 = new ResultObserver<>();
         this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result2);
         deleteStatus = result2.get();
-        Assert.assertEquals(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, deleteStatus.getStatus());
+        Assert.assertEquals(DeleteSubscriberStatus.Status.SUCCESS, deleteStatus.getStatus());
 
         ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
         this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result);

@@ -387,7 +387,7 @@ public abstract class StreamMetadataTasksTest {
 
         // Remove non-existing subscriber from stream
         removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, "subscriber4", 2L, null).get();
-        assertEquals(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, removeStatus);
+        assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
     }
 
     @Test(timeout = 30000)

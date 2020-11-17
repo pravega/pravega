@@ -82,7 +82,7 @@ public class SubscriberSet {
      */
     public static SubscriberSet remove(@NonNull SubscriberSet subscriberSet, @NonNull String subscriber) {
        ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-       Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> e.getKey().equals(subscriber))
+       Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> !e.getKey().equals(subscriber))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
        builder.putAll(otherSubscribers);
        return new SubscriberSet(builder.build());

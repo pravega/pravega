@@ -346,13 +346,13 @@ class PravegaTablesStream extends PersistentStreamBase {
         return Futures.toVoid(getSubscriberSetRecord(true)
                 .thenCompose(subscriberSetRecord -> getMetadataTable().thenCompose(table -> {
                     if (subscriberSetRecord.getObject().getSubscribers().containsKey(subscriber)
-                            && subscriberSetRecord.getObject().getSubscribers().get(subscriber).longValue() < generation) {
+                        && subscriberSetRecord.getObject().getSubscribers().get(subscriber).longValue() < generation) {
                         SubscriberSet subSet = SubscriberSet.remove(subscriberSetRecord.getObject(), subscriber);
-                        return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
-                                .thenCompose(v -> getSubscriberRecord(subscriber)
-                                        .thenCompose(subscriberRecord -> storeHelper.removeEntry(table, getKeyForSubscriber(subscriber)))
-                                        .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY))
-                                        .thenAccept(x -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))));
+                        return getSubscriberRecord(subscriber)
+                                .thenCompose(subscriberRecord -> storeHelper.removeEntry(table, getKeyForSubscriber(subscriber)))
+                                .thenCompose(v -> storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
+                                .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY))
+                                .thenAccept(x -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber))));
                     }
                     return CompletableFuture.completedFuture(null);
                 })));

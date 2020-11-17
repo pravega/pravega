@@ -306,7 +306,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
         when(this.mockControllerService.deleteSubscriber(any(), any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteSubscriberStatus.newBuilder()
-                        .setStatus(Controller.DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
+                        .setStatus(Controller.DeleteSubscriberStatus.Status.SUCCESS).build()));
         Assert.assertFalse(this.testController.deleteSubscriber("scope", "stream", "subscriber", 3L).join());
         
         when(this.mockControllerService.deleteSubscriber(any(), any(), any(), any())).thenReturn(
