@@ -305,7 +305,8 @@ public class WatermarkWorkflowTest {
         assertTrue(periodicWatermarking.checkExistsInCache(scope));
 
         periodicWatermarking.evictFromCache(scope);
-        // verify that the scope was closed
+        // verify that the syncfactory was closed
+        verify(clientFactory, times(1)).close();
     }
 
     @Test(timeout = 30000L)
