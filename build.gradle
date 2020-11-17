@@ -212,6 +212,7 @@ project('shared:security') {
     dependencies {
         compile project(':common')
         compile project(':shared:authplugin')
+        compile project(':shared:protocol')
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
 
         // Adding JAXB API and the reference implementation as a dependency here, since they are not available

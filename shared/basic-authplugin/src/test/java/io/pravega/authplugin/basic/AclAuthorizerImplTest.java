@@ -18,6 +18,7 @@ import java.util.Arrays;
 import static org.junit.Assert.assertEquals;
 
 public class AclAuthorizerImplTest {
+
     private final static String DUMMY_ENCRYPTED_PWD = "Dummy encrypted value";
 
     @Test

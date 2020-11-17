@@ -13,6 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.shared.security.auth.PermissionsHelper;
 import lombok.Getter;
 import lombok.NonNull;

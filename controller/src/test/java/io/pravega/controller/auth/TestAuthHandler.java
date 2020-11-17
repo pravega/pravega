@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler;
+package io.pravega.controller.auth;
 
 import io.pravega.auth.AuthHandler;
 import io.pravega.shared.security.auth.UserPrincipal;
