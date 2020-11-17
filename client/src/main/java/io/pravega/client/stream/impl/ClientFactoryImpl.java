@@ -56,6 +56,7 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
@@ -213,9 +214,8 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStreamName()), RuntimeException::new);
-        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment,
+                AccessOperation.READ_WRITE);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
