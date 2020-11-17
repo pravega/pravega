@@ -85,6 +85,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
@@ -1366,7 +1367,8 @@ public class ControllerImplTest {
     @Test
     public void testGetDelegationToken() throws Exception {
         CompletableFuture<String> delegationTokenFuture;
-        delegationTokenFuture = controllerClient.getOrRefreshDelegationTokenFor("stream1", "scope1");
+        delegationTokenFuture = controllerClient.getOrRefreshDelegationTokenFor("stream1", "scope1",
+                AccessOperation.ANY);
         assertEquals(delegationTokenFuture.get(), "token");
     }
 
@@ -1998,7 +2000,8 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("", listFuture, deadlinePredicate);
         // endregion
 
-        CompletableFuture<String> tokenFuture = controller.getOrRefreshDelegationTokenFor(deadline, deadline);
+        CompletableFuture<String> tokenFuture = controller.getOrRefreshDelegationTokenFor(deadline, deadline,
+                AccessOperation.ANY);
         AssertExtensions.assertFutureThrows("", tokenFuture, deadlinePredicate);
 
         // region stream

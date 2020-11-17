@@ -29,10 +29,9 @@ public class KeyValueTableSegments extends SegmentCollection {
      *
      * @param segments        Segments keyed by the largest key in their key range.
      *                        i.e. If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
-     * @param delegationToken Delegation token to access the segments in the segmentstore
      */
-    public KeyValueTableSegments(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
-        super(segments, delegationToken);
+    public KeyValueTableSegments(NavigableMap<Double, SegmentWithRange> segments) {
+        super(segments);
     }
 
     /**

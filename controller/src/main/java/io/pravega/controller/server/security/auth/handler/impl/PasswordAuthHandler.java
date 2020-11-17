@@ -42,11 +42,11 @@ public class PasswordAuthHandler implements AuthHandler {
     private final StrongPasswordProcessor encryptor;
 
     public PasswordAuthHandler() {
-        this(new ConcurrentHashMap<>(), false);
+        this(new ConcurrentHashMap<String, AccessControlList>());
     }
 
     @VisibleForTesting
-    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser, boolean useAclsInOldFormat) {
+    PasswordAuthHandler(ConcurrentHashMap<String, AccessControlList> aclByUser) {
         aclsByUser = aclByUser;
         encryptor = StrongPasswordProcessor.builder().build();
     }
