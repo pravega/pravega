@@ -122,6 +122,37 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         }
     }
 
+    @Data
+    private static final class ConditionalAppendV10 implements WireCommand, Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final Event event;
+        final long requestId;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            event.writeFields(out);
+            out.writeLong(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Test
     public void testConditionalAppend() throws IOException {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l));
@@ -131,6 +162,12 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
         commandV7.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), -1));
+
+        // Test that we are able to decode a message with a previous version.
+        bout = new ByteArrayOutputStream();
+        ConditionalAppendV10 commandV10 = new ConditionalAppendV10(uuid, l, l, new Event(buf), l);
+        commandV10.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l));
 
         // Test that it correctly implements ReleasableCommand.
         testReleasableCommand(
