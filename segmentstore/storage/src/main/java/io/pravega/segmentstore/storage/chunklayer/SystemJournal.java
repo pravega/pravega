@@ -250,9 +250,14 @@ public class SystemJournal {
         for (epochToCheck = epoch - 1; epochToCheck >= 0; epochToCheck--) {
             snapshotFile = getSystemJournalChunkName(containerId, epochToCheck, 0);
             if (chunkStorage.exists(snapshotFile).get()) {
-                // Read contents.
-                byte[] contents = getContents(snapshotFile);
-                SystemSnapshotRecord systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
+                SystemSnapshotRecord systemSnapshot = null;
+                try {
+                    // Read contents.
+                    byte[] contents = getContents(snapshotFile);
+                    systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
+                } catch (EOFException e) {
+                    log.warn("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, snapshotFile);
+                }
                 if (null != systemSnapshot) {
                     log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
                     // Initialize the segments and their chunks.

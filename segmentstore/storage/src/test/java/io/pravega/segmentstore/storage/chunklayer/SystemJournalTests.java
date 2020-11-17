@@ -31,6 +31,7 @@ import org.junit.rules.Timeout;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 
 /**
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
@@ -267,9 +268,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithMultipleFailovers() throws Exception {
+        val containerId = 42;
         ChunkStorage chunkStorage = getChunkStorage();
+        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, null);
+    }
 
-        int containerId = 42;
+    private void testSimpleBootstrapWithMultipleFailovers(int containerId, ChunkStorage chunkStorage, Consumer<Long> faultInjection) throws Exception {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
         val policy = new SegmentRollingPolicy(100);
@@ -305,7 +309,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             oldHandle = h;
         }
 
+        if (null != faultInjection) {
+            faultInjection.accept(epoch);
+        }
+
         epoch++;
+
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
         ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
@@ -322,6 +331,35 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
         val actual = new String(out);
         Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testSimpleBootstrapWithIncompleteSnapshot() throws Exception {
+        val containerId = 42;
+        ChunkStorage chunkStorage = getChunkStorage();
+        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
+            val snapShotFile = NameUtils.getSystemJournalFileName(containerId, epoch, 0);
+            val size = 1;
+            if (chunkStorage.supportsTruncation()) {
+                chunkStorage.truncate(ChunkHandle.writeHandle(snapShotFile), size).join();
+            } else {
+                val bytes = new byte[size];
+                chunkStorage.read(ChunkHandle.readHandle(snapShotFile), 0, size, bytes, 0).join();
+                chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
+                val h = chunkStorage.create(snapShotFile).join();
+                chunkStorage.write(h, 0, size, new ByteArrayInputStream(bytes)).join();
+            }
+        });
+    }
+
+    @Test
+    public void testSimpleBootstrapWithMissingSnapshot() throws Exception {
+        val containerId = 42;
+        ChunkStorage chunkStorage = getChunkStorage();
+        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
+            val snapShotFile = NameUtils.getSystemJournalFileName(containerId, epoch, 0);
+            chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
+        });
     }
 
     /**
