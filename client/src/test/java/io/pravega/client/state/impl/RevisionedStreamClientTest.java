@@ -265,7 +265,7 @@ public class RevisionedStreamClientTest {
 
         // Simulate sealed stream.
         CompletableFuture<StreamSegments> result = new CompletableFuture<>();
-        result.complete(new StreamSegments(new TreeMap<>(), ""));
+        result.complete(new StreamSegments(new TreeMap<>()));
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
         assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
