@@ -158,7 +158,7 @@ public class SegmentSelectorTests {
         private final HashMap<ByteBuf, Segment> byKey = new HashMap<>();
 
         public TestKeyValueTableSegments() {
-            super(new TreeMap<>(), null);
+            super(new TreeMap<>());
         }
 
         @Override

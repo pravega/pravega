@@ -17,6 +17,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkInfo;
 import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 /**
  * In-Memory mock for ChunkStorage. Contents is destroyed when object is garbage collected.
@@ -35,6 +37,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
     private final ConcurrentHashMap<String, InMemoryChunk> chunks = new ConcurrentHashMap<String, InMemoryChunk>();
+
+    public InMemoryChunkStorage(Executor executor) {
+        super(executor);
+    }
 
     @Override
     protected ChunkInfo doGetInfo(String chunkName) throws ChunkStorageException, IllegalArgumentException {
@@ -133,7 +139,7 @@ public class InMemoryChunkStorage extends AbstractInMemoryChunkStorage {
             throw new ChunkStorageException(handle.getChunkName(), "chunk is readonly");
         }
         if (offset != chunk.getLength()) {
-            throw new IllegalArgumentException("Attempt to write at wrong offset");
+            throw new InvalidOffsetException(handle.getChunkName(), chunk.getLength(), offset, "doWrite");
         }
         if (length == 0) {
             return 0;
