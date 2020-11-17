@@ -67,7 +67,7 @@ public class SubscriberSet {
      */
     public static SubscriberSet update(@NonNull SubscriberSet subscriberSet, @NonNull String subscriber, long generation) {
         ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-        Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> e.getKey().equals(subscriber))
+        Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> !e.getKey().equals(subscriber))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         builder.putAll(otherSubscribers);
         builder.put(subscriber, generation);
