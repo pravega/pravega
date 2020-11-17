@@ -494,8 +494,4 @@ public class ReaderGroupStateManager {
     Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
         return sync.getState().getLastReadPositions(stream);
     }
-
-    public String getOrRefreshDelegationTokenFor(Segment segmentId) {
-            return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
-    }
 }
