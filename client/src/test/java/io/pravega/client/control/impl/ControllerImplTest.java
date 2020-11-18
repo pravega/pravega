@@ -1448,8 +1448,7 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 updateStreamStatus, throwable -> true);
     }
-
-
+    
     @Test
     public void testAddSubscriber() throws Exception {
         CompletableFuture<Boolean> addSubscriberStatus;
@@ -1467,9 +1466,6 @@ public class ControllerImplTest {
         addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream4", "subscriber1", 0L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 addSubscriberStatus, Throwable -> true);
-
-        addSubscriberStatus = controllerClient.addSubscriber("scope1", "stream5", "subscriber1", 0L);
-        assertFalse(addSubscriberStatus.get());
     }
 
     @Test
