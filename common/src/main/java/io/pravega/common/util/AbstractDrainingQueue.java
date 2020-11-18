@@ -171,12 +171,15 @@ public abstract class AbstractDrainingQueue<T> {
         CompletableFuture<Queue<T>> result = take(maxCount);
         if (!result.isDone()) {
             ScheduledFuture<?> sf = timeoutExecutor.schedule(() -> {
-                result.completeExceptionally(new TimeoutException());
                 synchronized (this.lock) {
                     if (this.pendingTake == result) {
                         this.pendingTake = null;
                     }
                 }
+
+                // Timeout the future after we have unregistered it. A zealous callback may invoke us immediately and be
+                // surprised that their call is rejected since we can only have one take() outstanding at any given time.
+                result.completeExceptionally(new TimeoutException());
             }, timeout.toMillis(), TimeUnit.MILLISECONDS);
             result.whenComplete((r, ex) -> sf.cancel(true));
         }
