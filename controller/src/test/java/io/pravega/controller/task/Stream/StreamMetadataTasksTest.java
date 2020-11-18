@@ -353,7 +353,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         // Add subscriber with same name, old generation
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         // Add subscriber when stream/scope does not exist
@@ -365,7 +365,7 @@ public abstract class StreamMetadataTasksTest {
     public void removeSubscriberTest() throws InterruptedException, ExecutionException {
         // add a new subscriber - positive case
         String subscriber1 = "subscriber1";
-        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 1L, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber2 = "subscriber2";
@@ -383,11 +383,20 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber
-        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, 3L, null).get();
+        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
         assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
 
+        // Remove subscriber, old generation
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
+
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        assertEquals(2, allSubscribers.size());
+        assertTrue(allSubscribers.contains(subscriber1));
+        assertTrue(allSubscribers.contains(subscriber3));
+
         // Remove subscriber from non-existing stream
-        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber2, 2L, null).get();
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber3, 2L, null).get();
         assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
 
         // Remove non-existing subscriber from stream
@@ -1046,10 +1055,10 @@ public abstract class StreamMetadataTasksTest {
         // add subscriber 1
         // add subscriber 2
         String subscriber1 = "subscriber1";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L,null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).join();
 
         String subscriber2 = "subscriber2";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L,null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
         
         streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
         streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
