@@ -163,7 +163,7 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber, long generation) {
+    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber, final long generation) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");

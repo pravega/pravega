@@ -184,8 +184,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long operGeneration) {
-        return this.controller.addSubscriber(scope, streamName, subscriber, operGeneration).thenApply(x -> {
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +

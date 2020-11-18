@@ -255,7 +255,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testAddSubscriber() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.addSubscriber(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.addSubscriber(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
                         .setStatus(Controller.AddSubscriberStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.addSubscriber("scope", "stream", "subscriber", 0L).join());

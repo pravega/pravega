@@ -347,7 +347,11 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(allSubscribers.contains(subscriber2));
         assertTrue(allSubscribers.contains(subscriber3));
 
-        // Add subscriber with same name
+        // Add subscriber with same name, next generation idempotent operation
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
+        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+
+        // Add subscriber with same name, old generation
         addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
