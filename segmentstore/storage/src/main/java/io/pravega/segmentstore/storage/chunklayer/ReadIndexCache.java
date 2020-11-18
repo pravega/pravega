@@ -11,6 +11,8 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -94,10 +97,8 @@ class ReadIndexCache {
             if (maxIndexedSegments < segmentsToReadIndexMap.size() + 1 || maxIndexedChunks < totalChunkCount.get() + 1) {
                 evictSegmentsFromOldestGeneration();
             }
-            val newReadIndex = SegmentReadIndex.builder()
-                    .chunkIndex(new ConcurrentSkipListMap<Long, SegmentReadIndexEntry>())
-                    .generation(new AtomicLong(currentGeneration.get()))
-                    .build();
+            val newReadIndex = new SegmentReadIndex();
+            newReadIndex.generation.set(currentGeneration.get());
             val oldReadIndex = segmentsToReadIndexMap.putIfAbsent(streamSegmentName, newReadIndex);
             readIndex = null != oldReadIndex ? oldReadIndex : newReadIndex;
         }
@@ -289,7 +290,13 @@ class ReadIndexCache {
      */
     private void evictChunks(String streamSegmentName, long toRemoveCount) {
         val segmentReadIndex = segmentsToReadIndexMap.get(streamSegmentName);
-        evictChunks(segmentReadIndex, toRemoveCount);
+        if (segmentReadIndex.isEvicting.compareAndSet(false, true)) {
+            try {
+                evictChunks(segmentReadIndex, toRemoveCount);
+            } finally {
+                segmentReadIndex.isEvicting.set(false);
+            }
+        }
     }
 
     /**
@@ -334,7 +341,11 @@ class ReadIndexCache {
             if (gen <= deletedUpToGen) {
                 iterator2.remove();
                 removed++;
-                counts.put(gen, counts.get(gen) - 1);
+                val cnt = counts.get(gen);
+                // Check null as it is possible to have some unknown generation added after this method started.
+                if (null != cnt) {
+                    counts.put(gen, cnt - 1);
+                }
             }
             if (removed == toRemoveCount) {
                 break;
@@ -362,11 +373,14 @@ class ReadIndexCache {
      * The underlying data structure uses ConcurrentSkipListMap.
      * The generation is used to cleanup unused entries.
      */
-    @Builder
-    @Data
+    @RequiredArgsConstructor
     private static class SegmentReadIndex {
-        private final ConcurrentSkipListMap<Long, SegmentReadIndexEntry> chunkIndex;
-        private final AtomicLong generation;
+        @Getter
+        private final ConcurrentSkipListMap<Long, SegmentReadIndexEntry> chunkIndex = new ConcurrentSkipListMap<Long, SegmentReadIndexEntry>();
+        @Getter
+        private final AtomicLong generation = new AtomicLong();
+        @Getter
+        private final AtomicBoolean isEvicting = new AtomicBoolean();
     }
 
     /**
