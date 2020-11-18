@@ -12,13 +12,18 @@ package io.pravega.cli.admin.controller;
 import io.pravega.cli.admin.AbstractTlsAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.UUID;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -38,18 +43,15 @@ public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTes
         super.tearDown();
     }
 
-
     @Test
-    public void testListScopesCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
-        assertTrue(commandResult.contains("_system"));
-        assertNotNull(ControllerListScopesCommand.descriptor());
-    }
-
-    @Test
-    public void testListStreamsCommand() throws Exception {
-        String scope = "testScope";
-        String testStream = "testStream";
+    public void testAllCommands() throws Exception {
+        String scope = "TLSEnabledScope";
+        String testStream = "TLSEnabledStream";
+        String readerGroup = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, testStream))
+                .disableAutomaticCheckpoints()
+                .build();
         ClientConfig clientConfig = prepareValidClientConfig();
 
         // Generate the scope and stream required for testing.
@@ -69,22 +71,24 @@ public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTes
         // Check if stream created successfully.
         assertTrue("Failed to create the stream ", isStreamCreated);
 
-        String commandResult = TestUtils.executeCommand("controller list-streams " + scope, state.get());
-        assertTrue(commandResult.contains(testStream));
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
+
+        String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
+        assertTrue("ListScopesCommand failed.", commandResult.contains(scope));
+        assertNotNull(ControllerListScopesCommand.descriptor());
+
+        commandResult = TestUtils.executeCommand("controller list-streams " + scope, state.get());
+        assertTrue("ListStreamsCommand failed.", commandResult.contains(testStream));
         assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
-    }
 
-    @Test
-    public void testListReaderGroupsCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller list-readergroups _system", state.get());
-        assertTrue(commandResult.contains("commitStreamReaders"));
+        commandResult = TestUtils.executeCommand("controller list-readergroups " + scope, state.get());
+        assertTrue("ListReaderGroupsCommand failed.", commandResult.contains(readerGroup));
         assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
-    }
 
-    @Test
-    public void testDescribeScopeCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("controller describe-scope _system", state.get());
-        assertTrue(commandResult.contains("_system"));
+        commandResult = TestUtils.executeCommand("controller describe-scope " + scope, state.get());
+        assertTrue("DescribeScopeCommand failed.", commandResult.contains(scope));
         assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }
 }

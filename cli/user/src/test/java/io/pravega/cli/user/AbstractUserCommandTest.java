@@ -12,7 +12,9 @@ package io.pravega.cli.user;
 import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SecureSetupUtils;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.rules.Timeout;
 
 import java.util.concurrent.TimeUnit;

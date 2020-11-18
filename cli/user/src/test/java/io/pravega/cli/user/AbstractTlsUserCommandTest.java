@@ -10,8 +10,6 @@
 package io.pravega.cli.user;
 
 import io.pravega.cli.user.config.InteractiveConfig;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
@@ -20,7 +18,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
 
-import java.net.URI;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,10 +28,10 @@ public abstract class AbstractTlsUserCommandTest {
     private static final Integer SEGMENT_STORE_PORT = TestUtils.getAvailableListenPort();
     private static final Integer REST_SERVER_PORT = TestUtils.getAvailableListenPort();
 
-    @Rule
-    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+     @Rule
+     public final Timeout globalTimeout = new Timeout(150, TimeUnit.SECONDS);
 
-    protected final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
+    protected final AtomicReference<InteractiveConfig> config = new AtomicReference<>();
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
@@ -75,9 +72,6 @@ public abstract class AbstractTlsUserCommandTest {
         localPravega = emulatorBuilder.build();
         localPravega.start();
 
-        // Wait for the server to complete start-up.
-        TimeUnit.SECONDS.sleep(20);
-
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
         interactiveConfig.setControllerUri("localhost:" + CONTROLLER_PORT.toString());
         interactiveConfig.setDefaultSegmentCount(4);
@@ -88,7 +82,7 @@ public abstract class AbstractTlsUserCommandTest {
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(tlsEnabled);
         interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        CONFIG.set(interactiveConfig);
+        config.set(interactiveConfig);
     }
 
     @After
@@ -96,19 +90,5 @@ public abstract class AbstractTlsUserCommandTest {
         if (localPravega != null) {
             localPravega.close();
         }
-    }
-
-    protected ClientConfig prepareValidClientConfig() {
-        ClientConfig.ClientConfigBuilder clientBuilder = ClientConfig.builder()
-                .controllerURI(URI.create(this.localPravega.getInProcPravegaCluster().getControllerURI()));
-        if (this.authEnabled) {
-            clientBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
-        }
-        if (this.tlsEnabled) {
-            clientBuilder.trustStore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
-                    .validateHostName(false);
-        }
-        return clientBuilder.build();
     }
 }

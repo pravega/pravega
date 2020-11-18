@@ -46,8 +46,8 @@ public abstract class AbstractTlsAdminCommandTest {
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(CONTROLLER_PORT)
                 .segmentStorePort(SEGMENT_STORE_PORT)
-                .zkPort(io.pravega.test.common.TestUtils.getAvailableListenPort())
-                .restServerPort(io.pravega.test.common.TestUtils.getAvailableListenPort())
+                .zkPort(TestUtils.getAvailableListenPort())
+                .restServerPort(TestUtils.getAvailableListenPort())
                 .enableRestServer(true)
                 .restServerPort(REST_SERVER_PORT)
                 .enableAuth(authEnabled)
@@ -73,6 +73,7 @@ public abstract class AbstractTlsAdminCommandTest {
         }
 
         localPravega = emulatorBuilder.build();
+        localPravega.start();
 
         // Set the CLI properties.
         state.set(new AdminCommandState());
@@ -88,11 +89,6 @@ public abstract class AbstractTlsAdminCommandTest {
         pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME);
 
         state.get().getConfigBuilder().include(pravegaProperties);
-
-        localPravega.start();
-
-        // Wait for the server to complete start-up.
-        TimeUnit.SECONDS.sleep(20);
     }
 
     @After
