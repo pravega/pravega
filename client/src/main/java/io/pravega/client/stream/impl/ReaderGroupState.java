@@ -1348,7 +1348,6 @@ public class ReaderGroupState implements Revisioned {
 
             private void write00(ReaderGroupStateResetStart object, RevisionDataOutput out) throws IOException {
                 out.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
-                out.writeBuffer(new ByteArraySegment(object.getBacklog()));
             }
         }
     }
