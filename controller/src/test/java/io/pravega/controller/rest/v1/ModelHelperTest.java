@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.controller.server.rest.generated.model.ConsumptionLimits;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
@@ -94,6 +95,40 @@ public class ModelHelperTest {
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
+
+        retentionConfig = new RetentionConfig();
+        retentionConfig.setType(RetentionConfig.TypeEnum.CONSUMPTION);
+        ConsumptionLimits consumptionLimits = new ConsumptionLimits();
+        consumptionLimits.setType(ConsumptionLimits.TypeEnum.SIZE_MB);
+        consumptionLimits.min(10L);
+        consumptionLimits.max(100L);
+        retentionConfig.consumptionLimits(consumptionLimits);
+        createStreamRequest.setStreamName("stream");
+        createStreamRequest.setScalingPolicy(scalingConfig);
+        createStreamRequest.setRetentionPolicy(retentionConfig);
+
+        streamConfig = getCreateStreamConfig(createStreamRequest);
+        Assert.assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, streamConfig.getRetentionPolicy().getConsumptionLimits().getType());
+        Assert.assertEquals(10L * 1024 * 1024, streamConfig.getRetentionPolicy().getConsumptionLimits().getMinValue());
+        Assert.assertEquals(100L * 1024 * 1024, streamConfig.getRetentionPolicy().getConsumptionLimits().getMaxValue());
+
+        retentionConfig = new RetentionConfig();
+        retentionConfig.setType(RetentionConfig.TypeEnum.CONSUMPTION);
+        consumptionLimits = new ConsumptionLimits();
+        consumptionLimits.setType(ConsumptionLimits.TypeEnum.TIME_MINUTES);
+        consumptionLimits.min(10L);
+        consumptionLimits.max(100L);
+        retentionConfig.consumptionLimits(consumptionLimits);
+        createStreamRequest.setStreamName("stream");
+        createStreamRequest.setScalingPolicy(scalingConfig);
+        createStreamRequest.setRetentionPolicy(retentionConfig);
+
+        streamConfig = getCreateStreamConfig(createStreamRequest);
+        Assert.assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, streamConfig.getRetentionPolicy().getConsumptionLimits().getType());
+        Assert.assertEquals(10L * 1000 * 60, streamConfig.getRetentionPolicy().getConsumptionLimits().getMinValue());
+        Assert.assertEquals(100L * 1000 * 60, streamConfig.getRetentionPolicy().getConsumptionLimits().getMaxValue());
     }
 
     @Test
