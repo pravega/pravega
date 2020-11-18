@@ -553,7 +553,11 @@ public class ReaderGroupState implements Revisioned {
                 builder.generation(revisionDataInput.readLong());
                 int ordinal = revisionDataInput.readCompactInt();
                 builder.configState(ConfigState.values()[ordinal]);
-                builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                try {
+                    builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                } catch (Exception e) {
+                    builder.newConfig(null);
+                }
             }
 
             private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -599,7 +603,9 @@ public class ReaderGroupState implements Revisioned {
             private void write02(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeLong(object.generation);
                 revisionDataOutput.writeCompactInt(object.configState.ordinal());
-                revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+                if (object.newConfig != null) {
+                    revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+                }
             }
         }
     }
@@ -1254,7 +1260,6 @@ public class ReaderGroupState implements Revisioned {
                         oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
                         oldState.lastReadPosition, oldState.endSegments, generation, ConfigState.READY, null);
             }
-            // NEED TO CONFIRM
             return oldState;
         }
 
@@ -1312,8 +1317,9 @@ public class ReaderGroupState implements Revisioned {
                         oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
                         oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
             }
-            // NEED TO CONFIRM
-            return oldState;
+            return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getConfig(), newRevision, oldState.checkpointState,
+                    oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
+                    oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
         }
 
         private static class ReaderGroupStateResetStartBuilder implements ObjectBuilder<ReaderGroupStateResetStart> {
@@ -1342,6 +1348,7 @@ public class ReaderGroupState implements Revisioned {
 
             private void write00(ReaderGroupStateResetStart object, RevisionDataOutput out) throws IOException {
                 out.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+                out.writeBuffer(new ByteArraySegment(object.getBacklog()));
             }
         }
     }

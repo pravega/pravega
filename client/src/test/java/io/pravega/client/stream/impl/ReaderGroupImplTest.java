@@ -228,8 +228,6 @@ public class ReaderGroupImplTest {
                 .build();
         // Setup mocks for reset call
         when(state.getConfig()).thenReturn(firstConfig, secondConfig);
-        when(state.getNewConfig()).thenReturn(secondConfig);
-        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.REINITIALIZING);
 
         // New subscriber ReaderGroupConfig
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
@@ -261,8 +259,6 @@ public class ReaderGroupImplTest {
     public void updateRetentionStreamCutTestFailure() {
         when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.REINITIALIZING);
         Stream test = createStream("test");
-        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
-                .thenReturn(CompletableFuture.completedFuture(true));
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
         readerGroup.updateRetentionStreamCut(cuts);

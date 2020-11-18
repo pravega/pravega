@@ -263,6 +263,7 @@ public class SerializationTest {
         builder.unassignedSegments(createSegmentRangeMap());
         builder.futureSegments(createMap(this::createSegmentWithRange, () -> new HashSet<>(createLongList())));
         builder.lastReadPosition(createSegmentRangeMap());
+        builder.configState(ReaderGroupState.ConfigState.READY);
         verify(initSerializer, builder.build());
 
         ReaderGroupStateInitSerializer newSerializer = new ReaderGroupStateInit.ReaderGroupStateInitSerializer(); 
