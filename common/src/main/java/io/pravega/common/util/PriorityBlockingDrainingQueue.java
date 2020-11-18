@@ -28,7 +28,7 @@ import lombok.val;
  */
 public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQueue.Item> extends AbstractDrainingQueue<T> {
     //region Members.
-    private final ArrayDeque[] queues;
+    private final SimpleDeque[] queues;
     private int firstIndex;
     private int size;
 
@@ -43,7 +43,7 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
      */
     public PriorityBlockingDrainingQueue(byte maxPriorityValue) {
         Preconditions.checkArgument(maxPriorityValue >= 0, "maxPriorityLevel must be a value between 0 and %s.", Byte.MAX_VALUE);
-        this.queues = new ArrayDeque[maxPriorityValue + 1];
+        this.queues = new SimpleDeque[maxPriorityValue + 1];
         this.firstIndex = 0;
         this.size = 0;
     }
@@ -57,7 +57,7 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
         byte p = item.getPriorityValue();
         Preconditions.checkArgument(p >= 0 && p < this.queues.length,
                 "Item.getPriority() must be a value between 0 (inclusive) and %s (exclusive).", this.queues.length);
-        getOrCreateQueue(p).add(item);
+        getOrCreateQueue(p).addLast(item);
         this.size++;
         if (this.firstIndex > p) {
             this.firstIndex = p;
@@ -89,13 +89,7 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
         int fi = getFirstIndex();
         assert fi >= 0 : "size !=0 but firstIndex < 0";
         val q = getQueue(fi);
-
-        int count = Math.min(maxCount, q.size());
-        ArrayDeque<T> result = new ArrayDeque<>(count);
-        while (result.size() < count) {
-            result.addLast(q.pollFirst());
-        }
-
+        val result = q.pollFirst(maxCount);
         this.size -= result.size();
         return result;
 
@@ -119,15 +113,15 @@ public class PriorityBlockingDrainingQueue<T extends PriorityBlockingDrainingQue
     }
 
     @SuppressWarnings("unchecked")
-    private ArrayDeque<T> getQueue(int index) {
-        return (ArrayDeque<T>) this.queues[index];
+    private SimpleDeque<T> getQueue(int index) {
+        return (SimpleDeque<T>) this.queues[index];
     }
 
     @SuppressWarnings("unchecked")
-    private ArrayDeque<T> getOrCreateQueue(int index) {
-        ArrayDeque<T> q = this.queues[index];
+    private SimpleDeque<T> getOrCreateQueue(int index) {
+        SimpleDeque<T> q = this.queues[index];
         if (q == null) {
-            q = new ArrayDeque<>();
+            q = new SimpleDeque<>();
             this.queues[index] = q;
         }
         return q;
