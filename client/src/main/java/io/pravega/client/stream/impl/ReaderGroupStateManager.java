@@ -472,7 +472,7 @@ public class ReaderGroupStateManager {
     }
 
     @SneakyThrows(CheckpointFailedException.class)
-    public void updateTruncationStreamCutIfNeeded() {
+    void updateTruncationStreamCutIfNeeded() {
         ReaderGroupState state = sync.getState();
         // here add check if RG is Subscriber and autoPublishTruncationStreamCut = true
         if (state.getConfig().getRetentionConfig().equals(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_AT_LAST_CHECKPOINT)

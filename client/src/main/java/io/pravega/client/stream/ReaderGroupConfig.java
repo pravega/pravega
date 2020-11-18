@@ -54,20 +54,19 @@ public class ReaderGroupConfig implements Serializable {
 
     /**
      * If a Stream's Retention Policy {@link RetentionPolicy} is set to 'CONSUMPTION' based,
-     * the Reader Group needs to register with the Stream as a Subscriber
-     * and periodically publish retention StreamCuts either manually or at checkpoints.
-     * This can be done by setting retentionConfig to 'CONSUMPTION_BASED_USER_STREAMCUT' or
+     * the Reader Group needs to periodically notify StreamCuts to Controller to indicate
+     * the point in the Stream till which it has completed consuming data.
+     * This can be done by setting the retentionConfig to 'CONSUMPTION_BASED_USER_STREAMCUT' or
      * 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
-     * If the Stream's RetentionPolicy is not Consumption based, retentionConfig should be 'NO_IMPACT'.
+     * If the Stream's Retention Policy is not Consumption based, retentionConfig can be set to 'NO_IMPACT'.
      *
      * If the Streams' Retention Policy is set to 'CONSUMPTION', but the ReaderGroup retentionConfig is set at
-     * 'NO_IMPACT', the ReaderGroup will not get registered as a Subscriber with the Stream
-     * and retention StreamCuts cannot be published for this ReaderGroup.
-     * This will break the promise of ConsumptionBased Retention.
+     * 'NO_IMPACT', the ReaderGroup cannot publish consumption Stream-Cuts to Controller and
+     * Consumption based retention of data in the Stream will not happen.
      *
      * NO_IMPACT - Read Positions of Readers do not impact Stream truncation/retention.
      * CONSUMPTION_BASED_USER_STREAMCUT - User provides the StreamCut for truncation using Consumption Based Retention.
-     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - StreamCut corresponding to lastCompletedCheckpoint is published as truncation point for Consumption Based Retention.
+     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - StreamCut corresponding to lastCompletedCheckpoint is notified as truncation Stream-Cut for Consumption Based Retention.
      * */
     public enum StreamDataRetention {
         NO_IMPACT(false, false),
