@@ -13,6 +13,8 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashSet;
+
 /**
  * The {@link HealthComponent} class is used to provide a logical grouping of components. Each registered {@link  HealthComponent}
  * will export it's JSON representation via some HTTP route.
@@ -27,17 +29,18 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
-    private final ContributorRegistry registry;
-
-    public HealthComponent(String name, ContributorRegistry registry) {
+    public HealthComponent(String name) {
         this.name = name;
-        this.registry = registry;
+    }
+
+    public HealthComponent(String name, StatusAggregator aggregator) {
+        super(aggregator, new HashSet<>());
+        this.name = name;
     }
 
     public HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
-        super(aggregator);
+        super(aggregator, registry);
         this.name = name;
-        this.registry = registry;
     }
 
     @Override
@@ -45,8 +48,4 @@ public class HealthComponent extends CompositeHealthContributor {
         return String.format("HealthComponent::%s", this.name);
     }
 
-    @Override
-    public ContributorRegistry registry() {
-        return this.registry;
-    }
 }

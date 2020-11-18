@@ -13,6 +13,8 @@ import io.pravega.shared.health.impl.StatusAggregatorImpl;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -21,14 +23,24 @@ public abstract class CompositeHealthContributor implements HealthContributor {
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
      */
-    public final StatusAggregator aggregator;
+    private final StatusAggregator aggregator;
+
+    private ContributorRegistry registry = null;
+
+    private Collection<HealthContributor> contributors = new HashSet<>();
 
     CompositeHealthContributor() {
-        this(StatusAggregatorImpl.DEFAULT);
+        this(StatusAggregatorImpl.DEFAULT, new HashSet<>());
     }
 
-    CompositeHealthContributor(StatusAggregator aggregator) {
+    CompositeHealthContributor(StatusAggregator aggregator, ContributorRegistry registry) {
         this.aggregator = aggregator;
+        this.registry = registry;
+    }
+
+    CompositeHealthContributor(StatusAggregator aggregator, Collection<HealthContributor> contributors) {
+        this.aggregator = aggregator;
+        this.contributors = contributors;
     }
 
     public Health health() {
@@ -37,9 +49,8 @@ public abstract class CompositeHealthContributor implements HealthContributor {
 
     public Health health(boolean includeDetails) {
         // Fetch the Health Status of all dependencies.
-        val children =  registry()
-                .get(getName())
-                .stream()
+        val children =  contributors().stream()
+                .filter(contributor -> contributor != null)
                 .map(contributor -> {
                     Health health = contributor.health(includeDetails);
                     if (health.getStatus() == Status.UNKNOWN) {
@@ -57,9 +68,13 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         return Health.builder().status(status).children(includeDetails ? children : null).build();
     }
 
+    public Collection<HealthContributor> contributors() {
+        if (registry != null) {
+            return registry.dependencies(getName());
+        }
+        return this.contributors;
+    }
 
     abstract public String getName();
-
-    abstract public ContributorRegistry registry();
 
 }

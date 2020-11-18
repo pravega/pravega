@@ -10,12 +10,17 @@
 package io.pravega.shared.health;
 
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Holds the set of {@link HealthContributor} objects that will be tracked to determine
  * the overall state of some {@link HealthService}.
  */
 public interface ContributorRegistry extends Registry<HealthContributor> {
+
+    static final String DEFAULT_CONTRIBUTOR_NAME = "ROOT";
+
+    Optional<HealthContributor> get();
 
     /**
      * Registers the contributor to the default {@link HealthContributor} registry.
@@ -28,10 +33,10 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Registers the contributor to the registry.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
-     * @param parent      The {@link HealthContributor} the {@link HealthContributor} should map too. This means that the parent's
+     * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
      *                    health will be predicated on this {@link HealthContributor}'s health.
      */
-    void register(HealthContributor contributor, HealthContributor parent);
+    void register(HealthContributor contributor, HealthComponent parent);
 
     /**
      * Registers the contributor to the registry.
@@ -61,7 +66,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Provides a {@link Collection} of all the {@link HealthContributor} objects belonging to this registry.
      * @return
      */
-    Collection<HealthContributor> contributors();
+    Collection<HealthContributor> dependencies();
 
     /**
      * Provides a {@link Collection} of all the {@link HealthContributor} objects belonging to this registry.
@@ -70,5 +75,27 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      *             objects from.
      * @return
      */
-    Collection<HealthContributor> contributors(String name);
+    Collection<HealthContributor> dependencies(String name);
+
+    ///**
+    // * Proves a {@link Collection} of all the {@link HealthContributor} objects that *depend* on the root {@link HealthContributor}.
+    // *
+    // * @return The dependee {@link HealthContributor} of the root {@link HealthContributor}.
+    // */
+    //Collection<HealthContributor> parents();
+
+    ///**
+    // * Proves a {@link Collection} of all the {@link HealthContributor} objects that *depend* on the some specified {@link HealthContributor}.
+    // *
+    // * @param name The {@link String} name that should mapped to some {@link HealthContributor} object.
+    // * @return The dependee {@link HealthContributor} of the {@link HealthContributor} mapped to by {@param name}.
+    // */
+    //Collection<HealthContributor> parents(String name);
+
+    /**
+     * Provides a {@link Collection} of all the {@link HealthContributor} ids tracked by this {@link ContributorRegistry}.
+     *
+     * @return The {@link Collection}.
+     */
+    Collection<String> contributors();
 }

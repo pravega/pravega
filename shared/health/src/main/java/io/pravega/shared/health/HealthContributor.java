@@ -9,9 +9,21 @@
  */
 package io.pravega.shared.health;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 
 public interface HealthContributor {
+
+    /**
+     * The list of {@link HealthContributor} objects that this {@link HealthContributor} object depends on to determine
+     * its own health.
+     *
+     * @return
+     */
+    default Collection<HealthContributor> contributors() {
+        return Collections.emptyList();
+    }
 
     /**
      * A {@link HealthContributor} may optionally have a parent, which represents a {@link HealthContributor} that

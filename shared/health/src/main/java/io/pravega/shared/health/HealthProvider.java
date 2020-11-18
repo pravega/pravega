@@ -10,6 +10,7 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthServiceImpl;
+import io.pravega.shared.health.impl.NullHealthService;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -17,9 +18,9 @@ public class HealthProvider {
     /**
      * The singleton {@link HealthService} INSTANCE.
      */
-    private static final AtomicReference<HealthService> HEALTH_SERVICE = new AtomicReference<>(new HealthServiceImpl(io.pravega.shared.health.impl.HealthConfigImpl.empty()));
+    private static final AtomicReference<HealthService> HEALTH_SERVICE = new AtomicReference<>(new NullHealthService());
 
-    public synchronized static void initialize(HealthServer.HealthConfig config) {
+    public synchronized static void initialize(HealthConfig config) {
         setHealthService(new HealthServiceImpl(config));
     }
 

@@ -9,11 +9,14 @@
  */
 package io.pravega.shared.health;
 
+import lombok.Data;
 import lombok.Getter;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A details object encapsulates any health related, non-{@link Status} state that an operator may be interested in. A details
@@ -39,4 +42,22 @@ public class Details {
         return this;
     }
 
+    /**
+     * Fetches and aggregates the results of all the added {@link Supplier} objects.
+     *
+     * @return The {@link Result} list.
+     */
+    List<Result> fetch() {
+        return getDetails()
+                .entrySet()
+                .stream()
+                .map(entry -> new Result(entry.getKey(), entry.getValue().get().toString()))
+                .collect(Collectors.toList());
+    }
+
+    @Data
+    public static class Result {
+        final String key;
+        final String value;
+    }
 }

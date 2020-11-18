@@ -14,10 +14,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * The {@link HealthIndicator} interface is the primary interface a client (some arbitrary class) uses to export health
@@ -63,12 +60,8 @@ public abstract class HealthIndicator implements HealthContributor {
             return String.format("A Health Check on the {} has failed.", this.name);
       }
 
-      Collection<Map.Entry<String, String>> getDetails() {
-            return this.details.getDetails()
-                    .entrySet()
-                    .stream()
-                    .map(val -> new AbstractMap.SimpleImmutableEntry<>(val.getKey(), val.getValue().get().toString()))
-                    .collect(Collectors.toList());
+      Collection<Details.Result> getDetails() {
+          return this.details.fetch();
       }
 
       @Override

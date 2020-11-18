@@ -9,14 +9,13 @@
  */
 package io.pravega.shared.health.impl;
 
+import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.StatusAggregator;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -29,25 +28,20 @@ import java.util.Set;
 @Slf4j
 public class HealthConfigImpl implements HealthConfig {
 
-    private final Collection<HealthComponent> components;
+    private final Map<String, HealthComponent> components;
+
+    private final Set<HealthComponent> roots;
 
     private final Map<String, Set<String>> relations;
 
-    private HealthConfigImpl(Collection<HealthComponent> components, Map<String, Set<String>> relations) {
+    private HealthConfigImpl(Map<String, HealthComponent> components, Set<HealthComponent> roots, Map<String, Set<String>> relations) {
         this.components = components;
+        this.roots = roots;
         this.relations = relations;
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    public Collection<HealthComponent> components() {
-        return this.components;
-    }
-
-    public Map<String, Set<String>> relations() {
-        return  this.relations;
     }
 
     public static class Builder {
@@ -56,12 +50,16 @@ public class HealthConfigImpl implements HealthConfig {
 
         private final Map<String, Set<String>> relations = new HashMap<>();
 
+        private final Set<HealthComponent> roots = new HashSet<>();
+
         public Builder define(String name, StatusAggregator aggregator) {
             if (components.containsKey(name)) {
                 log.warn("Overwriting a pre-existing component definition -- aborting.");
                 return this;
             }
-            components.put(name, new HealthComponent(name, aggregator, null));
+            HealthComponent component = new HealthComponent(name, aggregator);
+            roots.add(component);
+            components.put(name, component);
             relations.put(name, new HashSet<>());
             return this;
         }
@@ -75,6 +73,7 @@ public class HealthConfigImpl implements HealthConfig {
                 log.warn("At least one of the components in this relation has not been defined -- aborting.");
                 return this;
             }
+            roots.remove(components.get(child));
             relations.get(parent).add(child);
             return this;
         }
@@ -105,9 +104,19 @@ public class HealthConfigImpl implements HealthConfig {
             return cycle;
         }
 
-        public HealthConfigImpl build() throws Exception {
+        public HealthConfig empty() {
+            HealthConfig config = null;
+            try {
+                config = build();
+            } catch (Exception e) {
+                log.error("Error building empty HealthConfig.");
+            }
+            return config;
+        }
+
+        public HealthConfig build() throws Exception {
             if (validate()) {
-                return new HealthConfigImpl(components.values(), relations);
+                return new HealthConfigImpl(components, roots, relations);
             } else {
                 throw new RuntimeException("Invalid HealthComponentConfig definition -- cyclic references.");
             }
@@ -118,7 +127,18 @@ public class HealthConfigImpl implements HealthConfig {
         return components.isEmpty();
     }
 
-    public static HealthConfig empty() {
-        return new HealthConfigImpl(Collections.EMPTY_LIST, new HashMap<>());
+    public void reconcile(ContributorRegistry registry) {
+        for (val component : this.roots) {
+            recurse(registry, component, null);
+        }
+    }
+
+    // The validation should prevent any unintended StackOverflow errors.
+    private void recurse(ContributorRegistry registry, HealthComponent component, HealthComponent parent) {
+        registry.register(component, parent);
+        // Register all dependencies.
+        for (val name : relations.get(component.getName())) {
+            recurse(registry, components.get(name), component);
+        }
     }
 }

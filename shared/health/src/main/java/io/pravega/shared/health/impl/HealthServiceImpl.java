@@ -9,89 +9,116 @@
  */
 package io.pravega.shared.health.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthConfig;
-import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
-import io.pravega.shared.health.StatusAggregator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
-import java.util.Collection;
-import java.util.Optional;
-import java.util.Stack;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 public class HealthServiceImpl implements HealthService {
 
+    private final static int HEALTH_MONITOR_INTERVAL_SECONDS = 10;
     /**
      * The interval at which the {@link ScheduledExecutorService} will query the health of the root {@link HealthComponent}.
      */
-    @VisibleForTesting
-    public ContributorRegistryImpl registry;
+    private ContributorRegistryImpl registry;
 
+    /**
+     * The {@link HealthConfig} object used to setup the {@link HealthComponent} hierarchy.
+     */
     private HealthConfig config;
-
-    private Stack<HealthComponent> components;
 
     /**
      * The {@link ScheduledExecutorService} used for recurring health checks.
      */
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-check");
 
+    private final HealthEndpoint endpoint;
+
+    private final HealthDaemon daemon;
+
     public HealthServiceImpl(HealthConfig config) {
-        executor.scheduleAtFixedRate(() -> health(true),
-                HEALTH_MONITOR_INTERVAL_SECONDS,
-                HEALTH_MONITOR_INTERVAL_SECONDS,
-                TimeUnit.SECONDS);
-        registry = new ContributorRegistryImpl();
-        initialize(registry, config);
+        this.registry = new ContributorRegistryImpl();
+        this.config = config;
+        this.config.reconcile(this.registry);
+        this.endpoint = new HealthEndpointImpl(this.registry);
+        this.daemon = new HealthDaemon(this, executor, HEALTH_MONITOR_INTERVAL_SECONDS);
     }
 
-    public void initialize(ContributorRegistry registry, HealthConfig config, String current) {
-        for (val contributor : config.relations().entrySet())  {
-
-        }
-    }
-
-    private void register(HealthConfig config, String current, String parent) {
-        StatusAggregator aggregator = config.aggregators().get(current);
-        // Fetch the parent component -- which should exist at this time.
-        Optional<HealthContributor> contributor = registry.get(parent);
-        // Register the component as described by the HealthConfig.
-        components.push(new HealthComponent(current, aggregator, registry));
-        registry.register(components.peek(), contributor.get());
-        // Register all dependencies.
-        for (String name : config.relations().get(current)) {
-            register(config, name, current);
-        }
-    }
-
-    public Health health(String name, boolean includeDetails) {
-        Optional<HealthContributor> result = registry.get(name);
-        if (result.isEmpty()) {
-            log.error("No HealthComponent with name: {} found in the registry.", name);
-            return null;
-        }
-        return result.get().health(includeDetails);
-    }
-
-    public Health health(boolean includeDetails) {
-        return health(registry.root(), includeDetails);
-    }
-
+    @Override
     public ContributorRegistry registry() {
         return this.registry;
     }
 
-    public Collection<HealthComponent> components() {
-        return this.components;
+    @Override
+    public HealthEndpoint endpoint() {
+        return this.endpoint;
     }
 
+    @Override
+    public void clear() {
+        this.daemon.clear();
+        this.registry.clear();
+    }
+
+    @RequiredArgsConstructor
+    public class HealthDaemon {
+        /**
+         * Represents the most recent {@link Health} information provided by the {@link ScheduledExecutorService}.
+         */
+        AtomicReference<Health> latest = new AtomicReference<Health>();
+
+        /**
+         * The {@link HealthService} associated with this {@link HealthDaemon}.
+         */
+        private final HealthService service;
+
+        /**
+         * The underlying {@link ScheduledExecutorService} used to executor the recurring service-level {@link Health} check.
+         */
+        private final ScheduledExecutorService executor;
+
+        /**
+         * The interval at which to run the health check.
+         */
+        private final int interval;
+
+        public void start() {
+            log.info("Starting HealthDaemon service -- running at {} second intervals.", interval);
+            executor.scheduleAtFixedRate(() -> latest.set(service.endpoint().health(true)),
+                    interval,
+                    interval,
+                    TimeUnit.SECONDS);
+        }
+
+        public void stop() {
+            executor.shutdownNow();
+            try {
+                executor.awaitTermination(HEALTH_MONITOR_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                log.error("Unexpected InterruptedException shutting down HealthDaemon.", e);
+            }
+        }
+
+        public boolean running() {
+            if (!executor.isTerminated() && !executor.isShutdown()) {
+                return true;
+            }
+            return false;
+        }
+
+        public void clear() {
+            stop();
+            latest.set(null);
+        }
+    }
 }

@@ -9,22 +9,18 @@
  */
 package io.pravega.shared.health;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
 import java.util.Collection;
-import java.util.Map;
+import java.util.Collections;
 
 /**
  * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
 @Builder
 @AllArgsConstructor
-@JsonInclude(Include.NON_EMPTY)
 public class Health {
 
     /**
@@ -32,37 +28,31 @@ public class Health {
      * was taken from.
      */
     @Getter
-    @JsonProperty("name")
     public final String name;
 
     @Getter
     @Builder.Default
-    @JsonProperty("status")
     private Status status = Status.UNKNOWN;
 
-    @JsonProperty("ready")
     private Boolean ready;
 
-    @JsonProperty("alive")
     private Boolean alive;
 
     @Getter
-    @JsonProperty("details")
-    private final Collection<Map.Entry<String, String>> details;
+    @Builder.Default
+    private Collection<Details.Result> details = Collections.emptyList();
 
     /**
      * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
      */
     @Getter
-    @JsonProperty("children")
-    private final Collection<Health> children;
+    @Builder.Default
+    private Collection<Health> children = Collections.emptyList();
 
     Health(HealthBuilder builder) {
         this.name = builder.name;
         this.ready = builder.ready;
         this.alive = builder.alive;
-        this.details = builder.details;
-        this.children = builder.children;
     }
 
     /**
@@ -71,7 +61,7 @@ public class Health {
      *
      * @return
      */
-    public boolean ready() {
+    public boolean isReady() {
         if (ready == null) {
             return Status.alive(status);
         }
@@ -90,7 +80,7 @@ public class Health {
      *
      * @return
      */
-    public boolean alive() {
+    public boolean isAlive() {
         if (alive == null) {
             return Status.alive(status);
         }

@@ -9,15 +9,20 @@
  */
 package io.pravega.shared.health;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
-
 public interface HealthConfig {
 
+    /**
+     * A flag used to determine if the {@link HealthConfig} object is logically 'empty'.
+     *
+     * @return Whether or not the {@link HealthConfig} is empty.
+     */
     boolean isEmpty();
 
-    Collection<HealthComponent> components();
-
-    Map<String, Set<String>> relations();
+    /**
+     * A reconcile method makes it clear that a {@link HealthConfig} should provide a way for the {@link HealthComponent}
+     * objects defined to properly registered by the {@link ContributorRegistry}.
+     *
+     * @param registry The {@link ContributorRegistry} to apply this reconciliation on.
+     */
+    void reconcile(ContributorRegistry registry);
 }
