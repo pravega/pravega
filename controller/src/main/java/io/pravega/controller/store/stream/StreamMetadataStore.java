@@ -1279,4 +1279,40 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Integer> getSegmentSealedEpoch(final String scope, final String streamName, final long segmentId,
                                                      final OperationContext context, final Executor executor);
 
+    /**
+     * Compares two Stream cuts and returns true if streamcut1 is strictly ahead of streamcut2 else returns false. 
+     * This method will return false for both strictly less than and overlapping streamcuts.
+     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param streamCut1 Stream cut to check
+     * @param streamCut2 Streamcut to check against
+     * @param context    operation context.
+     * @param executor   callers executor.
+     *                   
+     * @return A completable future which when completed will hold a boolean which will indicate if streamcut1 is strictly
+     * ahead of streamcut2. 
+     */
+    CompletableFuture<Boolean> streamCutStrictlyGreaterThan(final String scope, final String streamName,
+                                                            Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
+                                                            final OperationContext context, final Executor executor);
+
+    /**
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param streamCut Stream cut to check.
+     * @param retentionSet Retention set
+     * @param context    operation context.
+     * @param executor   callers executor.
+     *
+     * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
+     * is strictly before the supplied streamcut. 
+     */
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(final String scope, final String streamName,
+                                                                                   Map<Long, Long> streamCut, final RetentionSet retentionSet,
+                                                                                   final OperationContext context, final Executor executor);
 }

@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.pravega.common.Exceptions;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -163,21 +162,6 @@ public class RecordHelper {
     // endregion
     
     // region streamCut
-    /**
-     * Method to validate a given stream Cut.
-     * A stream cut is valid if it covers the entire key space without any overlaps in ranges for segments that form the
-     * streamcut. It throws {@link IllegalArgumentException} if the supplied stream cut does not satisfy the invariants.
-     *
-     * @param streamCutSegments supplied stream cut.
-     */
-    public static void validateStreamCut(List<Map.Entry<Double, Double>> streamCutSegments) {
-        // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
-        List<Map.Entry<Double, Double>> reduced = reduce(streamCutSegments);
-        Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
-                        reduced.get(0).getValue().equals(1.0), "streamCut",
-                " Invalid input, Stream Cut does not cover full key range.");
-    }
-
     /**
      * Method to compare two stream cuts given their spans.  
      *

@@ -78,7 +78,7 @@ interface Stream {
      * @return CompletableFuture which, upon completion, has the creation time of the stream. 
      */
     CompletableFuture<Long> getCreationTime();
-
+    
     /**
      * Starts updating the configuration of an existing stream.
      *
@@ -681,4 +681,24 @@ interface Stream {
      * @return Completable future that, upon completion, holds the epoch in which the segment was sealed.
      */
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
+
+    /**
+     * Method to compare streamcuts to check if streamcut1 is strictly ahead of streamcut2. 
+     * Strictly means if the two streamcuts are overlapping for any range, then this method will reply in negative. 
+     * 
+     * @param cut1 streamcut to check
+     * @param cut2 streamcut to check against. 
+     *
+     * @return CompletableFuture which, upon completion, will indicate if the streamcut1 is strictly ahead of streamcut2.
+     */
+    CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
+
+    /**
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.
+     * 
+     * @param streamCut streamcut to check
+     * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
+     * is strictly before the supplied streamcut. 
+     */
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
 }

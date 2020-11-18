@@ -260,21 +260,21 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.AddSubscriberStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.addSubscriber("scope", "stream", "subscriber", 0L).join());
 
-        when(this.mockControllerService.addSubscriber(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.addSubscriber(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
                         .setStatus(Controller.AddSubscriberStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.addSubscriber("scope", "stream", "subscriber", 0L).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.addSubscriber(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.addSubscriber(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
                         .setStatus(Controller.AddSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.addSubscriber("scope", "stream", "subscriber", 0L).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.addSubscriber(any(), any(), any(), any())).thenReturn(
+        when(this.mockControllerService.addSubscriber(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.AddSubscriberStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
