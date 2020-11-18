@@ -1487,7 +1487,7 @@ public class ControllerImplTest {
                 removeSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
         removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream4", "subscriber1", 2L);
-        assertFalse(removeSubscriberStatus.get());
+        assertTrue(removeSubscriberStatus.get());
 
         removeSubscriberStatus = controllerClient.deleteSubscriber("scope1", "stream5", "subscriber1", 2L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
