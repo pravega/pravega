@@ -57,13 +57,14 @@ public class ReaderGroupConfig implements Serializable {
      * 'CONSUMPTION' based retention {@link RetentionPolicy.RetentionType#CONSUMPTION} ,
      * the Reader Group needs to periodically notify StreamCuts to Controller to indicate
      * the point in the Stream till which it has completed consuming data.
-     * This can be done by setting the retentionConfig to 'CONSUMPTION_BASED_USER_STREAMCUT' or
-     * 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
-     * If the Stream's Retention Policy is not Consumption based, ReaderGroupConfig can have retentionConfig = 'NO_IMPACT'.
+     * This can be done by setting the retentionConfig in ReaderGroupConfig {@link ReaderGroupConfig}
+     * to 'CONSUMPTION_BASED_USER_STREAMCUT' or 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
+     * If a Stream's Retention Policy is not Consumption based the ReaderGroupConfig should have retentionConfig = 'NO_IMPACT'.
      *
-     * If the Streams' Retention Policy = 'CONSUMPTION', but the ReaderGroup retentionConfig = 'NO_IMPACT',
-     * the ReaderGroup cannot publish consumption Stream-Cuts to Controller and Consumption based retention
-     * of data in the Stream will not happen.
+     * Note: It is incorrect to set a Streams' Retention Policy = 'CONSUMPTION' {@link RetentionPolicy.RetentionType#CONSUMPTION},
+     * and the ReaderGroup retentionConfig = 'NO_IMPACT',
+     * because with that the ReaderGroup cannot publish consumption Stream-Cuts to Controller
+     * and so Consumption based retention of data in the Stream wwould not happen.
      *
      * NO_IMPACT - Read Positions of Readers do not impact Stream truncation/retention.
      * CONSUMPTION_BASED_USER_STREAMCUT - User provides the StreamCut for truncation using Consumption Based Retention.
