@@ -9,8 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 /**
  * {@link BlockingDrainingQueue} implementation for {@link Operation}s. Prevents adding {@link Operation}s out of order.
@@ -20,6 +23,8 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> {
      * The last sequence number added. This field is only accessed in {@link #addInternal}, which is guaranteed to be
      * executed while holding the base class' lock, hence no need for extra synchronization here.
      */
+    @Getter(AccessLevel.PACKAGE)
+    @VisibleForTesting
     private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
 
     /**

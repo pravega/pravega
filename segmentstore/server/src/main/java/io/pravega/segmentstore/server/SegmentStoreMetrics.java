@@ -222,7 +222,7 @@ public final class SegmentStoreMetrics {
             this.memoryCommitLatency.reportSuccessEvent(elapsed);
         }
 
-        public void operationLogTruncate(int count) {
+        public void operationLogRead(int count) {
             DYNAMIC_LOGGER.incCounterValue(MetricsNames.OPERATION_LOG_SIZE, -count, this.containerTag);
         }
 

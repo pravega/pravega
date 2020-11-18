@@ -19,7 +19,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
@@ -45,6 +44,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,7 +59,9 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
-    private final AbstractDrainingQueue<Operation> inMemoryOperationLog;
+    @Getter(AccessLevel.PACKAGE)
+    @VisibleForTesting
+    private final InMemoryLog inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
     private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
@@ -107,7 +110,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     @VisibleForTesting
-    protected AbstractDrainingQueue<Operation> createInMemoryLog() {
+    protected InMemoryLog createInMemoryLog() {
         return new InMemoryLog();
     }
 
@@ -318,11 +321,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // info will be readily available upon recovery without delay.
         return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
-                .thenRunAsync(() -> {
-                    // Remove old truncation markers.
-                    this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
-                    //this.operationProcessor.getMetrics().operationLogTruncate(count); // TODO
-                }, this.executor);
+                .thenRunAsync(() -> this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber), this.executor);
     }
 
     @Override
@@ -339,7 +338,15 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     public CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout) {
-        return this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
+        ensureRunning();
+        log.debug("{}: Read (MaxCount = {}, Timeout = {}).", this.traceObjectId, maxCount, timeout);
+        CompletableFuture<Queue<Operation>> result = this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
+        result.thenAccept(r -> {
+            int size = r.size();
+            this.operationProcessor.getMetrics().operationLogRead(size);
+            log.debug("{}: ReadResult (Count = {}).", this.traceObjectId, size);
+        });
+        return result;
     }
 
     @Override

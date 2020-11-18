@@ -566,17 +566,17 @@ public class OperationProcessorTests extends OperationLogTestBase {
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, int maxCount) throws Exception {
         // Log Operation based checks
         val successfulOps = operations.stream()
-                .filter(oc -> !oc.completion.isCompletedExceptionally())
-                .map(oc -> oc.operation)
-                .limit(maxCount)
-                .collect(Collectors.toList());
+                                      .filter(oc -> !oc.completion.isCompletedExceptionally())
+                                      .map(oc -> oc.operation)
+                                      .limit(maxCount)
+                                      .collect(Collectors.toList());
 
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
 
         val memoryLogOps = readUpToSequenceNumber(memoryLog, successfulOps.get(successfulOps.size() - 1).getSequenceNumber());
-        val memorylogIterator = memoryLogOps.iterator();
+        val memoryLogIterator = memoryLogOps.iterator();
         OperationComparer memoryLogComparer = new OperationComparer(true);
         for (Operation expectedOp : successfulOps) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
@@ -584,10 +584,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
             lastSeqNo = expectedOp.getSequenceNumber();
 
             // MemoryLog: verify that the operations match that of the expected list.
-            Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memorylogIterator.hasNext());
+            Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
 
             // Use memoryLogComparer: we are actually expecting the same object here.
-            Operation actual = memorylogIterator.next();
+            Operation actual = memoryLogIterator.next();
             memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, actual);
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
@@ -695,6 +695,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+            this.memoryLog.close();
         }
     }
 
