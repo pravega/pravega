@@ -42,7 +42,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -553,9 +552,9 @@ public class ReaderGroupState implements Revisioned {
                 builder.generation(revisionDataInput.readLong());
                 int ordinal = revisionDataInput.readCompactInt();
                 builder.configState(ConfigState.values()[ordinal]);
-                try {
+                if (revisionDataInput.getBaseStream().available() != 0) {
                     builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
-                } catch (Exception e) {
+                } else {
                     builder.newConfig(null);
                 }
             }
@@ -1300,7 +1299,6 @@ public class ReaderGroupState implements Revisioned {
     @EqualsAndHashCode(callSuper = false)
     static class ReaderGroupStateResetStart extends ReaderGroupStateUpdate {
         private final ReaderGroupConfig newConfig;
-        private final Consumer<ReaderGroupState> backlog;
 
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -1312,14 +1310,13 @@ public class ReaderGroupState implements Revisioned {
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
             if (oldState.configState != ConfigState.READY) {
-                backlog.accept(oldState);
                 return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getNewConfig(), newRevision, oldState.checkpointState,
                         oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
                         oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
             }
             return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getConfig(), newRevision, oldState.checkpointState,
                     oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
-                    oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
+                    oldState.lastReadPosition, oldState.endSegments, oldState.generation, ConfigState.REINITIALIZING, newConfig);
         }
 
         private static class ReaderGroupStateResetStartBuilder implements ObjectBuilder<ReaderGroupStateResetStart> {

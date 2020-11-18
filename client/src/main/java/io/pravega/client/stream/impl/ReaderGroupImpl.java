@@ -206,11 +206,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         synchronizer.updateState((state, updates) -> {
-            updates.add(new ReaderGroupStateResetStart(config, oldState -> {
-                val oldConfig = oldState.getConfig();
-                val newConfig = oldState.getNewConfig();
+            if (state.getConfigState() != ReaderGroupState.ConfigState.READY) {
+                val oldConfig = state.getConfig();
+                val newConfig = state.getNewConfig();
                 manageSubscriptions(oldConfig, newConfig);
-            }));
+            }
+            updates.add(new ReaderGroupStateResetStart(config));
         });
 
         val generation = synchronizer.getState().getGeneration();
