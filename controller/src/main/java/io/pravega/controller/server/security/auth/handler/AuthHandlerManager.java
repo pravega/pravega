@@ -157,7 +157,7 @@ public class AuthHandlerManager {
                 ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
                 for (AuthHandler handler : loader) {
                     try {
-                        handler.initialize(serverConfig.toProperties());
+                        handler.initialize(serverConfig.toAuthHandlerProperties());
                         synchronized (this) {
                             if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
                                 log.warn("Handler with name {} already exists. Not replacing it with the latest handler");

@@ -16,6 +16,7 @@ import com.google.common.base.Strings;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.shared.security.auth.UserPrincipal;
@@ -136,7 +137,11 @@ public class PasswordAuthHandler implements AuthHandler {
 
     @Override
     public void initialize(@NonNull Properties properties) {
-        initialize(properties.getProperty("basic.authplugin.dbfile"));
+        String userAccountsDatabaseFile = properties.getProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE);
+        if (userAccountsDatabaseFile == null) {
+            throw new RuntimeException("User account database config was absent");
+        }
+        initialize(userAccountsDatabaseFile);
     }
 
     private static String[] parseToken(String token) {

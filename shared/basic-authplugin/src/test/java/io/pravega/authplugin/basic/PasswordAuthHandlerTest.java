@@ -11,6 +11,7 @@ package io.pravega.authplugin.basic;
 
 import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import java.security.Principal;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.NonNull;
@@ -38,9 +40,25 @@ public class PasswordAuthHandlerTest {
     //region Tests verifying authentication
 
     @Test(expected = CompletionException.class)
+    public void initializeFailsIfAccountFileConfigMissing() {
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+
+        Properties props = new Properties();
+        props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, "/random/file");
+        authHandler.initialize(props);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void initializeFailsIfPropertiesIsNull() {
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+        Properties props = null; // Declaration is necessary to avoid ambiguity of the following call.
+        authHandler.initialize(props);
+    }
+
+    @Test(expected = RuntimeException.class)
     public void initializeFailsIfAccountFileMissing() {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
-        authHandler.initialize("nonexistent/accounts/file/path");
+        authHandler.initialize(new Properties());
     }
 
     @Test

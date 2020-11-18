@@ -122,5 +122,11 @@ public interface GRPCServerConfig extends ServerConfig {
      */
     boolean isRequestTracingEnabled();
 
-    Properties toProperties();
+    /**
+     * Returns the configuration items related to {@link io.pravega.auth.AuthHandler}
+     * in this object in a {@link Properties} format.
+     *
+     * @return properties representing
+     */
+    Properties toAuthHandlerProperties();
 }
