@@ -369,7 +369,7 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream4")) {
                     responseObserver.onNext(DeleteSubscriberStatus.newBuilder()
-                            .setStatus(DeleteSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
+                            .setStatus(DeleteSubscriberStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("stream5")) {
