@@ -394,6 +394,14 @@ project ('bindings') {
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
 
+        // These were previously brought in as transitive dependencies of HDFS, although they were required for running
+        // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
+        // so adding explicit dependencies is necessary (as well as desirable).
+        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
+        implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
+
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
