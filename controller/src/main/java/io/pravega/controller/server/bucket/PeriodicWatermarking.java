@@ -38,6 +38,8 @@ import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
+
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -57,39 +59,55 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.ParametersAreNonnullByDefault;
+
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
-    private static final int MAX_CACHE_SIZE = 1000;
+    private static final int MAX_CACHE_SIZE = 500;
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final LoadingCache<Stream, WatermarkClient> watermarkClientCache;
+    private final LoadingCache<String, SynchronizerClientFactory> syncFactoryCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor);
     }
 
     @VisibleForTesting
-    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore, 
-                                Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
+    PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                                 Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
+                                 ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
+        this.syncFactoryCache = CacheBuilder.newBuilder()
+                                                .maximumSize(MAX_CACHE_SIZE)
+                                                .expireAfterAccess(10, TimeUnit.MINUTES)
+                                                .removalListener((RemovalListener<String, SynchronizerClientFactory>) notification -> {
+                                                    notification.getValue().close();
+                                                })
+                                                .build(new CacheLoader<String, SynchronizerClientFactory>() {
+                                                    @ParametersAreNonnullByDefault
+                                                    @Override
+                                                    public SynchronizerClientFactory load(final String scope) {
+                                                        return synchronizerClientFactoryFactory.apply(scope);
+                                                    }
+                                                });
         this.watermarkClientCache = CacheBuilder.newBuilder()
                                                 .maximumSize(MAX_CACHE_SIZE)
                                                 .expireAfterAccess(10, TimeUnit.MINUTES)
                                                 .removalListener((RemovalListener<Stream, WatermarkClient>) notification -> {
-                                                    notification.getValue().client.close();
+                                                    notification.getValue().close();
                                                 })
                                                 .build(new CacheLoader<Stream, WatermarkClient>() {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        return watermarkClientSupplier.apply(stream);
+                                                        return new WatermarkClient(stream, syncFactoryCache.getUnchecked(stream.getScope()));
                                                     }
                                                 });
     }
@@ -371,8 +389,18 @@ public class PeriodicWatermarking {
     boolean checkExistsInCache(Stream stream) {
         return watermarkClientCache.asMap().containsKey(stream);
     }
+
+    @VisibleForTesting
+    boolean checkExistsInCache(String scope) {
+        return syncFactoryCache.asMap().containsKey(scope);
+    }
+
+    @VisibleForTesting
+    void evictFromCache(String scope) {
+        syncFactoryCache.invalidate(scope);
+    }
         
-    static class WatermarkClient {
+    static class WatermarkClient implements Closeable {
         private final RevisionedStreamClient<Watermark> client;
         
         private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
@@ -385,10 +413,6 @@ public class PeriodicWatermarking {
          * {@link StreamConfiguration#timestampAggregationTimeout}, then it is declared timedout.
          */
         private final ConcurrentHashMap<String, Long> inactiveWriters;
-        
-        WatermarkClient(Stream stream, ClientConfig clientConfig) {
-            this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
-        }
         
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
@@ -486,6 +510,11 @@ public class PeriodicWatermarking {
         @VisibleForTesting
         boolean isWriterTracked(String writerId) {
             return inactiveWriters.containsKey(writerId);
+        }
+
+        @Override
+        public void close() {
+            this.client.close();
         }
     }
 }
