@@ -853,10 +853,10 @@ public abstract class StreamTestBase {
                 () -> stream.startTruncation(streamCut4), e -> e instanceof IllegalArgumentException);
 
         Map<Long, Long> streamCut5 = new HashMap<>();
-        streamCut3.put(twoSegmentId, 10L);
-        streamCut3.put(fourSegmentId, 10L);
-        streamCut3.put(fiveSegmentId, 10L);
-        streamCut3.put(startingSegmentNumber + 0L, 10L);
+        streamCut5.put(twoSegmentId, 10L);
+        streamCut5.put(fourSegmentId, 10L);
+        streamCut5.put(fiveSegmentId, 10L);
+        streamCut5.put(startingSegmentNumber + 0L, 10L);
         AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.startTruncation(streamCut5), e -> e instanceof IllegalArgumentException);
     }
