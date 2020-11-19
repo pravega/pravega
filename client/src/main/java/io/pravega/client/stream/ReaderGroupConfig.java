@@ -221,7 +221,7 @@ public class ReaderGroupConfig implements Serializable {
         * CONSUMPTION_BASED_USER_STREAMCUT or CONSUMPTION_BASED_AT_LAST_CHECKPOINT.
         * See: {@link ReaderGroupConfig.StreamDataRetention}
         * Default value: NO_IMPACT.
-        * 
+        *
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
