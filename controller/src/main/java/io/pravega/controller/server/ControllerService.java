@@ -163,12 +163,12 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber) {
+    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber, final long generation) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.addSubscriber(scope, stream, subscriber, null)
+        return streamMetadataTasks.addSubscriber(scope, stream, subscriber, generation, null)
                 .thenApplyAsync(status -> {
                     reportAddSubscriberMetrics(scope, stream, status, timer.getElapsed());
                     return AddSubscriberStatus.newBuilder().setStatus(status).build();
@@ -182,12 +182,12 @@ public class ControllerService {
 
     }
 
-    public CompletableFuture<DeleteSubscriberStatus> deleteSubscriber(String scope, String stream, final String subscriber) {
+    public CompletableFuture<DeleteSubscriberStatus> deleteSubscriber(String scope, String stream, final String subscriber, final long generation) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.deleteSubscriber(scope, stream, subscriber, null)
+        return streamMetadataTasks.deleteSubscriber(scope, stream, subscriber, generation, null)
                 .thenApplyAsync(status -> {
                     reportDeleteSubscriberMetrics(scope, stream, status, timer.getElapsed());
                     return DeleteSubscriberStatus.newBuilder().setStatus(status).build();
