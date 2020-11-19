@@ -33,6 +33,3 @@ include 'common',
         'test:integration',
         'test:system',
         'bindings'
-include 'password-authplugin'
-include 'basic-authplugin'
-
