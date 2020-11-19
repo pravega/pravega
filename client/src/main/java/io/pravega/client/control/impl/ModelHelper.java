@@ -377,14 +377,15 @@ public final class ModelHelper {
      * @param scope the stream's scope
      * @param streamName The Stream Name
      * @param subscriber Id of the subscriber for this stream.
+     * @param generation generation of the subscriber operation.
      * @return StreamSubscriberInfo instance.
      */
-    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber) {
+    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber, final long generation) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
         final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
-                .setScope(scope).setStream(streamName).setSubscriber(subscriber);
+                .setScope(scope).setStream(streamName).setSubscriber(subscriber).setOperationGeneration(generation);
         return builder.build();
     }
 

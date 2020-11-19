@@ -116,6 +116,9 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("subscribersLock")
     private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
 
+    @GuardedBy("subscribersLock")
+    private final Map<String, Long> subscribersSet = new HashMap<String, Long>();
+
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
     }
@@ -838,34 +841,34 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber) {
+    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
         synchronized (subscribersLock) {
-            Optional<StreamSubscriber> existingSubscriber = streamSubscribers.stream().map(s1 -> s1.getObject())
-                    .filter(s2 -> s2.getSubscriber().equals(subscriber)).findFirst();
-            if (existingSubscriber.isPresent()) {
-                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_EXISTS, "subscriber exists"));
+            if (subscribersSet.containsKey(subscriber)) {
+                Long subGeneration = subscribersSet.get(subscriber);
+                if (subGeneration < generation) {
+                    subscribersSet.put(subscriber, generation);
+                }
             } else {
-                StreamSubscriber streamSubscriber = new StreamSubscriber(subscriber, ImmutableMap.of(), System.currentTimeMillis() );
-                streamSubscribers.add(new VersionedMetadata<>(streamSubscriber, new Version.IntVersion(0)));
-                return CompletableFuture.completedFuture(null);
+                subscribersSet.put(subscriber, generation);
+                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, ImmutableMap.of(),
+                        System.currentTimeMillis()), new Version.IntVersion(0)));
             }
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
+    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
         synchronized (subscribersLock) {
-            Optional<StreamSubscriber> existingSubscriber = streamSubscribers.stream().map(sub -> sub.getObject())
-                    .filter(s -> s.getSubscriber().equals(subscriber)).findFirst();
-            if (existingSubscriber.isEmpty()) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
-            } else {
-                streamSubscribers.remove(existingSubscriber.get());
-                result.complete(null);
+            if (subscribersSet.containsKey(subscriber) && subscribersSet.get(subscriber).longValue() <= generation) {
+                subscribersSet.remove(subscriber);
+                Optional<VersionedMetadata<StreamSubscriber>> sub = streamSubscribers.stream().filter(s -> s.getObject().getSubscriber().equals(subscriber)).findAny();
+                if (sub.isPresent()) {
+                    streamSubscribers.remove(sub.get());
+                }
             }
         }
-        return result;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
