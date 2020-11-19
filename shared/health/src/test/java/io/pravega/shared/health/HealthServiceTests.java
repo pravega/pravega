@@ -19,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.rules.Timeout;
@@ -85,16 +86,16 @@ public class HealthServiceTests {
 
     @Test
     public void components() {
-       // SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-       // service.registry().register(indicator);
+        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
+        service.registry().register(indicator);
 
-       // Collection<HealthContributor> components = service.components();
-       // // Only the 'ROOT' HealthComponent should be registered.
-       // Assert.assertEquals("No non-root components have been defined.", service.components().size(), 1);
-       // // Assert that it is indeed the 'ROOT'
-       // Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
-       //         ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME,
-       //         components.stream().findFirst());
+        Collection<String> components = service.components();
+        // Only the 'ROOT' HealthComponent should be registered.
+        Assert.assertEquals("No non-root components have been defined.", service.components().size(), 1);
+        // Assert that it is indeed the 'ROOT'
+        Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
+                ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME,
+                components.stream().findFirst().get());
     }
 
     @Test
