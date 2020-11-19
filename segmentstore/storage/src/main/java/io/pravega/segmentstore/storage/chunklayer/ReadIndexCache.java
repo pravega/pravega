@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -374,12 +373,10 @@ class ReadIndexCache {
      * The generation is used to cleanup unused entries.
      */
     @RequiredArgsConstructor
+    @Data
     private static class SegmentReadIndex {
-        @Getter
         private final ConcurrentSkipListMap<Long, SegmentReadIndexEntry> chunkIndex = new ConcurrentSkipListMap<Long, SegmentReadIndexEntry>();
-        @Getter
         private final AtomicLong generation = new AtomicLong();
-        @Getter
         private final AtomicBoolean isEvicting = new AtomicBoolean();
     }
 
