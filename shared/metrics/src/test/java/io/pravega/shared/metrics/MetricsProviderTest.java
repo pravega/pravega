@@ -104,6 +104,9 @@ public class MetricsProviderTest {
             dynamicLogger.incCounterValue("dynamicCounterNoTag", i);
             assertEquals(sum, (int) MetricRegistryUtils.getCounter("dynamicCounterNoTag").count());
         }
+
+        dynamicLogger.updateCounterValue("dynamicCounterNoTag", 100);
+        assertEquals(100, (int) MetricRegistryUtils.getCounter("dynamicCounterNoTag").count());
         dynamicLogger.freezeCounter("dynamicCounterNoTag");
         assertEquals(null, MetricRegistryUtils.getCounter("dynamicCounterNoTag"));
 
@@ -116,6 +119,9 @@ public class MetricsProviderTest {
             assertEquals(2 * sum, (int) MetricRegistryUtils.getCounter("dynamicCounter", "hostname", "1.1.1.1").count());
             assertEquals(3 * sum, (int) MetricRegistryUtils.getCounter("dynamicCounter", "hostname", "2.2.2.2").count());
         }
+        dynamicLogger.updateCounterValue("dynamicCounter", 200, "hostname", "1.1.1.1");
+        assertEquals(200, (int) MetricRegistryUtils.getCounter("dynamicCounter", "hostname", "1.1.1.1").count());
+
         dynamicLogger.freezeCounter("dynamicCounter", "hostname", "1.1.1.1");
         dynamicLogger.freezeCounter("dynamicCounter", "hostname", "2.2.2.2");
 
