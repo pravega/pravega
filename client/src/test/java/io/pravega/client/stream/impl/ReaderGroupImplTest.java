@@ -302,6 +302,11 @@ public class ReaderGroupImplTest {
     @Test
     public void updateRetentionStreamCutTestSuccess() {
         Stream test = createStream("test");
+        ReaderGroupState state = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(state);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
+                .retentionConfig(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_USER_STREAMCUT).build();
+        when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         Map<Stream, StreamCut> cuts = new HashMap<>();
@@ -309,5 +314,20 @@ public class ReaderGroupImplTest {
         readerGroup.updateRetentionStreamCut(cuts);
         verify(controller, times(1))
                 .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1));
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void updateRetentionStreamCutTestFailure() {
+        Stream test = createStream("test");
+        ReaderGroupState state = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(state);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
+                .retentionConfig(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_AT_LAST_CHECKPOINT).build();
+        when(synchronizer.getState().getConfig()).thenReturn(config);
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
     }
 }
