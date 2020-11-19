@@ -25,11 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * Data class containing the list of subscribers registered to a Stream
+ * Data class containing the list of subscribers registered to a Stream.
  */
 @Slf4j
 @Data
