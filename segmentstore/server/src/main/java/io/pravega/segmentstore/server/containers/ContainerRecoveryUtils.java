@@ -102,13 +102,13 @@ public class ContainerRecoveryUtils {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         while (segmentIterator.hasNext()) {
             val currentSegment = segmentIterator.next();
-
-            // skip recovery if the segment is an attribute segment.
-            if (NameUtils.isAttributeSegment(currentSegment.getName())) {
+            int containerId = segToConMapper.getContainerId(currentSegment.getName());
+            String currentSegmentName = currentSegment.getName();
+            // skip recovery if the segment is an attribute segment or metadata segment.
+            if (NameUtils.isAttributeSegment(currentSegmentName) || getMetadataSegmentName(containerId).equals(currentSegmentName)) {
                 continue;
             }
 
-            int containerId = segToConMapper.getContainerId(currentSegment.getName());
             existingSegmentsMap.get(containerId).remove(currentSegment.getName());
             futures.add(recoverSegment(debugStreamSegmentContainersMap.get(containerId), currentSegment, timeout));
         }
@@ -138,7 +138,7 @@ public class ContainerRecoveryUtils {
      *                                          satisfy the above two criteria.
      */
     private static void validateContainerIds(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap,
-                                          int containerCount) throws IllegalArgumentException {
+                                             int containerCount) throws IllegalArgumentException {
         Set<Integer> containerIdsSet = new HashSet<>();
         for (val containerId : debugStreamSegmentContainersMap.keySet()) {
             if (containerId < 0 || containerId >= containerCount) {
@@ -285,8 +285,8 @@ public class ContainerRecoveryUtils {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
         return copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout)
-                        .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
-                                executorService, timeout));
+                .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
+                        executorService, timeout));
     }
 
     /**
@@ -394,12 +394,12 @@ public class ContainerRecoveryUtils {
                                                     .thenAcceptAsync(r -> {
                                                         bytesToRead.addAndGet(-size);
                                                         offset.addAndGet(size);
-                                            }, executor) : null;
-                                        }, executor);
-                            }, executor);
+                                                        }, executor) : null;
+                                            }, executor);
+                                }, executor);
+                    }, executor);
                 }, executor);
             }, executor);
-        }, executor);
     }
 
     /**

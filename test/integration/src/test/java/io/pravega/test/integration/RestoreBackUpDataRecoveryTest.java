@@ -149,11 +149,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
             .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
-    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
+
+    // DL config that can be used to simulate no DurableLog truncations.
+    private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 10000)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
             .build();
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
@@ -519,7 +521,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                                                                                   StorageFactory storageFactory) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DURABLE_LOG_CONFIG, dataLogFactory, executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < containerCount; containerId++) {
