@@ -138,8 +138,6 @@ message AddSubscriberStatus {
         SUCCESS = 0;
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
-        SCOPE_NOT_FOUND = 3;
-        SUBSCRIBER_EXISTS = 4;
     }
     Status status = 1;
 }
@@ -149,7 +147,6 @@ message DeleteSubscriberStatus {
         SUCCESS = 0;
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
-        SUBSCRIBER_NOT_FOUND = 3;
     }
     Status status = 1;
 }
@@ -169,6 +166,7 @@ message StreamSubscriberInfo {
     string scope = 1;
     string stream = 2;
     string subscriber = 3;
+    int64 operationGeneration = 4;
 }
 
 message SubscriberStreamCut {
