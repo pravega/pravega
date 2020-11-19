@@ -59,6 +59,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
@@ -575,8 +576,14 @@ public class OperationProcessorTests extends OperationLogTestBase {
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
 
-        val memoryLogOps = readUpToSequenceNumber(memoryLog, successfulOps.get(successfulOps.size() - 1).getSequenceNumber());
-        val memoryLogIterator = memoryLogOps.iterator();
+        Iterator<Operation> memoryLogIterator;
+        if (successfulOps.isEmpty()) {
+            memoryLogIterator = Collections.emptyIterator();
+        } else {
+            val memoryLogOps = readUpToSequenceNumber(memoryLog, successfulOps.get(successfulOps.size() - 1).getSequenceNumber());
+            memoryLogIterator = memoryLogOps.iterator();
+        }
+
         OperationComparer memoryLogComparer = new OperationComparer(true);
         for (Operation expectedOp : successfulOps) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
