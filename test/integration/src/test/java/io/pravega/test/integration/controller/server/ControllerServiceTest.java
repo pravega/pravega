@@ -312,25 +312,25 @@ public class ControllerServiceTest {
     private static void addRemoveSubscribersTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
         // add the first subscriber
         final String subscriber1 = "subscriber1";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber1).get());
+        assertTrue(controller.addSubscriber(scope, stream, subscriber1, 0L).get());
 
         // add one more new subscriber
         final String subscriber2 = "subscriber2";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
+        assertTrue(controller.addSubscriber(scope, stream, subscriber2, 0L).get());
 
         List<String> subscribers = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribers.size() == 2);
         assertTrue(subscribers.contains(subscriber1));
         assertTrue(subscribers.contains(subscriber2));
 
-        assertTrue(controller.deleteSubscriber(scope, stream, subscriber2).get());
+        assertTrue(controller.deleteSubscriber(scope, stream, subscriber2, 1L).get());
         List<String> subscribersNow = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersNow.size() == 1);
         assertTrue(subscribersNow.contains(subscriber1));
         assertFalse(subscribersNow.contains(subscriber2));
 
         // and now add again...
-        assertTrue(controller.addSubscriber(scope, stream, subscriber2).get());
+        assertTrue(controller.addSubscriber(scope, stream, subscriber2, 3L).get());
         List<String> subscribersAgain = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersAgain.size() == 2);
         assertTrue(subscribersAgain.contains(subscriber1));
@@ -338,7 +338,7 @@ public class ControllerServiceTest {
 
         // add more new subscribers
         final String subscriber3 = "subscriber3";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber3).get());
+        assertTrue(controller.addSubscriber(scope, stream, subscriber3, 0L).get());
         List<String> subscribersMore = controller.listSubscribers(scope, stream).get();
         assertTrue(subscribersMore.size() == 3);
         assertTrue(subscribersMore.contains(subscriber1));
@@ -349,7 +349,7 @@ public class ControllerServiceTest {
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
         // add the first subscriber
         final String subscriber = "up_subscriber";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber).get());
+        assertTrue(controller.addSubscriber(scope, stream, subscriber, 0L).get());
 
         Stream streamToBeUpdated = Stream.of(scope, stream);
         Segment seg1 = new Segment(scope, stream, 0L);
