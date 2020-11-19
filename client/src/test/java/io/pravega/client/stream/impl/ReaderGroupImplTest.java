@@ -324,8 +324,6 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
                 .retentionConfig(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_AT_LAST_CHECKPOINT).build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
-        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
-                .thenReturn(CompletableFuture.completedFuture(true));
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
         readerGroup.updateRetentionStreamCut(cuts);
