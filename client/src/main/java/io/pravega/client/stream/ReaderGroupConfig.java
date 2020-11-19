@@ -53,22 +53,22 @@ public class ReaderGroupConfig implements Serializable {
     private final StreamDataRetention retentionConfig;
 
     /**
-     * If a Stream's Retention Policy {@link RetentionPolicy} is set to
-     * 'CONSUMPTION' based retention {@link RetentionPolicy.RetentionType#CONSUMPTION} ,
-     * the Reader Group needs to periodically notify StreamCuts to Controller to indicate
-     * the point in the Stream till which it has completed consuming data.
-     * This can be done by setting the retentionConfig in ReaderGroupConfig {@link ReaderGroupConfig}
+     * If a Stream's Retention Policy is set to {@link RetentionPolicy.RetentionType#CONSUMPTION},
+     * and the user wants the reads of this Reader Group to impact Stream data retention,
+     * the retentionConfig in {@link ReaderGroupConfig} should be set to
      * to 'CONSUMPTION_BASED_USER_STREAMCUT' or 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
-     * If a Stream's Retention Policy is not Consumption based the ReaderGroupConfig should have retentionConfig = 'NO_IMPACT'.
+     * Setting these options implies the Reader Group will notify Controller of its consumption position {@link StreamCut}
+     * and these will be used on Controller to retain only un-consumed data in the Stream.
+     * If a Stream's Retention Policy is TIME/SPACE based the ReaderGroupConfig should have retentionConfig='NO_IMPACT'.
      *
-     * Note: It is incorrect to set ReaderGroup retentionConfig = 'NO_IMPACT' when
-     * a Streams' Retention Policy = 'CONSUMPTION' {@link RetentionPolicy.RetentionType#CONSUMPTION},
-     * because with NO_IMPACT the ReaderGroup will not notify consumption Stream-Cuts to Controller
-     * and so Consumption based retention of data in the Stream would not happen.
-     *
-     * NO_IMPACT - Read Positions of Readers do not impact Stream truncation/retention.
-     * CONSUMPTION_BASED_USER_STREAMCUT - User provides the StreamCut for truncation using Consumption Based Retention.
-     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - StreamCut corresponding to lastCompletedCheckpoint is auto-notified as truncation Stream-Cut for Consumption Based Retention.
+     * NO_IMPACT - Read Positions of this Reader Group do not impact Stream truncation/retention.
+     *             Set this value when :
+     *             a. Stream Retention Policy = "CONSUMPTION" {@link RetentionPolicy.RetentionType#CONSUMPTION}
+     *             but Reader group does *not* want its reads to impact Stream data Retention.
+     *             OR
+     *             b. Stream Retention policy is TIME/SPACE based.
+     * CONSUMPTION_BASED_USER_STREAMCUT - User provides StreamCut to mark consumption boundary on the Stream using {@link ReaderGroup#updateRetentionStreamCut(java.util.Map) } API.
+     * CONSUMPTION_BASED_AT_LAST_CHECKPOINT - StreamCut corresponding to lastCompletedCheckpoint is auto-notified as truncation Stream-Cut to Controller.
      * */
     public enum StreamDataRetention {
         NO_IMPACT(false, false),

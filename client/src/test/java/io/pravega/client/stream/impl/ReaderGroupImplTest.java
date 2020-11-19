@@ -298,4 +298,16 @@ public class ReaderGroupImplTest {
         assertEquals(1, distribution.get("2").intValue());
         assertEquals(1, distribution.get("3").intValue());
     }
+
+    @Test
+    public void updateRetentionStreamCutTestSuccess() {
+        Stream test = createStream("test");
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
+        verify(controller, times(1))
+                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1));
+    }
 }
