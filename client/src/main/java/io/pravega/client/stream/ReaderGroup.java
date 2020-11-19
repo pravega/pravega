@@ -172,8 +172,8 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     /**
      * Update Retention Stream-Cut for Streams in this Reader Group.
      * See {#link ReaderGroupConfig.StreamDataRetention#CONSUMPTION_BASED_USER_STREAMCUT}
-     * @param streamCuts A map of <Stream, streamCut>. Here, StreamCut indicates the position in the respective Stream
-     *                   till which data has been consumed and hence can deleted.
+     * @param streamCuts A Map with a Stream-Cut for each Stream.
+     *                   StreamCut indicates position in the Stream till which data has been consumed and can be deleted.
      */
     void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
 
