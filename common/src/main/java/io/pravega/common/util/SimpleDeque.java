@@ -203,20 +203,23 @@ public class SimpleDeque<T> {
             newCapacity = newCapacity * 2;
         }
 
-        final Object[] newItems = Arrays.copyOf(this.items, newCapacity);
-        boolean flipped = this.tail < this.head || (this.tail == this.head && newItems[this.head] != null);
-        if (flipped) {
-            final int diff = newCapacity - this.items.length;
-            System.arraycopy(newItems, this.head, newItems, this.head + diff, this.items.length - this.head);
-            int idx = this.head;
-            this.head += diff;
-            while (idx < this.head) {
-                newItems[idx] = null;
-                idx++;
-            }
+        final Object[] newItems = new Object[newCapacity];
+        if (this.head < this.tail) {
+            // The items do not wrap around the end. We can do everything with a single copy.
+            final int size = this.tail - this.head;
+            System.arraycopy(this.items, this.head, newItems, 0, size);
+            this.tail = size;
+        } else {
+            // The items wrap around the end. First copy from the head to the end, then from the beginning to the tail.
+            final int copyLength = this.items.length - this.head;
+            System.arraycopy(this.items, this.head, newItems, 0, copyLength);
+            System.arraycopy(this.items, 0, newItems, copyLength, this.tail);
+            this.tail = copyLength + this.tail;
         }
 
+        this.head = 0;
         this.items = newItems;
+        assert this.head != this.tail;
     }
 
     @Override
@@ -228,6 +231,13 @@ public class SimpleDeque<T> {
 
     //region WrapQueue
 
+    /**
+     * Array-backed {@link Queue} implementation that only supports removing items. Items will be removed (via
+     * {@link #poll()}, {@link #remove()}) in the order in which they appear in the array. Iterating (via {@link
+     * #iterator()}) will return all the items that are left in the {@link Queue}, but it will not remove them.
+     *
+     * @param <T> Type of the items.
+     */
     @RequiredArgsConstructor
     @NotThreadSafe
     private static class WrapQueue<T> extends AbstractCollection<T> implements Queue<T> {
@@ -248,7 +258,7 @@ public class SimpleDeque<T> {
 
         @Override
         public T element() {
-            T result = poll();
+            T result = peek();
             if (result == null) {
                 throw new NoSuchElementException();
             }
@@ -273,14 +283,18 @@ public class SimpleDeque<T> {
             return this.items.length - this.nextIndex;
         }
 
+        @Override
+        public T remove() {
+            T result = poll();
+            if (result == null) {
+                throw new NoSuchElementException();
+            }
+            return result;
+        }
+
         //endregion
 
         //region Unsupported Methods
-
-        @Override
-        public boolean offer(T t) {
-            throw new UnsupportedOperationException();
-        }
 
         @Override
         public boolean remove(Object o) {
@@ -288,7 +302,7 @@ public class SimpleDeque<T> {
         }
 
         @Override
-        public T remove() {
+        public boolean offer(T t) {
             throw new UnsupportedOperationException();
         }
 

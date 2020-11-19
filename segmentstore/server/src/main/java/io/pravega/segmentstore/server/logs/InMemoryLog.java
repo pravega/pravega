@@ -29,6 +29,7 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> {
 
     /**
      * See {@link BlockingDrainingQueue#addInternal}.
+     * NOTE: this method is invoked while holding the super class' lock; as such, no further synchronization is needed here.
      *
      * @param item The item to include.
      * @throws OutOfOrderOperationException If item's Sequence Number is out of order.

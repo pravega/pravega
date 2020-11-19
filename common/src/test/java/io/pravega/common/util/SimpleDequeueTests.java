@@ -154,7 +154,6 @@ public class SimpleDequeueTests {
         // Unsupported methods.
         AssertExtensions.assertThrows(UnsupportedOperationException.class, () -> actual.offer(0));
         AssertExtensions.assertThrows(UnsupportedOperationException.class, () -> actual.remove(0));
-        AssertExtensions.assertThrows(UnsupportedOperationException.class, actual::remove);
         AssertExtensions.assertThrows(UnsupportedOperationException.class, () -> actual.removeAll(Collections.<Integer>emptyList()));
         AssertExtensions.assertThrows(UnsupportedOperationException.class, () -> actual.retainAll(Collections.<Integer>emptyList()));
         AssertExtensions.assertThrows(UnsupportedOperationException.class, actual::clear);
@@ -167,10 +166,11 @@ public class SimpleDequeueTests {
             int e = expected.get(i);
             Assert.assertEquals("Iterator element mismatch.", e, (int) iteratorElements.get(i));
             Assert.assertEquals("Peek.", e, (int) actual.peek());
+            Assert.assertEquals("Element.", e, (int) actual.element());
             if (i % 2 == 0) {
                 Assert.assertEquals("Poll", e, (int) actual.poll());
             } else {
-                Assert.assertEquals("Poll", e, (int) actual.element());
+                Assert.assertEquals("Remove", e, (int) actual.remove());
             }
 
             Assert.assertEquals(expected.size() - i - 1, actual.size());
@@ -178,7 +178,8 @@ public class SimpleDequeueTests {
 
         Assert.assertTrue(actual.isEmpty());
         Assert.assertNull(actual.peek());
-        Assert.assertNull(actual.poll());
         AssertExtensions.assertThrows(NoSuchElementException.class, actual::element);
+        Assert.assertNull(actual.poll());
+        AssertExtensions.assertThrows(NoSuchElementException.class, actual::remove);
     }
 }
