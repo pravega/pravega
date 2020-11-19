@@ -39,12 +39,15 @@ import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
+import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -171,6 +174,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
+        synchronizer.fetchUpdates();
+        val state = synchronizer.getState();
+        val generation = state.getGeneration();
+        if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
+            if (config.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE) {
+                Set<Stream> streams = config.getStartingStreamCuts().keySet();
+                // use new api with generation
+                streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName)));
+            }
+            groupImpl.updateConfigState(ReaderGroupState.ConfigState.READY);
+        }
     }
 
     public Position getInitialPosition(String stream) {

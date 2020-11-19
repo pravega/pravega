@@ -126,6 +126,27 @@ public class ReaderGroupState implements Revisioned {
         this.configState = ConfigState.INITIALIZING;
         this.newConfig = null;
     }
+
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
+                     Map<Segment, Long> endSegments, ConfigState configState, long generation) {
+        Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
+        Preconditions.checkNotNull(revision);
+        Preconditions.checkNotNull(config);
+        Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
+        this.scopedSynchronizerStream = scopedSynchronizerStream;
+        this.config = config;
+        this.revision = revision;
+        this.checkpointState = new CheckpointState();
+        this.distanceToTail = new HashMap<>();
+        this.futureSegments = new HashMap<>();
+        this.assignedSegments = new HashMap<>();
+        this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
+        this.lastReadPosition = new HashMap<>(segmentsToOffsets);
+        this.endSegments = ImmutableMap.copyOf(endSegments);
+        this.generation = generation;
+        this.configState = configState;
+        this.newConfig = null;
+    }
     
     /**
      * @return A map from Reader to a relative measure of how much data they have to process. The
@@ -1246,6 +1267,8 @@ public class ReaderGroupState implements Revisioned {
     public static class ReaderGroupStateResetComplete implements InitialUpdate<ReaderGroupState> {
         private final long generation;
         private final ReaderGroupConfig newConfig;
+        private final Map<SegmentWithRange, Long> startingSegments;
+        private final Map<Segment, Long> endSegments;
 
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
@@ -1255,9 +1278,8 @@ public class ReaderGroupState implements Revisioned {
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
             if (oldState.generation == generation && oldState.getConfigState() == ConfigState.REINITIALIZING) {
-                return new ReaderGroupState(oldState.getScopedStreamName(), newConfig, newRevision, oldState.checkpointState,
-                        oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
-                        oldState.lastReadPosition, oldState.endSegments, generation, ConfigState.READY, null);
+                return new ReaderGroupState(oldState.getScopedStreamName(), newRevision, newConfig, startingSegments,
+                        endSegments, ConfigState.READY, generation);
             }
             return oldState;
         }
@@ -1283,13 +1305,29 @@ public class ReaderGroupState implements Revisioned {
             }
 
             private void read00(RevisionDataInput revisionDataInput, ReaderGroupStateResetCompleteBuilder builder) throws IOException {
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> {
+                    Segment segment = Segment.fromScopedName(in.readUTF());
+                    Range range = readRange(in);
+                    return new SegmentWithRange(segment, range);
+                };
                 builder.generation(revisionDataInput.readLong());
                 builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
+                builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
+                        RevisionDataInput::readLong));
+                builder.endSegments(revisionDataInput.readMap(segmentDeserializer, RevisionDataInput::readLong));
             }
 
             private void write00(ReaderGroupStateResetComplete object, RevisionDataOutput revisionDataOutput) throws IOException {
+                ElementSerializer<Segment> segmentSerializer = (out, s) -> out.writeUTF(s.getScopedName());
+                ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> {
+                    out.writeUTF(s.getSegment().getScopedName());
+                    writeRange(out, s.getRange());
+                };
                 revisionDataOutput.writeLong(object.generation);
                 revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+                revisionDataOutput.writeMap(object.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
+                revisionDataOutput.writeMap(object.endSegments, segmentSerializer, RevisionDataOutput::writeLong);
             }
         }
     }

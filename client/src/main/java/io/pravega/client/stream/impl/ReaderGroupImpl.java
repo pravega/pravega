@@ -218,8 +218,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         val currentConfig = synchronizer.getState().getConfig();
         manageSubscriptions(currentConfig, config);
 
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateState((state, updates) -> {
-            updates.add(new ReaderGroupStateResetComplete(generation, config));
+            updates.add(new ReaderGroupStateResetComplete(generation, config, segments, getEndSegmentsForStreams(config)));
         });
     }
 
