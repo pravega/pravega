@@ -54,17 +54,19 @@ public class ReaderGroupConfig implements Serializable {
 
     /**
      * If a Stream's Retention Policy is set to {@link RetentionPolicy.RetentionType#CONSUMPTION},
-     * and the user wants the reads of this Reader Group to impact Stream data retention,
+     * and the user expects reads from this Reader Group to impact data retention in the Stream,
      * the retentionConfig in {@link ReaderGroupConfig} should be set to
      * to 'CONSUMPTION_BASED_USER_STREAMCUT' or 'CONSUMPTION_BASED_AT_LAST_CHECKPOINT'.
-     * Setting these options implies the Reader Group will notify Controller of its consumption position {@link StreamCut}
-     * and these will be used on Controller to retain only un-consumed data in the Stream.
-     * If a Stream's Retention Policy is TIME/SPACE based the ReaderGroupConfig should have retentionConfig='NO_IMPACT'.
+     * Setting these options implies the Reader Group will notify the Controller of its consumption position {@link StreamCut}
+     * in the Stream, so only un-consumed data can be retained.
+     * This notification can be manual ('CONSUMPTION_BASED_USER_STREAMCUT') or automatic ('CONSUMPTION_BASED_AT_LAST_CHECKPOINT')
+     * If a Stream's Retention Policy is TIME/SPACE based the ReaderGroupConfig should have retentionConfig='NO_IMPACT',
+     * so consumption position notifications are not sent to Controller.
      *
-     * NO_IMPACT - Read Positions of this Reader Group do not impact Stream truncation/retention.
+     * NO_IMPACT - Set when read positions of this Reader Group are not expected to impact Stream truncation/retention.
      *             Set this value when :
      *             a. Stream Retention Policy = "CONSUMPTION" {@link RetentionPolicy.RetentionType#CONSUMPTION}
-     *             but Reader group does *not* want its reads to impact Stream data Retention.
+     *             but this Reader group does *not* want its reads to impact Stream data retention.
      *             OR
      *             b. Stream Retention policy is TIME/SPACE based.
      * CONSUMPTION_BASED_USER_STREAMCUT - User provides StreamCut to mark consumption boundary on the Stream using {@link ReaderGroup#updateRetentionStreamCut(java.util.Map) } API.
@@ -217,8 +219,9 @@ public class ReaderGroupConfig implements Serializable {
         * Set the retention config for the {@link ReaderGroup}.
         * For Consumption based retention of data in the Stream, this field should be set to
         * CONSUMPTION_BASED_USER_STREAMCUT or CONSUMPTION_BASED_AT_LAST_CHECKPOINT.
-        * Default value NO_IMPACT, is to be used when Stream's RetentionPolicy is not Consumption based.
-        *
+        * See: {@link ReaderGroupConfig.StreamDataRetention}
+        * Default value: NO_IMPACT.
+        * 
         * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
         * @return Reader group config builder.
         */
