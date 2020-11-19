@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
@@ -34,6 +35,7 @@ final class BookKeeperMetrics {
         private final OpStatsLogger writeQueueFillRate;
         private final OpStatsLogger writeLatency;
         private final OpStatsLogger totalWriteLatency;
+        private final Counter bkWriteBytes;
         private final String[] containerTag;
 
         BookKeeperLog(int containerId) {
@@ -42,6 +44,7 @@ final class BookKeeperMetrics {
             this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, this.containerTag);
             this.writeLatency = STATS_LOGGER.createStats(MetricsNames.BK_WRITE_LATENCY, this.containerTag);
             this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.BK_TOTAL_WRITE_LATENCY, this.containerTag);
+            this.bkWriteBytes = STATS_LOGGER.createCounter(MetricsNames.BK_WRITE_BYTES, this.containerTag);
         }
 
         @Override
@@ -50,6 +53,7 @@ final class BookKeeperMetrics {
             this.writeQueueFillRate.close();
             this.writeLatency.close();
             this.totalWriteLatency.close();
+            this.bkWriteBytes.close();
         }
 
         void ledgerCount(int count) {
@@ -67,7 +71,7 @@ final class BookKeeperMetrics {
 
         void bookKeeperWriteCompleted(int length, Duration elapsed) {
             this.writeLatency.reportSuccessEvent(elapsed);
-            DYNAMIC_LOGGER.incCounterValue(MetricsNames.BK_WRITE_BYTES, length);
+            this.bkWriteBytes.add(length);
         }
     }
 }
