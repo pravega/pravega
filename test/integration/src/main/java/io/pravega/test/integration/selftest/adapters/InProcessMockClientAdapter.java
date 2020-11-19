@@ -29,7 +29,11 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -55,6 +59,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     private final ScheduledExecutorService executor;
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
+    private AutoScaleMonitor autoScaleMonitor;
 
     //endregion
 
@@ -78,8 +83,10 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     @Override
     protected void startUp() throws Exception {
         int segmentStorePort = this.testConfig.getSegmentStorePort(0);
-        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore(),
-                getTableStore(), NoOpScheduledExecutor.get());
+        val store = getStreamSegmentStore();
+        this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+        this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
+                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get());
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
@@ -94,6 +101,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         if (this.listener != null) {
             this.listener.close();
             this.listener = null;
+        }
+
+        if (this.autoScaleMonitor != null) {
+            this.autoScaleMonitor.close();
+            this.autoScaleMonitor = null;
         }
 
         if (this.streamManager != null) {
