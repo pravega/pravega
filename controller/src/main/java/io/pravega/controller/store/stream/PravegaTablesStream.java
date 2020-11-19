@@ -281,7 +281,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     public CompletableFuture<Void> createSubscriber(String newSubscriber) {
         final StreamSubscriber newSubscriberRecord = new StreamSubscriber(newSubscriber, ImmutableMap.of(), System.currentTimeMillis());
         return getMetadataTable()
-                .thenCompose(metadataTable -> getSubscriberSetRecord(true)
+                .thenCompose(metadataTable -> createSubscribersRecordIfAbsent()
+                        .thenCompose(v -> getSubscriberSetRecord(true))
                         .thenCompose(subscriberSetRecord -> storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY,
                                 SubscriberSet.add(subscriberSetRecord.getObject(), newSubscriber).toBytes(), subscriberSetRecord.getVersion())
                                 .thenCompose(v -> storeHelper.addNewEntryIfAbsent(metadataTable, getKeyForSubscriber(newSubscriber), newSubscriberRecord.toBytes()))
