@@ -45,7 +45,7 @@ public class Subscribers {
     }
 
     /**
-     * This method adds a subscriber in the subscriberSet.
+     * This method adds a new subscriber to the subscriberSet.
      * @param subscriberSet Subscriber Set.
      * @param subscriber subscriber to be added.
      * @param generation subscriber generation.
@@ -67,8 +67,13 @@ public class Subscribers {
      */
     public static Subscribers update(@NonNull Subscribers subscriberSet, @NonNull String subscriber, long generation) {
         ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-        builder.putAll(subscriberSet.getSubscribers());
-        builder.put(subscriber, generation);
+        subscriberSet.getSubscribers().entrySet().forEach(s -> {
+            if (!s.getKey().equals(subscriber)) {
+                builder.put(s);
+            } else {
+                builder.put(subscriber, generation);
+            }
+        });
         return new Subscribers(builder.build());
     }
 
@@ -80,9 +85,11 @@ public class Subscribers {
      */
     public static Subscribers remove(@NonNull Subscribers subscriberSet, @NonNull String subscriber) {
        ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-       Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> !e.getKey().equals(subscriber))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-       builder.putAll(otherSubscribers);
+       subscriberSet.getSubscribers().entrySet().forEach(s -> {
+            if (!s.getKey().equals(subscriber)) {
+                builder.put(s);
+            }
+        });
        return new Subscribers(builder.build());
     }
 
