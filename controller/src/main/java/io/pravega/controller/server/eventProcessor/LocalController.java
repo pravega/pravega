@@ -184,14 +184,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber) {
-        return this.controller.addSubscriber(scope, streamName, subscriber).thenApply(x -> {
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
                                                                               scope + "/" + streamName);
-                case SUBSCRIBER_EXISTS:
-                    return false;
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
                 case SUCCESS:
@@ -204,15 +202,13 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber) {
-        return this.controller.deleteSubscriber(scope, streamName, subscriber).thenApply(x -> {
+    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.deleteSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUBSCRIBER_NOT_FOUND:
-                    return false;
                 case SUCCESS:
                     return true;
                 default:
