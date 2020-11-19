@@ -29,18 +29,18 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Data class to capture a subscriber set.
+ * Data class containing the list of subscribers registered to a Stream
  */
 @Slf4j
 @Data
-public class SubscriberSet {
+public class Subscribers {
     public static final SubscriberSetSerializer SERIALIZER = new SubscriberSetSerializer();
 
     @Getter
     private final ImmutableMap<String, Long> subscribers;
 
     @Builder
-    public SubscriberSet(@NonNull ImmutableMap<String, Long> subscribers) {
+    public Subscribers(@NonNull ImmutableMap<String, Long> subscribers) {
         this.subscribers = subscribers;
     }
 
@@ -51,11 +51,11 @@ public class SubscriberSet {
      * @param generation subscriber generation.
      * @return updated Subscriber Set.
      */
-    public static SubscriberSet add(@NonNull SubscriberSet subscriberSet, @NonNull String subscriber, long generation) {
+    public static Subscribers add(@NonNull Subscribers subscriberSet, @NonNull String subscriber, long generation) {
             ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
             builder.putAll(subscriberSet.subscribers);
             builder.put(subscriber, generation);
-            return new SubscriberSet(builder.build());
+            return new Subscribers(builder.build());
     }
 
     /**
@@ -65,13 +65,11 @@ public class SubscriberSet {
      * @param generation subscriber generation.
      * @return updated Subscriber Set.
      */
-    public static SubscriberSet update(@NonNull SubscriberSet subscriberSet, @NonNull String subscriber, long generation) {
+    public static Subscribers update(@NonNull Subscribers subscriberSet, @NonNull String subscriber, long generation) {
         ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-        Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> !e.getKey().equals(subscriber))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        builder.putAll(otherSubscribers);
+        builder.putAll(subscriberSet.getSubscribers());
         builder.put(subscriber, generation);
-        return new SubscriberSet(builder.build());
+        return new Subscribers(builder.build());
     }
 
     /**
@@ -80,19 +78,19 @@ public class SubscriberSet {
      * @param subscriber subscriber to be removed.
      * @return updated Subscriber Set.
      */
-    public static SubscriberSet remove(@NonNull SubscriberSet subscriberSet, @NonNull String subscriber) {
+    public static Subscribers remove(@NonNull Subscribers subscriberSet, @NonNull String subscriber) {
        ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
        Map<String, Long> otherSubscribers = subscriberSet.getSubscribers().entrySet().stream().filter(e -> !e.getKey().equals(subscriber))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
        builder.putAll(otherSubscribers);
-       return new SubscriberSet(builder.build());
+       return new Subscribers(builder.build());
     }
 
-    private static class SubscriberSetBuilder implements ObjectBuilder<SubscriberSet> {
+    private static class SubscribersBuilder implements ObjectBuilder<Subscribers> {
     }
 
     @SneakyThrows(IOException.class)
-    public static SubscriberSet fromBytes(final byte[] data) {
+    public static Subscribers fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -102,7 +100,7 @@ public class SubscriberSet {
     }
 
     private static class SubscriberSetSerializer
-            extends VersionedSerializer.WithBuilder<SubscriberSet, SubscriberSet.SubscriberSetBuilder> {
+            extends VersionedSerializer.WithBuilder<Subscribers, Subscribers.SubscribersBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -113,20 +111,20 @@ public class SubscriberSet {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, SubscriberSet.SubscriberSetBuilder recordBuilder)
+        private void read00(RevisionDataInput revisionDataInput, Subscribers.SubscribersBuilder recordBuilder)
                 throws IOException {
             ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
             revisionDataInput.readMap(DataInput::readUTF, DataInput::readLong, builder);
             recordBuilder.subscribers(builder.build());
         }
 
-        private void write00(SubscriberSet subscribersRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(Subscribers subscribersRecord, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeMap(subscribersRecord.getSubscribers(), DataOutput::writeUTF, DataOutput::writeLong);
         }
 
         @Override
-        protected SubscriberSet.SubscriberSetBuilder newBuilder() {
-            return SubscriberSet.builder();
+        protected Subscribers.SubscribersBuilder newBuilder() {
+            return Subscribers.builder();
         }
     }
 }
