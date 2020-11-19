@@ -60,6 +60,7 @@ import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
@@ -123,7 +124,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TRANSACTION_TIMEOUT = Duration.ofMillis(10000);
 
     /**
-     * Write 300 events to different segments.
+     * Write {@link #TOTAL_NUM_EVENTS} events to verify recovery.
      */
     private static final int TOTAL_NUM_EVENTS = 300;
 
@@ -137,7 +138,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      */
     private static final String SCOPE = "testMetricsScope";
     private static final String STREAM1 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
-    private static final String STREAM2 = "testMetricsStream" + RANDOM.nextInt(Integer.MAX_VALUE);
     private static final String EVENT = "12345";
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
@@ -268,7 +268,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                     .builder()
                     .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, containerCount));
+                            .with(ServiceConfig.CONTAINER_COUNT, containerCount)
+                            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
+                            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
             if (storageFactory != null) {
                 if (dataLogFactory != null) {
                     this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
@@ -376,18 +378,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with just one segment container. Segments recovery is attained using just one
      * debug segment container.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just one segment container.
-     *  2. Writes 300 events to two different segments.
-     *  3. Waits for all segments created to be flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  5. Starts just one debug segment container using a new bookeeper/zookeeper and the old LTS.
-     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  7. Starts segment store and controller.
-     *  8. Reads all 600 events again.
+     *  1.  Starts Pravega locally with just one segment container.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts one debug segment container using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segment in DurableLog and let's it to be flushed to the Long Term Storage.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
-    @Test(timeout = 180000)
+    @Test(timeout = 90000)
     public void testDurableDataLogFailRecoverySingleContainer() throws Exception {
         testRecovery(1, 1, false);
     }
@@ -396,15 +399,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with multiple segment containers. Segments recovery is attained using multiple
      * debug segment containers as well.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events to two different segments.
-     *  3. Waits for all segments created to be flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  5. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  7. Starts segment store and controller.
-     *  8. Reads all 600 events again.
+     *  1.  Starts Pravega locally with just 4 segment containers.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 180000)
@@ -415,15 +419,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     /**
      * Tests the data recovery scenario with transactional writer. Events are written using a transactional writer.
      *  What test does, step by step:
-     *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events in the form of transactions to two different segments.
-     *  3. Waits for all segments created to be flushed to the long term storage.
-     *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  5. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  6. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  7. Starts segment store and controller.
-     *  8. Reads all 600 events again.
+     *  1.  Starts Pravega locally with just 4 segment containers.
+     *  2.  Writes {@link #TOTAL_NUM_EVENTS} events in the form of transactions.
+     *  3.  Waits for DurableLog to be entirely flushed to the long term storage.
+     *  4.  Shuts down the controller, segment store and bookeeper/zookeeper.
+     *  5.  Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6.  Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7.  Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
+     *  8.  Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  9.  Starts segment store and controller.
+     *  10. Reads all events.
      * @throws Exception    In case of an exception occurred while execution.
      */
     @Test(timeout = 180000)
@@ -448,24 +453,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
 
-        // Create two streams for writing data onto two different segments
+        // Create a stream for writing data
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
-        log.info("Created two streams.");
+        log.info("Created stream '{}'.", STREAM1);
 
-        // Create a client to read and write events.
+        // Create a client to write events.
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
-            // Write events to the streams.
-            writeEventsToStreams(clientRunner.clientFactory, withTransaction);
-
-            // Verify events have been written by reading from the streams.
-            readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
-            log.info("Verified that events were written, by reading them.");
+            // Write events.
+            writeEventsToStream(clientRunner.clientFactory, withTransaction);
         }
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -495,14 +495,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.dataLogFactory);
         log.info("Started segment store and controller again.");
 
-        // Try creating the same segments again with the new controller
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
-
         // Create the client with new controller.
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
             // Try reading all events again to verify that the recovery was successful.
-            readEventsFromStreams(clientRunner.clientFactory, clientRunner.readerGroupManager);
+            readEventsFromStream(clientRunner.clientFactory, clientRunner.readerGroupManager);
             log.info("Read all events again to verify that segments were recovered.");
         }
     }
@@ -548,26 +544,20 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     // Writes events to the streams with/without transactions.
-    private void writeEventsToStreams(ClientFactoryImpl clientFactory, boolean withTransaction)
+    private void writeEventsToStream(ClientFactoryImpl clientFactory, boolean withTransaction)
             throws TxnFailedException {
         if (withTransaction) {
             log.info("Writing transactional events on to stream: {}", STREAM1);
-            writeTransactionalEvents(STREAM1, clientFactory); // write 300 events on one segment
-            log.info("Writing transactional events on to stream: {}", STREAM2);
-            writeTransactionalEvents(STREAM2, clientFactory); // write 300 events on other segment
+            writeTransactionalEvents(STREAM1, clientFactory); // write events
         } else {
             log.info("Writing events on to stream: {}", STREAM1);
-            writeEvents(STREAM1, clientFactory); // write 300 events on one segment
-            log.info("Writing events on to stream: {}", STREAM2);
-            writeEvents(STREAM2, clientFactory); // write 300 events on other segment
+            writeEvents(STREAM1, clientFactory); // write events
         }
     }
 
     // Reads all events from the streams.
-    private void readEventsFromStreams(ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager) {
+    private void readEventsFromStream(ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager) {
         readAllEvents(STREAM1, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
-                "R" + RANDOM.nextInt(Integer.MAX_VALUE));
-        readAllEvents(STREAM2, clientFactory, readerGroupManager, "RG" + RANDOM.nextInt(Integer.MAX_VALUE),
                 "R" + RANDOM.nextInt(Integer.MAX_VALUE));
     }
 
@@ -577,15 +567,16 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * events.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events to two different segments.
+     *  2. Writes {@link #TOTAL_NUM_EVENTS} events.
      *  3. Waits for all segments created to be flushed to the long term storage.
-     *  4. Let readers read N number of events.
+     *  4. Let a reader read N number of events.
      *  5. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  6. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  7. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  8. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
-     *  9. Starts segment store and controller.
-     *  10. Let readers read rest of the 300-N number of events.
+     *  6. Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  7. Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  8. Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
+     *  9. Updates core attributes of segments in the new container metadata segment by using details from the back up of old container metadata segment.
+     *  10. Starts segment store and controller.
+     *  11. Let the reader read rest of the 10-N number of events.
      * @throws Exception    In case of an exception occurred while execution.
     */
     @Test(timeout = 180000)
@@ -594,10 +585,8 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         int bookieCount = 1;
         int containerCount = 4;
         int eventsReadCount = RANDOM.nextInt(TOTAL_NUM_EVENTS);
-        String testReader1 = "readerDRIntegrationTest1";
-        String testReader2 = "readerDRIntegrationTest2";
-        String testReaderGroup1 = "readerGroupDRIntegrationTest1";
-        String testReaderGroup2 = "readerGroupDRIntegrationTest2";
+        String testReader = "readerDRIntegrationTest";
+        String testReaderGroup = "readerGroupDRIntegrationTest";
 
         // Creating a long term storage only once here.
         this.storageFactory = new InMemoryStorageFactory(executorService());
@@ -607,36 +596,30 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
 
-        // Create two streams for writing data onto two different segments
+        // Create a stream for writing data
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
-        createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
-        log.info("Created two streams.");
+        log.info("Created stream '{}'", STREAM1);
 
-        // Create a client to read and write events.
+        // Create a client to write events.
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
-            // Write events to the streams.
-            writeEventsToStreams(clientRunner.clientFactory, true);
+            // Write events.
+            writeEventsToStream(clientRunner.clientFactory, true);
 
-            // Create two readers for reading both the streams.
-            EventStreamReader<String> reader1 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
-                    SCOPE, STREAM1, testReaderGroup1, testReader1);
-            EventStreamReader<String> reader2 = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
-                    SCOPE, STREAM2, testReaderGroup2, testReader2);
+            // Create a reader for reading from the stream.
+            EventStreamReader<String> reader = createReader(clientRunner.clientFactory, clientRunner.readerGroupManager,
+                    SCOPE, STREAM1, testReaderGroup, testReader);
 
-            // Let readers read N number of events and mark their positions.
-            Position p1 = readNEvents(reader1, eventsReadCount);
-            Position p2 = readNEvents(reader2, eventsReadCount);
+            // Let reader read N number of events and mark its position.
+            Position p = readNEvents(reader, eventsReadCount);
 
-            ReaderGroup readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
-            ReaderGroup readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
+            ReaderGroup readerGroup = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup);
 
-            readerGroup1.readerOffline(testReader1, p1);
-            readerGroup2.readerOffline(testReader2, p2);
+            readerGroup.readerOffline(testReader, p);
         }
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
@@ -669,30 +652,19 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Create the client with new controller.
         try (val clientRunner = new ClientRunner(pravegaRunner.controllerRunner)) {
 
-            // Try creating the same segments again with the new controller
-            createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
-            createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM2);
-
             // Get reader group.
-            ReaderGroup readerGroup1 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup1);
-            ReaderGroup readerGroup2 = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup2);
-            assertNotNull(readerGroup1);
-            assertNotNull(readerGroup2);
+            ReaderGroup readerGroup = clientRunner.readerGroupManager.getReaderGroup(testReaderGroup);
+            assertNotNull(readerGroup);
 
-            EventStreamReader<String> reader1 = clientRunner.clientFactory.createReader(testReader1, testReaderGroup1,
-                    new UTF8StringSerializer(), ReaderConfig.builder().build());
-            EventStreamReader<String> reader2 = clientRunner.clientFactory.createReader(testReader2, testReaderGroup2,
+            EventStreamReader<String> reader = clientRunner.clientFactory.createReader(testReader, testReaderGroup,
                     new UTF8StringSerializer(), ReaderConfig.builder().build());
 
             // Read the remaining number of events.
-            readNEvents(reader1, TOTAL_NUM_EVENTS - eventsReadCount);
-            readNEvents(reader2, TOTAL_NUM_EVENTS - eventsReadCount);
+            readNEvents(reader, TOTAL_NUM_EVENTS - eventsReadCount);
 
             // Reading next event should return null.
-            assertNull(reader1.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
-            assertNull(reader2.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
-            reader1.close();
-            reader2.close();
+            assertNull(reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent());
+            reader.close();
         }
     }
 
@@ -711,7 +683,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Update core attributes from the backUp Metadata segments
         ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
-        // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
+        // Waits for metadata segments to be flushed to Long Term Storage and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
         log.info("Segments have been recovered.");
 
@@ -722,12 +694,12 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Tests the data recovery scenario with watermarking events.
      *  What test does, step by step:
      *  1. Starts Pravega locally with just 4 segment containers.
-     *  2. Writes 300 events to a segment with watermarks.
+     *  2. Writes {@link #TOTAL_NUM_EVENTS} events to a segment with watermarks.
      *  3. Waits for all segments created to be flushed to the long term storage.
      *  4. Shuts down the controller, segment store and bookeeper/zookeeper.
-     *  5. Deletes container metadata segment and its attribute segment from the old LTS.
-     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the old LTS.
-     *  7. Re-creates the container metadata segment in Tier1 and let's it flushed to the LTS.
+     *  5. Creates back up of container metadata segment and its attribute segment before deleting them from the Long Term Storage .
+     *  6. Starts 4 debug segment containers using a new bookeeper/zookeeper and the Long Term Storage.
+     *  7. Re-creates the container metadata segments in DurableLog and lets them to be flushed to the Long Term Storage.
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
@@ -750,7 +722,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Create a scope and a stream
         createScopeStream(pravegaRunner.controllerRunner.controller, SCOPE, STREAM1);
 
-        // Create a client to read and write events.
+        // Create a client to write events.
         @Cleanup
         ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
 
@@ -779,7 +751,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
-        // Flush all Tier 1 to LTS
+        // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
         for (int containerId = 0; containerId < containerCount; containerId++) {
             componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
