@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health;
 
+import io.pravega.shared.health.impl.CompositeHealthContributor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

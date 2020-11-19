@@ -12,13 +12,13 @@ package io.pravega.shared.health.impl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collection;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +55,11 @@ public class HealthServiceImpl implements HealthService {
     }
 
     @Override
+    public Collection<String> components() {
+        return registry().components();
+    }
+
+    @Override
     public ContributorRegistry registry() {
         return this.registry;
     }
@@ -67,7 +72,7 @@ public class HealthServiceImpl implements HealthService {
     @Override
     public void clear() {
         this.daemon.clear();
-        this.registry.clear();
+        this.registry.reset();
     }
 
     @RequiredArgsConstructor

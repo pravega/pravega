@@ -10,7 +10,6 @@
 package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorRegistry;
-import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.StatusAggregator;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +56,7 @@ public class HealthConfigImpl implements HealthConfig {
                 log.warn("Overwriting a pre-existing component definition -- aborting.");
                 return this;
             }
-            HealthComponent component = new HealthComponent(name, aggregator);
+            HealthComponent component = new HealthComponent(name, aggregator, null);
             roots.add(component);
             components.put(name, component);
             relations.put(name, new HashSet<>());
@@ -81,7 +80,7 @@ public class HealthConfigImpl implements HealthConfig {
         /**
          * Performs an exhaustive graph traversal to ensure (DFS) that there are no cyclic relations.
          *
-         * @return Whether or not the specification is cycle free.
+         * @return Whether or not the specification is cycle-free.
          * @throws Exception
          */
         private boolean validate() {
@@ -93,7 +92,7 @@ public class HealthConfigImpl implements HealthConfig {
         }
 
         private boolean validate(String name, Map<String, Boolean> visited) {
-            if (visited.get(name)) {
+            if (visited.containsKey(name) && visited.get(name)) {
                 return true;
             }
             boolean cycle = false;
@@ -124,7 +123,7 @@ public class HealthConfigImpl implements HealthConfig {
     }
 
     public boolean isEmpty() {
-        return components.isEmpty();
+        return components.isEmpty() && relations.isEmpty() && roots.isEmpty();
     }
 
     public void reconcile(ContributorRegistry registry) {

@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.HealthServiceImpl;
+import io.pravega.shared.health.impl.HealthConfigImpl;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -18,18 +18,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.Response;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.glassfish.jersey.jackson.internal.jackson.jaxrs.json.JacksonJsonProvider;
 import org.junit.rules.Timeout;
+
+import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 
 @Slf4j
 public class HealthServiceTests {
@@ -37,38 +31,23 @@ public class HealthServiceTests {
     @Rule
     public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
 
-    private int port = new Random().nextInt(50000);
+    HealthConfig config = HealthConfigImpl.builder().empty();
 
-    private HealthServiceConfig config = HealthServiceConfig
-            .builder()
-            .with(HealthServiceConfig.INTERVAL, 10)
-            .with(HealthServiceConfig.PORT, port)
-            .build();
-
-    private final Client client;
-    private WebTarget target;
-
-    public HealthServiceTests() {
-        org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
-        clientConfig.register(JacksonJsonProvider.class);
-        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
-        client = ClientBuilder.newClient(clientConfig);
-    }
+    HealthService service;
 
     public void start() throws IOException {
-        // Service should not start unless explicitly started.
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertFalse(service.running());
-        // Verify service is now running.
-        service.start();
-        Assert.assertTrue(service.running());
+        HealthProvider.initialize(config);
+        service = HealthProvider.getHealthService();
     }
 
     public void stop() {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        // Verify that service will shutdown as expected.
-        service.stop();
-        Assert.assertFalse(service.running());
+        HealthProvider.getHealthService().clear();
+        Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
+                1,
+                HealthProvider.getHealthService().components().size());
+        Assert.assertEquals("The ContributorRegistry should not maintain any references to HealthContributors",
+                1,
+                HealthProvider.getHealthService().registry().contributors().size());
     }
 
     @Before
@@ -92,153 +71,68 @@ public class HealthServiceTests {
     }
 
     @Test
-    public void ping() {
-        Invocation.Builder builder;
-        Response response;
-
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
-
-        Request request = new Request("ping");
-        response = request.get();
-
-        Assert.assertEquals(String.format("[Ping] %s responded with unexpected code.", request.getUrl()),
-                Response.Status.OK.getStatusCode(),
-                response.getStatus());
-        Assert.assertEquals(String.format("[Ping] %s responded with unexpected plain-text.", request.getUrl()),
-                HealthEndpoint.PING_RESPONSE,
-                response.readEntity(String.class));
-    }
-
-    @Test
     public void health() throws IOException {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
 
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.register(indicator);
+        service.registry().register(indicator);
 
-        Request request = new Request("health");
+        Health health = service.endpoint().health(indicator.getName());
+        Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
 
-        Response response = request.get();
-        Health health = response.readEntity(Health.class);
-        Assert.assertTrue("Status of the ROOT component is expected to be 'UP'", health.getStatus() == Status.UP);
-
-        request = new Request("health?details=true");
-        response = request.get();
-        health = response.readEntity(Health.class);
-        Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
+        health = service.endpoint().health(true);
+        Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
     }
 
     @Test
     public void components() {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
+       // SampleHealthyIndicator indicator = new SampleHealthyIndicator();
+       // service.registry().register(indicator);
 
-        SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.register(indicator);
-
-        Request request = new Request("health/components");
-        Response response = request.get();
-        ArrayList<String> components = response.readEntity(ArrayList.class);
-        // Only the 'ROOT' HealthComponent should be registered.
-        Assert.assertTrue("No non-root components have been defined.", components.size() == 1);
-        // Assert that it is indeed the 'ROOT'
-        Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
-                HealthService.ROOT_COMPONENT_NAME,
-                components.get(0));
+       // Collection<HealthContributor> components = service.components();
+       // // Only the 'ROOT' HealthComponent should be registered.
+       // Assert.assertEquals("No non-root components have been defined.", service.components().size(), 1);
+       // // Assert that it is indeed the 'ROOT'
+       // Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
+       //         ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME,
+       //         components.stream().findFirst());
     }
 
     @Test
     public void details() {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
-
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.register(indicator);
+        service.registry().register(indicator);
 
-        Request request = new Request("health/details");
-        Response response = request.get();
-        Health health = response.readEntity(Health.class);
+        Health health = service.endpoint().health(true);
         Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
 
-        Health sampleIndicatorHealth = health.getChildren().stream().findFirst().get();
+        Health sample = health.getChildren().stream().findFirst().get();
         Assert.assertTrue("There should be one details entry provided by the SimpleIndicator.",
-                sampleIndicatorHealth.getDetails().size() == 1);
+                sample.getDetails().size() == 1);
         Assert.assertEquals(String.format("Key should equal \"%s\"", SampleHealthyIndicator.DETAILS_KEY),
-                sampleIndicatorHealth.getDetails().stream().findFirst().get().getKey(),
+                sample.getDetails().stream().findFirst().get().getKey(),
                 SampleHealthyIndicator.DETAILS_KEY);
         Assert.assertEquals(String.format("Value should equal \"%s\"", SampleHealthyIndicator.DETAILS_VAL),
-                sampleIndicatorHealth.getDetails().stream().findFirst().get().getValue(),
+                sample.getDetails().stream().findFirst().get().getValue(),
                 SampleHealthyIndicator.DETAILS_VAL);
     }
 
     @Test
     public void liveness() {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
-
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.register(indicator);
+        service.registry().register(indicator);
 
-        Request request = new Request("health/liveness");
-        Response response = request.get();
-        boolean alive = response.readEntity(Boolean.class);
-        Assert.assertTrue("SampleHealthyIndicator should be perceived as alive.", alive);
+        boolean alive = service.endpoint().liveness();
+        Assert.assertEquals("The SampleIndicator should produce an 'alive' result.", true, alive);
     }
 
     @Test
     public void readiness() {
-        HealthService service = HealthServiceImpl.INSTANCE;
-        Assert.assertTrue(service.running());
-
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.register(indicator);
+        service.registry().register(indicator);
 
-        Request request = new Request("health/readiness");
-        Response response = request.get();
-        boolean alive = response.readEntity(Boolean.class);
-        Assert.assertTrue("SampleHealthyIndicator should be perceived as alive.", alive);
-    }
-
-    private class SampleHealthyIndicator extends HealthIndicator {
-        public static final String DETAILS_KEY = "sample-indicator-details-key";
-
-        public static final String DETAILS_VAL = "sample-indicator-details-value";
-
-        public SampleHealthyIndicator() {
-            super("sample-indicator");
-        }
-
-        public void doHealthCheck(Health.HealthBuilder builder) {
-            details.add(DETAILS_KEY, () -> DETAILS_VAL);
-            builder.status(Status.UP);
-            builder.alive(true);
-        }
-    }
-
-    private class Request {
-        String url;
-
-        Request(String path) {
-            String uri = HealthServiceImpl.INSTANCE.getUri().toString();
-            url = new StringBuilder(uri).append(path).toString();
-        }
-
-        Response get() {
-            log.info("HealthService request sent to: {}", url);
-            target = client.target(url);
-            Invocation.Builder builder = target.request();
-            Response response = builder.get();
-            // Make sure the request was sent to a valid endpoint.
-            Assert.assertTrue(String.format("Request may have been sent to invalid URL -- received error response %s.", response.getStatus()),
-                    response.getStatus() < Response.Status.BAD_REQUEST.getStatusCode());
-            return response;
-        }
-
-        String getUrl() {
-            return url;
-        }
+        boolean ready = service.endpoint().readiness();
+        Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
 
     }
+
 }

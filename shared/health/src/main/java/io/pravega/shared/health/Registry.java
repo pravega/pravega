@@ -18,12 +18,23 @@ public interface Registry<T> {
      *
      * @param object The object to register.
      */
-    default void register(T object) {}
+    default T register(T object) {
+        return null;
+    }
+
+    /**
+     * Unregister said object from this {@link Registry}.
+     *
+     * @param object The object to remove.
+     */
+    default T unregister(T object) {
+        return  null;
+    }
 
     /**
      * Provides some mechanism to clear all registered entries from the underlying store.
      */
-    default void clear() {}
+    default void reset() {}
 
     /**
      * Returns the object associated with the identifier. A key of type {@link String} is used, therefore we should

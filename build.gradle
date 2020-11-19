@@ -272,6 +272,7 @@ project ('shared:health') {
 
     dependencies {
         compile project(':common')
+        testCompile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
@@ -285,6 +286,10 @@ project ('shared:health') {
         dependsOn delombok
         source = delombok.outputDir
         failOnError = true
+    }
+
+    test {
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
     }
 }
 

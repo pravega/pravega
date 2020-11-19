@@ -27,7 +27,7 @@ public class StatusAggregationRule {
      * @return A {@link Status} object describing the aggregate status.
      */
     public static Status majority(Collection<Status> statuses) {
-        if (statuses.stream().filter(Status::alive).count() >= statuses.size() / 2) {
+        if (statuses.stream().filter(Status::alive).count() > Math.floor(statuses.size() / 2.0)) {
             return Status.UP;
         }
         return Status.DOWN;

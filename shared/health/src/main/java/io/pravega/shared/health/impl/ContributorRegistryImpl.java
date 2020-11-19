@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.HealthComponent;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.ContributorRegistry;
 import lombok.NonNull;
@@ -26,90 +25,133 @@ import java.util.stream.Collectors;
 public class ContributorRegistryImpl implements ContributorRegistry {
 
     /**
-     * Maintains a *flattened* {@link Map} of all {@link HealthComponent} objects to avoid following references.
+     * Maintains a *flattened* {@link Map} of all {@link HealthContributor} objects to avoid following references.
      */
-    private final Map<String, HealthContributor> contributors = new HashMap<>();
+    protected final Map<String, HealthContributor> contributors = new HashMap<>();
+
+    /**
+     * Maintains a *flattened* {@link Collection} of all {@link HealthComponent} ids to avoid following references.
+     */
+    protected final Collection<String> components = new HashSet<>();
 
     /**
      * A {@link Map} that maintains all child (dependencies) relations on a {@link HealthContributor} object.
      * This {@link Map} is kept for registration & de-registration purposes.
      */
-    private final Map<String, Collection<HealthContributor>> children = new HashMap<>();
+    protected final Map<String, Collection<HealthContributor>> children = new HashMap<>();
 
     /**
      * A {@link Map} that maintains all parent (dependees) relations on a {@link HealthContributor} object.
      * This {@link Map} is kept for de-registration purposes.
      */
-    private final Map<String, Collection<HealthContributor>> parents = new HashMap<>();
+    protected final Map<String, Collection<HealthContributor>> parents = new HashMap<>();
 
     /**
      * The base under which all other {@link HealthComponent} will be registered.
      */
+    private final HealthComponent root;
+
     @NonNull
     ContributorRegistryImpl() {
+        root = new HealthComponent(DEFAULT_CONTRIBUTOR_NAME, StatusAggregatorImpl.DEFAULT, this);
+        initialize(root);
+    }
+
+    private void initialize(HealthComponent root) {
+        // Initialize children set of root.
         children.put(DEFAULT_CONTRIBUTOR_NAME, new HashSet<>());
-        // Be careful of
-        contributors.put(DEFAULT_CONTRIBUTOR_NAME, new HealthComponent(DEFAULT_CONTRIBUTOR_NAME, StatusAggregatorImpl.DEFAULT, this));
+        // Not needed, but useful for validation.
+        parents.put(DEFAULT_CONTRIBUTOR_NAME, new HashSet<>());
+        // Possible escaped 'this'?
+        contributors.put(DEFAULT_CONTRIBUTOR_NAME, root);
+        // Separate 'contributors' from 'components' -- useful for an internal vs leaf node distinction.
+        components.add(DEFAULT_CONTRIBUTOR_NAME);
     }
 
     @NonNull
     @Override
-    public void register(HealthContributor contributor) {
-        register(contributor, DEFAULT_CONTRIBUTOR_NAME);
-    }
-
-    // The 'parent' component is expected to exist at the time of registration.
-    public void register(HealthContributor contributor, String parent) {
-        // A null string should map to the default/root HealthContributor.
-        parent = defaultIfNull(parent);
-        // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
-        if (!children.containsKey(parent) && parent != DEFAULT_CONTRIBUTOR_NAME) {
-            log.warn("Attempting to register {} under an unrecognized HealthComponent {}.", contributor, parent);
-            return;
-        }
-        log.info("Registering {} to the {}.", contributor, parent);
-
-        if (contributors.containsKey(contributor.getName())) {
-            log.warn("Overwriting existing HealthContributor {}", contributor.getName());
-            // Should unregister existing contributor and replace with new contributor.
-            unregister(contributors.get(contributor.getName()));
-        } else {
-            contributors.put(contributor.getName(), contributor);
-        }
-
-        // Add the child relation.
-        children.get(parent).add(contributor);
-        // 'contributor' should not have any existing parents when registered.
-        parents.put(contributor.getName(), new HashSet<>());
-        // Add the parent relation.
-        parents.get(contributor.getName()).add(contributors.get(parent));
+    public HealthContributor register(HealthComponent component) {
+        components.add(component.getName());
+        return register(component, root);
     }
 
     @NonNull
-    public void register(HealthContributor contributor, HealthComponent parent) {
+    @Override
+    public HealthContributor register(HealthContributor contributor) {
+        return register(contributor, root);
+    }
+
+    @NonNull
+    @Override
+    public HealthContributor register(HealthComponent component, HealthComponent parent) {
+        // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
+        if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
+            log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);
+            return null;
+        }
+        components.add(component.getName());
+        return register(component, parent.getName());
+    }
+
+    @NonNull
+    public HealthContributor register(HealthContributor contributor, HealthComponent parent) {
+        return register(contributor, parent.getName());
+    }
+
+    @NonNull
+    @Override
+    public HealthContributor register(HealthContributor contributor, String component) {
+        String name = contributor.getName();
+        // HealthContributor mapped by 'parent' should exist at time of some child registration.
+        if (!contributors.containsKey(component)) {
+            log.debug("Unrecognized HealthContributor::{} -- aborting registration.", component);
+            return null;
+        }
+        if (contributors.containsKey(contributor)) {
+            log.warn("{} has already been registered -- aborting.", contributors.get(contributor));
+            return null;
+        }
+        log.debug("Registering {} to {}.", contributor, contributors.get(component));
+        contributors.putIfAbsent(name, contributor);
+        // A new contributor should have no child relations to overwrite.
+        // Realistically, this should be restricted because it implies non HealthComponent contributors can have children.
+        children.put(name, new HashSet<>());
+        // Add the child relation.
+        children.get(component).add(contributor);
+        // 'contributor' should not have any existing parents when registered.
+        parents.put(name, new HashSet<>());
+        // Add the parent relation.
+        parents.get(name).add(contributors.get(component));
+
+        return contributor;
+    }
+
+    // Exists for testing purposes.
+    @NonNull
+    private void register(HealthContributor contributor, HealthContributor parent) {
         register(contributor, parent.getName());
     }
 
     @NonNull
     @Override
-    public void unregister(HealthContributor contributor) {
-        unregister(contributor.getName());
+    public HealthContributor unregister(HealthContributor contributor) {
+        return unregister(contributor.getName());
     }
 
     @NonNull
     @Override
-    public void unregister(String name) {
+    public HealthContributor unregister(String name) {
+        HealthContributor contributor = contributors.get(name);
         // Acts as a guard from removing HealthComponents.
-        if (!children.get(name).isEmpty()) {
-            log.warn("Attempting to unregister a component ({}) with existing dependencies -- aborting.", name);
-            return;
+        if (components.contains(name)) {
+            log.warn("Attempting to unregister {} -- aborting.", contributor);
+            return null;
         }
         if (!contributors.containsKey(name)) {
-            log.warn("Attempted to remove an unregistered HealthContributor {} -- aborting.", name);
-            return;
+            log.warn("Attempted to remove an unrecognized HealthContributor::{} -- aborting.", name);
+            return null;
         }
-        HealthContributor contributor = contributors.get(name);
-        log.info("Unregistering {} from ContributorRegistry.", contributor);
+        log.debug("Unregistering {} from ContributorRegistry.", contributor);
         // Remove all parent -> {name} relations.
         for (HealthContributor parent : parents.get(name)) {
             children.get(parent.getName()).remove(contributor);
@@ -119,14 +161,16 @@ public class ContributorRegistryImpl implements ContributorRegistry {
             parents.get(child.getName()).remove(contributor);
             // Validate that this contributor is still reachable.
             if (parents.get(child.getName()).isEmpty()) {
-                log.info("Unregistering {} caused {} to become unreachable.", contributor, child);
+                log.debug("> {} removal caused {} to become unreachable.", contributor, child);
                 unregister(child);
             }
         }
         // Remove contributor reference from all containers.
-        parents.remove(contributors.get(name));
-        children.remove(contributors.get(name));
-        contributors.remove(contributors.get(name));
+        parents.remove(name);
+        children.remove(name);
+        contributors.remove(name);
+
+        return contributor;
     }
 
     @Override
@@ -157,24 +201,15 @@ public class ContributorRegistryImpl implements ContributorRegistry {
                 .collect(Collectors.toList());
     }
 
-    //@Override
-    //public Collection<HealthContributor> parents() {
-    //    return parents(DEFAULT_CONTRIBUTOR_NAME);
-    //}
+    public Collection<String> components() {
+        return this.components;
+    }
 
-    //@Override
-    //public Collection<HealthContributor> parents(String name) {
-    //    return this.parents.get(name);
-    //}
-
-    public void clear() {
-        log.info("Clearing the ContributorRegistry.");
+    public void reset() {
+        components.clear();
         contributors.clear();
         children.clear();
         parents.clear();
-    }
-
-    private String defaultIfNull(String name)  {
-        return name == null ? DEFAULT_CONTRIBUTOR_NAME : name;
+        initialize(root);
     }
 }

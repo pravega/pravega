@@ -7,20 +7,29 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.health;
+package io.pravega.shared.health.impl;
 
+import io.pravega.shared.health.ContributorRegistry;
+import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.HealthEndpoint;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.StatusAggregationRule;
+import io.pravega.shared.health.StatusAggregator;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashSet;
-
 /**
  * The {@link HealthComponent} class is used to provide a logical grouping of components. Each registered {@link  HealthComponent}
- * will export it's JSON representation via some HTTP route.
+ * will then be exportable via a {@link HealthEndpoint}.
  *
  * The children/dependencies of a {@link HealthComponent} are used to determine the {@link Status} of this component, based
  * on some {@link StatusAggregationRule}.
+ *
+ * If a {@link HealthComponent} is registered under a {@link ContributorRegistry}, the {@link ContributorRegistry} should treat
+ * said {@link HealthComponent} as immutable, meaning that it cannot be removed (unregistered) once registered. *However* a
+ * {@link HealthComponent} can still be used to dynamically aggregate various {@link HealthContributor}, so long as the component
+ * is registered as a {@link HealthContributor} and not its native {@link HealthComponent} type.
  */
 @Slf4j
 public class HealthComponent extends CompositeHealthContributor {
@@ -29,16 +38,11 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
-    public HealthComponent(String name) {
+    protected HealthComponent(String name) {
         this.name = name;
     }
 
-    public HealthComponent(String name, StatusAggregator aggregator) {
-        super(aggregator, new HashSet<>());
-        this.name = name;
-    }
-
-    public HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
+    protected HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
         super(aggregator, registry);
         this.name = name;
     }

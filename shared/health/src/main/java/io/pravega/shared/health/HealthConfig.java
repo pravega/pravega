@@ -9,6 +9,8 @@
  */
 package io.pravega.shared.health;
 
+import io.pravega.shared.health.impl.HealthComponent;
+
 public interface HealthConfig {
 
     /**

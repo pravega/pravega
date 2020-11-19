@@ -7,9 +7,14 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.health;
+package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.impl.StatusAggregatorImpl;
+import io.pravega.shared.health.ContributorRegistry;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthContributor;
+import io.pravega.shared.health.Registry;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.StatusAggregator;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -18,7 +23,7 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class CompositeHealthContributor implements HealthContributor {
+public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor> {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
