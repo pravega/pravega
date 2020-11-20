@@ -11,7 +11,6 @@ package io.pravega.controller.server.rpc.grpc;
 
 import io.pravega.auth.ServerConfig;
 import java.util.Optional;
-import java.util.Properties;
 
 /**
  * Configuration of controller gRPC server.
@@ -121,12 +120,4 @@ public interface GRPCServerConfig extends ServerConfig {
      * @return Whether or not to activate client request tracing.
      */
     boolean isRequestTracingEnabled();
-
-    /**
-     * Returns the configuration items related to {@link io.pravega.auth.AuthHandler}
-     * in this object in a {@link Properties} format.
-     *
-     * @return properties representing
-     */
-    Properties toAuthHandlerProperties();
 }

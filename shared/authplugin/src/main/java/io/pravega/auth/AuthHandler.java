@@ -10,7 +10,6 @@
 package io.pravega.auth;
 
 import java.security.Principal;
-import java.util.Properties;
 
 /**
  * Custom authorization/authentication handlers implement this interface.
@@ -70,9 +69,9 @@ public interface AuthHandler {
     /**
      * Sets the configuration. If the auth handler needs to access the server configuration, it can be accessed though this var.
      *
-     * @param properties The auth handler configuration.
+     * @param serverConfig The server configuration.
      */
-    default void initialize(Properties properties) {
-        // Do nothing if the handler does not need any configuration properties.
+    default void initialize(ServerConfig serverConfig) {
+        // Do nothing if the handler does not need any configuration being injected.
     }
 }

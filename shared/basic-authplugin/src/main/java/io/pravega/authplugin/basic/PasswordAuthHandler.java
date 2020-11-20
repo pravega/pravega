@@ -18,6 +18,7 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.ServerConfig;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.shared.security.auth.UserPrincipal;
 import java.io.BufferedReader;
@@ -135,13 +136,18 @@ public class PasswordAuthHandler implements AuthHandler {
         loadPasswordFile(passwordFile);
     }
 
-    @Override
-    public void initialize(@NonNull Properties properties) {
+    @VisibleForTesting
+    void initialize(@NonNull Properties properties) {
         String userAccountsDatabaseFile = properties.getProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE);
         if (userAccountsDatabaseFile == null) {
             throw new RuntimeException("User account database config was absent");
         }
         initialize(userAccountsDatabaseFile);
+    }
+
+    @Override
+    public void initialize(@NonNull ServerConfig config) {
+        initialize(config.toAuthHandlerProperties());
     }
 
     private static String[] parseToken(String token) {
