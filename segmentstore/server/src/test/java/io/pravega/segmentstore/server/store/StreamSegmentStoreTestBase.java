@@ -119,7 +119,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
             .build();
 
-    private StorageFactory storageFactory = null;
     private static final SegmentType BASIC_SEGMENT_TYPE = SegmentType.STREAM_SEGMENT;
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
