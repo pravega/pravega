@@ -567,7 +567,7 @@ public class SynchronizerTest {
 
         // Simulate a sealed stream.
         CompletableFuture<StreamSegments> result = new CompletableFuture<>();
-        result.complete(new StreamSegments(new TreeMap<>(), ""));
+        result.complete(new StreamSegments(new TreeMap<>()));
         when(controller.getCurrentSegments(scope, streamName)).thenReturn(result);
 
         AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createStateSynchronizer(streamName,

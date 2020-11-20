@@ -50,7 +50,7 @@ public class PasswordAuthHandlerTest {
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
                 "prn::*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
 
         Principal principal = authHandler.authenticate(prepareToken(username, password));
         assertNotNull(principal);
@@ -63,7 +63,7 @@ public class PasswordAuthHandlerTest {
         String password = "password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
         authHandler.authenticate(prepareToken(username, "bad-password"));
     }
 
@@ -73,7 +73,7 @@ public class PasswordAuthHandlerTest {
         String password = "password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password, "*",
                 AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, true);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
         Principal principal = authHandler.authenticate(prepareToken("user-nonexistent", password));
     }
 
@@ -87,7 +87,7 @@ public class PasswordAuthHandlerTest {
         String password = "test-password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
                 "prn::*", AuthHandler.Permissions.READ_UPDATE);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
 
         Principal principal = authHandler.authenticate(prepareToken(username, password));
         assertEquals(AuthHandler.Permissions.READ_UPDATE, authHandler.authorize("prn::/", principal));
@@ -103,7 +103,7 @@ public class PasswordAuthHandlerTest {
         String password = "test-password";
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
                 "prn::/scope:testscope/stream:teststream", AuthHandler.Permissions.READ);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
 
         Principal principal = authHandler.authenticate(prepareToken(username, password));
         assertEquals(AuthHandler.Permissions.READ, authHandler.authorize(
@@ -121,7 +121,7 @@ public class PasswordAuthHandlerTest {
                 Arrays.asList(AuthHandler.Permissions.NONE, AuthHandler.Permissions.READ, AuthHandler.Permissions.READ);
         ConcurrentHashMap<String, AccessControlList> aclsByUsers = prepareMapOfAclsByUserName(username, password,
                 resources, permissions);
-        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers, false);
+        PasswordAuthHandler authHandler = new PasswordAuthHandler(aclsByUsers);
         Principal principal = authHandler.authenticate(prepareToken(username, password));
 
         assertEquals(AuthHandler.Permissions.READ, authHandler.authorize("prn::/scope:testscope", principal));

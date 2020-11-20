@@ -14,6 +14,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -28,9 +29,9 @@ public class FileSystemStorageFactory implements StorageFactory {
     private final FileSystemStorageConfig config;
 
     @NonNull
+    @Getter
     private final ExecutorService executor;
 
-    @Override
     public Storage createStorageAdapter() {
         FileSystemStorage s = new FileSystemStorage(this.config);
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);

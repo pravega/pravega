@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Iterator;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -158,6 +159,11 @@ public class TruncateableArray implements ArrayView {
     @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         throw new UnsupportedOperationException("collect() not supported.");
+    }
+
+    @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        throw new UnsupportedOperationException("iterateBuffers() not supported.");
     }
 
     @Override

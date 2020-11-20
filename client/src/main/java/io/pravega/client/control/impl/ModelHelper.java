@@ -30,12 +30,16 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +102,28 @@ public final class ModelHelper {
             return RetentionPolicy.builder()
                     .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
                     .retentionParam(policy.getRetentionParam())
+                    .consumptionLimits(encode(policy.getConsumptionLimits()))
                     .build();
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Helper to convert retention policy's consumption limits from RPC call to internal representation.
+     *
+     * @param limits Consumption based retention policy's limits.
+     * @return New instance of ConsumptionLimits.
+     */
+    public static RetentionPolicy.ConsumptionLimits encode(final Controller.ConsumptionLimits limits) {
+        // Using default enum type of UNKNOWN(0) to detect if limit has been set or not.
+        // This is required since proto3 does not have any other way to detect if a field has been set or not.
+        if (limits != null && limits.getType() != Controller.ConsumptionLimits.ConsumptionLimitType.UNKNOWN) {
+            return RetentionPolicy.ConsumptionLimits.builder()
+                                                    .type(RetentionPolicy.ConsumptionLimits.Type.valueOf(limits.getType().name()))
+                                                    .maxValue(limits.getMax())
+                                                    .minValue(limits.getMin())
+                                                    .build();
         } else {
             return null;
         }
@@ -296,9 +321,31 @@ public final class ModelHelper {
      */
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
-            return Controller.RetentionPolicy.newBuilder()
-                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                    .setRetentionParam(policyModel.getRetentionParam())
+            Controller.RetentionPolicy.Builder builder = Controller.RetentionPolicy.newBuilder()
+                                              .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                                              .setRetentionParam(policyModel.getRetentionParam());
+            if (policyModel.getConsumptionLimits() != null) {
+                builder.setConsumptionLimits(decode(policyModel.getConsumptionLimits()));
+            }
+                
+            return builder.build();
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Decodes Consumption limits and returns an instance of Retention Policy's Consumption limit.
+     *
+     * @param limitsModel The Consumption limit.
+     * @return Instance of Retention Policy.ConsumptionLimits.
+     */
+    public static Controller.ConsumptionLimits decode(final RetentionPolicy.ConsumptionLimits limitsModel) {
+        if (limitsModel != null) {
+            return Controller.ConsumptionLimits.newBuilder()
+                    .setType(Controller.ConsumptionLimits.ConsumptionLimitType.valueOf(limitsModel.getType().name()))
+                    .setMax(limitsModel.getMaxValue())
+                    .setMin(limitsModel.getMinValue())
                     .build();
         } else {
             return null;
@@ -321,6 +368,44 @@ public final class ModelHelper {
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriber Id of the subscriber for this stream.
+     * @param generation generation of the subscriber operation.
+     * @return StreamSubscriberInfo instance.
+     */
+    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber, final long generation) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
+                .setScope(scope).setStream(streamName).setSubscriber(subscriber).setOperationGeneration(generation);
+        return builder.build();
+    }
+
+    /**
+     * Converts StreamConfiguration into StreamConfig.
+     *
+     * @param scope the stream's scope
+     * @param streamName The Stream Name
+     * @param subscriber subscriber for this stream.
+     * @param streamCut truncationStreamCut for this subscriber for this stream.
+     * @return SubscriberStreamCut instance.
+     */
+    public static final SubscriberStreamCut decode(String scope, String streamName,
+                                                   final String subscriber, Map<Long, Long> streamCut) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(streamName, "streamName");
+        Preconditions.checkNotNull(subscriber, "subscriber");
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
+                .setSubscriber(subscriber).setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 
@@ -377,10 +462,18 @@ public final class ModelHelper {
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
     }
 
-    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+    public static final StreamInfo createStreamInfo(final String scope, final String stream, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
+        StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
+        if (accessOperation != null) {
+            builder.setAccessOperation(StreamInfo.AccessOperation.valueOf(accessOperation.name()));
+        }
+        return builder.build();
+    }
+
+    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+        return createStreamInfo(scope, stream, null);
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

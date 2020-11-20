@@ -152,12 +152,12 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
     }
 
     @Test
-    public void testGetContents() {
+    public void testIterateBuffers() {
         final byte[] buffer = createFormattedBuffer();
         val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);
-        val contents = segment.getContents();
-        Assert.assertEquals(1, contents.size());
-        val b = contents.get(0);
+        val i = segment.iterateBuffers();
+        val b = i.next();
+        Assert.assertFalse(i.hasNext());
         Assert.assertEquals(segment.getLength(), b.remaining());
         AssertExtensions.assertArrayEquals("", segment.array(), segment.arrayOffset(),
                 b.array(), b.arrayOffset() + b.position(), b.remaining());

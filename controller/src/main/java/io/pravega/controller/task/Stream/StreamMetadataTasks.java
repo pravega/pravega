@@ -12,6 +12,7 @@ package io.pravega.controller.task.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -28,6 +29,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -58,6 +60,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
@@ -73,18 +79,23 @@ import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -104,6 +115,7 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
  */
 public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
+    private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
 
     private final AtomicLong retentionFrequencyMillis;
     
@@ -115,6 +127,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final RequestTracker requestTracker;
     private final ScheduledExecutorService eventExecutor;
     private EventHelper eventHelper;
+    private final AtomicReference<Supplier<Long>> retentionClock;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -159,6 +172,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
         this.retentionFrequencyMillis = new AtomicLong(Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis());
+        this.retentionClock = new AtomicReference<>(System::currentTimeMillis);
         this.setReady();
     }
 
@@ -185,7 +199,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
                                                                                        long createTimestamp, int numOfRetries) {
-        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
+        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp),
                 e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
@@ -276,6 +290,173 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
+     * Add a subscriber to stream metadata.
+     * Needed only for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param newSubscriber  Id of the ReaderGroup to be added as subscriber
+     * @param generation  subscriber generation
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<AddSubscriberStatus.Status> addSubscriber(String scope, String stream,
+                                                                     String newSubscriber, long generation,
+                                                                     OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+        .thenCompose(exists -> {
+            // 1. check Stream exists
+            if (!exists) {
+                return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
+            } else {
+                // 2. get subscribers data
+                return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, generation, context, executor)
+                       .thenApply(v -> AddSubscriberStatus.Status.SUCCESS)
+                       .exceptionally(ex -> {
+                        log.warn(requestId, "Exception thrown in trying to add subscriber {}",
+                                    ex.getMessage());
+                        Throwable cause = Exceptions.unwrap(ex);
+                        if (cause instanceof TimeoutException) {
+                           throw new CompletionException(cause);
+                        } else {
+                           log.warn(requestId, "Add subscriber {} failed due to {}", newSubscriber, cause);
+                           return AddSubscriberStatus.Status.FAILURE;
+                        }
+                    });
+            }
+        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+
+    /**
+     * Remove a subscriber from subscribers' metadata.
+     * Needed for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param subscriber  Id of the ReaderGroup to be added as subscriber.
+     * @param generation  subscriber generation.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<DeleteSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
+                                                                             String subscriber, long generation,
+                                                                             OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("removeSubscriber", scope, stream);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+           .thenCompose(exists -> {
+               // 1. check Stream exists
+               if (!exists) {
+                   return CompletableFuture.completedFuture(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND);
+               }
+               // 2. remove subscriber
+               return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, generation, context, executor)
+                       .thenApply(x -> DeleteSubscriberStatus.Status.SUCCESS)
+                       .exceptionally(ex -> {
+                           log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
+                           Throwable cause = Exceptions.unwrap(ex);
+                           if (cause instanceof TimeoutException) {
+                               throw new CompletionException(cause);
+                           } else {
+                               log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
+                               return DeleteSubscriberStatus.Status.FAILURE;
+                           }
+                       });
+           }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+
+
+    /**
+     * Get list of  subscribers for Stream.
+     * Needed only for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+
+    public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("listSubscribers", scope, stream);
+        return streamMetadataStore.checkStreamExists(scope, stream)
+                .thenCompose(exists -> {
+                    if (!exists) {
+                        return CompletableFuture.completedFuture(SubscribersResponse.newBuilder()
+                                .setStatus(SubscribersResponse.Status.STREAM_NOT_FOUND).build());
+                    }
+                  // 2. get subscribers
+                  return streamMetadataStore.listSubscribers(scope, stream, context, executor)
+                          .thenApply(result -> SubscribersResponse.newBuilder()
+                                     .setStatus(SubscribersResponse.Status.SUCCESS)
+                                     .addAllSubscribers(result).build())
+                            .exceptionally(ex -> {
+                                log.warn(requestId, "Exception trying to get list of Stream subscribers. {}",
+                                        ex.getMessage());
+                                Throwable cause = Exceptions.unwrap(ex);
+                                if (cause instanceof TimeoutException) {
+                                    throw new CompletionException(cause);
+                                } else {
+                                    log.warn(requestId, "listSubscribers failed due to {}", ex.getMessage());
+                                    return SubscribersResponse.newBuilder()
+                                            .setStatus(SubscribersResponse.Status.FAILURE).build();
+                                }
+                            });
+                });
+
+    }
+
+    /**
+     * Remove a subscriber from subscribers' metadata.
+     * Needed for Consumption based retention.
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param subscriber  Stream Subscriber publishing the StreamCut.
+     * @param truncationStreamCut  Truncation StreamCut.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String scope, String stream,
+                                                                             String subscriber, ImmutableMap<Long, Long> truncationStreamCut,
+                                                                             OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("updateSubscriberStreamCut", scope, stream);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+                .thenCompose(exists -> {
+                     // 1. check Stream exists
+                     if (!exists) {
+                        return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
+                     }
+                     // 2. updateStreamCut
+                     return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
+                                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                                .thenCompose(subscriberRecord -> {
+                                if (subscriberRecord == null) {
+                                   return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
+                                } else {
+                                   return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, truncationStreamCut, subscriberRecord, context, executor)
+                                          .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
+                                             .exceptionally(ex -> {
+                                                 log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
+                                                 Throwable cause = Exceptions.unwrap(ex);
+                                                 if (cause instanceof StoreException.OperationNotAllowedException) {
+                                                     log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                     return UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID;
+                                                 } else if (cause instanceof TimeoutException) {
+                                                     throw new CompletionException(cause);
+                                                 } else {
+                                                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                    return UpdateSubscriberStatus.Status.FAILURE;
+                                                 }
+                                          });
+                                    }
+                            });
+        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+    }
+
+    /**
      * Method to check retention policy and generate new periodic cuts and/or truncate stream at an existing stream cut.
      * 
      * @param scope scope
@@ -324,32 +505,296 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
                                              RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-        Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
-        if (!truncationRecord.isPresent()) {
-            log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
-            return CompletableFuture.completedFuture(null);
+        if (policy.getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
+            return subscriberBasedTruncation(scope, stream, context, policy, retentionSet, newRecord, requestId);
+        } else {
+            Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
+            if (!truncationRecord.isPresent()) {
+                log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
+                return CompletableFuture.completedFuture(null);
+            }
+            log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
+                    truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
+
+            return truncate(scope, stream, context, requestId, truncationRecord.get());
         }
+    }
+
+    private CompletableFuture<Void> truncate(String scope, String stream, OperationContext context, long requestId,
+                                                   StreamCutReferenceRecord truncationRecord) {
         log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
-                truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
-        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord.get(), context, executor)
-                   .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                   .thenCompose(started -> {
-                       if (started) {
-                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord.get(), context, executor);
+                truncationRecord.getRecordingTime(), truncationRecord.getRecordingSize());
+        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord, context, executor)
+                                  .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
+                                  .thenCompose(started -> {
+                                      if (started) {
+                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord, context, executor);
+                                      } else {
+                                          throw new RuntimeException("Could not start truncation");
+                                      }
+                                  })
+                                  .exceptionally(e -> {
+                                      if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                          // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                          log.debug(requestId, "Cannot truncate at given " +
+                                                  "streamCut because it intersects with existing truncation point");
+                                          return null;
+                                      } else {
+                                          throw new CompletionException(e);
+                                      }
+                                  });
+    }
+
+    private CompletableFuture<Void> subscriberBasedTruncation(String scope, String stream, OperationContext context,
+                                                              RetentionPolicy policy, RetentionSet retentionSet, 
+                                                              StreamCutRecord newRecord, long requestId) {
+        return streamMetadataStore.listSubscribers(scope, stream, context, executor)
+                           .thenCompose(list -> Futures.allOfWithResults(list.stream().map(x -> 
+                                   streamMetadataStore.getSubscriber(scope, stream, x, context, executor)).collect(Collectors.toList())))
+                           .thenCompose(subscribers -> {
+                               // convert all streamcuts to include the segment range
+                               return Futures.allOfWithResults(subscribers.stream().map(x -> {
+                                   ImmutableSet<Map.Entry<Long, Long>> entries = x.getObject().getTruncationStreamCut().entrySet();
+
+                                   return Futures.keysAllOfWithResults(entries.stream().collect(Collectors.toMap(
+                                           y -> streamMetadataStore.getSegment(scope, stream, y.getKey(), context, executor), Map.Entry::getValue)));
+                               }).collect(Collectors.toList()));
+                           })
+                           .thenApply(this::computeSubscribersLowerBound)
+                .thenCompose(lowerBound -> {
+                    CompletableFuture<Map<Long, Long>> toTruncateAt; 
+                    if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES)) {
+                        toTruncateAt = getTruncationStreamCutBySizeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
+                    } else {
+                        toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
+                    }
+                    return toTruncateAt.thenCompose(truncationStreamCut -> {
+                        if (truncationStreamCut == null || truncationStreamCut.isEmpty()) {
+                            log.debug("no truncation record could be compute that satisfied retention policy");
+                            return CompletableFuture.completedFuture(null);
+                        } 
+                        return startTruncation(scope, stream, truncationStreamCut, context, requestId)
+                                .thenCompose(started -> {
+                                    if (started) {
+                                        return streamMetadataStore.findStreamCutReferenceRecordBefore(scope, stream, truncationStreamCut, retentionSet, context, executor)
+                                                                  .thenCompose(ref -> {
+                                                                      if (ref != null) {
+                                                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, ref, context, executor);
+                                                                      } else {
+                                                                          return CompletableFuture.completedFuture(null);
+                                                                      }
+                                                                  });
+                                    } else {
+                                        throw new RuntimeException("Could not start truncation");
+                                    }
+                                });
+                    });
+                });
+    }
+
+    private CompletableFuture<Map<Long, Long>> getTruncationStreamCutBySizeLimit(String scope, String stream, OperationContext context, RetentionPolicy policy,
+                                                                                 RetentionSet retentionSet, Map<Long, Long> lowerBound, StreamCutRecord newRecord) {
+        // if the lowerbound on subscribers streamcuts satisfies the policy size bound, then return it. 
+        // else return the stream cut that satisfies maximum bound on size. 
+        // 1. if lowerbound.size < max and lowerbound.size > min truncate at lowerbound
+        // 2. if lowerbound.size < min, truncate at max irrespective of if lowerbound overlaps with max or not. 
+        // 3. if lowerbound.size > max, truncate at max
+        long currentSize = newRecord != null ? newRecord.getRecordingSize() : retentionSet.getLatest().getRecordingSize();
+        return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
+                          .thenCompose(sizeTill -> {
+                               long retainedSize = currentSize - sizeTill;
+                               Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
+                                      .getRetentionRecords().stream()
+                                      .filter(x -> currentSize - x.getRecordingSize() > policy.getConsumptionLimits().getMaxValue())
+                                      .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
+
+                               // if retainedSize is less than min size then do not truncate the stream. 
+                               if (retainedSize < policy.getConsumptionLimits().getMinValue()) {
+                                   return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                                                               .thenApply(StreamCutRecord::getStreamCut))
+                                                  .orElse(CompletableFuture.completedFuture(null));
+                               } else {
+                                   // if retained size is less than max allowed, then truncate the stream at subscriber lower bound. 
+                                   if (retainedSize < policy.getConsumptionLimits().getMaxValue()) {
+                                       return CompletableFuture.completedFuture(lowerBound);
+                                   } else {
+                                       // if retained size is greater than max allowed, then truncate the stream at streamcut
+                                       // from retention set that matches the retention policy size bound. 
+                                       return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                                   .thenApply(StreamCutRecord::getStreamCut)
+                                                   .thenCompose(maxRecord -> {
+                                                       // if max record is strictly greater than lowerbound then we can truncate at max record
+                                                       return streamMetadataStore.streamCutStrictlyGreaterThan(
+                                                               scope, stream, maxRecord, lowerBound, context, executor)
+                                                                                 .thenApply(gt -> {
+                                                                                     if (gt) {
+                                                                                         return maxRecord;
+                                                                                     } else {
+                                                                                         return lowerBound;
+                                                                                     }
+                                                                                 });
+                                                   })).orElse(CompletableFuture.completedFuture(null));   
+                                   }
+                               }
+                           });
+    }
+
+    private CompletableFuture<Map<Long, Long>> getTruncationStreamCutByTimeLimit(String scope, String stream, OperationContext context,
+                                                                                 RetentionPolicy policy, RetentionSet retentionSet,
+                                                                                 Map<Long, Long> lowerBound, StreamCutRecord latest) {
+        Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> limits =
+                getBoundStreamCuts(policy.getConsumptionLimits(), retentionSet);
+        // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time 
+        // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
+        // exists
+        // 1. if LB > min => truncate at min
+        // 2. if LB < max => truncate at max
+        // 3. if LB < min && LB > max => truncate at LB
+        // 4. if LB < min && overlaps max => truncate at LB
+        CompletableFuture<StreamCutRecord> limitMaxFuture = limits.getKey() == null ? CompletableFuture.completedFuture(null) :
+                streamMetadataStore.getStreamCutRecord(scope, stream, limits.getKey(), context, executor);
+        CompletableFuture<StreamCutRecord> limitMinFuture = limits.getValue() == null ? CompletableFuture.completedFuture(null) :
+                streamMetadataStore.getStreamCutRecord(scope, stream, limits.getValue(), context, executor);
+        return CompletableFuture.allOf(limitMaxFuture, limitMinFuture)
+                         .thenCompose(v -> {
+                             StreamCutRecord limitMax = limitMaxFuture.join();
+                             StreamCutRecord limitMin = limitMinFuture.join();
+                             if (limitMin != null) {
+                                 return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
+                                                    .thenCompose(gtMin -> {
+                                                        if (gtMin) {
+                                                            if (limitMax == null) {
+                                                                return CompletableFuture.completedFuture(lowerBound);
+                                                            } else {
+                                                                return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMax.getStreamCut(), lowerBound, context, executor)
+                                                                                          .thenApply(gtMax -> gtMax ? limitMax.getStreamCut() : lowerBound);
+                                                            }
+                                                        } else {
+                                                            return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
+                                                                               .thenApply(gt -> gt ? limitMin.getStreamCut() : null);
+                                                        }
+                                                    });
+                             } else {
+                                 // if min limit is 0 then latest effectively becomes the min. and we truncate at the lowerbound.
+                                 if (latest != null && policy.getConsumptionLimits().getMinValue() == 0L) {
+                                     // truncate at the lower bound 
+                                     return CompletableFuture.completedFuture(lowerBound);
+                                 } else {
+                                     return CompletableFuture.completedFuture(null);
+                                 }
+                             }
+                         });
+    }
+
+    private Map<Long, Long> computeSubscribersLowerBound(List<Map<StreamSegmentRecord, Long>> subscribers) {
+        // loop over all streamcuts and for each segment in new streamcut: 
+        // if new segment is predecessor of any segment in the bound then replace the successor segment with
+        // this segment. 
+        Map<StreamSegmentRecord, Long> lowerBound = new HashMap<>();
+        subscribers.forEach(streamCut -> streamCut.forEach((segment, offset) -> {
+            if (lowerBound.containsKey(segment)) {
+                if (lowerBound.get(segment) > offset) {
+                    lowerBound.put(segment, offset);
+                }
+            } else {
+                Map<StreamSegmentRecord, Long> predecessors = new HashMap<>();
+                Map<StreamSegmentRecord, Long> successors = new HashMap<>();
+                lowerBound.forEach((s, o) -> {
+                    if (s.overlaps(segment)) {
+                        if (s.segmentId() < segment.segmentId()) {
+                            predecessors.put(s, o);
+                        } else {
+                            successors.put(s, o);
+                        }
+                    }
+                });
+
+                if (successors.isEmpty() && predecessors.isEmpty()) {
+                    lowerBound.put(segment, offset);
+                } else {
+                    if (offset < 0) {
+                        // 1. if it is a future segment and its predecessors dont cover entire range, add it to lowerbound
+                        // union of all predecessors of segment < segment.range
+                        TreeMap<Double, Double> range = new TreeMap<>();
+                        predecessors.keySet().forEach(x -> {
+                            range.put(x.getKeyStart(), x.getKeyEnd());
+                        });
+                        if (!checkCoverage(segment.getKeyStart(), segment.getKeyEnd(), range)) {
+                            lowerBound.put(segment, offset);
+                        }
+                    } else if (predecessors.isEmpty()) {
+                        // since its a non future segment, its predecessors cannot be present. 
+                        lowerBound.put(segment, offset);
+                        // include this segment. then remove its affected successors from lower bound. 
+                        // 1. remove its non future segment successors
+                        // 2. remove its future segment successors if their entire range is covered by inclusion of this segment.
+                        successors.forEach((s, o) -> {
+                            if (o >= 0) {
+                                lowerBound.remove(s);
                             } else {
-                                throw new RuntimeException("Could not start truncation");
-                       }
-                   })
-                   .exceptionally(e -> {
-                       if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                           // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                           log.debug(requestId, "Cannot truncate at given " +
-                                        "streamCut because it intersects with existing truncation point");
-                                return null;
-                           } else {
-                                throw new CompletionException(e);
-                          }
-                       });
+                                // union of all predecessors of `s` and `segment` >= s.range
+                                TreeMap<Double, Double> range = new TreeMap<>();
+                                lowerBound.keySet().forEach(x -> {
+                                    if (x.overlaps(s) && x.segmentId() < s.segmentId()) {
+                                        range.put(x.getKeyStart(), x.getKeyEnd());
+                                    }
+                                });
+                                if (checkCoverage(s.getKeyStart(), s.getKeyEnd(), range)) {
+                                    lowerBound.remove(s);
+                                }
+                            }
+                        });
+                    }
+                } 
+            }
+        }));
+        // example::
+        // | s0 | s3      |
+        // |    | s4 |    | s6
+        // | s1      | s5 |
+        // | s2      |    |
+        // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }
+        // lower bound = { s0/off, s2/off, s5/-1 }  
+        // valid stream cuts: { s0/off, s5/-1 }, { s0/off, s2/off, s5/-1 }, { s0/off, s1/off, s2/off }
+        // lower bound = { s0/off, s1/off, s2/off }
+        return lowerBound.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
+    }
+
+    private boolean checkCoverage(double keyStart, double keyEnd, TreeMap<Double, Double> range) {
+        // range covered
+        AtomicReference<Double> previous = new AtomicReference<>();
+        AtomicReference<Double> toCheckStart = new AtomicReference<>(keyStart);
+        AtomicBoolean covered = new AtomicBoolean(true);
+        for (Map.Entry<Double, Double> entry : range.entrySet()) {
+            if (toCheckStart.get() >= keyEnd) {
+                covered.set(true);
+                break;
+            }
+            if (previous.get() == null) {
+                previous.set(entry.getValue());
+                if (keyStart < entry.getKey()) {
+                    covered.set(false);
+                    break;
+                } else {
+                    // we have atleast covered till "end" of this range.
+                    toCheckStart.set(entry.getValue());
+                }
+            } else {
+                if (previous.get() < entry.getKey()) {
+                    // if this gap is part of range we are looking for then this cannot be covered.
+                    if (StreamSegmentRecord.overlaps(new AbstractMap.SimpleEntry<>(previous.get(), entry.getKey()),
+                            new AbstractMap.SimpleEntry<>(toCheckStart.get(), keyEnd))) {
+                        covered.set(false);
+                        break;
+                    }
+                } else {
+                    // move to check start to the end of the range. 
+                    toCheckStart.set(Math.max(previous.get(), entry.getValue()));
+                }
+            }
+        }
+        covered.compareAndSet(true, toCheckStart.get() >= keyEnd);
+        return covered.get();
     }
 
     private Optional<StreamCutReferenceRecord> findTruncationRecord(RetentionPolicy policy, RetentionSet retentionSet,
@@ -371,6 +816,29 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
+    private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy.ConsumptionLimits policy,
+                                                                                             RetentionSet retentionSet) {
+        assert RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
+        AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
+        AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
+
+        AtomicLong maxSoFar = new AtomicLong(Long.MAX_VALUE);
+        AtomicLong minSoFar = new AtomicLong(Long.MAX_VALUE);
+        long currentTime = retentionClock.get().get();
+        retentionSet.getRetentionRecords().forEach(x -> {
+            long value = currentTime - x.getRecordingTime();
+            if (value >= policy.getMaxValue() && value < maxSoFar.get()) {
+                max.set(x);
+                maxSoFar.set(value);
+            }
+            if (value >= policy.getMinValue() && value < minSoFar.get()) {
+                min.set(x);
+                minSoFar.set(value);
+            }
+        });
+        return new AbstractMap.SimpleEntry<>(max.get(), min.get());
+    }
+    
     /**
      * Generate a new stream cut.
      *
@@ -391,7 +859,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .parallel()
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
                 .thenCompose(map -> {
-                    final long generationTime = System.currentTimeMillis();
+                    final long generationTime = retentionClock.get().get();
                     ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
                     map.forEach((key, value) -> builder.put(key.segmentId(), value));
                     ImmutableMap<Long, Long> streamCutMap = builder.build();
@@ -428,7 +896,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to update stream configuration", ex);
+                    log.warn(requestId, "Exception thrown in trying to truncate stream", ex);
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -1027,5 +1495,15 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     public void setCompletionTimeoutMillis(long timeoutMillis) {
         eventHelper.setCompletionTimeoutMillis(timeoutMillis);
+    }
+    
+    @VisibleForTesting
+    void setRetentionFrequencyMillis(long timeoutMillis) {
+        retentionFrequencyMillis.set(timeoutMillis);
+    }
+
+    @VisibleForTesting
+    void setRetentionClock(Supplier<Long> clock) {
+        retentionClock.set(clock);
     }
 }

@@ -148,8 +148,33 @@ project('common') {
     }
 }
 
+/**
+ * common_server is the same as 'common' except that it is meant for server-side consumption only (Segment Store or
+ * Controller). This should never be used by the Client (or any of its dependencies) since the Client must compile with
+ * JDK8, while the Server may use newer versions of the JDK.
+ */
+project('common_server') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        //Do NOT add any additional dependencies here.
+    }
+
+    javadoc {
+        title = "Pravega Common Libraries for Server-Side use Only"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
+
+def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
+                    exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime'
+                    exclude group: 'io.jsonwebtoken', module: 'jjwt'}
 
 project('shared:authplugin') {
     dependencies {
@@ -180,6 +205,11 @@ project('shared:security') {
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
 
         testCompile project(':test:testcommon')
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
     }
 
     javadoc {
@@ -250,7 +280,7 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-
+        compile project(":shared:security"), withoutJaxbAndJjwt
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -377,6 +407,7 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -836,15 +867,16 @@ project('test:system') {
     apply plugin: 'maven'
 
     // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
-    compileJava {
+    tasks.withType(JavaCompile) {
         options.compilerArgs.remove("-Werror")
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
     }
 
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
@@ -854,6 +886,9 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        runtime group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        runtime group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
     }
     //disable the default test task.
     test {

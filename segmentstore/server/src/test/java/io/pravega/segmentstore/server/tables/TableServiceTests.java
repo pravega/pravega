@@ -11,11 +11,12 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -69,7 +70,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 32;
     private static final String TABLE_SEGMENT_NAME_PREFIX = "TableSegment_";
-    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     @Rule
     public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -492,8 +493,11 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            boolean sorted = isSorted(i);
-            futures.add(store.createSegment(segmentName, sorted, TIMEOUT));
+            val segmentType = SegmentType.builder().tableSegment();
+            if (isSorted(i)) {
+                segmentType.sortedTableSegment();
+            }
+            futures.add(store.createSegment(segmentName, segmentType.build(), TIMEOUT));
         }
 
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

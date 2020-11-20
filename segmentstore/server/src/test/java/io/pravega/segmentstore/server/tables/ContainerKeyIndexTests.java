@@ -13,9 +13,10 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -69,7 +70,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(2);
-    private static final Comparator<BufferView> KEY_COMPARATOR = new ByteArrayComparator()::compare;
+    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -831,7 +832,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             // up testing the additional code for it and also all the base code for regular Table Segments.
             this.segment.updateAttributes(Collections.singletonMap(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE));
             this.sortedKeyStorage = new TableStoreMock(executorService());
-            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), TIMEOUT).join();
+            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             val ds = new SortedKeyIndexDataSource(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
             this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
             this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());

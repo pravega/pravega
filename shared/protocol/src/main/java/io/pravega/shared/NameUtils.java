@@ -132,7 +132,7 @@ public final class NameUtils {
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
-    @Getter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
     //endregion

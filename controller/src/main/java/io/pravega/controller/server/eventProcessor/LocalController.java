@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
@@ -32,6 +33,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
@@ -182,6 +184,78 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
+                                                                              scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.deleteSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status deleting subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
+        return this.controller.listSubscribers(scope, streamName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to listSubscribers for stream: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                default:
+                    throw new ControllerFailureException("Unknown return status for listSubscribers on stream " + scope + "/" + streamName + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
+                                                                final StreamCut streamCut) {
+
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_NOT_FOUND:
+                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status updating truncation streamcut for subscriber "
+                                                 + subscriber + ", on stream " + scope + "/" + streamName + " " + x.getStatus());
+            }
+        });
+    }
+
+        @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
                                                                .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
@@ -335,7 +409,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges));
     }
 
     @Override
@@ -440,7 +514,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         String retVal = "";
         if (authorizationEnabled) {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
@@ -454,6 +528,11 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
+    private ImmutableMap<Long, Long> getStreamCutAsImmutableMap(StreamCut streamCut) {
+        return ImmutableMap.copyOf(streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
     @Override
@@ -528,7 +607,7 @@ public class LocalController implements Controller {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
-        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new KeyValueTableSegments(getRangeMap(ranges));
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {

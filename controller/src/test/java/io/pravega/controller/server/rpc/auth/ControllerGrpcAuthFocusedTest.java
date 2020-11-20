@@ -194,10 +194,7 @@ public class ControllerGrpcAuthFocusedTest {
                                       segmentHelper,
                                       EXECUTOR,
                                       mockCluster),
-                authHelper,
-                requestTracker,
-                true,
-                2);
+                authHelper, requestTracker, true, true, 2);
 
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
         authHandler.initialize(AUTH_FILE.getAbsolutePath());

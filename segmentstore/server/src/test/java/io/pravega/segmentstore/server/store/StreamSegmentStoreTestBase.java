@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -119,6 +120,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .build();
 
     private StorageFactory storageFactory = null;
+    private static final SegmentType BASIC_SEGMENT_TYPE = SegmentType.STREAM_SEGMENT;
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -670,10 +672,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            futures.add(store.createStreamSegment(segmentName, null, TIMEOUT));
+            futures.add(store.createStreamSegment(segmentName, BASIC_SEGMENT_TYPE, null, TIMEOUT));
         }
 
-        futures.add(store.createStreamSegment(EMPTY_SEGMENT_NAME, null, TIMEOUT));
+        futures.add(store.createStreamSegment(EMPTY_SEGMENT_NAME, BASIC_SEGMENT_TYPE, null, TIMEOUT));
         Futures.allOf(futures).join();
         return segmentNames;
     }
@@ -692,7 +694,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String txnName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 txnList.add(txnName);
-                futures.add(store.createStreamSegment(txnName, null, TIMEOUT));
+                futures.add(store.createStreamSegment(txnName, BASIC_SEGMENT_TYPE, null, TIMEOUT));
             }
         }
 

@@ -14,6 +14,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.Executor;
+
 /**
  * Base class for InMemory mock implementations.
  * Allows to simulate ChunkStorage with different supported properties.
@@ -40,6 +42,10 @@ abstract public class AbstractInMemoryChunkStorage extends BaseChunkStorage {
     @Getter
     @Setter
     boolean shouldSupportConcat = false;
+
+    public AbstractInMemoryChunkStorage(Executor executor) {
+        super(executor);
+    }
 
     /**
      * Gets a value indicating whether this Storage implementation supports truncate operation on underlying storage object.
