@@ -66,7 +66,7 @@ import static org.mockito.Mockito.spy;
 public abstract class ZKBackedControllerServiceStarterTest extends ControllerServiceStarterTest {
     private TestingServer zkServer;
     private ConcurrentHashMap<String, byte[]> segments;
-    private ConcurrentHashMap<String, List<ByteBuf>> segmentEvent;
+    private ConcurrentHashMap<String, List<WireCommands.Event>> segmentEvent;
     private ConcurrentHashMap<UUID, String> writers;
     private ConcurrentHashMap<UUID, Long> writerEventNumber;
 
@@ -183,7 +183,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                     long segmentOffset = segments.getOrDefault(segment, new byte[0]).length;
                     if (segmentOffset == conditionalAppend.getExpectedOffset()) {
                         segments.compute(segment, (x, y) -> {
-                            byte[] toWrite = conditionalAppend.getData().nioBuffer().array();
+                            byte[] toWrite = conditionalAppend.getEvent().getData().nioBuffer().array();
                             if (y != null) {
                                 byte[] ret = new byte[y.length + toWrite.length];
                                 return Bytes.concat(y, toWrite);
@@ -193,10 +193,10 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                         });
                         segmentEvent.compute(segment, (x, y) -> {
                             if (y != null) {
-                                y.add(conditionalAppend.getData());
+                                y.add(conditionalAppend.getEvent());
                                 return y;
                             } else {
-                                return Lists.newArrayList(conditionalAppend.getData());
+                                return Lists.newArrayList(conditionalAppend.getEvent());
                             }
                         });
                         rp.process(new WireCommands.DataAppended(conditionalAppend.getRequestId(), conditionalAppend.getWriterId(),

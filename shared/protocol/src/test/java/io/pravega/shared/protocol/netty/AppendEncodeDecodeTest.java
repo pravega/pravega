@@ -856,7 +856,7 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         setupAppend(streamName, writerId, fakeNetwork);
 
         val event = new Event(Unpooled.wrappedBuffer(new byte[appendBlockSize]));
-        val append1 = new WireCommands.ConditionalAppend(writerId, 10, 123, event.getAsByteBuf(), 1);
+        val append1 = new WireCommands.ConditionalAppend(writerId, 10, 123, event, 1);
         encoder.encode(ctx, append1, fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(1, received.size());

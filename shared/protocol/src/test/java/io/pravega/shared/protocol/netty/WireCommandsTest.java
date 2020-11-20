@@ -122,63 +122,26 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         }
     }
 
-    @Data
-    private static final class ConditionalAppendV10 implements WireCommand, Request {
-        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
-        final UUID writerId;
-        final long eventNumber;
-        final long expectedOffset;
-        final Event event;
-        final long requestId;
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(writerId.getMostSignificantBits());
-            out.writeLong(writerId.getLeastSignificantBits());
-            out.writeLong(eventNumber);
-            out.writeLong(expectedOffset);
-            event.writeFields(out);
-            out.writeLong(requestId);
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
-        }
-
-        @Override
-        public void process(RequestProcessor cp) {
-            //Unreachable. This should be handled in AppendDecoder.
-            throw new UnsupportedOperationException();
-        }
-    }
-
     @Test
     public void testConditionalAppend() throws IOException {
-        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l));
+        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
 
         // Test that we are able to decode a message with a previous version.
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
         commandV7.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), -1));
-
-        // Test that we are able to decode a message with a previous version.
-        bout = new ByteArrayOutputStream();
-        ConditionalAppendV10 commandV10 = new ConditionalAppendV10(uuid, l, l, new Event(buf), l);
-        commandV10.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
 
         // Test that it correctly implements ReleasableCommand.
         testReleasableCommand(
-                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), -1),
+                () -> new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1),
                 WireCommands.ConditionalAppend::readFrom,
-                ce -> ce.getData().refCnt());
+                ce -> ce.getEvent().getData().refCnt());
     }
 
     @Test
     public void testInvalidConditionalAppend() throws IOException {
-        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf).getAsByteBuf(), l);
+        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l);
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         byte[] bytes = bout.toByteArray();
@@ -916,6 +879,17 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
                 l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
+    }
+
+    @Test
+    public void testConditionalBlockEnd() throws IOException {
+        testCommand(new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, -1),
+                WireCommands.ConditionalBlockEnd::readFrom,
+                ce -> ce.getData().refCnt());
     }
 
     @Test
