@@ -32,8 +32,10 @@ public class RetentionConfig   {
    */
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
-
-    LIMITED_SIZE_MB("LIMITED_SIZE_MB");
+    
+    LIMITED_SIZE_MB("LIMITED_SIZE_MB"),
+    
+    CONSUMPTION("CONSUMPTION");
 
     private String value;
 
@@ -66,6 +68,9 @@ public class RetentionConfig   {
 
   @JsonProperty("timeBasedRetention")
   private TimeBasedRetention timeBasedRetention = null;
+
+  @JsonProperty("consumptionLimits")
+  private ConsumptionLimits consumptionLimits = null;
 
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
@@ -127,6 +132,25 @@ public class RetentionConfig   {
     this.timeBasedRetention = timeBasedRetention;
   }
 
+  public RetentionConfig consumptionLimits(ConsumptionLimits consumptionLimits) {
+    this.consumptionLimits = consumptionLimits;
+    return this;
+  }
+
+   /**
+   * Get consumptionLimits
+   * @return consumptionLimits
+  **/
+   @JsonProperty("consumptionLimits")
+  @ApiModelProperty(value = "")
+  public ConsumptionLimits getConsumptionLimits() {
+    return consumptionLimits;
+  }
+
+  public void setConsumptionLimits(ConsumptionLimits consumptionLimits) {
+    this.consumptionLimits = consumptionLimits;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -139,12 +163,13 @@ public class RetentionConfig   {
     RetentionConfig retentionConfig = (RetentionConfig) o;
     return Objects.equals(this.type, retentionConfig.type) &&
         Objects.equals(this.value, retentionConfig.value) &&
-        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention);
+        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention) &&
+        Objects.equals(this.consumptionLimits, retentionConfig.consumptionLimits);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, value, timeBasedRetention);
+    return Objects.hash(type, value, timeBasedRetention, consumptionLimits);
   }
 
 
@@ -156,6 +181,7 @@ public class RetentionConfig   {
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    value: ").append(toIndentedString(value)).append("\n");
     sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
+    sb.append("    consumptionLimits: ").append(toIndentedString(consumptionLimits)).append("\n");
     sb.append("}");
     return sb.toString();
   }
