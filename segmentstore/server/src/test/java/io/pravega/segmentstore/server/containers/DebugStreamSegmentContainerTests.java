@@ -15,6 +15,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -87,6 +88,15 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final Random RANDOM = new Random(1234);
     private static final int THREAD_POOL_COUNT = 30;
+    private static final SegmentType BASIC_TYPE = SegmentType.STREAM_SEGMENT;
+    private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
+            BASIC_TYPE,
+            SegmentType.builder(BASIC_TYPE).build(),
+            SegmentType.builder(BASIC_TYPE).internal().build(),
+            SegmentType.builder(BASIC_TYPE).critical().build(),
+            SegmentType.builder(BASIC_TYPE).system().build(),
+            SegmentType.builder(BASIC_TYPE).system().critical().build(),
+    };
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
@@ -327,7 +337,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < segmentsCount; i++) {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
-            opFutures.add(container.createStreamSegment(segmentName, null, TIMEOUT));
+            opFutures.add(container.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT));
         }
 
         // 1.1 Wait for all segments to be created prior to using them.
@@ -402,6 +412,11 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
             Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
         }
+    }
+
+    private SegmentType getSegmentType(String segmentName) {
+        // "Randomize" through all the segment types, but using a deterministic function so we can check results later.
+        return SEGMENT_TYPES[Math.abs(segmentName.hashCode() % SEGMENT_TYPES.length)];
     }
 
     private static String getSegmentName(int i) {
