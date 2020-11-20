@@ -97,6 +97,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        @Cleanup
         ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
         val state = groupImpl.getState();
         if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
@@ -106,6 +107,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
+        @Cleanup
         ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
 
         while (true) {
