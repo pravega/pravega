@@ -376,20 +376,31 @@ project ('bindings') {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs-client', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
 
         // Adding JAXB API and the reference implementation as dependencies here, since they are not available
         // in newer Java SE versions (11 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
         compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
+        testCompile group: 'io.netty', name: 'netty-codec-http', version: nettyVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
+
+        // These were previously brought in as transitive dependencies of HDFS, although they were required for running
+        // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
+        // so adding explicit dependencies is necessary (as well as desirable).
+        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
+        implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
