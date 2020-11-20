@@ -101,6 +101,25 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
+            .builder()
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .build();
+
+    // Configurations for DebugSegmentContainer
+    private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
+            .builder()
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
+            .build();
+    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
+            .builder()
+            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
+            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
+            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
+            .build();
+
+    private StorageFactory storageFactory = null;
     private static final SegmentType BASIC_SEGMENT_TYPE = SegmentType.STREAM_SEGMENT;
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()

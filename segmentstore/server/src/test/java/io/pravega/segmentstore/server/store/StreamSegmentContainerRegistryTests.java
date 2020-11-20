@@ -18,6 +18,7 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
+import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
