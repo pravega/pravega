@@ -33,6 +33,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
@@ -183,14 +184,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber) {
-        return this.controller.addSubscriber(scope, streamName, subscriber).thenApply(x -> {
+    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
                                                                               scope + "/" + streamName);
-                case SUBSCRIBER_EXISTS:
-                    return false;
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
                 case SUCCESS:
@@ -203,15 +202,13 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber) {
-        return this.controller.deleteSubscriber(scope, streamName, subscriber).thenApply(x -> {
+    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
+        return this.controller.deleteSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUBSCRIBER_NOT_FOUND:
-                    return false;
                 case SUCCESS:
                     return true;
                 default:
@@ -412,7 +409,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges));
     }
 
     @Override
@@ -517,7 +514,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         String retVal = "";
         if (authorizationEnabled) {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
@@ -610,7 +607,7 @@ public class LocalController implements Controller {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
-        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new KeyValueTableSegments(getRangeMap(ranges));
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {

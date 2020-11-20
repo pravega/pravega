@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+
 import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -469,9 +470,5 @@ public class ReaderGroupStateManager {
     
     Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
         return sync.getState().getLastReadPositions(stream);
-    }
-
-    public String getOrRefreshDelegationTokenFor(Segment segmentId) {
-            return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
     }
 }

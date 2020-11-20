@@ -113,6 +113,9 @@ public final class Config {
     public static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named(
             "security.auth.delegationToken.ttl.seconds", 600, "auth.accessTokenTtlSeconds");
 
+    public static final Property<Boolean> PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = Property.named(
+            "security.auth.readerGroupStreams.writesWithReadPermissions.enable", true);
+
     public static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named(
             "security.tls.enable", false, "auth.tlsEnabled");
 
@@ -219,6 +222,7 @@ public final class Config {
     public static final String TOKEN_SIGNING_KEY;
     public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
     public static final String TLS_ENABLED_FOR_SEGMENT_STORE;
+    public static final boolean WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS;
 
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
@@ -298,6 +302,7 @@ public final class Config {
         USER_PASSWORD_FILE = p.get(PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
         ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
+        WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
@@ -437,6 +442,7 @@ public final class Config {
                 .tlsKeyFile(Config.TLS_KEY_FILE)
                 .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                 .accessTokenTTLInSeconds(Config.ACCESS_TOKEN_TTL_IN_SECONDS)
+                .isRGWritesWithReadPermEnabled(Config.WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS)
                 .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
                 .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();

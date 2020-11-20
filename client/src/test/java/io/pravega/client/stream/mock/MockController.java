@@ -65,6 +65,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
@@ -240,12 +242,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String readerGroupId) {
+    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String readerGroupId) {
+    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 
@@ -426,7 +428,7 @@ public class MockController implements Controller {
 
     private StreamSegments getCurrentSegments(Stream stream) {
         if (isStreamSealed(stream)) {
-            return new StreamSegments(new TreeMap<>(), "");
+            return new StreamSegments(new TreeMap<>());
         } else {
             List<Segment> segmentsInStream = getSegmentsForStream(stream);
             TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
@@ -434,7 +436,7 @@ public class MockController implements Controller {
                 SegmentWithRange s = createRange(stream.getScope(), stream.getStreamName(), segmentsInStream.size(), i);
                 segments.put(s.getRange().getHigh(), s);
             }
-            return new StreamSegments(segments, "");
+            return new StreamSegments(segments);
         }
     }
 
@@ -445,7 +447,7 @@ public class MockController implements Controller {
             SegmentWithRange s = createRange(kvt.getScope(), kvt.getKeyValueTableName(), segmentsInStream.size(), i);
             segments.put(s.getRange().getHigh(), s);
         }
-        return new KeyValueTableSegments(segments, "");
+        return new KeyValueTableSegments(segments);
     }
 
     @Synchronized
@@ -688,7 +690,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         return CompletableFuture.completedFuture("");
     }
 

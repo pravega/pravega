@@ -32,7 +32,10 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
+    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
+    public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
+    public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -46,6 +49,9 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
+            .lazyCommitEnabled(true)
+            .inlineDefragEnabled(true)
+            .lateWarningThresholdInMillis(100)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -101,12 +107,32 @@ public class ChunkedSegmentStorageConfig {
     final private boolean appendEnabled;
 
     /**
+     * Whether the lazy commit functionality is enabled or disabled.
+     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
+     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
+     * Note that otherwise for each commit the data is written to underlying key-value store.
+     */
+    @Getter
+    final private boolean lazyCommitEnabled;
+
+    /**
+     * Whether the inline defrag functionality is enabled or disabled.
+     */
+    @Getter
+    final private boolean inlineDefragEnabled;
+
+    @Getter
+    final private int lateWarningThresholdInMillis;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
+        this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
+        this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
         this.minSizeLimitForConcat = properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT);
         this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
@@ -115,6 +141,7 @@ public class ChunkedSegmentStorageConfig {
         this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
+        this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
     }
 
     /**

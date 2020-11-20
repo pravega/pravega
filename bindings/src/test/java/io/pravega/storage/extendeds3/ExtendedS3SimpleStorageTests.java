@@ -18,7 +18,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for {@link ExtendedS3ChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
@@ -41,14 +42,14 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
     }
 
     @Override
-    protected ChunkStorage getChunkStorage()  throws Exception {
-        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
+    protected ChunkStorage getChunkStorage() {
+        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
     }
 
     /**
      * {@link ChunkedRollingStorageTests} tests for {@link ExtendedS3ChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
      */
-    public static class ExtendedS3StorageProviderRollingTests extends ChunkedRollingStorageTests {
+    public static class ExtendedS3StorageRollingTests extends ChunkedRollingStorageTests {
         private ExtendedS3TestContext testContext = null;
 
         @Before
@@ -64,8 +65,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
         }
 
         @Override
-        protected ChunkStorage getChunkStorage()  throws Exception {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
+        protected ChunkStorage getChunkStorage() {
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
         }
     }
 
@@ -90,8 +91,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
         }
 
         @Override
-        protected ChunkStorage createChunkStorage() throws Exception {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
+        protected ChunkStorage createChunkStorage() {
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
         }
 
         /**
@@ -99,9 +100,9 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
          */
         @Test
         public void testCapabilities() {
-            assertEquals(true, getChunkStorage().supportsAppend());
-            assertEquals(false, getChunkStorage().supportsTruncation());
-            assertEquals(true, getChunkStorage().supportsConcat());
+            assertTrue(getChunkStorage().supportsAppend());
+            assertFalse(getChunkStorage().supportsTruncation());
+            assertTrue(getChunkStorage().supportsConcat());
         }
     }
 
@@ -126,8 +127,8 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
         }
 
         @Override
-        protected ChunkStorage getChunkStorage() throws Exception {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig);
+        protected ChunkStorage getChunkStorage() {
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
         }
     }
 }

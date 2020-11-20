@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -59,10 +60,9 @@ public class StreamCutHelper {
      */
     public CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller,
-                stream.getScope(), stream.getStreamName());
+                stream.getScope(), stream.getStreamName(), AccessOperation.READ);
         return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
                          .thenApply(streamsegments -> {
-                             tokenProvider.populateToken(streamsegments.getDelegationToken());
                              Map<Segment, Long> pos = streamsegments.getSegments().stream()
                                              .map(segment -> segmentToInfo(segment, tokenProvider))
                                              .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));

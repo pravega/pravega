@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.Callbacks;
@@ -34,7 +35,7 @@ public class CompletableOperation implements PriorityBlockingDrainingQueue.Item 
     private final Consumer<Throwable> failureHandler;
     private final Consumer<Void> successHandler;
     @Getter
-    private final Timer timer;
+    private final AbstractTimer timer;
     private boolean done;
 
     //endregion
