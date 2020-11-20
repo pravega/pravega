@@ -183,7 +183,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                     long segmentOffset = segments.getOrDefault(segment, new byte[0]).length;
                     if (segmentOffset == conditionalAppend.getExpectedOffset()) {
                         segments.compute(segment, (x, y) -> {
-                            byte[] toWrite = conditionalAppend.getEvent().getData().nioBuffer().array();
+                            byte[] toWrite = conditionalAppend.getEvent().getAsByteBuf().nioBuffer().array();
                             if (y != null) {
                                 byte[] ret = new byte[y.length + toWrite.length];
                                 return Bytes.concat(y, toWrite);
