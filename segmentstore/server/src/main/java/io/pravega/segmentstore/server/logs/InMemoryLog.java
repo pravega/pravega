@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -24,6 +25,7 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> {
      * executed while holding the base class' lock, hence no need for extra synchronization here.
      */
     @Getter(AccessLevel.PACKAGE)
+    @GuardedBy("AbstractDrainingQueue.this.lock")
     @VisibleForTesting
     private long lastSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
 
@@ -35,6 +37,7 @@ public class InMemoryLog extends BlockingDrainingQueue<Operation> {
      * @throws OutOfOrderOperationException If item's Sequence Number is out of order.
      */
     @Override
+    @GuardedBy("AbstractDrainingQueue.this.lock")
     protected void addInternal(Operation item) {
         if (this.lastSequenceNumber >= item.getSequenceNumber()) {
             throw new OutOfOrderOperationException(String.format("Operation '%s' is out of order. Expected sequence number of at least %s.",
