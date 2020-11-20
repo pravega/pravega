@@ -125,22 +125,24 @@ public interface Controller extends AutoCloseable {
      * @param scope Scope name
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param generation Subscriber generation.
      * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber);
+    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
 
     /**
      * API to remove a Subscriber from list of Subscribers for the Stream.
      * @param scope Scope name
      * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param generation Subscriber generation.
      * @throws IllegalArgumentException if Stream/Subscriber does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber);
+    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
 
     /**
      * Get list of Subscribers for the Stream.
