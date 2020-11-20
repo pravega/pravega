@@ -98,6 +98,36 @@ public class CompositeByteArraySegmentTests extends StructuredBufferTestBase {
     }
 
     /**
+     * Tests the {@link CompositeByteArraySegment#copyFrom} when the given buffer has more data than can fit in this
+     * buffer.
+     */
+    @Test
+    public void testCopyFromOverflow() {
+        val data = randomData();
+        val sourceData = new ByteArraySegment(data);
+
+        // Populate the buffer and check it.
+        for (int i = 0; i < LENGTH; i++) {
+            val s = emptyBuffer();
+            BufferView.Reader sourceReader = sourceData.getBufferViewReader();
+            Assert.assertEquals("Test error: unexpected available bytes before reading.", data.length, sourceReader.available());
+            s.copyFrom(sourceReader, i, sourceData.getLength() - i);
+            Assert.assertEquals("Unexpected available bytes after copyFrom@offset " + i, i, sourceReader.available());
+
+            // We expect everything before i to be 0.
+            for (int j = 0; j < i; j++) {
+                Assert.assertEquals(0, s.get(j));
+            }
+
+            if (i > 0) {
+                val expectedData = sourceData.slice(0, sourceData.getLength() - i);
+                val actualData = new ByteArraySegment(s.slice(i, s.getLength() - i).getCopy());
+                Assert.assertEquals("Unexpected copied data.", expectedData, actualData);
+            }
+        }
+    }
+
+    /**
      * Tests the {@link CompositeByteArraySegment#copyTo(ByteBuffer)} method.
      */
     @Test
