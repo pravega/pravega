@@ -472,8 +472,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupImpl subGroup = (ReaderGroupImpl) groupManager.getReaderGroup("group");
 
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
-        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getReaderGroupState().getConfigState());
+        System.out.println(subs);
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
+        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getState().getConfigState());
     }
 
     @Test
@@ -498,13 +499,12 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .build());
         ReaderGroupImpl subGroup = (ReaderGroupImpl) groupManager.getReaderGroup("group");
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
-        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getReaderGroupState().getConfigState());
-
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
+        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getState().getConfigState());
         groupManager.deleteReaderGroup("group");
 
         subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.stream().anyMatch(s -> s.contains("group")));
     }
 
     @Test
@@ -528,7 +528,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
         ReaderGroup subGroup = groupManager.getReaderGroup("group");
         // Reset to Non subscriber
         subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints()
@@ -536,7 +536,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .build());
 
         subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.stream().anyMatch(s -> s.contains("group")));
     }
 
     @Test
@@ -559,7 +559,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .stream("test/test")
                 .build());
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.stream().anyMatch(s -> s.contains("group")));
 
         ReaderGroup nonSubGroup = groupManager.getReaderGroup("group");
         // Reset to Subscriber
@@ -568,7 +568,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
     }
 
     @Test
@@ -595,11 +595,11 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         List<String> subs = controller.listSubscribers("test", "test1").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
         subs = controller.listSubscribers("test", "test2").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
         subs = controller.listSubscribers("test", "test3").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.stream().anyMatch(s -> s.contains("group")));
 
         ReaderGroup subGroup = groupManager.getReaderGroup("group");
         // Reset to Subscriber
@@ -609,11 +609,11 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
                 .build());
         subs = controller.listSubscribers("test", "test1").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.stream().anyMatch(s -> s.contains("group")));
         subs = controller.listSubscribers("test", "test2").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
         subs = controller.listSubscribers("test", "test3").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
     }
 
     private StreamConfiguration getStreamConfig() {

@@ -46,6 +46,13 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     StateT getState();
 
     /**
+     * Gets the segment ID of the StateSynchronizer stream.
+     *
+     * @return the segment ID
+     */
+    long getSegmentId();
+
+    /**
      * Fetch and apply all updates needed to the state object held locally up to date.
      */
     void fetchUpdates();

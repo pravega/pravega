@@ -60,6 +60,11 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         return currentState;
     }
 
+    @Override
+    public long getSegmentId() {
+        return segment.getSegmentId();
+    }
+
     private Revision getRevisionToReadFrom(boolean useState) {
         StateT state = getState();
         Revision revision;

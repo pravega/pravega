@@ -32,6 +32,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupMetrics;
 import io.pravega.client.stream.ReaderSegmentDistribution;
+import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -45,6 +46,7 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
@@ -74,6 +76,7 @@ import static io.pravega.common.concurrent.Futures.allOfWithResults;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.common.util.CollectionHelpers.filterOut;
+import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 @Slf4j
 @Data
@@ -121,19 +124,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return synchronizer.getState().getStreamNames();
     }
 
-    public ReaderGroupState getReaderGroupState() {
-        synchronizer.fetchUpdates();
+    public ReaderGroupState updateState(ReaderGroupState.ConfigState configState, ReaderGroupState state, AtomicBoolean b) {
+        synchronizer.updateState((s, updates) -> {
+            b.set(s.equals(state));
+            if (b.get()) {
+                updates.add(new ChangeConfigState(configState, s.getGeneration() + 1));
+            }
+        });
         return synchronizer.getState();
     }
 
-    public void updateConfigState(ReaderGroupState.ConfigState configState) {
-        synchronizer.updateState((s, updates) -> {
-            updates.add(new ChangeConfigState(configState));
-        });
-    }
-
-    public void fetchStateUpdates() {
+    public ReaderGroupState getState() {
         synchronizer.fetchUpdates();
+        return synchronizer.getState();
     }
 
     @Override
@@ -205,33 +208,96 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        synchronizer.updateState((state, updates) -> {
-            if (state.getConfigState() != ReaderGroupState.ConfigState.READY) {
-                val oldConfig = state.getConfig();
-                val newConfig = state.getNewConfig();
-                manageSubscriptions(oldConfig, newConfig);
+        while (true) {
+            val state = getState();
+            switch (state.getConfigState()) {
+                case INITIALIZING:
+                    doInit(state);
+                    break;
+                case REINITIALIZING:
+                    doReinit(state);
+                    break;
+                case READY:
+                    AtomicBoolean b = new AtomicBoolean(true);
+                    long newGen = state.getGeneration() + 1;
+                    synchronizer.updateState((s, updates) -> {
+                        b.set(s.equals(state));
+                        if (b.get()) {
+                            updates.add(new ReaderGroupStateResetStart(config, newGen));
+                        }
+                    });
+                    val newState = synchronizer.getState();
+                    if (b.get()) {
+                        doReinit(newState);
+                        return;
+                    }
+                    break;
+                case DELETING:
+                    doDelete(state);
+                    throw new ReinitializationRequiredException("This ReaderGroup does not exist.");
             }
-            updates.add(new ReaderGroupStateResetStart(config));
-        });
+        }
+    }
 
-        val generation = synchronizer.getState().getGeneration();
-        val currentConfig = synchronizer.getState().getConfig();
-        manageSubscriptions(currentConfig, config);
-
-        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateState((state, updates) -> {
-            updates.add(new ReaderGroupStateResetComplete(generation, config, segments, getEndSegmentsForStreams(config)));
+    public void doInit(ReaderGroupState state) {
+        val config = state.getConfig();
+        val generation = state.getGeneration();
+        long segment = synchronizer.getSegmentId();
+        if (!ReaderGroupConfig.RetentionConfig.NONE.equals(config.getRetentionConfig())) {
+            Set<Stream> streams = config.getStartingStreamCuts().keySet();
+            streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName + segment, generation)));
+        }
+        synchronizer.updateState((s, updates) -> {
+            if (s.equals(state)) {
+                updates.add(new ChangeConfigState(ReaderGroupState.ConfigState.READY, s.getGeneration()));
+            }
         });
     }
 
-    private void manageSubscriptions(ReaderGroupConfig oldConfig, ReaderGroupConfig newConfig) {
+    public void doReinit(ReaderGroupState state) {
+        val oldConfig = state.getConfig();
+        val newConfig = state.getNewConfig();
+        val generation = state.getGeneration();
+        manageSubscriptions(oldConfig, newConfig, generation);
+
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
+        synchronizer.updateState((s, updates) -> {
+            if (s.equals(state)) {
+                updates.add(new ReaderGroupStateResetComplete(newConfig, segments, getEndSegmentsForStreams(newConfig)));
+            }
+        });
+    }
+
+    public void doDelete(ReaderGroupState state) {
+        val config = state.getConfig();
+        val generation = state.getGeneration();
+        long segment = synchronizer.getSegmentId();
+        if (!ReaderGroupConfig.RetentionConfig.NONE.equals(config.getRetentionConfig())) {
+            Set<Stream> streams = config.getStartingStreamCuts().keySet();
+            streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName + segment, generation)));
+        }
+        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                        .thenCompose(b -> controller.deleteStream(scope,
+                                getStreamForReaderGroup(groupName)))
+                        .exceptionally(e -> {
+                            if (e instanceof InvalidStreamException) {
+                                return null;
+                            } else {
+                                log.warn("Failed to delete stream", e);
+                            }
+                            throw Exceptions.sneakyThrow(e);
+                        }),
+                RuntimeException::new);
+    }
+
+    private void manageSubscriptions(ReaderGroupConfig oldConfig, ReaderGroupConfig newConfig, long generation) {
+        long segment = synchronizer.getSegmentId();
         Set<Stream> oldStreams = oldConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
         Set<Stream> newStreams = newConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? newConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
         Set<String> streamsToSub = filterOut(newStreams, oldStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
         Set<String> streamsToUnsub = filterOut(oldStreams, newStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
-        // subscriptions with the above gen
-        streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s, groupName)));
-        streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s, groupName)));
+        streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s, groupName + segment, generation)));
+        streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s, groupName + segment, generation)));
     }
 
     @Override
@@ -422,10 +488,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
-        if (getReaderGroupState().getConfigState() != ReaderGroupState.ConfigState.READY) {
+        long segment = synchronizer.getSegmentId();
+        if (getState().getConfigState() != ReaderGroupState.ConfigState.READY) {
             throw new IllegalStateException("Update failed as ReaderGroup not in READY state. Retry again later.");
         }
-        streamCuts.forEach((stream, cut) -> getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, cut)));
+        streamCuts.forEach((stream, cut) -> getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(),
+                stream.getStreamName(), groupName + segment, cut)));
     }
 
     /**

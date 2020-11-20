@@ -1265,7 +1265,6 @@ public class ReaderGroupState implements Revisioned {
     @Data
     @RequiredArgsConstructor
     public static class ReaderGroupStateResetComplete implements InitialUpdate<ReaderGroupState> {
-        private final long generation;
         private final ReaderGroupConfig newConfig;
         private final Map<SegmentWithRange, Long> startingSegments;
         private final Map<Segment, Long> endSegments;
@@ -1277,11 +1276,8 @@ public class ReaderGroupState implements Revisioned {
 
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
-            if (oldState.generation == generation && oldState.getConfigState() == ConfigState.REINITIALIZING) {
-                return new ReaderGroupState(oldState.getScopedStreamName(), newRevision, newConfig, startingSegments,
-                        endSegments, ConfigState.READY, generation);
-            }
-            return oldState;
+            return new ReaderGroupState(oldState.getScopedStreamName(), newRevision, newConfig, startingSegments,
+                    endSegments, ConfigState.READY, oldState.generation);
         }
 
         static class ReaderGroupStateResetCompleteBuilder implements ObjectBuilder<ReaderGroupStateResetComplete> {
@@ -1311,7 +1307,6 @@ public class ReaderGroupState implements Revisioned {
                     Range range = readRange(in);
                     return new SegmentWithRange(segment, range);
                 };
-                builder.generation(revisionDataInput.readLong());
                 builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
                         RevisionDataInput::readLong));
@@ -1324,7 +1319,6 @@ public class ReaderGroupState implements Revisioned {
                     out.writeUTF(s.getSegment().getScopedName());
                     writeRange(out, s.getRange());
                 };
-                revisionDataOutput.writeLong(object.generation);
                 revisionDataOutput.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
                 revisionDataOutput.writeMap(object.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
                 revisionDataOutput.writeMap(object.endSegments, segmentSerializer, RevisionDataOutput::writeLong);
@@ -1337,6 +1331,7 @@ public class ReaderGroupState implements Revisioned {
     @EqualsAndHashCode(callSuper = false)
     static class ReaderGroupStateResetStart extends ReaderGroupStateUpdate {
         private final ReaderGroupConfig newConfig;
+        private final long newGeneration;
 
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
@@ -1347,14 +1342,9 @@ public class ReaderGroupState implements Revisioned {
 
         @Override
         public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
-            if (oldState.configState != ConfigState.READY) {
-                return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getNewConfig(), newRevision, oldState.checkpointState,
-                        oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
-                        oldState.lastReadPosition, oldState.endSegments, oldState.generation + 1, ConfigState.REINITIALIZING, newConfig);
-            }
             return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getConfig(), newRevision, oldState.checkpointState,
                     oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
-                    oldState.lastReadPosition, oldState.endSegments, oldState.generation, ConfigState.REINITIALIZING, newConfig);
+                    oldState.lastReadPosition, oldState.endSegments, newGeneration, ConfigState.REINITIALIZING, newConfig);
         }
 
         private static class ReaderGroupStateResetStartBuilder implements ObjectBuilder<ReaderGroupStateResetStart> {
@@ -1379,10 +1369,12 @@ public class ReaderGroupState implements Revisioned {
 
             private void read00(RevisionDataInput in, ReaderGroupStateResetStartBuilder builder) throws IOException {
                 builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(in.readArray())));
+                builder.newGeneration(in.readLong());
             }
 
             private void write00(ReaderGroupStateResetStart object, RevisionDataOutput out) throws IOException {
                 out.writeBuffer(new ByteArraySegment(object.newConfig.toBytes()));
+                out.writeLong(object.newGeneration);
             }
         }
     }
@@ -1390,12 +1382,19 @@ public class ReaderGroupState implements Revisioned {
     @Builder
     @Data
     @EqualsAndHashCode(callSuper = false)
-    static class ChangeConfigState extends ReaderGroupStateUpdate {
+    public static class ChangeConfigState extends ReaderGroupStateUpdate {
         private final ConfigState newConfigState;
+        private final long newGeneration;
 
         @Override
         void update(ReaderGroupState state) {
-            state.setConfigState(newConfigState);
+        }
+
+        @Override
+        public ReaderGroupState applyTo(ReaderGroupState oldState, Revision newRevision) {
+            return new ReaderGroupState(oldState.getScopedStreamName(), oldState.getConfig(), newRevision, oldState.checkpointState,
+                    oldState.distanceToTail, oldState.futureSegments, oldState.assignedSegments, oldState.unassignedSegments,
+                    oldState.lastReadPosition, oldState.endSegments, newGeneration, newConfigState, null);
         }
 
         private static class ChangeConfigStateBuilder implements ObjectBuilder<ChangeConfigState> {
@@ -1421,10 +1420,12 @@ public class ReaderGroupState implements Revisioned {
             private void read00(RevisionDataInput in, ChangeConfigStateBuilder builder) throws IOException {
                 int ordinal = in.readCompactInt();
                 builder.newConfigState(ConfigState.values()[ordinal]);
+                builder.newGeneration(in.readLong());
             }
 
             private void write00(ChangeConfigState object, RevisionDataOutput out) throws IOException {
                 out.writeCompactInt(object.newConfigState.ordinal());
+                out.writeLong(object.newGeneration);
             }
         }
     }
