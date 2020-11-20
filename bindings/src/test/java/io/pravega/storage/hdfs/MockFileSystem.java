@@ -37,7 +37,7 @@ import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
-import org.apache.http.annotation.GuardedBy;
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Mock FileSystem for use in unit tests.
