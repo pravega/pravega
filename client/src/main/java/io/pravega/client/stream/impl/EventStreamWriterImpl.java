@@ -25,6 +25,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.ByteBufferUtils;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -197,6 +198,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                                      // Segment sealed exception observed during a flush. Re-run flush on all the
                                      // available writers.
                                      log.info("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                                 } catch (RetriesExhaustedException e1) {
+                                     log.warn("Flush on segment {} failed after all retries", writer.getSegmentName(), e1);
                                  }
                              }
                              toSeal = sealedSegmentQueue.poll();
