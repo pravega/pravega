@@ -7,7 +7,12 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.health;
+package io.pravega.controller.health;
 
-public class HealthEndpointTests {
+import io.pravega.shared.health.HealthProvider;
+import io.pravega.shared.health.HealthService;
+
+public class AbstractControllerHealthIndicator {
+
+    static final HealthService HEALTH_SERVICE = HealthProvider.getHealthService();
 }

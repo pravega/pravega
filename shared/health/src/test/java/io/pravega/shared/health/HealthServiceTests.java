@@ -27,6 +27,7 @@ import org.junit.rules.Timeout;
 import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 
 @Slf4j
+// Hosts much of the same tests that would go into a HealthEndpointTests class, making HealthEndpointTests redundant.
 public class HealthServiceTests {
 
     @Rule
@@ -73,7 +74,6 @@ public class HealthServiceTests {
 
     @Test
     public void health() throws IOException {
-
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
@@ -133,7 +133,5 @@ public class HealthServiceTests {
 
         boolean ready = service.endpoint().readiness();
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
-
     }
-
 }

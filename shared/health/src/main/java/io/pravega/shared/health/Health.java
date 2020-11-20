@@ -35,9 +35,11 @@ public class Health {
     @Builder.Default
     private Status status = Status.UNKNOWN;
 
-    private Boolean ready;
+    @Builder.Default
+    private Boolean ready = false;
 
-    private Boolean alive;
+    @Builder.Default
+    private Boolean alive = false;
 
     @Getter
     @Builder.Default
@@ -52,8 +54,6 @@ public class Health {
 
     Health(HealthBuilder builder) {
         this.name = builder.name;
-        this.ready = builder.ready;
-        this.alive = builder.alive;
     }
 
     /**

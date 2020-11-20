@@ -34,6 +34,11 @@ tags:
   externalDocs:
     description: "Find out more about pravega"
     url: "https://pravega.io"
+- name: "Health"
+  description: "Health check related APIs"
+  externalDocs:
+    description: "Find out more about pravega"
+    url: "https://pravega.io"
 schemes:
   - http
 paths:
@@ -381,6 +386,245 @@ paths:
           description: Scope or reader group with given name not found
         500:
           description: Internal server error while fetching reader group details
+  /health:
+    parameters:
+      - in: query
+        name: details
+        schema:
+          type: boolean
+        required: false
+        description: Whether or not to provide the details in the health response.
+    get:
+      tags:
+      - "Health"
+      operationId: getHealth
+      description: Return the Health of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The Health result of the Controller.
+          schema: "#/definitions/Health"
+        500:
+          description: Internal server error while fetching the Health.
+  /health/readiness:
+    get:
+      tags:
+      - "Health"
+      operationId: getReadiness
+      description: Fetch the ready state of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The ready status.
+          scheme:
+            $ref: "#/definitions/Readiness"
+        500:
+          description: Internal server error while fetching the ready state of the Controller.
+  /health/liveness:
+    get:
+      tags:
+        - "Health"
+      operationId: getLiveness
+      description: Fetch the liveness state of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The alive status.
+          scheme:
+            $ref: "#/definitions/Liveness"
+        500:
+          description: Internal server error while fetching the liveness state of the Controller.
+  /health/details:
+    get:
+      tags:
+        - "Health"
+      operationId: getDetials
+      description: Fetch the details of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of details.
+          scheme:
+            $ref: "#/definitions/HealthDetails"
+        500:
+          description: Internal server error while fetching the health details of the Controller.
+  /health/components:
+    get:
+      tags:
+        - "Health"
+      operationId: getComponents
+      description: Fetch the details of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of health dependencies of the Controller.
+          scheme:
+            $ref: "#/definitions/HealthDependencies"
+        500:
+          description: Internal server error while fetching the health dependencies of the Controller.
+  /health/status:
+    get:
+      tags:
+        - "Health"
+      operationId: getStatus
+      description: Fetch the status of the Controller service.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The health status of the Controller.
+          scheme:
+            $ref: "#/definitions/Status"
+        500:
+          description: Internal server error while fetching the health status of the Controller.
+  /health/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getHealth
+      description: Return the Health of a health contributor with a given id.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The Health result of the Controller.
+          schema: "#/definitions/Health"
+        404:
+          description: "A health provider for the given id could not be found."
+        500:
+          description: Internal server error while fetching the health for a given contributor.
+  /health/readiness/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorReadiness
+      description: Fetch the ready state of the health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The readiness status for the health contributor with given id.
+          scheme:
+            $ref: "#/definitions/Readiness"
+        404:
+          description: "The readiness status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the ready state for a given health contributor.
+  /health/liveness/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getLiveness
+      description: Fetch the liveness state of the specified health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The alive status for the specified health contributor.
+          scheme:
+            $ref: "#/definitions/Liveness"
+        404:
+          description: "The liveness status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the liveness state for a given health contributor.
+  /health/details/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorDetails
+      description: Fetch the details of a specific health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of details for the health contributor with a given id.
+          scheme:
+            $ref: "#/definitions/HealthDetails"
+        404:
+          description: "The health details for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the health details for a given health contributor.
+  /health/components/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorDependencies
+      description: Fetch the health dependencies for a specific health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The list of health dependencies for a specific health contributor.
+          scheme:
+            $ref: "#/definitions/Dependencies"
+        404:
+          description: "The health dependencies for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the health dependencies of a given health contributor.
+  /health/status/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The id of an existing health contributor.
+    get:
+      tags:
+        - "Health"
+      operationId: getContributorStatus
+      description: Fetch the status of a specific health contributor.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: The health status of the Controller.
+          scheme:
+            $ref: "#/definitions/Status"
+        404:
+          description: "The health status for the contributor with given id was not found."
+        500:
+          description: Internal server error while fetching the health status of a given health contributor.
 definitions:
   ScalingEventList:
     type: object
@@ -526,3 +770,37 @@ definitions:
       minutes:
         type: integer
         format: int64
+  Health:
+    type: object
+    properties:
+      status:
+        $ref: "#/definitions/Status"
+      rediness:
+        $ref: "#/defintions/Readiness"
+      liveness:
+        $ref: "#/defintions/Liveness"
+      details:
+        $ref: "#/defintions/HealthDetails"
+      children:
+        $ref: "#/defintions/HealthDependencies"
+  Status:
+    type: string
+    enum:
+      - UP
+      - WARNING
+      - UNKNOWN
+      - DOWN
+  Readiness:
+    type: boolean
+  Liveness:
+    type: boolean
+  HealthDetails:
+    type: array
+    items:
+      type: object
+      additionalProperties:
+        type: string
+  HealthDependencies:
+    type: array
+    items:
+      type: string

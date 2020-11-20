@@ -11,6 +11,7 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthDaemon;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.extern.slf4j.Slf4j;
