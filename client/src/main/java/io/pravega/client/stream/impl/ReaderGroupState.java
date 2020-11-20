@@ -53,7 +53,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -94,8 +93,7 @@ public class ReaderGroupState implements Revisioned {
     @Getter
     private final long generation;
     @Getter
-    @Setter
-    private ConfigState configState;
+    private final ConfigState configState;
     @Getter
     private final ReaderGroupConfig newConfig;
 

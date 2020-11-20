@@ -124,7 +124,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return synchronizer.getState().getStreamNames();
     }
 
-    public ReaderGroupState updateState(ReaderGroupState.ConfigState configState, ReaderGroupState state, AtomicBoolean b) {
+    public ReaderGroupState updateConfigState(ReaderGroupState.ConfigState configState, ReaderGroupState state, AtomicBoolean b) {
         synchronizer.updateState((s, updates) -> {
             b.set(s.equals(state));
             if (b.get()) {

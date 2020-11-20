@@ -121,7 +121,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                     break;
                 case READY:
                     AtomicBoolean b = new AtomicBoolean(true);
-                    val newState = groupImpl.updateState(ReaderGroupState.ConfigState.DELETING, state, b);
+                    val newState = groupImpl.updateConfigState(ReaderGroupState.ConfigState.DELETING, state, b);
                     if (b.get()) {
                         groupImpl.doDelete(newState);
                         return;
