@@ -27,6 +27,8 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -117,6 +119,51 @@ public interface Controller extends AutoCloseable {
      *         indicate that the stream was updated because the config is now different from before.
      */
     CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
+
+    /**
+     * API to add a Subscriber to the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param generation Subscriber generation.
+     * @throws IllegalArgumentException if Stream does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
+
+    /**
+     * API to remove a Subscriber from list of Subscribers for the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param generation Subscriber generation.
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscriber was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
+
+    /**
+     * Get list of Subscribers for the Stream.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @return List of StreamSubscribers.
+     */
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName);
+
+    /**
+     * API to update the truncation StreamCut for a particular Subscriber on Controller.
+     * Used when Stream has Consumption Based Retention Policy configured.
+     * @param scope Scope name
+     * @param streamName Stream name
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
+     * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     *         indicate that the subscribers position was updated in Stream Metadata.
+     */
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
@@ -369,13 +416,14 @@ public interface Controller extends AutoCloseable {
     void close();
 
     /**
-     * Refreshes an expired/non-existent delegation token.
+     * Obtains a delegation token from the server.
      *
-     * @param scope      Scope of the stream.
+     * @param scope Scope of the stream.
      * @param streamName Name of the stream.
+     * @param accessOperation The requested permission.
      * @return The delegation token for the given stream.
      */
-    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName);
+    CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation);
 
     //region KeyValueTables
 

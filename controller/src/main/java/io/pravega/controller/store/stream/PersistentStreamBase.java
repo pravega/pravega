@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import java.util.AbstractMap.SimpleEntry;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +64,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,7 +76,6 @@ import lombok.val;
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static io.pravega.shared.NameUtils.getSegmentNumber;
-import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
@@ -115,6 +118,7 @@ public abstract class PersistentStreamBase implements Stream {
                         .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.EMPTY))
                         .thenCompose((Void v) -> createStateIfAbsent(StateRecord.builder().state(State.CREATING).build()))
                         .thenCompose((Void v) -> createHistoryRecords(startingSegmentNumber, createStreamResponse))
+                        .thenCompose((Void v) -> createSubscribersRecordIfAbsent())
                         .thenApply((Void v) -> createStreamResponse));
     }
 
@@ -162,20 +166,24 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(existing -> {
                     Preconditions.checkNotNull(existing);
                     Preconditions.checkArgument(!existing.getObject().isUpdating());
-                    return isStreamCutValid(streamCut)
-                        .thenCompose(isValid -> {
-                            Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
-                            return computeStreamCutSpan(streamCut)
-                                    .thenCompose(span -> {
-                                        StreamTruncationRecord previous = existing.getObject();
-                                        // check greater than
-                                        Exceptions.checkArgument(greaterThan(streamCut, span, previous.getStreamCut(), previous.getSpan()),
-                                                "StreamCut", "Supplied streamcut is behind previous truncation point");
+                    long mostRecent = getMostRecent(streamCut);
+                    long oldest = getOldest(streamCut);
+                    int epochLow = NameUtils.getEpoch(oldest);
+                    int epochHigh = NameUtils.getEpoch(mostRecent);
 
-                                        return computeTruncationRecord(previous, streamCut, span)
-                                                .thenCompose(prop ->
-                                                        Futures.toVoid(setTruncationData(new VersionedMetadata<>(prop, existing.getVersion()))));
-                                    });
+                    return fetchEpochs(epochLow, epochHigh, true)
+                        .thenCompose(epochs -> {
+                            boolean isValid = isStreamCutValidInternal(streamCut, epochLow, epochs);
+                            Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
+                            ImmutableMap<StreamSegmentRecord, Integer> span = computeStreamCutSpanInternal(streamCut, epochLow, epochHigh, epochs);
+                            StreamTruncationRecord previous = existing.getObject();
+                            // check greater than
+                            Exceptions.checkArgument(greaterThan(streamCut, span, previous.getStreamCut(), previous.getSpan()),
+                                    "StreamCut", "Supplied streamcut is behind previous truncation point");
+
+                            return computeTruncationRecord(previous, streamCut, span)
+                                    .thenCompose(prop ->
+                                            Futures.toVoid(setTruncationData(new VersionedMetadata<>(prop, existing.getVersion()))));
                         });
                 });
     }
@@ -240,6 +248,101 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    @Override
+    public CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1Future = computeStreamCutSpan(streamcut1);
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2Future = computeStreamCutSpan(streamcut2);
+        return CompletableFuture.allOf(span1Future, span2Future)
+                    .thenApply(v -> {
+                        ImmutableMap<StreamSegmentRecord, Integer> span1 = span1Future.join();
+                        ImmutableMap<StreamSegmentRecord, Integer> span2 = span2Future.join();
+                        return greaterThan(streamcut1, span1, streamcut2, span2);
+                    });
+    }
+
+    @Override
+    public CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet) {
+        Map<Set<Long>, ImmutableMap<StreamSegmentRecord, Integer>> fetched = new HashMap<>();
+        int size = retentionSet.getRetentionRecords().size();
+
+        if (retentionSet.getRetentionRecords().isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return computeStreamCutSpan(streamCut)
+                .thenCompose(span1 -> {
+                    fetched.put(streamCut.keySet(), span1);
+                    BiFunction<StreamCutReferenceRecord, Boolean, CompletableFuture<Integer>> fn = (refRecord, comparison) -> {
+                        return getStreamCutRecord(refRecord)
+                                .thenCompose(record -> {
+                                    if (record.getStreamCut().equals(streamCut)) {
+                                        return CompletableFuture.completedFuture(0);
+                                    }
+                                    ImmutableMap<StreamSegmentRecord, Integer> sc = fetched.get(record.getStreamCut().keySet());
+                                    CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> future;
+                                    if (sc != null) {
+                                        future = CompletableFuture.completedFuture(sc);
+                                    } else {
+                                        future = computeStreamCutSpan(record.getStreamCut())
+                                                .thenApply(span2 -> {
+                                                    fetched.put(record.getStreamCut().keySet(), span2);
+                                                    return span2;
+                                                });
+                                    }
+                                    return future.thenApply(span2 -> {
+                                        boolean compare = comparison ? greaterThan(streamCut, span1, record.getStreamCut(), span2) :
+                                                greaterThan(record.getStreamCut(), span2, streamCut, span1);
+                                        if (compare) {
+                                            return 1;
+                                        } else {
+                                            return -1;
+                                        }
+                                    });
+                                });
+                    };
+
+                    // binary search retention set. 
+                    return binarySearch(0, size, index -> {
+                        StreamCutReferenceRecord refRecord = retentionSet.getRetentionRecords().get(index);
+                        return fn.apply(refRecord, true)
+                                 .thenCompose(compared -> {
+                                     if (compared == 1 && index < size) {
+                                         StreamCutReferenceRecord next = retentionSet.getRetentionRecords().get(index + 1);
+
+                                         return fn.apply(next, false)
+                                                  .thenApply(r -> r == 1 ? 1 : 0);
+                                     } else {
+                                         return CompletableFuture.completedFuture(compared);
+                                     }
+                                 });
+                    });
+                }).thenApply(refIndex -> {
+                    if (refIndex == null) {
+                        return null;
+                    } else {
+                        return retentionSet.getRetentionRecords().get(refIndex);
+                    }
+                });
+    }
+
+    private CompletableFuture<Integer> binarySearch(int start, int end, Function<Integer, CompletableFuture<Integer>> find) {
+        if (end >= start) {
+            int mid = (end + start) / 2;
+            return find.apply(mid)
+                    .thenCompose(found -> {
+                        // if its greater than 
+                        if (found < 0) {
+                            return binarySearch(start, mid -1, find);
+                        } else if (found == 0) {
+                            return CompletableFuture.completedFuture(mid);
+                        } else {
+                            return binarySearch(mid + 1, end, find);
+                        }
+                    });
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+    
     /**
      * Update configuration at configurationPath.
      *
@@ -317,6 +420,19 @@ public abstract class PersistentStreamBase implements Stream {
                     "Stream: " + getName() + " State: " + newState.name() + " current state = " +
                             previous.getObject()));
         }
+    }
+
+    @Override
+    public CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber newSubscriberData) {
+        return isStreamCutValidForTruncation(previous.getObject().getTruncationStreamCut(), newSubscriberData.getTruncationStreamCut())
+                .thenCompose(isValid -> {
+                    if (isValid) {
+                       return Futures.toVoid(setSubscriberData(new VersionedMetadata<>(newSubscriberData, previous.getVersion())));
+                    } else {
+                        return Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
+                                "New StreamCut is lower than the previous value."));
+                    }
+               });
     }
 
     @Override
@@ -594,17 +710,21 @@ public abstract class PersistentStreamBase implements Stream {
                           sizes.forEach((segment, value) -> {
                               // segments in both.. to.offset - from.offset
                               if (streamCutTo.containsKey(segment.segmentId()) && streamCutFrom.containsKey(segment.segmentId())) {
-                                  sizeTill.addAndGet(streamCutTo.get(segment.segmentId()) - streamCutFrom.get(segment.segmentId()));
+                                  long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
+                                  long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
+                                  sizeTill.addAndGet(sizeFrom - sizeTo);
                               } else if (streamCutTo.containsKey(segment.segmentId())) {
+                                  long sizeFrom = Math.max(streamCutTo.get(segment.segmentId()), 0);
+
                                   // segments only in streamcutTo: take their offsets in streamcut
-                                  sizeTill.addAndGet(streamCutTo.get(segment.segmentId()));
+                                  sizeTill.addAndGet(sizeFrom);
                               } else if (streamCutFrom.containsKey(segment.segmentId())) {
                                   // segments only in from: take their total size - offset in from
-                                  assert value >= 0;
-                                  sizeTill.addAndGet(value - streamCutFrom.get(segment.segmentId()));
+                                  long sizeTo = Math.max(streamCutFrom.get(segment.segmentId()), 0);
+                                
+                                  sizeTill.addAndGet(Math.max(value, 0) - sizeTo);
                               } else {
-                                  assert value >= 0;
-                                  sizeTill.addAndGet(value);
+                                  sizeTill.addAndGet(Math.max(value, 0));
                               }
                           });
                           return sizeTill.get();
@@ -613,64 +733,196 @@ public abstract class PersistentStreamBase implements Stream {
 
     @VisibleForTesting
     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
-        long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-        long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
+        long mostRecent = getMostRecent(streamCut);
+        long oldest = getOldest(streamCut);
         int epochLow = NameUtils.getEpoch(oldest);
         int epochHigh = NameUtils.getEpoch(mostRecent);
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
-            List<Long> toFind = new ArrayList<>(streamCut.keySet());
-            ImmutableMap.Builder<StreamSegmentRecord, Integer> resultSet = ImmutableMap.builder();
-            for (int i = epochHigh - epochLow; i >= 0; i--) {
-                if (toFind.isEmpty()) {
-                    break;
-                }
-                EpochRecord epochRecord = epochs.get(i);
-                Set<Long> epochSegments = epochRecord.getSegmentIds();
-                List<Long> found = toFind.stream().filter(epochSegments::contains).collect(Collectors.toList());
-                resultSet.putAll(found.stream().collect(
-                        Collectors.toMap(x -> epochRecord.getSegments().stream().filter(z -> z.segmentId() == x).findFirst().get(),
-                                x -> epochRecord.getEpoch())));
-
-                toFind.removeAll(epochSegments);
-            }
-            return resultSet.build();
+            return computeStreamCutSpanInternal(streamCut, epochLow, epochHigh, epochs);
         });
+    }
+
+    private Long getMostRecent(Map<Long, Long> streamCut) {
+        return streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
+    }
+
+    private Long getOldest(Map<Long, Long> streamCut) {
+        return streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
+    }
+
+    private ImmutableMap<StreamSegmentRecord, Integer> computeStreamCutSpanInternal(Map<Long, Long> streamCut, int epochLow, 
+                                                                                    int epochHigh, List<EpochRecord> epochs) {
+        List<Long> toFind = new ArrayList<>(streamCut.keySet());
+        ImmutableMap.Builder<StreamSegmentRecord, Integer> resultSet = ImmutableMap.builder();
+        for (int i = epochHigh - epochLow; i >= 0; i--) {
+            if (toFind.isEmpty()) {
+                break;
+            }
+            EpochRecord epochRecord = epochs.get(i);
+            Set<Long> epochSegments = epochRecord.getSegmentIds();
+            List<Long> found = toFind.stream().filter(epochSegments::contains).collect(Collectors.toList());
+            resultSet.putAll(found.stream().collect(
+                    Collectors.toMap(x -> epochRecord.getSegments().stream().filter(z -> z.segmentId() == x).findFirst().get(),
+                            x -> epochRecord.getEpoch())));
+
+            toFind.removeAll(epochSegments);
+        }
+        return resultSet.build();
     }
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(NameUtils::getEpoch));
+        long mostRecent = getMostRecent(streamCut);
+        long oldest = getOldest(streamCut);
+        int epochLow = NameUtils.getEpoch(oldest);
+        int epochHigh = NameUtils.getEpoch(mostRecent);
 
-        CompletableFuture<List<List<Map.Entry<Double, Double>>>> segmentRangesByEpoch = Futures.allOfWithResults(groupByEpoch.entrySet().stream().map(epochGroup -> {
-            return getEpochRecord(epochGroup.getKey())
-                    .thenApply(epochRecord -> {
-                        return epochGroup.getValue().stream().map(segmentId -> {
-                            StreamSegmentRecord segment = epochRecord.getSegment(segmentId);
-                            return (Map.Entry<Double, Double>) new SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd());
-                        }).collect(Collectors.toList());
-                    });
-        }).collect(Collectors.toList()));
-
-        CompletableFuture<List<Map.Entry<Double, Double>>> segmentRangesFlattened = segmentRangesByEpoch
-                .thenApply(listOfList -> listOfList.stream().flatMap(Collection::stream).collect(Collectors.toList()));
-        
-        return segmentRangesFlattened
-                      .thenAccept(x -> RecordHelper.validateStreamCut(new ArrayList<>(x)))
-                      .handle((r, e) -> {
-                          if (e != null) {
-                              if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                  return false;
-                              } else {
-                                  log.warn("Exception while trying to validate a stream cut for stream {}/{}", scope, name);
-                                  throw Exceptions.sneakyThrow(e);
-                              }
-                          } else {
-                              return true;
-                          }
-                      });
+        return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs -> isStreamCutValidInternal(streamCut, epochLow, epochs));
     }
 
+    private boolean isStreamCutValidInternal(Map<Long, Long> streamCut, int epochLow, List<EpochRecord> epochs) {
+        Set<StreamSegmentRecord> segmentsInStreamCut = new HashSet<>();
+        Set<StreamSegmentRecord> futureSegment = new HashSet<>();
+
+        boolean isValid = true;
+        // for each segment get its epoch and the segment record
+        streamCut.forEach((key, value) -> {
+            int epoch = NameUtils.getEpoch(key);
+            int index = epoch - epochLow;
+            EpochRecord epochRecord = epochs.get(index);
+            StreamSegmentRecord segmentRecord = epochRecord.getSegment(key);
+            if (value < 0) {
+                futureSegment.add(segmentRecord);
+            } else {
+                segmentsInStreamCut.add(segmentRecord);
+            }
+        });
+
+        isValid = futureSegment.stream().allMatch(x -> 
+                segmentsInStreamCut.stream().filter(y -> y.overlaps(x)).allMatch(y -> y.segmentId() < x.segmentId()));
+
+        if (isValid) {
+            List<StreamSegmentRecord> sorted = segmentsInStreamCut
+                    .stream().sorted(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart)).collect(Collectors.toList());
+
+            // all future segments should have a predecessor and all missing ranges should be covered by a future segment. 
+            Map<Double, Double> missingRanges = new HashMap<>();
+
+            StreamSegmentRecord previous = sorted.get(0);
+            BiFunction<Double, Double, Boolean> validate = (start, end) -> futureSegment.stream().anyMatch(x -> x.overlaps(start, end));
+
+            if (previous.getKeyStart() > 0.0) {
+                double start = 0.0;
+                double end = previous.getKeyStart();
+                missingRanges.put(start, end);
+                // missing range should be covered by a future segment
+                isValid = validate.apply(start, end);
+            }
+
+            for (int i = 1; i < sorted.size(); i++) {
+                StreamSegmentRecord next = sorted.get(i);
+                if (previous.getKeyEnd() < next.getKeyStart()) {
+                    double start = previous.getKeyEnd();
+                    double end = next.getKeyStart();
+                    missingRanges.put(start, end);
+                    //  missing range should be covered by a future segment
+                    isValid = validate.apply(start, end);
+                    if (!isValid) {
+                        break;
+                    }
+                } else if (previous.getKeyEnd() > next.getKeyStart()) {
+                    isValid = false;
+                    break;
+                }
+                previous = next;
+            }
+
+            if (previous.getKeyEnd() < 1.0) {
+                double start = previous.getKeyEnd();
+                double end = 1.0;
+                missingRanges.put(start, end);
+                isValid = validate.apply(start, end);
+            }
+
+            if (isValid) {
+                List<StreamSegmentRecord> toCheck = new ArrayList<>();
+                Set<StreamSegmentRecord> fullyReadFrom = new HashSet<>();
+
+                // now traverse the stream for missing ranges and verify that we can reach those future segments 
+                // in logically consistent fashion for the missing ranges. 
+                missingRanges.entrySet().forEach(x -> toCheck.addAll(findSegmentsForMissingRange(epochs.get(0), x)));
+                while (!toCheck.isEmpty()) {
+                    StreamSegmentRecord segmentRecord = toCheck.get(0);
+                    if (!(fullyReadFrom.contains(segmentRecord) || segmentsInStreamCut.contains(segmentRecord) ||
+                            futureSegment.contains(segmentRecord))) {
+                        for (StreamSegmentRecord s : segmentsInStreamCut) {
+                            if (s.overlaps(segmentRecord)) {
+                                if (s.segmentId() < segmentRecord.segmentId()) {
+                                    // if segment record has a predecessor, then it should have been in future segment.  
+                                    if (!futureSegment.contains(segmentRecord)) {
+                                        return false;
+                                    } else {
+                                        // segment record is a predecessor of a previous segment. 
+                                        fullyReadFrom.add(segmentRecord);
+                                    }
+                                } else {
+                                    // if segment is predecessor of another segment in the stream cut then it has to be 
+                                    // fully read 
+                                    fullyReadFrom.add(segmentRecord);
+                                    // find successors of segmentRecord and add it to tocheck list
+                                    int segmentEpoch = NameUtils.getEpoch(segmentRecord.segmentId());
+                                    int index = segmentEpoch - epochLow;
+                                    for (int i = index; i < epochs.size(); i++) {
+                                        if (!epochs.get(i).containsSegment(segmentRecord.segmentId())) {
+                                            epochs.get(i).getSegments().forEach(x -> {
+                                                if (x.overlaps(segmentRecord)) {
+                                                    toCheck.add(x);
+                                                }
+                                            });
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    toCheck.remove(segmentRecord);
+                }
+            }
+        }
+        return isValid;
+    }
+    
+    private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
+        return epochRecord.getSegments().stream().filter(x -> x.overlaps(missingRange.getKey(), missingRange.getValue()))
+                          .collect(Collectors.toList());
+    }
+
+    private CompletableFuture<Boolean> isStreamCutValidForTruncation(Map<Long, Long> previousStreamCut, final Map<Long, Long> streamCut) {
+        if (previousStreamCut.isEmpty()) {
+            return isStreamCutValid(streamCut);
+        } else {
+            return isStreamCutValid(streamCut)
+                    .thenCompose(isValidStreamCut -> {
+                        if (isValidStreamCut) {
+                            CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1 = computeStreamCutSpan(streamCut);
+                            CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2 = computeStreamCutSpan(previousStreamCut);
+                            return CompletableFuture.allOf(span1, span2)
+                                                    .thenApply(v -> {
+                                                        ImmutableMap<StreamSegmentRecord, Integer> span = span1.join();
+                                                        ImmutableMap<StreamSegmentRecord, Integer> previousSpan = span2.join();
+
+                                                        return greaterThan(streamCut, span, previousStreamCut, previousSpan);
+                                                    });
+                        } else {
+                            return CompletableFuture.completedFuture(false);
+                        }
+                    });
+        }
+    }
+    
     /**
      * This method attempts to start a new scale workflow. For this it first computes epoch transition and stores it in the metadastore.
      * This method can be called by manual scale or during the processing of auto-scale event. Which means there could be
@@ -1391,7 +1643,6 @@ public abstract class PersistentStreamBase implements Stream {
         return getRetentionSetData()
                 .thenCompose(data -> {
                     RetentionSet retention = data.getObject();
-
                     RetentionSet update = RetentionSet.addReferenceToStreamCutIfLatest(retention, record);
                     return createStreamCutRecordData(record.getRecordingTime(), record)
                             .thenCompose(v -> Futures.toVoid(updateRetentionSetData(new VersionedMetadata<>(update, data.getVersion()))));
@@ -1980,6 +2231,13 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Version> setStateData(final VersionedMetadata<StateRecord> state);
 
     abstract CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached);
+    // endregion
+
+    // region subscriber
+    // invoke this when creating a new Stream or when moving a Stream to CBR Retention Policy
+    abstract CompletableFuture<Void> createSubscribersRecordIfAbsent();
+
+    abstract CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber);
     // endregion
 
     // region retention

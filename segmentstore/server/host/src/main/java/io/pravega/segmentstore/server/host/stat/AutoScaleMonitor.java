@@ -34,14 +34,14 @@ public class AutoScaleMonitor implements AutoCloseable {
     @VisibleForTesting
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull EventStreamClientFactory clientFactory,
                             @NonNull AutoScalerConfig configuration) {
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler", Thread.MIN_PRIORITY);
         this.processor = new AutoScaleProcessor(configuration, clientFactory, this.executor);
         this.statsRecorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
         this.tableSegmentStatsRecorder = new TableSegmentStatsRecorderImpl();
     }
 
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull AutoScalerConfig configuration) {
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler", Thread.MIN_PRIORITY);
         this.processor = new AutoScaleProcessor(configuration, this.executor);
         this.statsRecorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
         this.tableSegmentStatsRecorder = new TableSegmentStatsRecorderImpl();

@@ -19,6 +19,7 @@ import org.junit.Test;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -115,6 +116,37 @@ public class CheckpointStateTest {
         state.readerCheckpointed("4", "a", Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("4"));
         assertEquals(0, state.getOutstandingCheckpoints().size());
+    }
+
+    @Test
+    public void testLastCheckpointPosition() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("2" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
+
+        //Complete checkpoint "1"
+        state.readerCheckpointed("1", "a", ImmutableMap.of(getSegment("S1"), 1L));
+        assertTrue(state.isCheckpointComplete("1"));
+        assertEquals(ImmutableMap.of(getSegment("S1"), 1L), state.getPositionsForCompletedCheckpoint("1"));
+        state.clearCheckpointsBefore("1");
+
+        //Complete silent checkpoint
+        state.readerCheckpointed("2" + SILENT, "a", ImmutableMap.of(getSegment("S1"), 3L));
+        assertTrue(state.isCheckpointComplete("2" + SILENT));
+        assertEquals(ImmutableMap.of(getSegment("S1"), 3L), state.getPositionsForCompletedCheckpoint("2" + SILENT));
+        state.clearCheckpointsBefore("2" + SILENT);
+
+        // The last checkpoint position should contain the positions of the last checkpoint not stream-cut/silent checkpoint
+        Map<Segment, Long> lastCheckpointPosition = null;
+        if (state.getPositionsForLatestCompletedCheckpoint().isPresent()) {
+            lastCheckpointPosition = state.getPositionsForLatestCompletedCheckpoint().get();
+        }
+
+        // Last checkpoint position is the same as checkpoint "1" positions
+        assertEquals(lastCheckpointPosition, ImmutableMap.of(getSegment("S1"), 1L));
+
+        // Last checkpoint position is not the same as silent checkpoint positions
+        assertNotEquals(lastCheckpointPosition, ImmutableMap.of(getSegment("S1"), 3L));
     }
 
     private Segment getSegment(String name) {

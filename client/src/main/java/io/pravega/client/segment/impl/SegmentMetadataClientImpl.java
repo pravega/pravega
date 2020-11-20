@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -60,10 +61,12 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private RawClient client = null;
     private final DelegationTokenProvider tokenProvider;
 
+    @VisibleForTesting
     public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionPool connectionPool,
                                      String delegationToken) {
+        // The current constructor is used only for testing. Therefore, hard-coding the access operation.
         this(segment, controller, connectionPool,
-                DelegationTokenProviderFactory.create(delegationToken, controller, segment));
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ));
     }
 
     private void closeConnection(Reply badReply) {
