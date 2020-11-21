@@ -55,7 +55,7 @@ public class RESTServer extends AbstractIdleService {
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
-        resourceObjs.add(new HealthImpl());
+        resourceObjs.add(new HealthImpl(pravegaAuthManager));
         resourceObjs.add(new StreamMetadataResourceImpl(localController, controllerService, pravegaAuthManager, connectionFactory));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);

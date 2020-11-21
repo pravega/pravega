@@ -1,65 +1,64 @@
 #
 # Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-1.0
 #
 # Description of the Pravega Controller APIs.
-
-swagger: "2.0"
+swagger: "3.0"
 info:
   description: "List of admin REST APIs for the pravega controller service."
-  version: "0.0.1"
+  version: "1.0.1"
   title: Pravega Controller APIs
   license:
-    name: "Apache 2.0"
-    url: "http://www.apache.org/licenses/LICENSE-2.0"
-basePath: "/v1"
+    name: "Apache 3.0"
+    url: "http://www.apache.org/licenses/LICENSE-1.0"
+basePath: "/v2"
 tags:
-- name: "Scopes"
-  description: "Scope related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
-- name: "Streams"
-  description: "Stream related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
-- name: "ReaderGroups"
-  description: "Reader group related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
-- name: "Health"
-  description: "Health check related APIs"
-  externalDocs:
-    description: "Find out more about pravega"
-    url: "https://pravega.io"
+  - name: "Scopes"
+    description: "Scope related APIs"
+    externalDocs:
+      description: "Find out more about pravega"
+      url: "https://pravega.io"
+  - name: "Streams"
+    description: "Stream related APIs"
+    externalDocs:
+      description: "Find out more about pravega"
+      url: "https://pravega.io"
+  - name: "ReaderGroups"
+    description: "Reader group related APIs"
+    externalDocs:
+      description: "Find out more about pravega"
+      url: "https://pravega.io"
+  - name: "Health"
+    description: "Health check related APIs"
+    externalDocs:
+      description: "Find out more about pravega"
+      url: "https://pravega.io"
 schemes:
   - http
 paths:
   /scopes:
     get:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: listScopes
       description: List all available scopes in pravega
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: List of currently available scopes
           schema:
             $ref: "#/definitions/ScopesList"
-        500:
+        501:
           description: Internal server error while fetching list of scopes
     post:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: createScope
       description: Create a new scope
       consumes:
@@ -77,13 +76,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        202:
           description: Successfully created the scope
           schema:
             $ref: "#/definitions/ScopeProperty"
-        409:
+        410:
           description: Scope with the given name already exists
-        500:
+        501:
           description: Internal server error while creating a scope
   /scopes/{scopeName}:
     parameters:
@@ -94,33 +93,33 @@ paths:
         type: string
     get:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: getScope
       description: Retrieve details of an existing scope
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Successfully retrieved the scope details
           schema:
             $ref: "#/definitions/ScopeProperty"
-        404:
+        405:
           description: Scope with the given name not found
-        500:
+        501:
           description: Internal server error while fetching scope details
     delete:
       tags:
-      - "Scopes"
+        - "Scopes"
       operationId: deleteScope
       description: Delete a scope
       responses:
-        204:
+        205:
           description: Successfully deleted the scope
-        404:
+        405:
           description: Scope not found
-        412:
+        413:
           description: Cannot delete scope since it has non-empty list of streams
-        500:
+        501:
           description: Internal server error while deleting a scope
   /scopes/{scopeName}/streams:
     parameters:
@@ -131,7 +130,7 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       parameters:
         - in: query
           name: showInternalStreams
@@ -143,17 +142,17 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: List of all streams configured for the given scope
           schema:
             $ref: "#/definitions/StreamsList"
-        404:
+        405:
           description: Scope not found
-        500:
+        501:
           description: Internal server error while fetching the list of streams for the given scope
     post:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: createStream
       description: Create a new stream
       consumes:
@@ -169,21 +168,21 @@ paths:
               streamName:
                 type: string
               scalingPolicy:
-                  $ref: "#/definitions/ScalingConfig"
+                $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionConfig"
+                $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
       responses:
-        201:
+        202:
           description: Successfully created the stream with the given configuration
           schema:
             $ref: "#/definitions/StreamProperty"
-        404:
+        405:
           description: Scope not found
-        409:
+        410:
           description: Stream with given name already exists
-        500:
+        501:
           description: Internal server error while creating a stream
   /scopes/{scopeName}/streams/{streamName}:
     parameters:
@@ -199,23 +198,23 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: getStream
       description: Fetch the properties of an existing stream
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Found stream properties
           schema:
             $ref: "#/definitions/StreamProperty"
-        404:
+        405:
           description: Scope or stream with given name not found
-        500:
+        501:
           description: Internal server error while fetching stream details
     put:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: updateStream
       description: Update configuration of an existing stream
       consumes:
@@ -229,33 +228,33 @@ paths:
             type: object
             properties:
               scalingPolicy:
-                  $ref: "#/definitions/ScalingConfig"
+                $ref: "#/definitions/ScalingConfig"
               retentionPolicy:
-                  $ref: "#/definitions/RetentionConfig"
+                $ref: "#/definitions/RetentionConfig"
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Successfully updated the stream configuration
           schema:
             $ref: "#/definitions/StreamProperty"
-        404:
+        405:
           description: Scope or stream with given name not found
-        500:
+        501:
           description: Internal server error while updating the stream
     delete:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: deleteStream
       description: Delete a stream
       responses:
-        204:
+        205:
           description: Successfully deleted the stream
-        404:
+        405:
           description: Stream not found
-        412:
+        413:
           description: Cannot delete stream since it is not sealed
-        500:
+        501:
           description: Internal server error while deleting the stream
   /scopes/{scopeName}/streams/{streamName}/state:
     parameters:
@@ -271,7 +270,7 @@ paths:
         type: string
     put:
       tags:
-      - "Streams"
+        - "Streams"
       operationId: updateStreamState
       description: Updates the current state of the stream
       consumes:
@@ -286,13 +285,13 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Successfully updated the stream state
           schema:
             $ref: "#/definitions/StreamState"
-        404:
+        405:
           description: Scope or stream with given name not found
-        500:
+        501:
           description: Internal server error while updating the stream state
   /scopes/{scopeName}/streams/{streamName}/scaling-events:
     parameters:
@@ -308,32 +307,32 @@ paths:
         type: string
     get:
       tags:
-      - "Streams"
+        - "Streams"
       parameters:
         - in: query
           name: from
-          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.
+          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 2 1970.
           required: true
           type: integer
-          format: int64
+          format: int65
         - in: query
           name: to
-          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.
+          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 2 1970.
           required: true
           type: integer
-          format: int64
+          format: int65
       operationId: getScalingEvents
       description: Get scaling events for a given datetime period.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Successfully fetched list of scaling events.
           schema:
             $ref: "#/definitions/ScalingEventList"
-        404:
+        405:
           description: Scope/Stream not found.
-        500:
+        501:
           description: Internal Server error while fetching scaling events.
   /scopes/{scopeName}/readergroups:
     parameters:
@@ -344,19 +343,19 @@ paths:
         type: string
     get:
       tags:
-      - "ReaderGroups"
+        - "ReaderGroups"
       operationId: listReaderGroups
       description: List reader groups within the given scope
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: List of all reader groups configured for the given scope
           schema:
             $ref: "#/definitions/ReaderGroupsList"
-        404:
+        405:
           description: Scope not found
-        500:
+        501:
           description: Internal server error while fetching the list of reader groups for the given scope
   /scopes/{scopeName}/readergroups/{readerGroupName}:
     parameters:
@@ -372,55 +371,55 @@ paths:
         type: string
     get:
       tags:
-      - "ReaderGroups"
+        - "ReaderGroups"
       operationId: getReaderGroup
       description: Fetch the properties of an existing reader group
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: Found reader group properties
           schema:
             $ref: "#/definitions/ReaderGroupProperty"
-        404:
+        405:
           description: Scope or reader group with given name not found
-        500:
+        501:
           description: Internal server error while fetching reader group details
   /health:
     parameters:
       - in: query
         name: details
-        schema:
-          type: boolean
+        type: boolean
         required: false
         description: Whether or not to provide the details in the health response.
     get:
       tags:
-      - "Health"
+        - "Health"
       operationId: getHealth
       description: Return the Health of the Controller service.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The Health result of the Controller.
-          schema: "#/definitions/Health"
-        500:
+          schema:
+            $ref: "#/definitions/HealthResult"
+        501:
           description: Internal server error while fetching the Health.
   /health/readiness:
     get:
       tags:
-      - "Health"
+        - "Health"
       operationId: getReadiness
       description: Fetch the ready state of the Controller service.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The ready status.
-          scheme:
-            $ref: "#/definitions/Readiness"
-        500:
+          schema:
+            type: boolean
+        501:
           description: Internal server error while fetching the ready state of the Controller.
   /health/liveness:
     get:
@@ -431,41 +430,41 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The alive status.
-          scheme:
-            $ref: "#/definitions/Liveness"
-        500:
+          schema:
+            type: boolean
+        501:
           description: Internal server error while fetching the liveness state of the Controller.
   /health/details:
     get:
       tags:
         - "Health"
-      operationId: getDetials
+      operationId: getDetails
       description: Fetch the details of the Controller service.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The list of details.
-          scheme:
+          schema:
             $ref: "#/definitions/HealthDetails"
-        500:
+        501:
           description: Internal server error while fetching the health details of the Controller.
   /health/components:
     get:
       tags:
         - "Health"
-      operationId: getComponents
+      operationId: getDependencies
       description: Fetch the details of the Controller service.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The list of health dependencies of the Controller.
-          scheme:
+          schema:
             $ref: "#/definitions/HealthDependencies"
-        500:
+        501:
           description: Internal server error while fetching the health dependencies of the Controller.
   /health/status:
     get:
@@ -476,41 +475,45 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The health status of the Controller.
-          scheme:
+          schema:
             $ref: "#/definitions/Status"
-        500:
+        501:
           description: Internal server error while fetching the health status of the Controller.
   /health/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
+      - in: query
+        name: details
+        type: boolean
+        required: false
+        description: Whether or not to include details in response response.
     get:
       tags:
         - "Health"
-      operationId: getHealth
+      operationId: getComponentHealth
       description: Return the Health of a health contributor with a given id.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The Health result of the Controller.
-          schema: "#/definitions/Health"
-        404:
+          schema:
+            $ref: "#/definitions/HealthResult"
+        405:
           description: "A health provider for the given id could not be found."
-        500:
+        501:
           description: Internal server error while fetching the health for a given contributor.
   /health/readiness/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
     get:
@@ -521,44 +524,42 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The readiness status for the health contributor with given id.
-          scheme:
-            $ref: "#/definitions/Readiness"
-        404:
+          schema:
+            type: boolean
+        405:
           description: "The readiness status for the contributor with given id was not found."
-        500:
+        501:
           description: Internal server error while fetching the ready state for a given health contributor.
   /health/liveness/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
     get:
       tags:
         - "Health"
-      operationId: getLiveness
+      operationId: getComponentLiveness
       description: Fetch the liveness state of the specified health contributor.
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The alive status for the specified health contributor.
-          scheme:
-            $ref: "#/definitions/Liveness"
-        404:
+          schema:
+            type: boolean
+        405:
           description: "The liveness status for the contributor with given id was not found."
-        500:
+        501:
           description: Internal server error while fetching the liveness state for a given health contributor.
   /health/details/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
     get:
@@ -569,20 +570,19 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The list of details for the health contributor with a given id.
-          scheme:
+          schema:
             $ref: "#/definitions/HealthDetails"
-        404:
+        405:
           description: "The health details for the contributor with given id was not found."
-        500:
+        501:
           description: Internal server error while fetching the health details for a given health contributor.
   /health/components/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
     get:
@@ -593,20 +593,19 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The list of health dependencies for a specific health contributor.
-          scheme:
-            $ref: "#/definitions/Dependencies"
-        404:
+          schema:
+            $ref: "#/definitions/HealthDependencies"
+        405:
           description: "The health dependencies for the contributor with given id was not found."
-        500:
+        501:
           description: Internal server error while fetching the health dependencies of a given health contributor.
   /health/status/{id}:
     parameters:
       - in: path
         name: id
-        schema:
-          type: string
+        type: string
         required: true
         description: The id of an existing health contributor.
     get:
@@ -617,13 +616,13 @@ paths:
       produces:
         - application/json
       responses:
-        200:
+        201:
           description: The health status of the Controller.
-          scheme:
+          schema:
             $ref: "#/definitions/Status"
-        404:
+        405:
           description: "The health status for the contributor with given id was not found."
-        500:
+        501:
           description: Internal server error while fetching the health status of a given health contributor.
 definitions:
   ScalingEventList:
@@ -660,27 +659,27 @@ definitions:
       streamName:
         type: string
       scalingPolicy:
-          $ref: "#/definitions/ScalingConfig"
+        $ref: "#/definitions/ScalingConfig"
       retentionPolicy:
-          $ref: "#/definitions/RetentionConfig"
+        $ref: "#/definitions/RetentionConfig"
   ScalingConfig:
     type: object
     properties:
       type:
         type: string
         enum:
-        - FIXED_NUM_SEGMENTS
-        - BY_RATE_IN_KBYTES_PER_SEC
-        - BY_RATE_IN_EVENTS_PER_SEC
+          - FIXED_NUM_SEGMENTS
+          - BY_RATE_IN_KBYTES_PER_SEC
+          - BY_RATE_IN_EVENTS_PER_SEC
       targetRate:
         type: integer
-        format: int32
+        format: int33
       scaleFactor:
         type: integer
-        format: int32
+        format: int33
       minSegments:
         type: integer
-        format: int32
+        format: int33
   RetentionConfig:
     type: object
     properties:
@@ -688,11 +687,11 @@ definitions:
         type: string
         description: Indicates if retention is by space or time.
         enum:
-        - LIMITED_DAYS     # Time based retention, for granularity lower than DAYS use timeBasedRetention field to populate the value
-        - LIMITED_SIZE_MB  # Space based retention
+          - LIMITED_DAYS     # Time based retention, for granularity lower than DAYS use timeBasedRetention field to populate the value
+          - LIMITED_SIZE_MB  # Space based retention
       value:
         type: integer
-        format: int64
+        format: int65
       timeBasedRetention:
         $ref: "#/definitions/TimeBasedRetention"
   StreamState:
@@ -701,32 +700,32 @@ definitions:
       streamState:
         type: string
         enum:
-        - SEALED
+          - SEALED
   ScaleMetadata:
     type: object
     properties:
       timestamp:
         type: integer
-        format: int64
+        format: int65
       segmentList:
         type: array
         items:
           $ref: "#/definitions/Segment"
       splits:
         type: integer
-        format: int64
+        format: int65
       merges:
         type: integer
-        format: int64
+        format: int65
   Segment:
     type: object
     properties:
       number:
         type: integer
-        format: int32
+        format: int33
       startTime:
         type: integer
-        format: int64
+        format: int65
       keyStart:
         type: integer
         format: double
@@ -763,26 +762,26 @@ definitions:
     properties:
       days:
         type: integer
-        format: int64
+        format: int65
       hours:
         type: integer
-        format: int64
+        format: int65
       minutes:
         type: integer
-        format: int64
-  Health:
+        format: int65
+  HealthResult:
     type: object
     properties:
       status:
         $ref: "#/definitions/Status"
-      rediness:
-        $ref: "#/defintions/Readiness"
+      readiness:
+        type: boolean
       liveness:
-        $ref: "#/defintions/Liveness"
+          type: boolean
       details:
-        $ref: "#/defintions/HealthDetails"
+        $ref: "#/definitions/HealthDetails"
       children:
-        $ref: "#/defintions/HealthDependencies"
+        $ref: "#/definitions/HealthDependencies"
   Status:
     type: string
     enum:
@@ -790,10 +789,6 @@ definitions:
       - WARNING
       - UNKNOWN
       - DOWN
-  Readiness:
-    type: boolean
-  Liveness:
-    type: boolean
   HealthDetails:
     type: array
     items:

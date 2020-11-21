@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthEndpoint;
@@ -17,15 +16,10 @@ import io.pravega.shared.health.HealthService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
-import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 public class HealthServiceImpl implements HealthService {
 
-    private final static int HEALTH_MONITOR_INTERVAL_SECONDS = 10;
-    /**
-     * The interval at which the {@link ScheduledExecutorService} will query the health of the root {@link HealthComponent}.
-     */
     private ContributorRegistryImpl registry;
 
     /**

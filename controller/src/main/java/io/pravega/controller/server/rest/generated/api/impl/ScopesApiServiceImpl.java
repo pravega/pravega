@@ -53,7 +53,7 @@ public class ScopesApiServiceImpl extends ScopesApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
-    public Response getScalingEvents(String scopeName, String streamName,  @NotNull Long from,  @NotNull Long to, SecurityContext securityContext) throws NotFoundException {
+    public Response getScalingEvents(String scopeName, String streamName,  @NotNull Integer from,  @NotNull Integer to, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }

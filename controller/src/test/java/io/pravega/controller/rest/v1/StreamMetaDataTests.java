@@ -206,9 +206,9 @@ public class StreamMetaDataTests {
         scalingPolicyCommon2.setMinSegments(2);
 
         retentionPolicyCommon.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyCommon.setValue(123L);
+        retentionPolicyCommon.setValue((int) 123L);
         TimeBasedRetention timeRetention = new TimeBasedRetention();
-        retentionPolicyCommon.setTimeBasedRetention(timeRetention.days(123L).hours(0L).minutes(0L));
+        retentionPolicyCommon.setTimeBasedRetention(timeRetention.days((int) 123L).hours((int) 0L).minutes((int) 0L));
 
         retentionPolicyCommon2.setType(null);
         retentionPolicyCommon2.setValue(null);
@@ -220,45 +220,45 @@ public class StreamMetaDataTests {
         streamResponseExpected.setRetentionPolicy(retentionPolicyCommon);
 
         retentionPolicyGran.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyGran.setValue(0L);
+        retentionPolicyGran.setValue((int) 0L);
         TimeBasedRetention tr = new TimeBasedRetention();
-        retentionPolicyGran.setTimeBasedRetention(tr.days(2L).hours(3L).minutes(5L));
+        retentionPolicyGran.setTimeBasedRetention(tr.days((int) 2L).hours((int) 3L).minutes((int) 5L));
         streamResponseGranExpected.setScopeName(scope1);
         streamResponseGranExpected.setStreamName(stream1);
         streamResponseGranExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseGranExpected.setRetentionPolicy(retentionPolicyGran);
 
         retentionPolicyDateMins.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyDateMins.setValue(0L);
+        retentionPolicyDateMins.setValue((int) 0L);
         TimeBasedRetention tr1 = new TimeBasedRetention();
-        retentionPolicyDateMins.setTimeBasedRetention(tr1.days(10L).hours(0L).minutes(50L));
+        retentionPolicyDateMins.setTimeBasedRetention(tr1.days((int) 10L).hours((int) 0L).minutes((int) 50L));
         streamResponseRetDaysMinsExpected.setScopeName(scope1);
         streamResponseRetDaysMinsExpected.setStreamName(stream1);
         streamResponseRetDaysMinsExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseRetDaysMinsExpected.setRetentionPolicy(retentionPolicyDateMins);
 
         retentionPolicyHoursMins.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyHoursMins.setValue(0L);
+        retentionPolicyHoursMins.setValue((int) 0L);
         TimeBasedRetention tr2 = new TimeBasedRetention();
-        retentionPolicyHoursMins.setTimeBasedRetention(tr2.days(0L).hours(13L).minutes(26L));
+        retentionPolicyHoursMins.setTimeBasedRetention(tr2.days((int) 0L).hours((int) 13L).minutes((int) 26L));
         streamResponseRetHoursMinsExpected.setScopeName(scope1);
         streamResponseRetHoursMinsExpected.setStreamName(stream1);
         streamResponseRetHoursMinsExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseRetHoursMinsExpected.setRetentionPolicy(retentionPolicyHoursMins);
 
         retentionPolicyOnlyHours.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyOnlyHours.setValue(0L);
+        retentionPolicyOnlyHours.setValue((int) 0L);
         TimeBasedRetention tr3 = new TimeBasedRetention();
-        retentionPolicyOnlyHours.setTimeBasedRetention(tr3.days(0L).hours(16L).minutes(0L));
+        retentionPolicyOnlyHours.setTimeBasedRetention(tr3.days((int) 0L).hours((int) 16L).minutes((int) 0L));
         streamResponseRetOnlyHoursExpected.setScopeName(scope1);
         streamResponseRetOnlyHoursExpected.setStreamName(stream1);
         streamResponseRetOnlyHoursExpected.setScalingPolicy(scalingPolicyCommon);
         streamResponseRetOnlyHoursExpected.setRetentionPolicy(retentionPolicyOnlyHours);
 
         retentionPolicyOnlyMins.setType(TypeEnum.LIMITED_DAYS);
-        retentionPolicyOnlyMins.setValue(0L);
+        retentionPolicyOnlyMins.setValue((int) 0L);
         TimeBasedRetention tr4 = new TimeBasedRetention();
-        retentionPolicyOnlyMins.setTimeBasedRetention(tr4.days(0L).hours(0L).minutes(32L));
+        retentionPolicyOnlyMins.setTimeBasedRetention(tr4.days((int) 0L).hours((int) 0L).minutes((int) 32L));
         streamResponseRetOnlyMinsExpected.setScopeName(scope1);
         streamResponseRetOnlyMinsExpected.setStreamName(stream1);
         streamResponseRetOnlyMinsExpected.setScalingPolicy(scalingPolicyCommon);

@@ -713,12 +713,18 @@ project('controller') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: '2.9.10'
+        compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-joda', version: '2.9.10'
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.remove("-Werror")
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
