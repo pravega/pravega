@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -229,10 +230,23 @@ public class SystemJournal {
         }
         // Persist
         synchronized (lock) {
-            writeToJournal(bytes);
-            // Add a new log file if required.
-            if (!chunkStorage.supportsAppend() || !config.isAppendEnabled()) {
-                startNewJournalFile();
+            boolean done = false;
+            while (!done) {
+                try {
+                    writeToJournal(bytes);
+                    done = true;
+                } catch (ExecutionException e) {
+                    val ex = Exceptions.unwrap(e);
+                    // In case of partial write during previous failure, this time we'll get InvalidOffsetException.
+                    // In that case we start a new journal file and retry.
+                    if (!(ex instanceof InvalidOffsetException)) {
+                        throw e;
+                    }
+                }
+                // Add a new log file if required.
+                if (!chunkStorage.supportsAppend() || !config.isAppendEnabled() || !done) {
+                    startNewJournalFile();
+                }
             }
         }
         log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
@@ -591,9 +605,9 @@ public class SystemJournal {
      * Adds a new System journal file.
      */
     private void startNewJournalFile() throws ExecutionException, InterruptedException {
+        currentHandle = chunkStorage.create(getSystemJournalChunkName(containerId, epoch, currentFileIndex + 1)).get();
         currentFileIndex++;
         systemJournalOffset = 0;
-        currentHandle = chunkStorage.create(getSystemJournalChunkName()).get();
     }
 
     /**

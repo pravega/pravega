@@ -719,6 +719,38 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         checkDataRead(testSegmentName, testContext, 0, total);
     }
 
+
+    /**
+     * Test Write after repeated failure.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testWriteAfterWriteFailure() throws Exception {
+        String testSegmentName = "foo";
+        TestContext testContext = getTestContext();
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(20); // Force rollover after every 20 byte.
+
+        // Create
+        val hWrite = testContext.chunkedSegmentStorage.create(testSegmentName, policy, null).get();
+
+        // Write some data.
+        long writeAt = 0;
+        for (int i = 1; i < 5; i++) {
+            testContext.chunkedSegmentStorage.write(hWrite, writeAt, new ByteArrayInputStream(new byte[i]), i, null).join();
+            // Append some data to the last chunk to simulate partial write during failure
+            val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
+                    TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName).getLastChunk());
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+            writeAt += i;
+        }
+
+        checkDataRead(testSegmentName, testContext, 0, 10);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, new long[] {1, 2, 3, 4});
+        TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, 0, 10);
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
+    }
+
     /**
      * Test Write for sequential scheduling.
      *
