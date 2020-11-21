@@ -380,13 +380,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     if (null != e) {
                         val ex = Exceptions.unwrap(e);
                         if (ex instanceof InvalidOffsetException) {
-
                             val invalidEx = (InvalidOffsetException) ex;
-                            // if the length of chunk on the LTS is greater than just skip this chunk.
-                            // This could happen if the previous write failed after writing data.
+                            // if the length of chunk on the LTS is greater then just skip this chunk.
+                            // This could happen if the previous write failed while writing data and chunk was partially written.
                             if (invalidEx.getExpectedOffset() > offsetToWriteAt) {
                                 skipOverFailedChunk = true;
-                                log.debug("{} write - skipping found partially written chunk op={}, segment={}, chunk={} expected={} given={}.",
+                                log.debug("{} write - skipping partially written chunk op={}, segment={}, chunk={} expected={} given={}.",
                                         chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
                                         chunkHandle.getChunkName(), invalidEx.getExpectedOffset(), invalidEx.getGivenOffset());
                                 return null;
@@ -394,9 +393,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                             throw new CompletionException(new BadOffsetException(segmentMetadata.getName(),
                                     currentOffset.get() + ((InvalidOffsetException) ex).getExpectedOffset(),
                                     currentOffset.get() + ((InvalidOffsetException) ex).getGivenOffset()));
-                        }
-                        if (ex instanceof ChunkStorageException) {
-                            throw new CompletionException(ex);
                         }
 
                         throw new CompletionException(ex);

@@ -303,6 +303,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val chunkInfo = chunkStorage.getInfo(chunkFileName);
         chunkStorage.write(ChunkHandle.writeHandle(chunkFileName), chunkInfo.get().getLength(), 1, new ByteArrayInputStream(new byte[1])).get();
 
+        // This next write will encounter partially written chunk and is expected to start a new chunk.
         val b2 = " World".getBytes();
         segmentStorage1.write(h, offset, new ByteArrayInputStream(b2), b2.length, null).join();
         offset += b2.length;
