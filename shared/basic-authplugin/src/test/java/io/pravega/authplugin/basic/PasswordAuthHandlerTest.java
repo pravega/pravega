@@ -13,6 +13,7 @@ import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.ServerConfig;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import java.security.Principal;
 import java.util.ArrayList;
@@ -43,9 +44,15 @@ public class PasswordAuthHandlerTest {
     public void initializeFailsIfAccountFileConfigMissing() {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
 
-        Properties props = new Properties();
-        props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, "/random/file");
-        authHandler.initialize(props);
+        ServerConfig serverConfig = new ServerConfig() {
+            @Override
+            public Properties toAuthHandlerProperties() {
+                Properties props = new Properties();
+                props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, "/random/file");
+                return props;
+            }
+        };
+        authHandler.initialize(serverConfig);
     }
 
     @Test(expected = RuntimeException.class)
@@ -53,6 +60,9 @@ public class PasswordAuthHandlerTest {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
         Properties props = null; // Declaration is necessary to avoid ambiguity of the following call.
         authHandler.initialize(props);
+
+        ServerConfig serverConfig = null;
+        authHandler.initialize(serverConfig);
     }
 
     @Test(expected = RuntimeException.class)
