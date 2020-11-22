@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CompositeArrayView;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -71,6 +70,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -130,8 +130,8 @@ public class DurableLogTests extends OperationLogTestBase {
         DurableLog durableLog = setup.createDurableLog();
         durableLog.startAsync().awaitRunning();
 
-        // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).join());
+        // On a freshly created DurableLog, it should auto-add a MetadataCheckpoint as the first operation.
+        // No need to verify this here. We will check this in performLogOperationChecks.
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
@@ -469,62 +469,39 @@ public class DurableLogTests extends OperationLogTestBase {
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
-        // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
-        ArrayList<CompletableFuture<Iterator<Operation>>> readFutures = new ArrayList<>();
-        for (int i = 0; i < operationCount; i++) {
-            long afterSeqNo = i + 1;
-            CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(afterSeqNo, operationCount, TIMEOUT);
-            Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = " + afterSeqNo + ").", readFuture.isDone());
-            readFutures.add(readFuture);
-        }
+        // A MetadataCheckpointOperation gets auto-queued upon the first startup. Get it out of our way for this test.
+        val checkpointRead = durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected first read operation to be a MetadataCheckpointOperation.",
+                checkpointRead.size() == 1 && checkpointRead.poll() instanceof MetadataCheckpointOperation);
 
-        // Add one operation at at time, and each time, verify that the correct Read got activated.
+        // Setup a read operation, and make sure it is blocked (since there is no data).
+        val readFuture = durableLog.read(operationCount, TIMEOUT);
+        Assert.assertFalse("read() returned a completed future when there is no data available", readFuture.isDone());
+
+        // Add one operation and verify that the Read was activated.
         OperationComparer operationComparer = new OperationComparer(true);
-        for (int appendId = 0; appendId < operationCount; appendId++) {
-            Operation operation = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(("foo" + Integer.toString(appendId)).getBytes()), null);
-            durableLog.add(operation, OperationPriority.Normal, TIMEOUT).join();
-            for (int readId = 0; readId < readFutures.size(); readId++) {
-                val readFuture = readFutures.get(readId);
-                boolean expectedComplete = readId <= appendId;
-                if (expectedComplete) {
-                    // The internal callback happens asynchronously, so wait for this future to complete in a bit.
-                    readFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                }
 
-                Assert.assertEquals(
-                        String.format("Unexpected read completion status for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                        expectedComplete,
-                        readFutures.get(readId).isDone());
+        Operation operation = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment("TestData".getBytes()), null);
+        durableLog.add(operation, OperationPriority.Normal, TIMEOUT).join();
 
-                if (appendId == readId) {
-                    // Verify that the read result matches the operation.
-                    Iterator<Operation> readResult = readFuture.join();
+        // The internal callback happens asynchronously, so wait for this future to complete in a bit.
+        val readResult = readFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-                    // Verify that we actually have a non-empty read result.
-                    Assert.assertTrue(
-                            String.format("Empty read result read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            readResult.hasNext());
+        // Verify that we actually have a non-empty read result.
+        Assert.assertFalse(readResult.isEmpty());
 
-                    // Verify the read result.
-                    Operation readOp = readResult.next();
-                    operationComparer.assertEquals(
-                            String.format("Unexpected result operation for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            operation,
-                            readOp);
+        // Verify the read result.
+        Operation readOp = readResult.poll();
+        operationComparer.assertEquals("Unexpected result operation for read.", operation, readOp);
 
-                    // Verify that we don't have more than one read result.
-                    Assert.assertFalse(
-                            String.format("Not expecting more than one result for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
-                            readResult.hasNext());
-                }
-            }
-        }
+        // Verify that we don't have more than one read result.
+        Assert.assertTrue(readResult.isEmpty());
 
         // Verify that such reads are cancelled when the DurableLog is closed.
-        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(operationCount + 2, operationCount, TIMEOUT);
-        Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = MAX).", readFuture.isDone());
+        val cancelledRead = durableLog.read(operationCount, TIMEOUT);
+        Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = MAX).", cancelledRead.isDone());
         durableLog.stopAsync().awaitTerminated();
-        Assert.assertTrue("A tail read was not cancelled when the DurableLog was stopped.", readFuture.isCompletedExceptionally());
+        Assert.assertTrue("A tail read was not cancelled when the DurableLog was stopped.", cancelledRead.isCancelled());
     }
 
     /**
@@ -532,9 +509,10 @@ public class DurableLogTests extends OperationLogTestBase {
      * tests that they will time out appropriately.
      */
     @Test
-    public void testTailReadsTimeout() {
+    public void testTailReadsTimeout() throws Exception {
         final long segmentId = 1;
         final String segmentName = Long.toString(segmentId);
+        final Duration shortTimeout = Duration.ofMillis(30);
 
         // Setup a DurableLog and start it.
         @Cleanup
@@ -547,10 +525,13 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
         segmentMetadata.setLength(0);
 
-        Duration shortTimeout = Duration.ofMillis(30);
+        // A MetadataCheckpointOperation gets auto-queued upon the first startup. Get it out of our way for this test.
+        val checkpointRead = durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected first read operation to be a MetadataCheckpointOperation.",
+                checkpointRead.size() == 1 && checkpointRead.poll() instanceof MetadataCheckpointOperation);
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
-        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
+        val readFuture = durableLog.read(1, shortTimeout);
         Assert.assertFalse("read() returned a completed future when there is no data available.", Futures.isSuccessful(readFuture));
 
         CompletableFuture<Void> controlFuture = Futures.delayedFuture(Duration.ofMillis(2000), setup.executorService);
@@ -604,7 +585,7 @@ public class DurableLogTests extends OperationLogTestBase {
         durableLog.startAsync().awaitRunning();
 
         // Verify that on a freshly created DurableLog, it auto-adds a MetadataCheckpoint as the first operation.
-        verifyFirstItemIsMetadataCheckpoint(durableLog.read(-1L, 1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+        verifyFirstItemIsMetadataCheckpoint(durableLog.read(1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).iterator());
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
@@ -912,7 +893,7 @@ public class DurableLogTests extends OperationLogTestBase {
                     ex -> ex instanceof ContainerOfflineException);
             AssertExtensions.assertSuppliedFutureThrows(
                     "read() did not fail with the right exception when offline.",
-                    () -> durableLog.read(0, 1, TIMEOUT),
+                    () -> durableLog.read(1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
             AssertExtensions.assertSuppliedFutureThrows(
                     "truncate() did not fail with the right exception when offline.",
@@ -1074,10 +1055,10 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         val dl2 = setup.createDurableLog();
         dl2.startAsync().awaitRunning();
-        val ops2 = dl2.read(0, 10, TIMEOUT).join();
-        Assert.assertTrue("Expected first operation to be a checkpoint.", ops2.hasNext() && ops2.next() instanceof MetadataCheckpointOperation);
-        Assert.assertTrue("Expected second operation to be a segment map.", ops2.hasNext() && ops2.next() instanceof StreamSegmentMapOperation);
-        Assert.assertFalse("Not expecting any other operations.", ops2.hasNext());
+        val ops2 = dl2.read(10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", !ops2.isEmpty() && ops2.poll() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", !ops2.isEmpty() && ops2.poll() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Not expecting any other operations.", ops2.isEmpty());
 
         // Add a new operation. This one should succeed.
         val append2 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[10]), null);
@@ -1089,11 +1070,11 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         val dl3 = setup.createDurableLog();
         dl3.startAsync().awaitRunning();
-        val ops3 = dl3.read(0, 10, TIMEOUT).join();
-        Assert.assertTrue("Expected first operation to be a checkpoint.", ops3.hasNext() && ops3.next() instanceof MetadataCheckpointOperation);
-        Assert.assertTrue("Expected second operation to be a segment map.", ops3.hasNext() && ops3.next() instanceof StreamSegmentMapOperation);
-        Assert.assertTrue("Expected third operation to be an append.", ops3.hasNext() && ops3.next() instanceof CachedStreamSegmentAppendOperation);
-        Assert.assertFalse("Not expecting any other operations.", ops3.hasNext());
+        val ops3 = dl3.read(10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", !ops3.isEmpty() && ops3.poll() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", !ops3.isEmpty() && ops3.poll() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Expected third operation to be an append.", !ops3.isEmpty() && ops3.poll() instanceof CachedStreamSegmentAppendOperation);
+        Assert.assertTrue("Not expecting any other operations.", ops3.isEmpty());
         dl2.stopAsync().awaitTerminated();
         dl3.close();
     }
@@ -1148,6 +1129,7 @@ public class DurableLogTests extends OperationLogTestBase {
             // Get a list of all the operations, before truncation.
             List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             boolean fullTruncationPossible = false;
+            long currentTruncatedSeqNo = originalOperations.get(0).getSequenceNumber();
 
             // Truncate up to each operation and:
             // * If the DataLog was truncated:
@@ -1157,29 +1139,27 @@ public class DurableLogTests extends OperationLogTestBase {
                 Operation currentOperation = originalOperations.get(i);
                 truncationOccurred.set(false);
                 if (currentOperation instanceof MetadataCheckpointOperation) {
-                    // Need to figure out if the operation we're about to truncate to is actually the first in the log;
-                    // in that case, we should not be expecting any truncation.
-                    boolean isTruncationPointFirstOperation = durableLog.read(-1, 1, TIMEOUT).join().next() instanceof MetadataCheckpointOperation;
-
                     // Perform the truncation.
                     durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
                     awaitLastOperationAdded(durableLog, metadata);
-                    if (!isTruncationPointFirstOperation) {
-                        Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(), truncationOccurred.get());
+                    if (currentOperation.getSequenceNumber() != currentTruncatedSeqNo) {
+                        // If the operation we're about to truncate to is actually the first in the log, then we should
+                        // not be expecting any truncation.
+                        Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(),
+                                truncationOccurred.get());
+
+                        // Now verify that we get a StorageMetadataCheckpointOperation queued.
+                        AssertExtensions.assertGreaterThan("Expected an operation to be queued as part of truncation.",
+                                0, durableLog.getInMemoryOperationLog().size());
+                        val readAfterTruncate = durableLog.read(1, TIMEOUT).join();
+                        Assert.assertTrue("Expected a StorageMetadataCheckpointOperation to be queued as part of truncation.",
+                                readAfterTruncate.poll() instanceof StorageMetadataCheckpointOperation);
                     }
 
-                    // Verify all operations up to, and including this one have been removed.
-                    Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
-                    Assert.assertTrue("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.hasNext());
-                    verifyFirstItemIsMetadataCheckpoint(reader);
-
-                    if (i < originalOperations.size() - 1) {
-                        Operation firstOp = reader.next();
-                        OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
-                    } else {
+                    if (i == originalOperations.size()) {
                         // Sometimes the Truncation Point is on the same DataFrame as other data, and it's the last DataFrame;
                         // In that case, it cannot be truncated, since truncating the frame would mean losing the Checkpoint as well.
-                        fullTruncationPossible = !reader.hasNext();
+                        fullTruncationPossible = durableLog.getInMemoryOperationLog().size() == 0;
                     }
                 } else {
                     // Verify we are not allowed to truncate on non-valid Truncation Points.
@@ -1188,11 +1168,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             () -> durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT),
                             ex -> ex instanceof IllegalArgumentException);
 
-                    // Verify the Operation Log is still intact.
-                    Iterator<Operation> reader = durableLog.read(-1, 1, TIMEOUT).join();
-                    Assert.assertTrue("No elements left in the log even though no truncation occurred.", reader.hasNext());
-                    Operation firstOp = reader.next();
-                    AssertExtensions.assertLessThanOrEqual("It appears that Operations were removed from the Log even though no truncation happened.", currentOperation.getSequenceNumber(), firstOp.getSequenceNumber());
+                    Assert.assertFalse("Not expecting a truncation to have occurred.", truncationOccurred.get());
                 }
             }
 
@@ -1294,12 +1270,12 @@ public class DurableLogTests extends OperationLogTestBase {
                     dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
 
                     // Verify all operations up to, and including this one have been removed.
-                    Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
-                    Assert.assertTrue("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.hasNext());
-                    verifyFirstItemIsMetadataCheckpoint(reader);
+                    Queue<Operation> reader = durableLog.read(2, TIMEOUT).join();
+                    Assert.assertFalse("Not expecting an empty log after truncating an operation (a MetadataCheckpoint must always exist).", reader.isEmpty());
+                    verifyFirstItemIsMetadataCheckpoint(reader.iterator());
 
                     if (i < originalOperations.size() - 1) {
-                        Operation firstOp = reader.next();
+                        Operation firstOp = reader.poll();
                         OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
                     }
                 }
@@ -1404,15 +1380,14 @@ public class DurableLogTests extends OperationLogTestBase {
         // Log Operation based checks
         long lastSeqNo = -1;
         val successfulOperations = operations.stream()
-                                             .filter(oc -> !oc.completion.isCompletedExceptionally())
-                                             .map(oc -> oc.operation)
-                                             .collect(Collectors.toList());
+                .filter(oc -> !oc.completion.isCompletedExceptionally())
+                .map(oc -> oc.operation)
+                .collect(Collectors.toList());
 
         // Writing to the DurableLog is done asynchronously, so wait for the last operation to arrive there before reading.
-        durableLog.read(successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber() - 1, 1, TIMEOUT).join();
+        List<Operation> readOperations = readUpToSequenceNumber(durableLog, successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber());
+        val logIterator = readOperations.iterator();
 
-        // Issue the read for the entire log now.
-        Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
         OperationComparer comparer = new OperationComparer(true);
         for (Operation expectedOp : successfulOperations) {
@@ -1424,6 +1399,8 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertTrue("No more items left to read from DurableLog. Expected: " + expectedOp, logIterator.hasNext());
             comparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, logIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
         }
+
+        Assert.assertFalse(logIterator.hasNext());
     }
 
     /**
@@ -1444,18 +1421,19 @@ public class DurableLogTests extends OperationLogTestBase {
             // Figure out how much to read. If we don't know, read at least one item so we see what's the first SeqNo
             // in the Log.
             int maxCount = result.size() == 0 ? 1 : (int) (seqNo - result.get(result.size() - 1).getSequenceNumber());
-            Iterator<Operation> logIterator = durableLog.read(afterSequence, maxCount, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            while (logIterator.hasNext()) {
-                result.add(logIterator.next());
+            Queue<Operation> logIterator = durableLog.read(maxCount, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            while (!logIterator.isEmpty()) {
+                result.add(logIterator.poll());
             }
         }
         return result;
     }
 
-    private void verifyFirstItemIsMetadataCheckpoint(Iterator<Operation> logIterator) {
-        Assert.assertTrue("DurableLog is empty even though a MetadataCheckpointOperation was expected.", logIterator.hasNext());
-        Operation firstOp = logIterator.next();
-        Assert.assertTrue("First operation in DurableLog is not a MetadataCheckpointOperation: " + firstOp, firstOp instanceof MetadataCheckpointOperation);
+    private void verifyFirstItemIsMetadataCheckpoint(Iterator<Operation> readResult) {
+        Assert.assertTrue(readResult.hasNext());
+        Operation firstOp = readResult.next();
+        Assert.assertTrue("First operation in DurableLog is not a MetadataCheckpointOperation: " + firstOp,
+                firstOp instanceof MetadataCheckpointOperation);
     }
 
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, DurableLog durableLog) {
@@ -1511,17 +1489,12 @@ public class DurableLogTests extends OperationLogTestBase {
      * is present in the {@link DurableLog}.
      */
     @SneakyThrows(TimeoutException.class)
-    private void awaitLastOperationAdded(OperationLog durableLog, UpdateableContainerMetadata metadata) {
-        long sn = metadata.getOperationSequenceNumber();
-        TestUtils.await(
-                () -> {
-                    val allOps = readUpToSequenceNumber(durableLog, sn);
-                    return allOps.size() > 0 && allOps.get(allOps.size() - 1).getSequenceNumber() >= sn;
-                }, 10, TIMEOUT.toMillis());
+    private void awaitLastOperationAdded(DurableLog durableLog, UpdateableContainerMetadata metadata) {
+        final long sn = metadata.getOperationSequenceNumber();
+        TestUtils.await(() -> durableLog.getInMemoryOperationLog().getLastSequenceNumber() >= sn, 10, TIMEOUT.toMillis());
     }
 
-    //endregion            this.cacheFactory.close();
-
+    //endregion
 
     //region InjectedReadItem
 
@@ -1612,7 +1585,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         @Override
-        protected SequencedItemList<Operation> createInMemoryLog() {
+        protected InMemoryLog createInMemoryLog() {
             return new CorruptedMemoryOperationLog(FAIL_AT_INDEX.get());
         }
     }

@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -41,8 +41,7 @@ class MemoryStateUpdater {
     //region Private
 
     private final ReadIndex readIndex;
-    private final SequencedItemList<Operation> inMemoryOperationLog;
-    private final Runnable commitSuccess;
+    private final AbstractDrainingQueue<Operation> inMemoryOperationLog;
     private final AtomicBoolean recoveryMode;
 
     //endregion
@@ -54,13 +53,10 @@ class MemoryStateUpdater {
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param readIndex            The ReadIndex to update.
-     * @param commitSuccess        (Optional) A callback to be invoked whenever an Operation or set of Operations are
-     *                             successfully committed.
      */
-    MemoryStateUpdater(SequencedItemList<Operation> inMemoryOperationLog, ReadIndex readIndex, Runnable commitSuccess) {
+    MemoryStateUpdater(AbstractDrainingQueue<Operation> inMemoryOperationLog, ReadIndex readIndex) {
         this.inMemoryOperationLog = Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
         this.readIndex = Preconditions.checkNotNull(readIndex, "readIndex");
-        this.commitSuccess = commitSuccess;
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -139,9 +135,6 @@ class MemoryStateUpdater {
         if (!this.recoveryMode.get()) {
             // Trigger Future Reads on those segments which were touched by Appends or Seals.
             this.readIndex.triggerFutureReads(segmentIds);
-            if (this.commitSuccess != null) {
-                this.commitSuccess.run();
-            }
         }
     }
 
@@ -188,13 +181,14 @@ class MemoryStateUpdater {
             }
         }
 
-        boolean added = this.inMemoryOperationLog.add(operation);
-        if (!added) {
+        try {
+            this.inMemoryOperationLog.add(operation);
+        } catch (InMemoryLog.OutOfOrderOperationException ex) {
             // This is a pretty nasty one. It's safer to shut down the container than continue.
             // We either recorded the Operation correctly, but invoked this callback out of order, or we really
             // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
             // while serving reads, so better stop now than later.
-            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
+            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.", ex);
         }
     }
 

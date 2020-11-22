@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
-import java.util.Iterator;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -49,15 +49,20 @@ public interface OperationLog extends Container {
     CompletableFuture<Long> checkpoint(Duration timeout);
 
     /**
-     * Reads a number of entries from the log.
+     * Reads a number of Operation from the log, starting with the first Operation that has not yet been read using this
+     * method. If this method has not been invoked yet for this instance, the first Operation to be returned will be the
+     * first one added via {@link #add}.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to read.
-     * @param maxCount      The maximum number of entries to read.
-     * @param timeout       Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain an Iterator with the result. If the operation
-     * failed, this Future will complete with the appropriate exception.
+     * @param maxCount The maximum number of entries to read.
+     * @param timeout  Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a Queue with the result. If the operation
+     * failed, this Future will complete with the appropriate exception. If there are Operations readily available for
+     * reading, the returned Future will be already completed with the result. If no Operations are currently available
+     * for reading, the Future will be completed when the first such Operation is added (via {@link #add}), or it will be
+     * completed with a {@link java.util.concurrent.TimeoutException} if the given timeout expired prior to that happening.
+     * The items in the returned Queue will not be returned for a subsequent call to this method.
      */
-    CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
+    CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout);
 
     /**
      * Waits until the OperationLog enters an Online State.
