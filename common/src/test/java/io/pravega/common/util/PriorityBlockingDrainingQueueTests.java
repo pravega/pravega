@@ -155,7 +155,7 @@ public class PriorityBlockingDrainingQueueTests {
         Assert.assertEquals("Unexpected size.", expectedItems.size(), q.size());
         Assert.assertSame("Unexpected peek.", expectedItems.first(), q.peek());
 
-        val finalPoll = q.poll(100);
+        val finalPoll = new ArrayDeque<>(q.poll(100)); // Make a copy since we need to modify it.
         Assert.assertEquals(1, finalPoll.size());
         finalPoll.addAll(q.poll(100));
         val expectedFinalPoll = getFirstItems(expectedItems, 2);
