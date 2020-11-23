@@ -198,6 +198,7 @@ project('shared:basic-authplugin') {
         compile project(':common')
         compile project(':shared:authplugin')
         compile project(':shared:security')
+        testCompile project(':test:testcommon')
     }
 
     javadoc {

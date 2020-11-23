@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.utils;
+package io.pravega.shared.security.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -25,7 +25,7 @@ import java.util.List;
  * This is a helper class for tests and may be used for generating the input file for the PasswordAuthHandler - the
  * default AuthHandler implementation.
  */
-public class PasswordAuthHandlerInput {
+public class PasswordAuthHandlerInput implements AutoCloseable {
 
     @Getter
     private File file;
@@ -64,12 +64,23 @@ public class PasswordAuthHandlerInput {
         }
     }
 
+
+
     private String credentialsAndAclString(Entry entry) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(entry.username)
                 && !Strings.isNullOrEmpty(entry.password)
                 && entry.acl != null
                 && !entry.acl.startsWith(":"));
         return String.format("%s:%s:%s%n", entry.username, entry.password, entry.acl);
+    }
+
+    @Override
+    public void close() {
+        try {
+            this.file.delete();
+        } catch (Exception e) {
+            // Ignore
+        }
     }
 
     @Data(staticConstructor = "of")

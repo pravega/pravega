@@ -36,11 +36,15 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, AccessControlList> aclsByUser;
     private final StrongPasswordProcessor encryptor;
 
@@ -58,7 +62,7 @@ public class PasswordAuthHandler implements AuthHandler {
         log.info("Loading {}", userPasswordFile);
 
         try (FileReader reader = new FileReader(userPasswordFile);
-             BufferedReader lineReader = new BufferedReader(reader)) {
+            BufferedReader lineReader = new BufferedReader(reader)) {
             String line;
             while ( !Strings.isNullOrEmpty(line = lineReader.readLine())) {
                 if (line.startsWith("#")) { // A commented line

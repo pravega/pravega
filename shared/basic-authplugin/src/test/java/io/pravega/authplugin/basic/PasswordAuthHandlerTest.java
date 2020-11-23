@@ -14,6 +14,7 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.ServerConfig;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import java.security.Principal;
 import java.util.ArrayList;
@@ -23,13 +24,17 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the password-based auth handler plugin.
@@ -55,14 +60,47 @@ public class PasswordAuthHandlerTest {
         authHandler.initialize(serverConfig);
     }
 
-    @Test(expected = RuntimeException.class)
+    @SneakyThrows
+    @Test
+    public void initializeWorksWithValidAclsAndComments() {
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+
+        try (PasswordAuthHandlerInput pwdInputFile = new PasswordAuthHandlerInput("PasswordAuthHandlerTest.init",
+                ".txt")) {
+            String encryptedPassword = StrongPasswordProcessor.builder().build().encryptPassword("some_password");
+
+            List<PasswordAuthHandlerInput.Entry> entries = Arrays.asList(
+                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "prn::/scope:scope1,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("#commented", encryptedPassword, "prn::")
+            );
+            pwdInputFile.postEntries(entries);
+            authHandler.initialize(pwdInputFile.getFile().getAbsolutePath());
+
+            ConcurrentHashMap<String, AccessControlList> aclsByUser = authHandler.getAclsByUser();
+
+            assertEquals(2, aclsByUser.size());
+            assertTrue(aclsByUser.containsKey("admin"));
+            assertEquals("prn::/scope:scope1", aclsByUser.get("appaccount").getEntries().get(0).getResourcePattern());
+            assertFalse(aclsByUser.containsKey("unauthorizeduser"));
+        }
+    }
+
+    @Test
     public void initializeFailsIfPropertiesIsNull() {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
-        Properties props = null; // Declaration is necessary to avoid ambiguity of the following call.
-        authHandler.initialize(props);
 
-        ServerConfig serverConfig = null;
-        authHandler.initialize(serverConfig);
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            Properties props = null;
+            authHandler.initialize(props);
+        });
+
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            ServerConfig serverConfig = null;
+            authHandler.initialize(serverConfig);
+        });
     }
 
     @Test(expected = RuntimeException.class)

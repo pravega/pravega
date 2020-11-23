@@ -27,7 +27,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;

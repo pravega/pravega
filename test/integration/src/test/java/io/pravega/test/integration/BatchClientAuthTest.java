@@ -18,7 +18,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
