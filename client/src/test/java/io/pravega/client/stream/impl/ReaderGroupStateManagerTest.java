@@ -791,7 +791,7 @@ public class ReaderGroupStateManagerTest {
         segments.put(initialSegment, 1L);
         ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .stream(Stream.of(scope, stream))
-                .disableAutomaticCheckpoints().retentionConfig(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .disableAutomaticCheckpoints().retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
         stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(rgConfig, segments, Collections.emptyMap()));
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
