@@ -262,7 +262,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName + segment, generation)));
         }
         synchronizer.updateState((s, updates) -> {
-            if (s.equals(state)) {
+            if (compareState(s, state)) {
                 updates.add(new ChangeConfigState(ReaderGroupState.ConfigState.READY, s.getGeneration()));
             }
         });
@@ -276,7 +276,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
         synchronizer.updateState((s, updates) -> {
-            if (s.equals(state)) {
+            if (compareState(s, state)) {
                 updates.add(new ReaderGroupStateResetComplete(newConfig, segments, getEndSegmentsForStreams(newConfig)));
             }
         });
