@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.shared.security;
 
 import static org.junit.Assert.assertEquals;
 
-import io.pravega.controller.server.security.auth.UserPrincipal;
+import io.pravega.shared.security.auth.UserPrincipal;
 import org.junit.Test;
 
 /**

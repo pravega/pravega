@@ -7,11 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler;
+package io.pravega.controller.auth;
 
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.security.auth.UserPrincipal;
+import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
 
@@ -37,11 +36,6 @@ public class TestAuthHandler implements AuthHandler {
         } else {
             return Permissions.READ_UPDATE;
         }
-    }
-
-    @Override
-    public void initialize(ServerConfig serverConfig) {
-
     }
 
     public static String testAuthToken(String userName) {
