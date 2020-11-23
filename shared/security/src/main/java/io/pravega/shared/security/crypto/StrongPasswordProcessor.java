@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth;
+package io.pravega.shared.security.crypto;
 
 import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;

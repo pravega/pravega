@@ -10,7 +10,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -24,7 +24,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -38,7 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput.Entry;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput.Entry;
 
 /**
  * This class is intended to be used in integration tests for setting up and running a Pravega cluster. It is

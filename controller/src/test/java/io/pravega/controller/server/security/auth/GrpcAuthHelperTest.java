@@ -10,6 +10,8 @@
 package io.pravega.controller.server.security.auth;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.shared.security.token.JwtParser;
 import lombok.extern.slf4j.Slf4j;
