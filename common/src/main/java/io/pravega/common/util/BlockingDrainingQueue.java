@@ -9,7 +9,6 @@
  */
 package io.pravega.common.util;
 
-import java.util.ArrayDeque;
 import java.util.Queue;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -24,7 +23,7 @@ import javax.annotation.concurrent.ThreadSafe;
 public class BlockingDrainingQueue<T> extends AbstractDrainingQueue<T> {
     //region Members
 
-    private final ArrayDeque<T> contents;
+    private final SimpleDeque<T> contents;
 
     ///endregion
 
@@ -34,7 +33,7 @@ public class BlockingDrainingQueue<T> extends AbstractDrainingQueue<T> {
      * Creates a new instance of the BlockingDrainingQueue class.
      */
     public BlockingDrainingQueue() {
-        this.contents = new ArrayDeque<>();
+        this.contents = new SimpleDeque<>();
     }
 
     //endregion
@@ -58,12 +57,7 @@ public class BlockingDrainingQueue<T> extends AbstractDrainingQueue<T> {
 
     @Override
     protected Queue<T> fetch(int maxCount) {
-        int count = Math.min(maxCount, this.contents.size());
-        ArrayDeque<T> result = new ArrayDeque<>(count);
-        while (result.size() < count) {
-            result.addLast(this.contents.pollFirst());
-        }
-        return result;
+        return this.contents.pollFirst(maxCount);
     }
 
     // endregion
