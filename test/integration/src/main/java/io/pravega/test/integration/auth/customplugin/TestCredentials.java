@@ -9,7 +9,7 @@
  */
 package io.pravega.test.integration.auth.customplugin;
 
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 
 public class TestCredentials implements Credentials {
 

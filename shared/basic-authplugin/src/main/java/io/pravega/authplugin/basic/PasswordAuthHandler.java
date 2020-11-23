@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler.impl;
+package io.pravega.authplugin.basic;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
@@ -16,11 +16,11 @@ import com.google.common.base.Strings;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
-import io.pravega.controller.server.security.auth.UserPrincipal;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
+import io.pravega.shared.security.auth.UserPrincipal;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -31,13 +31,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class PasswordAuthHandler implements AuthHandler {
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, AccessControlList> aclsByUser;
     private final StrongPasswordProcessor encryptor;
 
@@ -55,7 +62,7 @@ public class PasswordAuthHandler implements AuthHandler {
         log.info("Loading {}", userPasswordFile);
 
         try (FileReader reader = new FileReader(userPasswordFile);
-             BufferedReader lineReader = new BufferedReader(reader)) {
+            BufferedReader lineReader = new BufferedReader(reader)) {
             String line;
             while ( !Strings.isNullOrEmpty(line = lineReader.readLine())) {
                 if (line.startsWith("#")) { // A commented line
@@ -121,6 +128,20 @@ public class PasswordAuthHandler implements AuthHandler {
         return authorizeForUser(aclsByUser.get(userName), resource);
     }
 
+    @Override
+    public void initialize(@NonNull ServerConfig config) {
+        initialize(config.toAuthHandlerProperties());
+    }
+
+    @VisibleForTesting
+    void initialize(@NonNull Properties properties) {
+        String userAccountsDatabaseFilePath = properties.getProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE);
+        if (userAccountsDatabaseFilePath == null) {
+            throw new RuntimeException("User account database config was absent");
+        }
+        initialize(userAccountsDatabaseFilePath);
+    }
+
     /**
      * This method exists expressly for unit testing purposes. It loads the contents of the specified
      * {@code passwordFile} into this object.
@@ -131,11 +152,6 @@ public class PasswordAuthHandler implements AuthHandler {
     @VisibleForTesting
     public void initialize(String passwordFile) {
         loadPasswordFile(passwordFile);
-    }
-
-    @Override
-    public void initialize(ServerConfig serverConfig) {
-        loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
     }
 
     private static String[] parseToken(String token) {
