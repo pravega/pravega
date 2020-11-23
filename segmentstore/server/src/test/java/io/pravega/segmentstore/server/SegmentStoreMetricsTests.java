@@ -205,7 +205,7 @@ public class SegmentStoreMetricsTests {
         assertEquals(20, (int) MetricRegistryUtils.getTimer(MetricsNames.OPERATION_LATENCY, containerTag).totalTime(TimeUnit.MILLISECONDS));
 
         assertEquals(3, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
-        op.operationLogTruncate(1);
+        op.operationLogRead(1);
         assertEquals(2, (int) MetricRegistryUtils.getCounter(MetricsNames.OPERATION_LOG_SIZE, containerTag).count());
 
         op.operationLogInit();
