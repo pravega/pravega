@@ -96,7 +96,7 @@ public class ReaderGroupManagerImplTest {
         verify(controller, times(1)).createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        verify(clientFactory, times(2)).createStateSynchronizer(anyString(), any(Serializer.class),
+        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
         verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));

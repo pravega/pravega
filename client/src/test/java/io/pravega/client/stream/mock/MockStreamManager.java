@@ -19,7 +19,6 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdat
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
@@ -30,22 +29,16 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
-import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
-import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
-
-import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -167,17 +160,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                 StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                                              new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
         ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
-        synchronizer.fetchUpdates();
-        val state = synchronizer.getState();
-        if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
-            groupImpl.doInit(state);
-        }
+        groupImpl.createState(config);
     }
 
     public Position getInitialPosition(String stream) {

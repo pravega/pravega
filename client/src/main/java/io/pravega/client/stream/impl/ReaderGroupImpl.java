@@ -201,23 +201,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     doReinit(state);
                     break;
                 case READY:
-                    // This boolean will help know if the update actually succeeds or not.
-                    AtomicBoolean successfullyUpdated = new AtomicBoolean(true);
                     long newGen = state.getGeneration() + 1;
-                    synchronizer.updateState((s, updates) -> {
-                        successfullyUpdated.set(s.equals(state));
-                        // If successfullyUpdated is false then that means the current state where this update should
-                        // take place (i.e. state with READY configState, etc.) is not the state we are in so we do not
-                        // make the update.
-                        if (successfullyUpdated.get()) {
-                            updates.add(new ReaderGroupStateResetStart(config, newGen));
-                        }
-                    });
-                    val newState = synchronizer.getState();
-                    // If successfullyUpdated is true then that means the update can take place and at this point the
-                    // update is completed and it is in the desired state on which doReinit is called to continue the
-                    // reset with this newState.
-                    if (successfullyUpdated.get()) {
+                    // If true then at this point the update is completed and it is in the desired state (REINITIALIZING)
+                    // on which doReinit is called to continue the reset with this newState.
+                    if (doStateTransition(state, new ReaderGroupStateResetStart(config, newGen))) {
+                        val newState = getState();
                         doReinit(newState);
                         return;
                     }
@@ -230,6 +218,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     public void createState(ReaderGroupConfig config) {
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
         val state = getState();
         if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
             doInit(state);
@@ -247,7 +237,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     doReinit(state);
                     break;
                 case READY:
-                    if (updateConfigState(ReaderGroupState.ConfigState.DELETING, state)) {
+                    long newGen = state.getGeneration() + 1;
+                    // If true then at this point the update is completed and it is in the desired state (DELETING)
+                    // on which doDelete is called to continue the delete with this newState.
+                    if (doStateTransition(state, new ChangeConfigState(ReaderGroupState.ConfigState.DELETING, newGen))) {
                         val newState = getState();
                         doDelete(newState);
                         return;
@@ -260,7 +253,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
     }
 
-    public void doInit(ReaderGroupState state) {
+    private void doInit(ReaderGroupState state) {
         val config = state.getConfig();
         val generation = state.getGeneration();
         long segment = synchronizer.getSegmentId();
@@ -275,7 +268,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
     }
 
-    public void doReinit(ReaderGroupState state) {
+    private void doReinit(ReaderGroupState state) {
         val oldConfig = state.getConfig();
         val newConfig = state.getNewConfig();
         val generation = state.getGeneration();
@@ -289,7 +282,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
     }
 
-    public void doDelete(ReaderGroupState state) {
+    private void doDelete(ReaderGroupState state) {
         val config = state.getConfig();
         val generation = state.getGeneration();
         long segment = synchronizer.getSegmentId();
@@ -309,16 +302,16 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         streamsToUnsub.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s, groupName + segment, generation)));
     }
 
-    private boolean updateConfigState(ReaderGroupState.ConfigState configState, ReaderGroupState state) {
+    private boolean doStateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
         // This boolean will help know if the update actually succeeds or not.
         AtomicBoolean successfullyUpdated = new AtomicBoolean(true);
         synchronizer.updateState((s, updates) -> {
             // If successfullyUpdated is false then that means the current state where this update should
             // take place (i.e. state with READY configState, etc.) is not the state we are in so we do not
             // make the update.
-            successfullyUpdated.set(s.equals(state));
+            successfullyUpdated.set(compareState(s, state));
             if (successfullyUpdated.get()) {
-                updates.add(new ChangeConfigState(configState, s.getGeneration() + 1));
+                updates.add(update);
             }
         });
         // Return status of the update.
@@ -328,6 +321,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private ReaderGroupState getState() {
         synchronizer.fetchUpdates();
         return synchronizer.getState();
+    }
+
+    private boolean compareState(ReaderGroupState s1, ReaderGroupState s2) {
+        boolean isGenerationEqual = s1.getGeneration() == s2.getGeneration();
+        boolean isConfigEqual = s1.getConfig().equals(s2.getConfig());
+        boolean isNewConfigEqual = s1.getNewConfig() == null ? s2.getNewConfig() == null :  s1.getNewConfig().equals(s2.getNewConfig());
+        boolean isConfigStateEqual = s1.getConfigState().equals(s2.getConfigState());
+        return isGenerationEqual && isConfigEqual && isNewConfigEqual && isConfigStateEqual;
     }
 
     @Override
