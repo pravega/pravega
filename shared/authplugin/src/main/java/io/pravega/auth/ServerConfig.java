@@ -9,8 +9,18 @@
  */
 package io.pravega.auth;
 
+import java.util.Properties;
+
 /**
  * Represents the configuration object passed down to the custom plugin.
  */
 public interface ServerConfig {
+
+    /**
+     * Returns the configuration items related to {@link io.pravega.auth.AuthHandler}
+     * in this object in a {@link Properties} format.
+     *
+     * @return configuration properties
+     */
+    Properties toAuthHandlerProperties();
 }
