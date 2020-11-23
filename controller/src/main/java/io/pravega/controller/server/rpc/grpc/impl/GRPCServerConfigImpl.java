@@ -11,9 +11,12 @@ package io.pravega.controller.server.rpc.grpc.impl;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
+import java.util.Properties;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -112,5 +115,14 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 .append(")")
                 .toString();
+    }
+
+    @Override
+    public Properties toAuthHandlerProperties() {
+        Properties props = new Properties();
+        if (this.userPasswordFile != null) {
+            props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, this.userPasswordFile);
+        }
+        return props;
     }
 }

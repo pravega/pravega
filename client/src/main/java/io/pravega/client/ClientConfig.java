@@ -11,7 +11,7 @@ package io.pravega.client;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
