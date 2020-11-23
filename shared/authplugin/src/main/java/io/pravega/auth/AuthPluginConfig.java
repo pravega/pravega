@@ -9,18 +9,13 @@
  */
 package io.pravega.auth;
 
-import java.util.Properties;
-
 /**
- * Represents the configuration object passed down to the custom plugin.
+ * The configuration keys for auth plugin.
  */
-public interface ServerConfig {
+public class AuthPluginConfig {
 
     /**
-     * Returns the configuration items related to {@link io.pravega.auth.AuthHandler}
-     * in this object in a {@link Properties} format.
-     *
-     * @return configuration properties
+     * The path to the user account database file that the password-based Basic auth handler should use.
      */
-    Properties toAuthHandlerProperties();
+    public static final String BASIC_AUTHPLUGIN_DATABASE = "basic.authplugin.dbfile";
 }
