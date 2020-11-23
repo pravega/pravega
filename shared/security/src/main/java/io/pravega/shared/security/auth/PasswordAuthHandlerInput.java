@@ -14,6 +14,7 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import lombok.Data;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -25,14 +26,11 @@ import java.util.List;
  * This is a helper class for tests and may be used for generating the input file for the PasswordAuthHandler - the
  * default AuthHandler implementation.
  */
+@Slf4j
 public class PasswordAuthHandlerInput implements AutoCloseable {
 
     @Getter
     private File file;
-
-    public PasswordAuthHandlerInput() {
-        this("auth_file", ".txt");
-    }
 
     public PasswordAuthHandlerInput(String fileName, String extension) {
         Exceptions.checkNotNullOrEmpty(fileName, "fileName");
@@ -80,6 +78,7 @@ public class PasswordAuthHandlerInput implements AutoCloseable {
             this.file.delete();
         } catch (Exception e) {
             // Ignore
+            log.warn("Unable to delete file", e);
         }
     }
 

@@ -128,6 +128,20 @@ public class PasswordAuthHandler implements AuthHandler {
         return authorizeForUser(aclsByUser.get(userName), resource);
     }
 
+    @Override
+    public void initialize(@NonNull ServerConfig config) {
+        initialize(config.toAuthHandlerProperties());
+    }
+
+    @VisibleForTesting
+    void initialize(@NonNull Properties properties) {
+        String userAccountsDatabaseFilePath = properties.getProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE);
+        if (userAccountsDatabaseFilePath == null) {
+            throw new RuntimeException("User account database config was absent");
+        }
+        initialize(userAccountsDatabaseFilePath);
+    }
+
     /**
      * This method exists expressly for unit testing purposes. It loads the contents of the specified
      * {@code passwordFile} into this object.
@@ -138,20 +152,6 @@ public class PasswordAuthHandler implements AuthHandler {
     @VisibleForTesting
     public void initialize(String passwordFile) {
         loadPasswordFile(passwordFile);
-    }
-
-    @VisibleForTesting
-    void initialize(@NonNull Properties properties) {
-        String userAccountsDatabaseFile = properties.getProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE);
-        if (userAccountsDatabaseFile == null) {
-            throw new RuntimeException("User account database config was absent");
-        }
-        initialize(userAccountsDatabaseFile);
-    }
-
-    @Override
-    public void initialize(@NonNull ServerConfig config) {
-        initialize(config.toAuthHandlerProperties());
     }
 
     private static String[] parseToken(String token) {

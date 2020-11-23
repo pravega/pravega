@@ -45,6 +45,29 @@ public class PasswordAuthHandlerTest {
 
     //region Tests verifying authentication
 
+    @Test
+    public void initializeFailsIfPropertiesIsNull() {
+        PasswordAuthHandler objectUnderTest = new PasswordAuthHandler();
+
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            Properties props = null;
+            objectUnderTest.initialize(props);
+        });
+
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            ServerConfig serverConfig = null;
+            objectUnderTest.initialize(serverConfig);
+        });
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void initializeFailsIfAccountFileMissing() {
+        PasswordAuthHandler objectUnderTest = new PasswordAuthHandler();
+        objectUnderTest.initialize(new Properties());
+    }
+
     @Test(expected = CompletionException.class)
     public void initializeFailsIfAccountFileConfigMissing() {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
@@ -75,7 +98,15 @@ public class PasswordAuthHandlerTest {
                     PasswordAuthHandlerInput.Entry.of("#commented", encryptedPassword, "prn::")
             );
             pwdInputFile.postEntries(entries);
-            authHandler.initialize(pwdInputFile.getFile().getAbsolutePath());
+
+            authHandler.initialize(new ServerConfig() {
+                @Override
+                public Properties toAuthHandlerProperties() {
+                    Properties props = new Properties();
+                    props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, pwdInputFile.getFile().getAbsolutePath());
+                    return props;
+                }
+            });
 
             ConcurrentHashMap<String, AccessControlList> aclsByUser = authHandler.getAclsByUser();
 
@@ -84,29 +115,6 @@ public class PasswordAuthHandlerTest {
             assertEquals("prn::/scope:scope1", aclsByUser.get("appaccount").getEntries().get(0).getResourcePattern());
             assertFalse(aclsByUser.containsKey("unauthorizeduser"));
         }
-    }
-
-    @Test
-    public void initializeFailsIfPropertiesIsNull() {
-        PasswordAuthHandler authHandler = new PasswordAuthHandler();
-
-        AssertExtensions.assertThrows(NullPointerException.class, () -> {
-            // Declaration is necessary to avoid ambiguity of the following call.
-            Properties props = null;
-            authHandler.initialize(props);
-        });
-
-        AssertExtensions.assertThrows(NullPointerException.class, () -> {
-            // Declaration is necessary to avoid ambiguity of the following call.
-            ServerConfig serverConfig = null;
-            authHandler.initialize(serverConfig);
-        });
-    }
-
-    @Test(expected = RuntimeException.class)
-    public void initializeFailsIfAccountFileMissing() {
-        PasswordAuthHandler authHandler = new PasswordAuthHandler();
-        authHandler.initialize(new Properties());
     }
 
     @Test
