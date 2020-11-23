@@ -14,7 +14,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -56,7 +55,6 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
@@ -68,7 +66,6 @@ import org.junit.Assert;
  */
 abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofMillis(30000);
-    private static final Supplier<CompletableFuture<Void>> NO_OP_METADATA_CLEANUP = () -> CompletableFuture.completedFuture(null);
     private static final int MAX_SEGMENT_COUNT = 1000 * 1000;
 
     @Override
@@ -401,18 +398,17 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     // region CorruptedMemoryOperationLog
 
     @RequiredArgsConstructor
-    static class CorruptedMemoryOperationLog extends SequencedItemList<Operation> {
+    static class CorruptedMemoryOperationLog extends InMemoryLog {
         private final long corruptAtIndex;
         private final AtomicLong addCount = new AtomicLong();
 
         @Override
-        public boolean add(Operation item) {
+        public void add(Operation item) {
             if (this.addCount.incrementAndGet() == this.corruptAtIndex) {
-                // Still add the item, but report that we haven't added it.
-                return false;
+                throw new InMemoryLog.OutOfOrderOperationException("Intentional");
             }
 
-            return super.add(item);
+            super.add(item);
         }
     }
 

@@ -32,9 +32,9 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -135,9 +135,9 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout) {
-            log.debug("{}: Read (AfterSeqNo={}, MaxCount={}).", this.traceObjectId, afterSequence, maxCount);
-            return this.operationLog.read(afterSequence, maxCount, timeout);
+        public CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout) {
+            log.debug("{}: Read (MaxCount={}).", this.traceObjectId, maxCount);
+            return this.operationLog.read(maxCount, timeout);
         }
 
         @Override
