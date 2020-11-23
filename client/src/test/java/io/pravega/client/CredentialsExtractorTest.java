@@ -9,7 +9,7 @@
  */
 package io.pravega.client;
 
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -193,7 +193,7 @@ public class CredentialsExtractorTest {
     /**
      * A class representing Credentials. It is dynamically loaded using a {@link java.util.ServiceLoader} by
      * the code under test, in the enclosing test class. For ServiceLoader to find it, it is configured in
-     * META-INF/services/io.pravega.client.stream.impl.Credentials.
+     * META-INF/services/io.pravega.shared.security.auth.Credentials.
      */
     public static class DynamicallyLoadedCreds implements Credentials {
 
