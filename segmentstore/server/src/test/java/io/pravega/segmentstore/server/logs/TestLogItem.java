@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.SequencedElement;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import lombok.val;
 /**
  * Test LogItem implementation that allows injecting serialization errors.
  */
-class TestLogItem implements SequencedItemList.Element {
+class TestLogItem implements SequencedElement {
     @Getter
     private final long sequenceNumber;
     @Getter
