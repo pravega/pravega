@@ -33,7 +33,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
-import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
@@ -474,7 +473,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         List<String> subs = controller.listSubscribers("test", "test").get();
         System.out.println(subs);
         assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
-        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getState().getConfigState());
     }
 
     @Test
@@ -500,7 +498,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupImpl subGroup = (ReaderGroupImpl) groupManager.getReaderGroup("group");
         List<String> subs = controller.listSubscribers("test", "test").get();
         assertTrue("Subscriber list does not contain required reader group", subs.stream().anyMatch(s -> s.contains("group")));
-        assertEquals(ReaderGroupState.ConfigState.READY, subGroup.getState().getConfigState());
         groupManager.deleteReaderGroup("group");
 
         subs = controller.listSubscribers("test", "test").get();

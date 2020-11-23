@@ -21,6 +21,7 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -33,18 +34,17 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -95,43 +95,29 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
         @Cleanup
         ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
-        val state = groupImpl.getState();
-        if (state.getConfigState() == ReaderGroupState.ConfigState.INITIALIZING && state.getConfig().equals(config)) {
-            groupImpl.doInit(state);
-        }
+        groupImpl.createState(config);
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
         @Cleanup
         ReaderGroupImpl groupImpl = (ReaderGroupImpl) getReaderGroup(groupName);
-
-        while (true) {
-            val state = groupImpl.getState();
-            switch (state.getConfigState()) {
-                case INITIALIZING:
-                    groupImpl.doInit(state);
-                    break;
-                case REINITIALIZING:
-                    groupImpl.doReinit(state);
-                    break;
-                case READY:
-                    AtomicBoolean b = new AtomicBoolean(true);
-                    val newState = groupImpl.updateConfigState(ReaderGroupState.ConfigState.DELETING, state, b);
-                    if (b.get()) {
-                        groupImpl.doDelete(newState);
-                        return;
-                    }
-                    break;
-                case DELETING:
-                    groupImpl.doDelete(state);
-                    return;
-            }
-        }
+        groupImpl.deleteState();
+        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                        .thenCompose(b -> controller.deleteStream(scope,
+                                getStreamForReaderGroup(groupName)))
+                        .exceptionally(e -> {
+                            if (e instanceof InvalidStreamException) {
+                                return null;
+                            } else {
+                                log.warn("Failed to delete stream", e);
+                            }
+                            throw Exceptions.sneakyThrow(e);
+                        }),
+                RuntimeException::new);
     }
 
     @Override

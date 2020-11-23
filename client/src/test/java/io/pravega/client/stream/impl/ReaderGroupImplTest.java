@@ -52,7 +52,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -309,8 +308,6 @@ public class ReaderGroupImplTest {
         when(synchronizer.getSegmentId()).thenReturn(Long.valueOf(0));
         when(controller.deleteSubscriber(SCOPE, "s1", GROUP_NAME + 0, 0)).thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteSubscriber(SCOPE, "s2", GROUP_NAME + 0, 0)).thenReturn(CompletableFuture.completedFuture(true));
-        when(controller.sealStream(SCOPE, getStreamForReaderGroup(GROUP_NAME))).thenReturn(CompletableFuture.completedFuture(true));
-        when(controller.deleteStream(SCOPE, getStreamForReaderGroup(GROUP_NAME))).thenReturn(CompletableFuture.completedFuture(true));
         ReaderGroupConfig firstConfig = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())

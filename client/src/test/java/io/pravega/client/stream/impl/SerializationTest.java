@@ -38,6 +38,9 @@ import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail.UpdateDistanceToTailSerializer;
+import io.pravega.client.stream.impl.ReaderGroupState.ChangeConfigState;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateResetStart;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateResetComplete;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -48,6 +51,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -281,6 +285,8 @@ public class SerializationTest {
                          .keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet()));
         assertEquals(init.getEndSegments(), oldFormat.getEndSegments());
         assertEquals(init.getConfig(), oldFormat.getConfig());
+
+        verify(initSerializer, new ReaderGroupStateResetComplete(config, createSegmentRangeMap(), createSegmentToLongMap()));
     }
     
     @Test
@@ -296,6 +302,8 @@ public class SerializationTest {
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
+        verify(serializer, new ChangeConfigState(createConfigState(), r.nextLong()));
+        verify(serializer, new ReaderGroupStateResetStart(createConfig(), r.nextLong()));
     }
     
     @Test
@@ -383,6 +391,20 @@ public class SerializationTest {
 
     private String createString() {
         return RandomStringUtils.randomAlphabetic(5);
+    }
+
+    private ReaderGroupState.ConfigState createConfigState() {
+        List<ReaderGroupState.ConfigState> values = Arrays.asList(ReaderGroupState.ConfigState.values());
+        int size = values.size();
+        return values.get(r.nextInt(size));
+    }
+
+    private ReaderGroupConfig createConfig() {
+        return ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .groupRefreshTimeMillis(r.nextInt(1000))
+                .stream(createSegment().getStream())
+                .build();
     }
 }
 
