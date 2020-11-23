@@ -61,6 +61,11 @@ public class AuthorizationResourceImpl implements AuthorizationResource {
     }
 
     @Override
+    public String ofKeyValueTablesInScope(String scopeName) {
+        return ofScope(scopeName);
+    }
+
+    @Override
     public String ofKeyValueTableInScope(String scopeName, String keyValueTableName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(keyValueTableName, "keyValueTableName");

@@ -70,6 +70,11 @@ public class AuthorizationResourceImplTest {
     }
 
     @Test
+    public void testOfAKvtablesInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofKeyValueTablesInScope("testScopeName"));
+    }
+
+    @Test
     public void testOfAKvtableInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("prn::/scope:testScopeName/key-value-table:kvtName",
                 objectUnderTest.ofKeyValueTableInScope("testScopeName", "kvtName"));
