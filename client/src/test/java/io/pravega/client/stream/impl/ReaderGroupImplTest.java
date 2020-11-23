@@ -305,7 +305,7 @@ public class ReaderGroupImplTest {
         ReaderGroupState state = mock(ReaderGroupState.class);
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
-                .retentionConfig(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_USER_STREAMCUT).build();
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
                 .thenReturn(CompletableFuture.completedFuture(true));
@@ -322,7 +322,7 @@ public class ReaderGroupImplTest {
         ReaderGroupState state = mock(ReaderGroupState.class);
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
-                .retentionConfig(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_AT_LAST_CHECKPOINT).build();
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT).build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));

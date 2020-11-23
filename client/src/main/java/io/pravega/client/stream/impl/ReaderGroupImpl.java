@@ -103,15 +103,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
-        if (synchronizer.getState().getConfig().getRetentionConfig()
-                .equals(ReaderGroupConfig.StreamDataRetention.CONSUMPTION_BASED_USER_STREAMCUT)) {
+        if (synchronizer.getState().getConfig().getRetentionType()
+                .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
             streamCuts.forEach((stream, cut) ->
                     getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, cut)));
 
             return;
         }
        throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
-               synchronizer.getState().getConfig().getRetentionConfig().toString());
+               synchronizer.getState().getConfig().getRetentionType().toString());
     }
 
     @Override
