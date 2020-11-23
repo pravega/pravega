@@ -9,11 +9,9 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
@@ -36,9 +34,8 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -63,11 +60,10 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         int operationCountPerType = 5;
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
-        SequencedItemList<Operation> opLog = new SequencedItemList<>();
+        InMemoryLog opLog = new InMemoryLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex, flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -76,16 +72,15 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of items added to ReadIndex.",
                 operations.size() - segmentCount * operationCountPerType, addCount);
         Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1, triggerFutureCount);
-        Assert.assertEquals("Unexpected number of calls to the flushCallback provided in the constructor.", 1, flushCallbackCallCount.get());
 
         // Verify add calls.
-        Iterator<Operation> logIterator = opLog.read(-1, operations.size());
+        Queue<Operation> logIterator = opLog.poll(operations.size());
         int currentIndex = -1;
         int currentReadIndex = -1;
-        while (logIterator.hasNext()) {
+        while (!logIterator.isEmpty()) {
             currentIndex++;
             Operation expected = operations.get(currentIndex);
-            Operation actual = logIterator.next();
+            Operation actual = logIterator.poll();
             if (expected instanceof StorageOperation) {
                 currentReadIndex++;
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
@@ -140,8 +135,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         val opLog = new OperationLogTestBase.CorruptedMemoryOperationLog(corruptAtIndex);
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex, flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
         AssertExtensions.assertThrows(
                 "Expected a DataCorruptionException",
@@ -152,11 +146,11 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         int triggerFutureCount = (int) methodInvocations.stream().filter(mi -> mi.methodName.equals(TestReadIndex.TRIGGER_FUTURE_READS)).count();
         Assert.assertEquals("Not expecting any trigger-future-read invocations.", 0, triggerFutureCount);
 
-        Iterator<Operation> logIterator = opLog.read(-1, corruptAtIndex * 2);
+        Queue<Operation> logIterator = opLog.poll(corruptAtIndex * 2);
         int addCount = 0;
-        while (logIterator.hasNext()) {
+        while (!logIterator.isEmpty()) {
             addCount++;
-            logIterator.next();
+            logIterator.poll();
         }
 
         Assert.assertEquals("Unexpected number of operations added to the log.", corruptAtIndex - 1, addCount);
@@ -171,10 +165,10 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
     @Test
     public void testRecoveryMode() throws Exception {
         // Check it's properly delegated to Read index.
-        SequencedItemList<Operation> opLog = new SequencedItemList<>();
+        InMemoryLog opLog = new InMemoryLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex, Runnables.doNothing());
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
         UpdateableContainerMetadata metadata1 = new MetadataBuilder(1).build();
         updater.enterRecoveryMode(metadata1);
