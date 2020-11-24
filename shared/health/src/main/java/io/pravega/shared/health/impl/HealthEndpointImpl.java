@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health.impl;
 
+import io.pravega.shared.health.ContributorNotFoundException;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Details;
 import io.pravega.shared.health.Health;
@@ -17,7 +18,6 @@ import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collection;
 import java.util.Optional;
 
 @Slf4j
@@ -30,32 +30,31 @@ public class HealthEndpointImpl implements HealthEndpoint {
     }
 
     @Override
-    public Health health(String name, boolean includeDetails) {
-        Optional<HealthContributor> result = name == null ? registry.get() : registry.get(name);
+    public Health health(String name, boolean includeDetails) throws ContributorNotFoundException {
+        Optional<HealthContributor> result = registry.get();
         if (result.isEmpty()) {
-            log.error("No HealthComponent with name: {} found in the registry.", name);
-            return null;
+            throw new ContributorNotFoundException();
         }
         return result.get().health(includeDetails);
     }
 
     @Override
-    public Status status(String id) {
+    public Status status(String id) throws ContributorNotFoundException {
         return health(id).getStatus();
     }
 
     @Override
-    public boolean readiness(String id) {
+    public boolean readiness(String id) throws ContributorNotFoundException {
         return health(id).isReady();
     }
 
     @Override
-    public boolean liveness(String id) {
+    public boolean liveness(String id) throws ContributorNotFoundException {
         return health(id).isAlive();
     }
 
     @Override
-    public Collection<Details.Result> details(String id) {
+    public Details details(String id) throws ContributorNotFoundException {
         return health(id, true).getDetails();
     }
 

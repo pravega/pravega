@@ -27,6 +27,9 @@ public class StatusAggregationRule {
      * @return A {@link Status} object describing the aggregate status.
      */
     public static Status majority(Collection<Status> statuses) {
+        if (statuses.isEmpty()) {
+            return Status.UNKNOWN;
+        }
         if (statuses.stream().filter(Status::alive).count() > Math.floor(statuses.size() / 2.0)) {
             return Status.UP;
         }
@@ -40,6 +43,9 @@ public class StatusAggregationRule {
      * @return A {@link Status} object describing the aggregate status.
      */
     public static Status unanimous(Collection<Status> statuses) {
+        if (statuses.isEmpty()) {
+            return Status.UNKNOWN;
+        }
         if (statuses.stream().allMatch(Status::alive)) {
             return Status.UP;
         }
@@ -53,6 +59,9 @@ public class StatusAggregationRule {
      * @return A {@link Status} object describing the aggregate status.
      */
     public static Status any(Collection<Status> statuses) {
+        if (statuses.isEmpty()) {
+            return Status.UNKNOWN;
+        }
         if (statuses.stream().anyMatch(Status::alive)) {
             return Status.UP;
         }

@@ -53,6 +53,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     }
 
     public Health health(boolean includeDetails) {
+        Health.HealthBuilder builder = Health.builder().name(getName());
         // Fetch the Health Status of all dependencies.
         val children =  contributors().stream()
                 .filter(contributor -> contributor != null)
@@ -69,8 +70,17 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
                 .stream()
                 .map(contributor -> contributor.getStatus())
                 .collect(Collectors.toList()));
-
-        return Health.builder().status(status).children(includeDetails ? children : null).build();
+        builder.status(status);
+        // Even if includeDetails if false, iterating over the dependencies is necessary for Status aggregation.
+        if (includeDetails) {
+            builder.children(children);
+        } else {
+            // Creates a Health object with the minimal set of information (just the Name and Status).
+            builder.children(children.stream()
+                    .map(child -> Health.builder().name(child.getName()).status(child.getStatus()).build())
+                    .collect(Collectors.toList()));
+        }
+        return builder.build();
     }
 
     public Collection<HealthContributor> contributors() {

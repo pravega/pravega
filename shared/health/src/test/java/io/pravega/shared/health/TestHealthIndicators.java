@@ -17,17 +17,17 @@ public class TestHealthIndicators {
         public static final String DETAILS_VAL = "sample-indicator-details-value";
 
         public SampleHealthyIndicator() {
-            super("sample-healthy-indicator");
+            super("sample-healthy-indicator", new DetailsProvider().add(DETAILS_KEY, () -> DETAILS_VAL));
         }
 
         public SampleHealthyIndicator(String name) {
-            super(name);
+            super(name, new DetailsProvider().add(DETAILS_KEY, () -> DETAILS_VAL));
         }
 
         public void doHealthCheck(Health.HealthBuilder builder) {
-            details.add(DETAILS_KEY, () -> DETAILS_VAL);
             builder.status(Status.UP);
             builder.alive(true);
+            builder.ready(true);
         }
     }
 
@@ -44,6 +44,7 @@ public class TestHealthIndicators {
         public void doHealthCheck(Health.HealthBuilder builder) {
             builder.status(Status.DOWN);
             builder.alive(false);
+            builder.ready(false);
         }
     }
 

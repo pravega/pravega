@@ -47,9 +47,9 @@ public interface HealthContributor {
 
     /**
      * Logically equivalent to the above, but instead of just returning an encapsulated {@link Health} object,
-     * we also include the {@link Details} associated with the request.
+     * we also include the {@link DetailsProvider} associated with the request.
      *
-     * @param details Flag to control inclusion of {@link Details}.
+     * @param details Flag to control inclusion of {@link DetailsProvider}.
      * @return The {@link Health} object produced by this {@link HealthContributor}.
      */
     Health health(boolean details);

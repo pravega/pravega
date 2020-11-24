@@ -76,12 +76,15 @@ public class HealthServiceTests {
     public void health() throws IOException {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
+        try {
+            Health health = service.endpoint().health(indicator.getName());
+            Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
 
-        Health health = service.endpoint().health(indicator.getName());
-        Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
-
-        health = service.endpoint().health(true);
-        Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
+            health = service.endpoint().health(true);
+            Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
+        } catch (ContributorNotFoundException e) {
+            Assert.fail("HealthContributor not found.");
+        }
     }
 
     @Test
@@ -107,14 +110,13 @@ public class HealthServiceTests {
         Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
 
         Health sample = health.getChildren().stream().findFirst().get();
-        Assert.assertTrue("There should be one details entry provided by the SimpleIndicator.",
-                sample.getDetails().size() == 1);
+        Assert.assertEquals("There should be one details entry provided by the SimpleIndicator.", 1, sample.getDetails().size());
         Assert.assertEquals(String.format("Key should equal \"%s\"", SampleHealthyIndicator.DETAILS_KEY),
-                sample.getDetails().stream().findFirst().get().getKey(),
-                SampleHealthyIndicator.DETAILS_KEY);
+                SampleHealthyIndicator.DETAILS_KEY,
+                sample.getDetails().keySet().stream().findFirst().get());
         Assert.assertEquals(String.format("Value should equal \"%s\"", SampleHealthyIndicator.DETAILS_VAL),
-                sample.getDetails().stream().findFirst().get().getValue(),
-                SampleHealthyIndicator.DETAILS_VAL);
+                SampleHealthyIndicator.DETAILS_VAL,
+                sample.getDetails().entrySet().stream().findFirst().get().getValue());
     }
 
     @Test

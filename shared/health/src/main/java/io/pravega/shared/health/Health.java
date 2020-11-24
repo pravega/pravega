@@ -16,7 +16,6 @@ import lombok.Getter;
 
 import java.util.Collection;
 import java.util.Collections;
-
 /**
  * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
@@ -35,15 +34,19 @@ public class Health {
     @Builder.Default
     private Status status = Status.UNKNOWN;
 
-    @Builder.Default
-    private Boolean ready = false;
+    /**
+     * {@link Health#ready} and {@link Health#alive} should not (for the moment) take a default value, as the distinction
+     * between unset and false (not ready/alive) is important.
+     */
+    @Getter
+    private Boolean ready;
 
-    @Builder.Default
-    private Boolean alive = false;
+    @Getter
+    private Boolean alive;
 
     @Getter
     @Builder.Default
-    private Collection<Details.Result> details = Collections.emptyList();
+    private Details details = new Details();
 
     /**
      * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.

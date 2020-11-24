@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 public interface ContributorRegistry extends Registry<HealthContributor> {
 
-    static final String DEFAULT_CONTRIBUTOR_NAME = "ROOT";
+    static final String DEFAULT_CONTRIBUTOR_NAME = "health-service";
 
     Optional<HealthContributor> get();
 

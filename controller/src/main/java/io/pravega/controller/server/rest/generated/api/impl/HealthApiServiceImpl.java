@@ -1,28 +1,25 @@
 package io.pravega.controller.server.rest.generated.api.impl;
 
 import io.pravega.controller.server.rest.generated.api.*;
+import io.pravega.controller.server.rest.generated.model.*;
 
+import io.pravega.controller.server.rest.generated.model.HealthDependencies;
+import io.pravega.controller.server.rest.generated.model.HealthDetails;
+import io.pravega.controller.server.rest.generated.model.HealthResult;
+import io.pravega.controller.server.rest.generated.model.HealthStatus;
+
+import java.util.List;
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
+
+import java.io.InputStream;
+
+import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
+import javax.validation.constraints.*;
 
 public class HealthApiServiceImpl extends HealthApiService {
-    @Override
-    public Response getContributorHealth(String id, SecurityContext securityContext) throws NotFoundException {
-        // do some magic!
-        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
-    }
-    @Override
-    public Response getContributorLiveness(String id, SecurityContext securityContext) throws NotFoundException {
-        // do some magic!
-        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
-    }
-    @Override
-    public Response getDependencies(SecurityContext securityContext) throws NotFoundException {
-        // do some magic!
-        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
-    }
     @Override
     public Response getContributorDependencies(String id, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
@@ -30,6 +27,16 @@ public class HealthApiServiceImpl extends HealthApiService {
     }
     @Override
     public Response getContributorDetails(String id, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response getContributorHealth(String id,  Boolean details, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response getContributorLiveness(String id, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
@@ -44,12 +51,17 @@ public class HealthApiServiceImpl extends HealthApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
+    public Response getDependencies(SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
     public Response getDetails(SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
-    public Response getHealth( Boolean details, SecurityContext securityContext) throws NotFoundException {
+    public Response getHealth( String details, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }

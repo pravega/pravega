@@ -10,14 +10,17 @@
 package io.pravega.controller.server.rest.resources;
 
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
+import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
-import io.pravega.controller.server.rest.generated.model.Status;
+import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.security.auth.RESTAuthHelper;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.health.ContributorNotFoundException;
+import io.pravega.shared.health.Details;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.Status;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.container.AsyncResponse;
@@ -28,7 +31,7 @@ import io.pravega.shared.health.HealthProvider;
 
 import io.pravega.common.LoggerHelpers;
 
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class HealthImpl implements ApiV1.HealthApi {
@@ -41,29 +44,30 @@ public class HealthImpl implements ApiV1.HealthApi {
         this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
     }
 
+    // Note: If 'Boolean details' is a null value, the request will fail -- circle back to Controller.yaml.
     @Override
     public void getContributorHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
-        getHealth(id, details, securityContext, asyncResponse, "getContributorHealth");
+        getHealth(id, details == null ? false : details, securityContext, asyncResponse, "getContributorHealth");
     }
 
     @Override
     public void getHealth(Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
-        getHealth(null, details, securityContext, asyncResponse, "getHealth");
+        getHealth(null, details == null ? false : details, securityContext, asyncResponse, "getHealth");
     }
 
     private void getHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id != null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            Health health = service.endpoint().health(id, details);
+            Response response = Response.status(Response.Status.OK)
+                    .entity(adapter(health))
+                    .build();
+            asyncResponse.resume(response);
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK)
-                .entity(contributor.get().health(details))
-                .build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
@@ -78,16 +82,17 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id != null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            Status status = service.endpoint().status(id);
+            asyncResponse.resume(Response.status(Response.Status.OK)
+                    .entity(adapter(status))
+                    .build());
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK).entity(contributor.get().health().isAlive()).build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
@@ -102,18 +107,17 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     private void getDependencies(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id == null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            Health health = service.endpoint().health(id);
+            asyncResponse.resume(Response.status(Response.Status.OK)
+                    .entity(adapter(health).getChildren())
+                    .build());
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK)
-                .entity(contributor.get().contributors().stream().map(item -> item.getName()))
-                .build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
@@ -128,18 +132,17 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id != null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            Details details = service.endpoint().details(id);
+            asyncResponse.resume(Response.status(Response.Status.OK)
+                    .entity(adapter(details))
+                    .build());
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK)
-                .entity(contributor.get().health().getDetails())
-                .build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
@@ -154,18 +157,17 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id != null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            boolean ready = service.endpoint().readiness(id);
+            asyncResponse.resume(Response.status(Response.Status.OK)
+                    .entity(ready)
+                    .build());
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK)
-                .entity(contributor.get().health().isReady())
-                .build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
@@ -180,32 +182,41 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
-        Optional<HealthContributor> contributor = id != null ? service.registry().get(id) : service.registry().get();
         long traceId = LoggerHelpers.traceEnter(log, method);
-        if (contributor.isEmpty()) {
+        try {
+            Status status = service.endpoint().status(id);
+            asyncResponse.resume(Response.status(Response.Status.OK)
+                    .entity(adapter(status))
+                    .build());
+        } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
-            return;
         }
-
-        asyncResponse.resume(Response.status(Response.Status.OK)
-                .entity(contributor.get().health().getStatus())
-                .build());
-        LoggerHelpers.traceLeave(log, method, traceId);
         return;
     }
 
-    private HealthResult castHealth(Health health) {
-        return new HealthResult()
-                .status(Status.fromValue(health.getStatus().toString()))
-                .liveness(health.isAlive())
-                .readiness(health.isReady())
-                .details(health.getDetails())
-                .children(health.getChildren());
-
-
+    // The follow methods provide a means to cast the HealthService framework models, to the generated models.
+    private static HealthResult adapter(Health health) {
+            return new HealthResult()
+                    .name(health.getName())
+                    .status(adapter(health.getStatus()))
+                    .liveness(health.isAlive())
+                    .readiness(health.isReady())
+                    .details(adapter(health.getDetails()))
+                    .children(health.getChildren().stream()
+                            .map(entry -> adapter(entry))
+                            .collect(Collectors.toList()));
     }
 
-    private
+    private static HealthDetails adapter(Details details) {
+        HealthDetails result = new HealthDetails();
+        result.putAll(details);
+        return result;
+    }
+
+    private static HealthStatus adapter(Status status) {
+        return HealthStatus.fromValue(status.name());
+    }
 
 }

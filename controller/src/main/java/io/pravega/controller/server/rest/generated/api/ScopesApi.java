@@ -87,7 +87,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 202, message = "Successfully created the stream with the given configuration", response = StreamProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope not found", response = StreamProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 410, message = "Stream with given name already exists", response = StreamProperty.class),
         
@@ -106,7 +106,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 205, message = "Successfully deleted the scope", response = void.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope not found", response = void.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
         
         @io.swagger.annotations.ApiResponse(code = 413, message = "Cannot delete scope since it has non-empty list of streams", response = void.class),
         
@@ -124,7 +124,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 205, message = "Successfully deleted the stream", response = void.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Stream not found", response = void.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Stream not found", response = void.class),
         
         @io.swagger.annotations.ApiResponse(code = 413, message = "Cannot delete stream since it is not sealed", response = void.class),
         
@@ -143,7 +143,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Found reader group properties", response = ReaderGroupProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope or reader group with given name not found", response = ReaderGroupProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or reader group with given name not found", response = ReaderGroupProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching reader group details", response = ReaderGroupProperty.class) })
     public Response getReaderGroup(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -160,7 +160,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully fetched list of scaling events.", response = ScalingEventList.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope/Stream not found.", response = ScalingEventList.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope/Stream not found.", response = ScalingEventList.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal Server error while fetching scaling events.", response = ScalingEventList.class) })
     public Response getScalingEvents(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -179,7 +179,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully retrieved the scope details", response = ScopeProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope with the given name not found", response = ScopeProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope with the given name not found", response = ScopeProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching scope details", response = ScopeProperty.class) })
     public Response getScope(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -195,7 +195,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Found stream properties", response = StreamProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope or stream with given name not found", response = StreamProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream with given name not found", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching stream details", response = StreamProperty.class) })
     public Response getStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -212,7 +212,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "List of all reader groups configured for the given scope", response = ReaderGroupsList.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope not found", response = ReaderGroupsList.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = ReaderGroupsList.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the list of reader groups for the given scope", response = ReaderGroupsList.class) })
     public Response listReaderGroups(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -241,7 +241,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "List of all streams configured for the given scope", response = StreamsList.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope not found", response = StreamsList.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = StreamsList.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the list of streams for the given scope", response = StreamsList.class) })
     public Response listStreams(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -258,7 +258,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully updated the stream configuration", response = StreamProperty.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope or stream with given name not found", response = StreamProperty.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream with given name not found", response = StreamProperty.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while updating the stream", response = StreamProperty.class) })
     public Response updateStream(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
@@ -276,7 +276,7 @@ public class ScopesApi  {
     @io.swagger.annotations.ApiResponses(value = { 
         @io.swagger.annotations.ApiResponse(code = 201, message = "Successfully updated the stream state", response = StreamState.class),
         
-        @io.swagger.annotations.ApiResponse(code = 405, message = "Scope or stream with given name not found", response = StreamState.class),
+        @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream with given name not found", response = StreamState.class),
         
         @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while updating the stream state", response = StreamState.class) })
     public Response updateStreamState(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName

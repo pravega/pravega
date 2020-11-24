@@ -14,8 +14,7 @@
 package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import javax.validation.constraints.*;
 
@@ -23,7 +22,7 @@ import javax.validation.constraints.*;
  * HealthDetails
  */
 
-public class HealthDetails extends ArrayList<Map>  {
+public class HealthDetails extends HashMap<String, String>  {
 
   @Override
   public boolean equals(java.lang.Object o) {

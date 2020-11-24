@@ -19,11 +19,11 @@ public class InlineHealthIndicator extends HealthIndicator {
     private final Function<Health.HealthBuilder, Void> doHealthCheck;
 
     InlineHealthIndicator(String name, Function<Health.HealthBuilder, Void> doHealthCheck) {
-        this(name, doHealthCheck, new Details());
+        this(name, doHealthCheck, new DetailsProvider());
     }
 
-    InlineHealthIndicator(String name, Function<Health.HealthBuilder, Void> doHealthCheck, Details details) {
-        super(name, details);
+    InlineHealthIndicator(String name, Function<Health.HealthBuilder, Void> doHealthCheck, DetailsProvider provider) {
+        super(name, provider);
         this.doHealthCheck = doHealthCheck;
     }
 
@@ -37,7 +37,7 @@ public class InlineHealthIndicator extends HealthIndicator {
             builder.status(Status.DOWN);
         }
         if (includeDetails) {
-            builder.details(this.getDetails());
+            builder.details(provider.fetch());
         }
         return builder.name(getName()).build();
     }

@@ -15,15 +15,26 @@ package io.pravega.controller.server.rest.generated.model;
 
 import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import io.pravega.controller.server.rest.generated.model.HealthDetails;
+import io.pravega.controller.server.rest.generated.model.HealthResult;
+import io.pravega.controller.server.rest.generated.model.HealthStatus;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
+import java.util.ArrayList;
+import java.util.List;
+import javax.validation.constraints.*;
 
 /**
- * Health
+ * HealthResult
  */
 
-public class HealthResult {
+public class HealthResult   {
+  @JsonProperty("name")
+  private String name = null;
+
   @JsonProperty("status")
-  private Status status = null;
+  private HealthStatus status = null;
 
   @JsonProperty("readiness")
   private Boolean readiness = null;
@@ -35,9 +46,28 @@ public class HealthResult {
   private HealthDetails details = null;
 
   @JsonProperty("children")
-  private HealthDependencies children = null;
+  private List<HealthResult> children = null;
 
-  public HealthResult status(Status status) {
+  public HealthResult name(String name) {
+    this.name = name;
+    return this;
+  }
+
+  /**
+   * Get name
+   * @return name
+   **/
+  @JsonProperty("name")
+  @ApiModelProperty(value = "")
+  public String getName() {
+    return name;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+  }
+
+  public HealthResult status(HealthStatus status) {
     this.status = status;
     return this;
   }
@@ -48,11 +78,11 @@ public class HealthResult {
    **/
   @JsonProperty("status")
   @ApiModelProperty(value = "")
-  public Status getStatus() {
+  public HealthStatus getStatus() {
     return status;
   }
 
-  public void setStatus(Status status) {
+  public void setStatus(HealthStatus status) {
     this.status = status;
   }
 
@@ -113,8 +143,16 @@ public class HealthResult {
     this.details = details;
   }
 
-  public HealthResult children(HealthDependencies children) {
+  public HealthResult children(List<HealthResult> children) {
     this.children = children;
+    return this;
+  }
+
+  public HealthResult addChildrenItem(HealthResult childrenItem) {
+    if (this.children == null) {
+      this.children = new ArrayList<HealthResult>();
+    }
+    this.children.add(childrenItem);
     return this;
   }
 
@@ -124,11 +162,11 @@ public class HealthResult {
    **/
   @JsonProperty("children")
   @ApiModelProperty(value = "")
-  public HealthDependencies getChildren() {
+  public List<HealthResult> getChildren() {
     return children;
   }
 
-  public void setChildren(HealthDependencies children) {
+  public void setChildren(List<HealthResult> children) {
     this.children = children;
   }
 
@@ -142,7 +180,8 @@ public class HealthResult {
       return false;
     }
     HealthResult healthResult = (HealthResult) o;
-    return Objects.equals(this.status, healthResult.status) &&
+    return Objects.equals(this.name, healthResult.name) &&
+        Objects.equals(this.status, healthResult.status) &&
         Objects.equals(this.readiness, healthResult.readiness) &&
         Objects.equals(this.liveness, healthResult.liveness) &&
         Objects.equals(this.details, healthResult.details) &&
@@ -151,15 +190,16 @@ public class HealthResult {
 
   @Override
   public int hashCode() {
-    return Objects.hash(status, readiness, liveness, details, children);
+    return Objects.hash(name, status, readiness, liveness, details, children);
   }
 
 
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class Health {\n");
+    sb.append("class HealthResult {\n");
     
+    sb.append("    name: ").append(toIndentedString(name)).append("\n");
     sb.append("    status: ").append(toIndentedString(status)).append("\n");
     sb.append("    readiness: ").append(toIndentedString(readiness)).append("\n");
     sb.append("    liveness: ").append(toIndentedString(liveness)).append("\n");
