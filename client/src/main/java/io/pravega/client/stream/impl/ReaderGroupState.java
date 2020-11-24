@@ -569,8 +569,14 @@ public class ReaderGroupState implements Revisioned {
             private void read02(RevisionDataInput revisionDataInput,
                                 CompactReaderGroupStateBuilder builder) throws IOException {
                 builder.generation(revisionDataInput.readLong());
-                int ordinal = revisionDataInput.readCompactInt();
-                builder.configState(ConfigState.values()[ordinal]);
+                if (revisionDataInput.getBaseStream().available() != 0) {
+                    int ordinal = revisionDataInput.readCompactInt();
+                    builder.configState(ConfigState.values()[ordinal]);
+                } else {
+                    builder.configState(ConfigState.READY);
+                    builder.newConfig(null);
+                    return;
+                }
                 if (revisionDataInput.getBaseStream().available() != 0) {
                     builder.newConfig(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 } else {

@@ -109,7 +109,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
         long segment = synchronizer.getSegmentId();
         val state = getState();
-        if (getState().getConfigState() != ReaderGroupState.ConfigState.READY) {
+        if (state.getConfigState() != ReaderGroupState.ConfigState.READY) {
             throw new IllegalStateException("Update failed as ReaderGroup not in READY state. Retry again later.");
         }
         if (state.getConfig().getRetentionType()
@@ -121,7 +121,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             return;
         }
        throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
-               synchronizer.getState().getConfig().getRetentionType().toString());
+               state.getConfig().getRetentionType().toString());
     }
 
     @Override
