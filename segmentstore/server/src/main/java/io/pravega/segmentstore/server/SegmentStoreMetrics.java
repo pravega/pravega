@@ -227,7 +227,7 @@ public final class SegmentStoreMetrics {
             this.memoryCommitLatency.reportSuccessEvent(elapsed);
         }
 
-        public void operationLogTruncate(int count) {
+        public void operationLogRead(int count) {
             this.operationLogSize.add(-count);
         }
 

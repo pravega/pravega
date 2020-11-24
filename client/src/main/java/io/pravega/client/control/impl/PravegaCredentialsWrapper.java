@@ -10,7 +10,7 @@
 package io.pravega.client.control.impl;
 
 import io.pravega.auth.AuthConstants;
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;

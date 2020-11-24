@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.security.auth;
 
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
