@@ -160,7 +160,7 @@ public class StreamConfigurationRecord {
                     retentionPolicyRecordBuilder.retentionPolicy(
                             RetentionPolicy.builder().retentionType(
                                     RetentionPolicy.RetentionType.values()[revisionDataInput.readCompactInt()])
-                                           .retentionParam(revisionDataInput.readLong()).build());
+                                           .retentionMin(revisionDataInput.readLong()).build());
                 } else {
                     retentionPolicyRecordBuilder.retentionPolicy(null);
                 }
@@ -169,18 +169,11 @@ public class StreamConfigurationRecord {
             private void read01(RevisionDataInput revisionDataInput, 
                                 StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
                     throws IOException {
-                if (retentionPolicyRecordBuilder.retentionPolicy != null &&
-                        retentionPolicyRecordBuilder.retentionPolicy.getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
+                if (retentionPolicyRecordBuilder.retentionPolicy != null ) {
                     RetentionPolicy.RetentionPolicyBuilder builder = RetentionPolicy.builder()
                             .retentionType(retentionPolicyRecordBuilder.retentionPolicy.getRetentionType())
-                                           .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam());
-                    // read consumption limits
-                    RetentionPolicy.ConsumptionLimits limits = RetentionPolicy.ConsumptionLimits.builder()
-                                                                                                .type(RetentionPolicy.ConsumptionLimits.Type.values()[revisionDataInput.readCompactInt()])
-                                                                                                .minValue(revisionDataInput.readLong())
-                                                                                                .maxValue(revisionDataInput.readLong())
-                                                                                                .build();
-                    builder.consumptionLimits(limits);
+                                           .retentionMin(retentionPolicyRecordBuilder.retentionPolicy.getRetentionMin())
+                                           .retentionMax(retentionPolicyRecordBuilder.retentionPolicy.getRetentionMax());
                     retentionPolicyRecordBuilder.retentionPolicy(builder.build());
                 }
             }
@@ -193,18 +186,15 @@ public class StreamConfigurationRecord {
                     revisionDataOutput.writeBoolean(true);
                     RetentionPolicy retentionPolicy = retentionPolicyRecord.getRetentionPolicy();
                     revisionDataOutput.writeCompactInt(retentionPolicy.getRetentionType().ordinal());
-                    revisionDataOutput.writeLong(retentionPolicy.getRetentionParam());
+                    revisionDataOutput.writeLong(retentionPolicy.getRetentionMin());
                 }
             }
 
             private void write01(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
                     throws IOException {
-                if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null &&
-                        retentionPolicyRecord.getRetentionPolicy().getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
-                    RetentionPolicy.ConsumptionLimits consumptionLimits = retentionPolicyRecord.getRetentionPolicy().getConsumptionLimits();
-                    revisionDataOutput.writeCompactInt(consumptionLimits.getType().ordinal());
-                    revisionDataOutput.writeLong(consumptionLimits.getMinValue());
-                    revisionDataOutput.writeLong(consumptionLimits.getMaxValue());
+                if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null) {
+                    revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionMin());
+                    revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionMax());
                 }
             }
 

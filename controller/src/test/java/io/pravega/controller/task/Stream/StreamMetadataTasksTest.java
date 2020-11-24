@@ -600,7 +600,7 @@ public abstract class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
-                .retentionParam(Duration.ofMinutes(60).toMillis())
+                .retentionMin(Duration.ofMinutes(60).toMillis())
                 .build();
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -688,7 +688,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(0L, 20L);
         map4.put(1L, 20L);
-        long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionParam() + 2;
+        long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionMin() + 2;
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, ImmutableMap.copyOf(map4));
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
@@ -717,7 +717,7 @@ public abstract class StreamMetadataTasksTest {
     public void sizeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
-                .retentionType(RetentionPolicy.RetentionType.SIZE).retentionParam(100L).build();
+                .retentionType(RetentionPolicy.RetentionType.SIZE).retentionMin(100L).build();
 
         String streamName = "test";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1038,7 +1038,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionSizeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 2L, 10L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(2L, 10L);
 
         String stream1 = "consumptionSize";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1173,7 +1173,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionTimeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 1L, 10L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(1L), Duration.ofMillis(10L));
 
         String stream1 = "consumptionTime";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1315,7 +1315,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(3);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, 1000L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
 
         String stream1 = "consumptionSize";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1388,7 +1388,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale2() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, 1000L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
 
         String stream1 = "consumptionSize2";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1478,7 +1478,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoBounds() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 0L, Long.MAX_VALUE);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(0L), Duration.ofMillis(Long.MAX_VALUE));
 
         String stream1 = "consumptionSize3";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1600,7 +1600,7 @@ public abstract class StreamMetadataTasksTest {
 
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
-                .retentionParam(Duration.ofMinutes(60).toMillis())
+                .retentionMin(Duration.ofMinutes(60).toMillis())
                 .build();
 
         final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy)

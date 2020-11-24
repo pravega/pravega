@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rest;
 
-import io.pravega.controller.server.rest.generated.model.ConsumptionLimits;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
@@ -61,14 +60,11 @@ public class ModelHelper {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
                     retentionPolicy = RetentionPolicy.bySizeBytes(
-                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                            createStreamRequest.getRetentionPolicy().getMinValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                            createStreamRequest.getRetentionPolicy().getValue());
-                    break;
-                case CONSUMPTION:
-                    retentionPolicy = getConsumptionRetentionPolicy(createStreamRequest.getRetentionPolicy().getConsumptionLimits());
+                            createStreamRequest.getRetentionPolicy().getMinValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
@@ -78,24 +74,6 @@ public class ModelHelper {
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
                 .build();
-    }
-
-    private static RetentionPolicy getConsumptionRetentionPolicy(ConsumptionLimits consumptionLimits) {
-        RetentionPolicy.ConsumptionLimits.Type type;
-        int multiplier;
-        switch (consumptionLimits.getType()) {
-            case SIZE_MB:
-                type = RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES;
-                multiplier = BYTES_TO_MB;
-                break;
-            case TIME_MINUTES:
-                type = RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS;
-                multiplier = MILLIS_TO_MINUTES;
-                break;
-            default:
-                throw new NotImplementedException("Consumption limit type not supported");
-        }
-        return RetentionPolicy.byConsumption(type, consumptionLimits.getMin() * multiplier, consumptionLimits.getMax() * multiplier);
     }
 
     /**
@@ -127,14 +105,11 @@ public class ModelHelper {
             switch (updateStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
                     retentionPolicy = RetentionPolicy.bySizeBytes(
-                            updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                            updateStreamRequest.getRetentionPolicy().getMinValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                                                        updateStreamRequest.getRetentionPolicy().getValue());
-                    break;
-                case CONSUMPTION:
-                    retentionPolicy = getConsumptionRetentionPolicy(updateStreamRequest.getRetentionPolicy().getConsumptionLimits());
+                                                                        updateStreamRequest.getRetentionPolicy().getMinValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
@@ -174,47 +149,26 @@ public class ModelHelper {
             switch (streamConfiguration.getRetentionPolicy().getRetentionType()) {
                 case SIZE:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
-                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getRetentionParam() / (1024 * 1024));
+                    retentionConfig.setMinValue(streamConfiguration.getRetentionPolicy().getRetentionMin() / (1024 * 1024));
                     break;
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
                     TimeBasedRetention timeRetention = new TimeBasedRetention();
-                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
-                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays();
+                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionMin();
+                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionMin()).toDays();
                     long daysInMs = Duration.ofDays(days).toMillis();
                     long hours = 0L, minutes = 0L;
                     if (totalMilliSecs == daysInMs) {
                         // retention is specified only in days
                         hours = 0L;
                         minutes = 0L;
-                        retentionConfig.setValue(days);
+                        retentionConfig.setMinValue(days);
                     } else {
                         hours = TimeUnit.MILLISECONDS.toHours(totalMilliSecs - daysInMs);
                         minutes = getMinsFromMillis(totalMilliSecs, daysInMs, hours);
-                        retentionConfig.setValue(0L);
+                        retentionConfig.setMinValue(0L);
                     }
                     retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
-                    break;
-                case CONSUMPTION:
-                    retentionConfig.setType(RetentionConfig.TypeEnum.CONSUMPTION);
-                    ConsumptionLimits consumptionLimits = new ConsumptionLimits();
-                    RetentionPolicy.ConsumptionLimits cl = streamConfiguration.getRetentionPolicy().getConsumptionLimits();
-                    int divider;
-                    switch (cl.getType()) {
-                        case SIZE_BYTES:
-                            consumptionLimits.setType(ConsumptionLimits.TypeEnum.SIZE_MB);
-                            divider = BYTES_TO_MB;
-                            break;
-                        case TIME_MILLIS:
-                            divider = MILLIS_TO_MINUTES;
-                            consumptionLimits.setType(ConsumptionLimits.TypeEnum.TIME_MINUTES);
-                            break;
-                        default:
-                            throw new NotImplementedException("Consumption limit type not supported");
-                    }
-                    consumptionLimits.setMax(cl.getMaxValue() / divider);
-                    consumptionLimits.setMin(cl.getMinValue() / divider);
-                    retentionConfig.consumptionLimits(consumptionLimits);
                     break;
                 default:
                     throw new NotImplementedException("consumption type not supported");

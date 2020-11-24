@@ -115,22 +115,14 @@ public class ModelHelperTest {
     public void encodeRetentionPolicy() {
         RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L)));
         assertEquals(RetentionPolicy.RetentionType.SIZE, policy1.getRetentionType());
-        assertEquals(1000L, (long) policy1.getRetentionParam());
+        assertEquals(1000L, (long) policy1.getRetentionMin());
 
         RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
         assertEquals(RetentionPolicy.RetentionType.TIME, policy2.getRetentionType());
-        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionParam());
+        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionMin());
 
         RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
         assertNull(policy3);
-
-        policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 10L, 100L)));
-        assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, policy1.getRetentionType());
-        assertEquals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, policy1.getConsumptionLimits().getType());
-        
-        policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 10L, 100L)));
-        assertEquals(RetentionPolicy.RetentionType.CONSUMPTION, policy1.getRetentionType());
-        assertEquals(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, policy1.getConsumptionLimits().getType());
     }
 
     @Test
@@ -187,7 +179,7 @@ public class ModelHelperTest {
         assertEquals(3, policy.getMinNumSegments());
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
-        assertEquals(1000L, (long) retentionPolicy.getRetentionParam());
+        assertEquals(1000L, (long) retentionPolicy.getRetentionMin());
     }
 
     @Test
