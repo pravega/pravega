@@ -146,7 +146,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 scope, kvt);
         log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofKeyValueTableInScope(scope, kvt), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofKeyValueTablesInScope(scope), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createKeyValueTable(scope, kvt,
                         ModelHelper.encode(request),
                         System.currentTimeMillis()),
