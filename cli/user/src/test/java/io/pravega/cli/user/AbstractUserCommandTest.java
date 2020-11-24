@@ -22,23 +22,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class AbstractUserCommandTest {
 
-    // Setup utility.
-    protected static final SecureSetupUtils SETUP_UTILS = new SecureSetupUtils();
-
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
-
+    // Setup utility.
+    protected final SecureSetupUtils setupUtils = new SecureSetupUtils();
     protected final AtomicReference<InteractiveConfig> config = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
-        SETUP_UTILS.startAllServices();
+        setupUtils.startAllServices();
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
-        interactiveConfig.setControllerUri(SETUP_UTILS.getControllerUri().toString().replace("tcp://", ""));
+        interactiveConfig.setControllerUri(setupUtils.getControllerUri().toString().replace("tcp://", ""));
         interactiveConfig.setDefaultSegmentCount(4);
         interactiveConfig.setMaxListItems(100);
         interactiveConfig.setTimeoutMillis(1000);
-        interactiveConfig.setAuthEnabled(SETUP_UTILS.isAuthEnabled());
+        interactiveConfig.setAuthEnabled(setupUtils.isAuthEnabled());
         interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(false);
@@ -48,7 +46,7 @@ public abstract class AbstractUserCommandTest {
 
     @After
     public void tearDown() throws Exception {
-        SETUP_UTILS.close();
+        setupUtils.close();
     }
 
 }

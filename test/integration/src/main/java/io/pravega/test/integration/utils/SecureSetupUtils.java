@@ -166,7 +166,7 @@ public final class SecureSetupUtils implements AutoCloseable {
         this.serviceBuilder.close();
         this.clientFactory.close();
         this.controller.close();
-        this.executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     /**

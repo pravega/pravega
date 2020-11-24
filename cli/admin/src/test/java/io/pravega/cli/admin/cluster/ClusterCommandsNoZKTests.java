@@ -19,7 +19,7 @@ public class ClusterCommandsNoZKTests extends AbstractAdminCommandTest {
     @Test
     public void testGetClusterNodesCommand() throws Exception {
         // Check that all the commands handle without throwing ZK being down.
-        SETUP_UTILS.close();
+        setupUtils.close();
         TestUtils.executeCommand("cluster list-instances", state.get());
         TestUtils.executeCommand("cluster get-host-by-container 0", state.get());
         TestUtils.executeCommand("cluster list-containers", state.get());

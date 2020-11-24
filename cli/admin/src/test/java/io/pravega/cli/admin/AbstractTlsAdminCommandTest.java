@@ -26,11 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class AbstractTlsAdminCommandTest {
 
-    // Security related flags and instantiate local pravega server.
-    private static final Integer CONTROLLER_PORT = TestUtils.getAvailableListenPort();
-    private static final Integer SEGMENT_STORE_PORT = TestUtils.getAvailableListenPort();
-    private static final Integer REST_SERVER_PORT = TestUtils.getAvailableListenPort();
-
     @Rule
     public final Timeout globalTimeout = new Timeout(80, TimeUnit.SECONDS);
 
@@ -39,17 +34,22 @@ public abstract class AbstractTlsAdminCommandTest {
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
 
+    // Security related flags and instantiate local pravega server.
+    private final Integer controllerPort = TestUtils.getAvailableListenPort();
+    private final Integer segmentStorePort = TestUtils.getAvailableListenPort();
+    private final Integer restServerPort = TestUtils.getAvailableListenPort();
+
     @Before
     public void setUp() throws Exception {
 
         // Create the secure pravega server to test commands against.
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
-                .controllerPort(CONTROLLER_PORT)
-                .segmentStorePort(SEGMENT_STORE_PORT)
+                .controllerPort(controllerPort)
+                .segmentStorePort(segmentStorePort)
                 .zkPort(TestUtils.getAvailableListenPort())
                 .restServerPort(TestUtils.getAvailableListenPort())
                 .enableRestServer(true)
-                .restServerPort(REST_SERVER_PORT)
+                .restServerPort(restServerPort)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled);
 
@@ -78,8 +78,8 @@ public abstract class AbstractTlsAdminCommandTest {
         // Set the CLI properties.
         state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("cli.controller.rest.uri", "localhost:" + REST_SERVER_PORT.toString());
-        pravegaProperties.setProperty("cli.controller.grpc.uri", "localhost:" + CONTROLLER_PORT.toString());
+        pravegaProperties.setProperty("cli.controller.rest.uri", "localhost:" + restServerPort.toString());
+        pravegaProperties.setProperty("cli.controller.grpc.uri", "localhost:" + controllerPort.toString());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", localPravega.getInProcPravegaCluster().getZkUrl());
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
         pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(authEnabled));

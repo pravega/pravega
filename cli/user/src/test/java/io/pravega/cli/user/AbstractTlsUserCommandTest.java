@@ -22,12 +22,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class AbstractTlsUserCommandTest {
-
-    // Security related flags and instantiate local pravega server.
-    private static final Integer CONTROLLER_PORT = TestUtils.getAvailableListenPort();
-    private static final Integer SEGMENT_STORE_PORT = TestUtils.getAvailableListenPort();
-    private static final Integer REST_SERVER_PORT = TestUtils.getAvailableListenPort();
-
      @Rule
      public final Timeout globalTimeout = new Timeout(150, TimeUnit.SECONDS);
 
@@ -36,17 +30,22 @@ public abstract class AbstractTlsUserCommandTest {
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
 
+    // Security related flags and instantiate local pravega server.
+    private final Integer controllerPort = TestUtils.getAvailableListenPort();
+    private final Integer segmentStorePort = TestUtils.getAvailableListenPort();
+    private final Integer restServerPort = TestUtils.getAvailableListenPort();
+
     @Before
     public void setUp() throws Exception {
 
         // Create the secure pravega server to test commands against.
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
-                .controllerPort(CONTROLLER_PORT)
-                .segmentStorePort(SEGMENT_STORE_PORT)
+                .controllerPort(controllerPort)
+                .segmentStorePort(segmentStorePort)
                 .zkPort(io.pravega.test.common.TestUtils.getAvailableListenPort())
                 .restServerPort(io.pravega.test.common.TestUtils.getAvailableListenPort())
                 .enableRestServer(true)
-                .restServerPort(REST_SERVER_PORT)
+                .restServerPort(restServerPort)
                 .enableAuth(authEnabled)
                 .enableTls(tlsEnabled);
 
@@ -73,7 +72,7 @@ public abstract class AbstractTlsUserCommandTest {
         localPravega.start();
 
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
-        interactiveConfig.setControllerUri("localhost:" + CONTROLLER_PORT.toString());
+        interactiveConfig.setControllerUri("localhost:" + controllerPort.toString());
         interactiveConfig.setDefaultSegmentCount(4);
         interactiveConfig.setMaxListItems(100);
         interactiveConfig.setTimeoutMillis(10000);

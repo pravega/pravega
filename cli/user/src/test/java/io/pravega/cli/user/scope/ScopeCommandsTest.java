@@ -25,6 +25,9 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
         String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
+
+        commandResult = TestUtils.executeCommand("scope delete " + scope, config.get());
+        Assert.assertTrue(commandResult.contains("deleted successfully"));
     }
 
     @Test(timeout = 5000)

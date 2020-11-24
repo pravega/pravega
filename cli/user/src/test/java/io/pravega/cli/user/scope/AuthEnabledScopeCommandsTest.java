@@ -23,7 +23,7 @@ public class AuthEnabledScopeCommandsTest extends AbstractUserCommandTest {
     @Before
     @Override
     public void setUp() throws Exception {
-        SETUP_UTILS.setAuthEnabled(true);
+        setupUtils.setAuthEnabled(true);
         super.setUp();
     }
 
@@ -33,6 +33,9 @@ public class AuthEnabledScopeCommandsTest extends AbstractUserCommandTest {
         String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
+
+        commandResult = TestUtils.executeCommand("scope delete " + scope, config.get());
+        Assert.assertTrue(commandResult.contains("deleted successfully"));
     }
 
     @Test(timeout = 5000)

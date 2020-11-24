@@ -31,6 +31,9 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         commandResult = TestUtils.executeCommand("kvt create " + table, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Create.descriptor());
+
+        commandResult = TestUtils.executeCommand("scope delete " + scope, config.get());
+        Assert.assertTrue(commandResult.contains("deleted successfully"));
     }
 
     @Test(timeout = 20000)
@@ -46,6 +49,9 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         String commandResult = TestUtils.executeCommand("kvt delete " + table, config.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Delete.descriptor());
+
+        commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
+        new ScopeCommand.Delete(commandArgs).execute();
     }
 
     @Test(timeout = 10000)
@@ -61,6 +67,9 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         String commandResult = TestUtils.executeCommand("kvt list " + scope, config.get());
         Assert.assertTrue(commandResult.contains("kvt1"));
         Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
+
+        commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
+        new ScopeCommand.Delete(commandArgs).execute();
     }
 
     @Test(timeout = 60000)
@@ -111,6 +120,9 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         commandResult = TestUtils.executeCommand("kvt remove " + table + " key-family-1 {[[key1]]}", config.get());
         Assert.assertTrue(commandResult.contains("Removed"));
         Assert.assertNotNull(KeyValueTableCommand.Remove.descriptor());
+
+        commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
+        new ScopeCommand.Delete(commandArgs).execute();
     }
 
 }

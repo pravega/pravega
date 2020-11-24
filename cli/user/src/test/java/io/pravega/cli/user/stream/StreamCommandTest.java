@@ -91,5 +91,11 @@ public class StreamCommandTest extends AbstractUserCommandTest {
         commandResult = TestUtils.executeCommand("stream read " + stream + " 5", config.get());
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Read.descriptor());
+
+        commandArgsStream = new CommandArgs(Collections.singletonList(stream), config.get());
+        new StreamCommand.Delete(commandArgsStream).execute();
+
+        commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
+        new ScopeCommand.Delete(commandArgs).execute();
     }
 }

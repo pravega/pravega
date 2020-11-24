@@ -22,24 +22,22 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class AbstractAdminCommandTest {
 
-    // Setup utility.
-    protected static final SecureSetupUtils SETUP_UTILS = new SecureSetupUtils();
-
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
-
+    // Setup utility.
+    protected final SecureSetupUtils setupUtils = new SecureSetupUtils();
     protected final AtomicReference<AdminCommandState> state = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
-        SETUP_UTILS.startAllServices();
+        setupUtils.startAllServices();
         state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
-        pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
-        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
+        pravegaProperties.setProperty("cli.controller.rest.uri", setupUtils.getControllerRestUri().toString());
+        pravegaProperties.setProperty("cli.controller.grpc.uri", setupUtils.getControllerUri().toString());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", setupUtils.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
-        pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(SETUP_UTILS.isAuthEnabled()));
+        pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(setupUtils.isAuthEnabled()));
         pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
         pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
         pravegaProperties.setProperty("cli.security.tls.enable", "false");
@@ -49,7 +47,7 @@ public abstract class AbstractAdminCommandTest {
 
     @After
     public void tearDown() throws Exception {
-        SETUP_UTILS.close();
+        setupUtils.close();
         state.get().close();
     }
 
