@@ -12,7 +12,6 @@ package io.pravega.test.integration.auth.customplugin;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.auth.ServerConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.Principal;
@@ -53,10 +52,5 @@ public class TestAuthHandler implements AuthHandler {
         log.debug("Authorization result for resource [{}] for principal [{}] is permissions [{}]",
                 resource, principal, result.name());
         return result;
-    }
-
-    @Override
-    public void initialize(ServerConfig serverConfig) {
-        log.debug("serverConfig: {}", serverConfig);
     }
 }

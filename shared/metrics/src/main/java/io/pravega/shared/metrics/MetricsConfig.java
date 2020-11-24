@@ -23,7 +23,7 @@ import java.time.Duration;
 public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("statistics.enable", false, "enableStatistics");
-    public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCache.size", 10000000L, "dynamicCacheSize");
+    public final static Property<Integer> DYNAMIC_CACHE_SIZE = Property.named("dynamicCache.size", 100000, "dynamicCacheSize");
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCache.eviction.duration.minutes", 3, "dynamicCacheEvictionDurationMinutes");
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("output.frequency.seconds", 60, "outputFrequencySeconds");
     public final static Property<String> METRICS_PREFIX = Property.named("prefix", "pravega", "metricsPrefix");
@@ -52,7 +52,7 @@ public class MetricsConfig {
      * Cache size for dynamic metrics.
      */
     @Getter
-    private final long dynamicCacheSize;
+    private final int dynamicCacheSize;
 
     /**
      * Cache eviction duration for dynamic metrics.
@@ -138,7 +138,7 @@ public class MetricsConfig {
      */
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
-        this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
+        this.dynamicCacheSize = properties.getInt(DYNAMIC_CACHE_SIZE);
         this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES));
         this.outputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
         this.metricsPrefix = properties.get(METRICS_PREFIX);

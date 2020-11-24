@@ -14,7 +14,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 
-import io.pravega.controller.server.security.auth.handler.TestAuthHandler;
+import io.pravega.controller.auth.TestAuthHandler;
 import org.junit.Before;
 
 public class Failing403StreamMetaDataTests extends  FailingSecureStreamMetaDataTests {

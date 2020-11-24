@@ -10,28 +10,41 @@
 package io.pravega.segmentstore.storage.cache;
 
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsLogger;
 
 /**
- * Metrics for {@link CacheStorage}
+ * Metrics for {@link DirectMemoryCache}.
  */
-final class CacheMetrics {
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+final class CacheMetrics implements AutoCloseable {
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("cache");
+    private final Counter writeBytes = STATS_LOGGER.createCounter(MetricsNames.CACHE_WRITE_BYTES);
+    private final Counter appendBytes = STATS_LOGGER.createCounter(MetricsNames.CACHE_APPEND_BYTES);
+    private final Counter readBytes = STATS_LOGGER.createCounter(MetricsNames.CACHE_READ_BYTES);
+    private final Counter deleteBytes = STATS_LOGGER.createCounter(MetricsNames.CACHE_DELETE_BYTES);
 
-    static void insert(int size) {
-        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_WRITE_BYTES, size);
+    void insert(int size) {
+        this.writeBytes.add(size);
     }
 
-    static void append(int size) {
-        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_APPEND_BYTES, size);
+    void append(int size) {
+        this.appendBytes.add(size);
     }
 
-    static void get(int size) {
-        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_READ_BYTES, size);
+    void get(int size) {
+        this.readBytes.add(size);
     }
 
-    static void delete(int size) {
-        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_DELETE_BYTES, size);
+    void delete(int size) {
+        this.deleteBytes.add(size);
+    }
+
+    @Override
+    public void close() {
+        this.writeBytes.close();
+        this.appendBytes.close();
+        this.readBytes.close();
+        this.deleteBytes.close();
     }
 }

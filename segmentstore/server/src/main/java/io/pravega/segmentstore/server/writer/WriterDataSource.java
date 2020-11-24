@@ -18,8 +18,8 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -96,13 +96,12 @@ interface WriterDataSource {
     /**
      * Reads a number of entries from the Data Source.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to read.
-     * @param maxCount      The maximum number of entries to read.
-     * @param timeout       Timeout for the operation.
+     * @param maxCount The maximum number of entries to read.
+     * @param timeout  Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain an Iterator with the result. If the operation
      * failed, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
+    CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout);
 
     /**
      * Indicates that the given sourceStreamSegmentId is merged into the given targetStreamSegmentId.

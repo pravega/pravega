@@ -102,6 +102,7 @@ public class DirectMemoryCache implements CacheStorage {
     private final AtomicLong storedBytes;
     private final AtomicReference<Supplier<Boolean>> tryCleanup;
     private final AtomicInteger retryDelayBaseMillis;
+    private final CacheMetrics metrics = new CacheMetrics();
 
     //endregion
 
@@ -187,6 +188,8 @@ public class DirectMemoryCache implements CacheStorage {
             for (DirectMemoryBuffer b : this.buffers) {
                 b.close();
             }
+
+            this.metrics.close();
         }
     }
 
@@ -243,7 +246,7 @@ public class DirectMemoryCache implements CacheStorage {
             throw ex;
         }
 
-        CacheMetrics.insert(data.getLength());
+        this.metrics.insert(data.getLength());
         return lastBlockAddress;
     }
 
@@ -281,7 +284,7 @@ public class DirectMemoryCache implements CacheStorage {
         appendedBytes = this.buffers[bufferId].tryAppend(blockId, expectedLastBlockLength, data);
 
         this.storedBytes.addAndGet(appendedBytes);
-        CacheMetrics.append(appendedBytes);
+        this.metrics.append(appendedBytes);
         return appendedBytes;
     }
 
@@ -314,7 +317,7 @@ public class DirectMemoryCache implements CacheStorage {
         }
 
         this.storedBytes.addAndGet(-deletedLength);
-        CacheMetrics.delete(deletedLength);
+        this.metrics.delete(deletedLength);
     }
 
     @Override
@@ -340,7 +343,7 @@ public class DirectMemoryCache implements CacheStorage {
             ByteBuf first = readBuffers.get(0);
             ByteBuf result = readBuffers.size() == 1 ? first :
                     new CompositeByteBuf(first.alloc(), false, readBuffers.size(), Lists.reverse(readBuffers));
-            CacheMetrics.get(result.readableBytes());
+            this.metrics.get(result.readableBytes());
             return new NonReleaseableByteBufWrapper(result);
         }
     }

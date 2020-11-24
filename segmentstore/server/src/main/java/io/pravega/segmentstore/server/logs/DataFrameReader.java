@@ -12,8 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.CloseableIterator;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.contracts.SequencedElement;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
  * they were serialized.
  */
 @Slf4j
-class DataFrameReader<T extends SequencedItemList.Element> implements CloseableIterator<DataFrameRecord<T>, Exception> {
+class DataFrameReader<T extends SequencedElement> implements CloseableIterator<DataFrameRecord<T>, Exception> {
     //region Members
 
     private final DataFrameInputStream dataFrameInputStream;
