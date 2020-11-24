@@ -154,7 +154,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, 8 * 1024 * 1024);
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, 10 * 1024 * 1024);
     }
 
     /**

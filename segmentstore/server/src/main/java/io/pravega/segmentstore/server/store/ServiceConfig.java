@@ -287,8 +287,8 @@ public class ServiceConfig {
     private final boolean replyWithStackTraceOnError;
 
     /**
-     * Max length of reads issued from the RequestProcessor to the cache (irrespective of the client suggested read
-     * length).
+     * Max length of reads issued from the PravegaRequestProcessor to the cache (irrespective of the client suggested
+     * read length).
      */
     @Getter
     private final int requestProcessorMaxReadLength;

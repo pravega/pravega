@@ -74,7 +74,7 @@ public class ClusterWrapper implements AutoCloseable {
     private int tokenTtlInSeconds;
     private List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries;
     private int containerCount = 4; // default container count
-    private int maxReadLength = 8 * 1024 * 1024; // default PravegaRequestProcessor max read size.
+    private int maxReadLength = 10 * 1024 * 1024; // default PravegaRequestProcessor max read size.
 
     public ClusterWrapper(boolean isAuthEnabled, int tokenTtlInSeconds) {
          this(isAuthEnabled, "secret", tokenTtlInSeconds,  null, 4);
