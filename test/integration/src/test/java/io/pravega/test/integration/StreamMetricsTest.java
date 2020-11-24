@@ -105,10 +105,10 @@ public class StreamMetricsTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
+        final int maxReadSize = 10 * 1024 * 1024;
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
+                null, null, true, maxReadSize, this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
 
         // 4. Start Pravega Controller service

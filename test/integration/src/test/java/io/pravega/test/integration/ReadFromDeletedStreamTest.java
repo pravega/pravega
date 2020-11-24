@@ -45,10 +45,10 @@ public class ReadFromDeletedStreamTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
-
+        final int maxReadSize = 10 * 1024 * 1024;
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
-                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true,
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true, maxReadSize,
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 

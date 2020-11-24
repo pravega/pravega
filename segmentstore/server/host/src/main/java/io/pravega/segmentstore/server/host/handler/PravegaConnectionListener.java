@@ -78,6 +78,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final boolean replyWithStackTraceOnError;
+    private final int maxReadLength;
 
     // TLS related params
     private final boolean enableTls; // whether to enable TLS
@@ -100,7 +101,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     /**
      * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
-     *
      * @param enableTls           Whether to enable SSL/TLS.
      * @param port                The port to listen on.
      * @param streamSegmentStore  The SegmentStore to delegate all requests to.
@@ -110,7 +110,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-                new PassingTokenVerifier(), null, null, true, tokenExpiryExecutor);
+                new PassingTokenVerifier(), null, null, true, 10 * 1024 * 1024, tokenExpiryExecutor);
     }
 
     /**
@@ -128,12 +128,13 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param certFile           Path to the certificate file to be used for TLS.
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
+     * @param maxReadLength      Max read length that the {@link PravegaRequestProcessor} can issue to the cache.
      * @param executor           The executor to be used for running token expiration handling tasks.
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
-                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
+                                     boolean replyWithStackTraceOnError, int maxReadLength, ScheduledExecutorService executor) {
         this.enableTls = enableTls;
         if (this.enableTls) {
             this.enableTlsReload = enableTlsReload;
@@ -156,6 +157,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.connectionTracker = new ConnectionTracker();
+        this.maxReadLength = maxReadLength;
         this.tokenExpiryHandlerExecutor = executor;
     }
 
@@ -210,7 +212,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
                          connectionTracker,
-                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
+                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError, maxReadLength),
                          statsRecorder,
                          tokenVerifier,
                          replyWithStackTraceOnError, tokenExpiryHandlerExecutor));

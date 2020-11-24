@@ -131,7 +131,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
-    private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
@@ -139,6 +138,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
+    private final int maxReadLength;
     private final boolean replyWithStackTraceOnError;
 
     //endregion
@@ -154,7 +154,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, 8 * 1024 * 1024);
     }
 
     /**
@@ -167,10 +167,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     * @param maxReadLength  Max read length that the {@link PravegaRequestProcessor} can issue to the cache.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
                             SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
-                            DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+                            DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError, int maxReadLength) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
@@ -178,6 +179,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
         this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.maxReadLength = maxReadLength;
     }
 
     //endregion
@@ -194,7 +196,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
+        final int readSize = min(maxReadLength, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, operation, readSegment);
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                     .thenAccept(readResult -> {
@@ -742,7 +744,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.keyIterator(segment, args)
                 .thenCompose(itr -> itr.collectRemaining(e -> {
                     synchronized (result) {
-                        if (result.getItemCount() >= suggestedKeyCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                        if (result.getItemCount() >= suggestedKeyCount || result.getSizeBytes() >= maxReadLength) {
                             return false;
                         }
 
@@ -784,7 +786,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.entryIterator(segment, args)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
-                            if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                            if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= maxReadLength) {
                                 return false;
                             }
 
@@ -841,7 +843,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.entryDeltaIterator(segment, fromPosition, TIMEOUT)
                 .thenCompose(itr -> itr.collectRemaining(
                         e -> {
-                            if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= MAX_READ_SIZE) {
+                            if (result.getItemCount() >= suggestedEntryCount || result.getSizeBytes() >= maxReadLength) {
                                 return  false;
                             }
                             TableEntry entry = e.getEntries().iterator().next();

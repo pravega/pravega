@@ -36,7 +36,7 @@ public class PravegaRequestProcessorAuthFailedTest {
                 TableSegmentStatsRecorder.noOp(),
                 (resource, token, expectedLevel) -> {
                     throw new InvalidTokenException("Token verification failed.");
-                }, false);
+                }, false, 10 * 1024 * 1024);
     }
 
     @After

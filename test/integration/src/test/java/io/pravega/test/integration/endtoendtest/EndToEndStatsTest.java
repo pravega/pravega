@@ -74,10 +74,10 @@ public class EndToEndStatsTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         statsRecorder = new TestStatsRecorder();
-
+        final int maxReadSize = 10 * 1024 * 1024;
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 statsRecorder, TableSegmentStatsRecorder.noOp(), null, null, null, true,
-                serviceBuilder.getLowPriorityExecutor());
+                maxReadSize, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

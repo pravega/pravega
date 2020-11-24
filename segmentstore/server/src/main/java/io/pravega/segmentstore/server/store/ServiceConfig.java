@@ -61,6 +61,7 @@ public class ServiceConfig {
     public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cache.utilization.percent.max", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION), "cacheMaxUtilizationPercent");
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cache.time.seconds.max", 30 * 60, "cacheMaxTimeSeconds");
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cache.generation.duration.seconds", 1, "cacheGenerationTimeSeconds");
+    public static final Property<Integer> REQUEST_PROCESSOR_MAX_READ_LENGTH = Property.named("request.read.length.max", 10 * 1024 * 1024);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("request.replyWithStackTraceOnError.enable", false, "replyWithStackTraceOnError");
     public static final Property<String> INSTANCE_ID = Property.named("instance.id", "");
 
@@ -286,6 +287,13 @@ public class ServiceConfig {
     private final boolean replyWithStackTraceOnError;
 
     /**
+     * Max length of reads issued from the RequestProcessor to the cache (irrespective of the client suggested read
+     * length).
+     */
+    @Getter
+    private final int requestProcessorMaxReadLength;
+
+    /**
      * Gets a value that uniquely identifies the Service. This is useful if multiple Service Instances share the same
      * log files or during testing, when multiple Service Instances run in the same process. This value will be prefixed
      * to the names of all Threads used by this Service Instance, which should make log parsing easier.
@@ -355,6 +363,7 @@ public class ServiceConfig {
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, cachePolicyTargetUtilization, cachePolicyMaxUtilization,
                 Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
+        this.requestProcessorMaxReadLength = properties.getInt(REQUEST_PROCESSOR_MAX_READ_LENGTH);
         this.instanceId = properties.get(INSTANCE_ID);
     }
 
@@ -404,6 +413,7 @@ public class ServiceConfig {
                 .append(String.format("enableTlsReload: %b, ", enableTlsReload))
                 .append(String.format("cachePolicy is %s, ", (cachePolicy != null) ? cachePolicy.toString() : "null"))
                 .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
+                .append(String.format("requestProcessorMaxReadLength: %d, ", requestProcessorMaxReadLength))
                 .append(String.format("instanceId: %s", instanceId))
                 .append(")")
                 .toString();

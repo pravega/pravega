@@ -83,10 +83,12 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     @Override
     protected void startUp() throws Exception {
         int segmentStorePort = this.testConfig.getSegmentStorePort(0);
+        int maxReadLength = 10 * 1024 * 1024;
         val store = getStreamSegmentStore();
         this.autoScaleMonitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         this.listener = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store,
-                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, false, NoOpScheduledExecutor.get());
+                getTableStore(), autoScaleMonitor.getStatsRecorder(), TableSegmentStatsRecorder.noOp(),
+                new PassingTokenVerifier(), null, null, false, maxReadLength, NoOpScheduledExecutor.get());
         this.listener.startListening();
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);

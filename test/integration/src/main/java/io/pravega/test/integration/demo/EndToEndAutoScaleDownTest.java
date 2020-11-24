@@ -49,6 +49,7 @@ public class EndToEndAutoScaleDownTest {
             TestingServer zkTestServer = new TestingServerStarter().start();
 
             int port = Config.SERVICE_PORT;
+            int maxReadLength = 10 * 1024 * 1024;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
@@ -71,7 +72,7 @@ public class EndToEndAutoScaleDownTest {
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor());
+                    maxReadLength, serviceBuilder.getLowPriorityExecutor());
             server.startListening();
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();

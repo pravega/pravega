@@ -98,6 +98,7 @@ public class PravegaRequestProcessorTest {
 
     private static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_VALUE_LENGTH = 100;
+    private static final int MAX_READ_LENGTH = 10 * 1024 * 1024;
     private final long requestId = 1L;
 
     static {
@@ -289,7 +290,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock,
-                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -441,7 +442,7 @@ public class PravegaRequestProcessorTest {
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock,
-                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         String transactionName = NameUtils.getTransactionNameFromId(streamSegmentName, txnId);
@@ -604,7 +605,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Execute and Verify createTableSegment calling stack is executed as design.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, sorted, ""));
@@ -660,7 +661,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         //Generate keys
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -734,7 +735,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -791,7 +792,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Create a table segment.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
@@ -817,7 +818,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(2, rnd);
@@ -853,7 +854,7 @@ public class PravegaRequestProcessorTest {
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         val recorderMockOrder = inOrder(recorderMock);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(2, rnd);
@@ -904,7 +905,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -974,7 +975,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);
@@ -1054,7 +1055,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
@@ -1081,7 +1082,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
@@ -1121,7 +1122,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         val recorderMock = mock(TableSegmentStatsRecorder.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, SegmentStatsRecorder.noOp(),
-                recorderMock, new PassingTokenVerifier(), false);
+                recorderMock, new PassingTokenVerifier(), false, MAX_READ_LENGTH);
 
         // Generate keys.
         ArrayList<ArrayView> keys = generateKeys(3, rnd);

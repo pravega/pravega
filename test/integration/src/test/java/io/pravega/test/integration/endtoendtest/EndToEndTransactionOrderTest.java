@@ -101,6 +101,7 @@ public class EndToEndTransactionOrderTest {
 
         zkTestServer = new TestingServerStarter().start();
         int port = Config.SERVICE_PORT;
+        final int maxReadLength = 10 * 1024 * 1024;
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
                 false,
@@ -128,7 +129,7 @@ public class EndToEndTransactionOrderTest {
 
         server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null,
-                true, serviceBuilder.getLowPriorityExecutor());
+                true, maxReadLength, serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
         controllerWrapper.awaitRunning();

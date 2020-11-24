@@ -83,11 +83,11 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                     .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
-
+            int maxReadLength = 10 * 1024 * 1024;
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor());
+                    maxReadLength, serviceBuilder.getLowPriorityExecutor());
             server.startListening();
 
             controllerWrapper.awaitRunning();
