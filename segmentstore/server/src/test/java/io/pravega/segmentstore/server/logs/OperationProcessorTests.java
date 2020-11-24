@@ -15,7 +15,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -52,7 +51,6 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
-import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -63,6 +61,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -76,6 +75,7 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -397,7 +397,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Create a different state updater and Memory log - and use these throughout this test.
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
-        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, context.readIndex, Runnables.doNothing());
+        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, context.readIndex);
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
@@ -558,12 +558,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
+    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, InMemoryLog memoryLog,
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
         performLogOperationChecks(operations, memoryLog, dataLog, truncationMarkers, Integer.MAX_VALUE);
     }
 
-    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
+    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, InMemoryLog memoryLog,
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, int maxCount) throws Exception {
         // Log Operation based checks
         val successfulOps = operations.stream()
@@ -575,13 +575,15 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
         long lastSeqNo = -1;
-        if (successfulOps.size() > 0) {
-            // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
-            // We check periodically until the last item has been written.
-            TestUtils.await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10, TIMEOUT.toMillis());
+
+        Iterator<Operation> memoryLogIterator;
+        if (successfulOps.isEmpty()) {
+            memoryLogIterator = Collections.emptyIterator();
+        } else {
+            val memoryLogOps = readUpToSequenceNumber(memoryLog, successfulOps.get(successfulOps.size() - 1).getSequenceNumber());
+            memoryLogIterator = memoryLogOps.iterator();
         }
 
-        Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true);
         for (Operation expectedOp : successfulOps) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
@@ -641,6 +643,27 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
     }
 
+    @SneakyThrows
+    private List<Operation> readUpToSequenceNumber(InMemoryLog log, long seqNo) {
+        ArrayList<Operation> result = new ArrayList<>();
+        while (true) {
+            // Figure out if we've already reached our limit.
+            long afterSequence = result.size() == 0 ? -1 : result.get(result.size() - 1).getSequenceNumber();
+            if (afterSequence >= seqNo) {
+                break;
+            }
+
+            // Figure out how much to read. If we don't know, read at least one item so we see what's the first SeqNo
+            // in the Log.
+            int maxCount = result.size() == 0 ? 1 : (int) (seqNo - result.get(result.size() - 1).getSequenceNumber());
+            Queue<Operation> logIterator = log.take(maxCount, TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            while (!logIterator.isEmpty()) {
+                result.add(logIterator.poll());
+            }
+        }
+        return result;
+    }
+
     private MetadataCheckpointPolicy getNoOpCheckpointPolicy() {
         // Turn off any MetadataCheckpointing. In these tests, we are doing that manually.
         DurableLogConfig dlConfig = DurableLogConfig
@@ -655,7 +678,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private class TestContext implements AutoCloseable {
         final CacheManager cacheManager;
         final Storage storage;
-        final SequencedItemList<Operation> memoryLog;
+        final InMemoryLog memoryLog;
         final CacheStorage cacheStorage;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
@@ -669,8 +692,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
-            this.memoryLog = new SequencedItemList<>();
-            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());
+            this.memoryLog = new InMemoryLog();
+            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex);
         }
 
         @Override
@@ -679,6 +702,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+            this.memoryLog.close();
         }
     }
 

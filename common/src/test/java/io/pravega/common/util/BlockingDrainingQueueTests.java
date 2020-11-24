@@ -11,11 +11,15 @@ package io.pravega.common.util;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -24,10 +28,15 @@ import org.junit.Test;
 /**
  * Unit tests for BlockingDrainingQueue class.
  */
-public class BlockingDrainingQueueTests {
+public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
     private static final int ITEM_COUNT = 100;
     private static final int MAX_READ_COUNT = ITEM_COUNT / 10;
     private static final int TIMEOUT_MILLIS = 10 * 1000;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     /**
      * Tests the basic ability dequeue items using poll() as they are added.
@@ -150,6 +159,45 @@ public class BlockingDrainingQueueTests {
         // Verify result.
         Assert.assertTrue("Queue did not unblock after adding a value.", Futures.isSuccessful(takeResult));
         Queue<Integer> result = takeResult.join();
+        Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
+        Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());
+
+        val remainingItems = queue.poll(MAX_READ_COUNT);
+        Assert.assertEquals("Queue was not emptied out after take() completed successfully.", 0, remainingItems.size());
+    }
+
+    /**
+     * Tests {@link AbstractDrainingQueue#take(int, Duration, ScheduledExecutorService)}.
+     */
+    @Test
+    public void testTakeTimeout() throws Exception {
+        final int valueToQueue = 1234;
+        final Duration shortTimeout = Duration.ofMillis(10);
+
+        @Cleanup
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        val timedoutTake = queue.take(MAX_READ_COUNT, shortTimeout, executorService());
+
+        AssertExtensions.assertThrows(
+                "poll() succeeded even though there was another incomplete take() request.",
+                () -> queue.take(MAX_READ_COUNT),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertThrows(
+                "poll() succeeded even though there was another incomplete take() request.",
+                () -> queue.poll(MAX_READ_COUNT),
+                ex -> ex instanceof IllegalStateException);
+
+        AssertExtensions.assertSuppliedFutureThrows(
+                "take did not time out",
+                () -> timedoutTake,
+                ex -> ex instanceof TimeoutException);
+
+        val finalTake = queue.take(MAX_READ_COUNT, Duration.ofMillis(TIMEOUT_MILLIS), executorService());
+        queue.add(valueToQueue);
+
+        val result = finalTake.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
         Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
         Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());
 
