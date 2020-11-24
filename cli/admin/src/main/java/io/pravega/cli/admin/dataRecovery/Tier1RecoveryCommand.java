@@ -174,8 +174,8 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand implements AutoClo
 
         // Update core attributes from the backUp Metadata segments
         output(Level.INFO, "Updating core attributes for segments registered.");
-        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService,
-                TIMEOUT);
+//        ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService,
+//                TIMEOUT);
 
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(debugStreamSegmentContainerMap);
