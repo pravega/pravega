@@ -59,7 +59,7 @@ public class BookKeeperConfig {
     /**
      * Size of Bookkeeper header message in bytes (see {@link org.apache.bookkeeper.proto.BookieProtoEncoding}).
      */
-    static final int BK_MESSAGE_PADDING = 24;
+    static final int BK_MESSAGE_HEADER = 24;
 
     //endregion
 
