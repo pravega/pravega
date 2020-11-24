@@ -9,10 +9,14 @@
  */
 package io.pravega.controller.server.rpc.grpc.impl;
 
+import io.pravega.auth.AuthPluginConfig;
 import org.junit.Test;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl.GRPCServerConfigImplBuilder;
 
+import java.util.Properties;
+
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 
 public class GRPCServerConfigImplTest {
@@ -80,6 +84,48 @@ public class GRPCServerConfigImplTest {
                 .requestTracingEnabled(true)
                 .build();
         assertNotNull(config.toString());
+    }
+
+    @Test
+    public void testToAuthPluginPropertiesWhenConfigHasUSerPasswordFile() {
+        Properties props = new GRPCServerConfigImplBuilder().port(9090)
+                .publishedRPCHost("localhost")
+                .publishedRPCPort(9090)
+                .authorizationEnabled(true)
+                .userPasswordFile("/passwd")
+                .tlsEnabled(true)
+                .tlsCertFile("/cert.pem")
+                .tlsKeyFile("./key.pem")
+                .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(null)
+                .isRGWritesWithReadPermEnabled(true)
+                .tlsTrustStore("/cert.pem")
+                .replyWithStackTraceOnError(true)
+                .requestTracingEnabled(true)
+                .build().toAuthHandlerProperties();
+        assertNotNull(props);
+        assertNotNull(props.get(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE));
+    }
+
+    @Test
+    public void testToAuthPluginPropertiesReturnsEmptyWhenUserPasswordFileIsAbsent() {
+        Properties props = new GRPCServerConfigImplBuilder().port(9090)
+                .publishedRPCHost("localhost")
+                .publishedRPCPort(9090)
+                .authorizationEnabled(true)
+                //.userPasswordFile("/passwd")
+                .tlsEnabled(true)
+                .tlsCertFile("/cert.pem")
+                .tlsKeyFile("./key.pem")
+                .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(null)
+                .isRGWritesWithReadPermEnabled(true)
+                .tlsTrustStore("/cert.pem")
+                .replyWithStackTraceOnError(true)
+                .requestTracingEnabled(true)
+                .build().toAuthHandlerProperties();
+        assertNotNull(props);
+        assertNull(props.get(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE));
     }
 
     // endregion

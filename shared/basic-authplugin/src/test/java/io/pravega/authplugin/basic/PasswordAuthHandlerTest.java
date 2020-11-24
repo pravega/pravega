@@ -7,26 +7,34 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler.impl;
+package io.pravega.authplugin.basic;
 
 import com.google.common.base.Charsets;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.auth.ServerConfig;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+
+import io.pravega.test.common.AssertExtensions;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the password-based auth handler plugin.
@@ -37,10 +45,76 @@ public class PasswordAuthHandlerTest {
 
     //region Tests verifying authentication
 
-    @Test(expected = CompletionException.class)
+    @Test
+    public void initializeFailsIfPropertiesIsNull() {
+        PasswordAuthHandler objectUnderTest = new PasswordAuthHandler();
+
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            Properties props = null;
+            objectUnderTest.initialize(props);
+        });
+
+        AssertExtensions.assertThrows(NullPointerException.class, () -> {
+            // Declaration is necessary to avoid ambiguity of the following call.
+            ServerConfig serverConfig = null;
+            objectUnderTest.initialize(serverConfig);
+        });
+    }
+
+    @Test(expected = RuntimeException.class)
     public void initializeFailsIfAccountFileMissing() {
+        PasswordAuthHandler objectUnderTest = new PasswordAuthHandler();
+        objectUnderTest.initialize(new Properties());
+    }
+
+    @Test(expected = CompletionException.class)
+    public void initializeFailsIfAccountFileConfigMissing() {
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
-        authHandler.initialize("nonexistent/accounts/file/path");
+
+        ServerConfig serverConfig = new ServerConfig() {
+            @Override
+            public Properties toAuthHandlerProperties() {
+                Properties props = new Properties();
+                props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, "/random/file");
+                return props;
+            }
+        };
+        authHandler.initialize(serverConfig);
+    }
+
+    @SneakyThrows
+    @Test
+    public void initializeWorksWithValidAclsAndComments() {
+        PasswordAuthHandler authHandler = new PasswordAuthHandler();
+
+        try (PasswordAuthHandlerInput pwdInputFile = new PasswordAuthHandlerInput("PasswordAuthHandlerTest.init",
+                ".txt")) {
+            String encryptedPassword = StrongPasswordProcessor.builder().build().encryptPassword("some_password");
+
+            List<PasswordAuthHandlerInput.Entry> entries = Arrays.asList(
+                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "prn::*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "prn::/scope:scope1,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("#commented", encryptedPassword, "prn::")
+            );
+            pwdInputFile.postEntries(entries);
+
+            authHandler.initialize(new ServerConfig() {
+                @Override
+                public Properties toAuthHandlerProperties() {
+                    Properties props = new Properties();
+                    props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, pwdInputFile.getFile().getAbsolutePath());
+                    return props;
+                }
+            });
+
+            ConcurrentHashMap<String, AccessControlList> aclsByUser = authHandler.getAclsByUser();
+
+            assertEquals(2, aclsByUser.size());
+            assertTrue(aclsByUser.containsKey("admin"));
+            assertEquals("prn::/scope:scope1", aclsByUser.get("appaccount").getEntries().get(0).getResourcePattern());
+            assertFalse(aclsByUser.containsKey("unauthorizeduser"));
+        }
     }
 
     @Test

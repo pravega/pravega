@@ -7,13 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.utils;
+package io.pravega.shared.security.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import lombok.Data;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -25,14 +26,11 @@ import java.util.List;
  * This is a helper class for tests and may be used for generating the input file for the PasswordAuthHandler - the
  * default AuthHandler implementation.
  */
-public class PasswordAuthHandlerInput {
+@Slf4j
+public class PasswordAuthHandlerInput implements AutoCloseable {
 
     @Getter
     private File file;
-
-    public PasswordAuthHandlerInput() {
-        this("auth_file", ".txt");
-    }
 
     public PasswordAuthHandlerInput(String fileName, String extension) {
         Exceptions.checkNotNullOrEmpty(fileName, "fileName");
@@ -64,12 +62,24 @@ public class PasswordAuthHandlerInput {
         }
     }
 
+
+
     private String credentialsAndAclString(Entry entry) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(entry.username)
                 && !Strings.isNullOrEmpty(entry.password)
                 && entry.acl != null
                 && !entry.acl.startsWith(":"));
         return String.format("%s:%s:%s%n", entry.username, entry.password, entry.acl);
+    }
+
+    @Override
+    public void close() {
+        try {
+            this.file.delete();
+        } catch (Exception e) {
+            // Ignore
+            log.warn("Unable to delete file", e);
+        }
     }
 
     @Data(staticConstructor = "of")
