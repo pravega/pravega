@@ -53,13 +53,13 @@ public class ReaderGroupConfig implements Serializable {
     private final StreamDataRetention retentionType;
 
     /**
-     * If a Reader Group wants only unconsumed data to be retained in a Stream,
+     * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
      * to 'MANUAL_RELEASE_AT_USER_STREAMCUT' or 'AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT'.
      * Setting these options implies the Reader Group will supply its consumption {@link StreamCut},
      * so only un-consumed data can be retained.
      * This notification can be manual ('MANUAL_RELEASE_AT_USER_STREAMCUT') or automatic ('AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT')
-     * To ensure Reader Groups' read positions do not impact data retention in the Stream set retentionType='NONE',
+     * To ensure Reader Groups' read positions do not impact data retention in the Stream, set retentionType='NONE',
      * so consumption position notifications are not sent to Controller.
      *
      * NONE - Set when the reader's positions of this Reader Group should not impact Stream retention.
