@@ -329,29 +329,6 @@ public class ReaderGroupImplTest {
     }
 
     @Test
-    public void updateRetentionStreamCutTestSuccess() {
-        when(synchronizer.getSegmentId()).thenReturn(Long.valueOf(0));
-        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.READY);
-        Stream test = createStream("test");
-        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME + 0, createStreamCut("test", 1)))
-                .thenReturn(CompletableFuture.completedFuture(true));
-        Map<Stream, StreamCut> cuts = new HashMap<>();
-        cuts.put(test, createStreamCut("test", 1));
-        readerGroup.updateRetentionStreamCut(cuts);
-        verify(controller, times(1))
-                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME + 0, createStreamCut("test", 1));
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void updateRetentionStreamCutTestFailure() {
-        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.REINITIALIZING);
-        Stream test = createStream("test");
-        Map<Stream, StreamCut> cuts = new HashMap<>();
-        cuts.put(test, createStreamCut("test", 1));
-        readerGroup.updateRetentionStreamCut(cuts);
-    }
-
-    @Test
     public void getUnreadBytesBasedOnLastCheckpointPosition() {
         final String stream = "s1";
         final StreamCut startStreamCut = getStreamCut(stream, 10L, 1, 2);
@@ -516,5 +493,47 @@ public class ReaderGroupImplTest {
         assertEquals(1, distribution.get("1").intValue());
         assertEquals(1, distribution.get("2").intValue());
         assertEquals(1, distribution.get("3").intValue());
+    }
+
+    @Test
+    public void updateRetentionStreamCutTestSuccess() {
+        when(synchronizer.getSegmentId()).thenReturn(Long.valueOf(0));
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.READY);
+        Stream test = createStream("test");
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME + 0, createStreamCut("test", 1)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .stream(test)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(state.getConfig()).thenReturn(config);
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
+        verify(controller, times(1))
+                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME + 0, createStreamCut("test", 1));
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void updateRetentionStreamCutTestFailure() {
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.READY);
+        Stream test = createStream("test");
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .stream(test)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .build();
+        when(state.getConfig()).thenReturn(config);
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void updateRetentionStreamCutTestStateFailure() {
+        when(state.getConfigState()).thenReturn(ReaderGroupState.ConfigState.REINITIALIZING);
+        Stream test = createStream("test");
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
     }
 }

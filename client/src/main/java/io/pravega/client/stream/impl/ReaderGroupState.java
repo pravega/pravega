@@ -1428,6 +1428,51 @@ public class ReaderGroupState implements Revisioned {
         }
     }
 
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class UpdateCheckpointPublished extends ReaderGroupStateUpdate {
+        private final boolean isCheckpointPublishedToController;
+
+        /**
+         * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.checkpointState.setLastCheckpointPublished(isCheckpointPublishedToController);
+        }
+
+        private static class UpdateCheckpointPublishedBuilder implements ObjectBuilder<UpdateCheckpointPublished> {
+
+        }
+
+        private static class UpdateCheckpointPublishedSerializer
+                extends VersionedSerializer.WithBuilder<UpdateCheckpointPublished, UpdateCheckpointPublishedBuilder> {
+            @Override
+            protected UpdateCheckpointPublishedBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, UpdateCheckpointPublishedBuilder builder) throws IOException {
+                builder.isCheckpointPublishedToController(in.readBoolean());
+            }
+
+            private void write00(UpdateCheckpointPublished object, RevisionDataOutput out) throws IOException {
+                out.writeBoolean(object.isCheckpointPublishedToController);
+            }
+        }
+    }
+
     public static class ReaderGroupInitSerializer
             extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
         @Override
@@ -1454,9 +1499,10 @@ public class ReaderGroupState implements Revisioned {
              .serializer(CheckpointReader.class, 8, new CheckpointReader.CheckpointReaderSerializer())
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
              .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer())
-             .serializer(ReaderGroupStateResetStart.class, 11, new ReaderGroupStateResetStart.ReaderGroupStateResetStartSerializer())
-             .serializer(ReaderGroupStateResetComplete.class, 12, new ReaderGroupStateResetComplete.ReaderGroupStateResetCompleteSerializer())
-             .serializer(ChangeConfigState.class, 13, new ChangeConfigState.ChangeConfigStateSerializer());
+             .serializer(UpdateCheckpointPublished.class, 11, new UpdateCheckpointPublished.UpdateCheckpointPublishedSerializer())
+             .serializer(ReaderGroupStateResetStart.class, 12, new ReaderGroupStateResetStart.ReaderGroupStateResetStartSerializer())
+             .serializer(ReaderGroupStateResetComplete.class, 13, new ReaderGroupStateResetComplete.ReaderGroupStateResetCompleteSerializer())
+             .serializer(ChangeConfigState.class, 14, new ChangeConfigState.ChangeConfigStateSerializer());
         }
     }
     

@@ -106,6 +106,25 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
+    public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
+        long segment = synchronizer.getSegmentId();
+        val state = getState();
+        if (getState().getConfigState() != ReaderGroupState.ConfigState.READY) {
+            throw new IllegalStateException("Update failed as ReaderGroup not in READY state. Retry again later.");
+        }
+        if (state.getConfig().getRetentionType()
+                .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
+            streamCuts.forEach((stream, cut) ->
+                    getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(),
+                            groupName + segment, cut)));
+
+            return;
+        }
+       throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
+               synchronizer.getState().getConfig().getRetentionType().toString());
+    }
+
+    @Override
     public void readerOffline(String readerId, Position lastPosition) {
         ReaderGroupStateManager.readerShutdown(readerId, lastPosition, synchronizer);
     }
@@ -515,16 +534,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
         return waitForCheckpointComplete(checkpointId, backgroundExecutor)
                       .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
-    }
-
-    @Override
-    public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
-        long segment = synchronizer.getSegmentId();
-        if (getState().getConfigState() != ReaderGroupState.ConfigState.READY) {
-            throw new IllegalStateException("Update failed as ReaderGroup not in READY state. Retry again later.");
-        }
-        streamCuts.forEach((stream, cut) -> getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(),
-                stream.getStreamName(), groupName + segment, cut)));
     }
 
     /**

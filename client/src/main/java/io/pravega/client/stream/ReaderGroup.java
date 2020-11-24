@@ -170,21 +170,24 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor);
 
     /**
+     * Updates the stream-cuts above which this {@link ReaderGroup} would like data to be retained. The {@link StreamCut}s
+     * provided to this API indicate that the streams have processed data upto that point. Hence, Pravega no longer needs
+     * to retain data prior to those {@link StreamCut}s for this {@link ReaderGroup}.
+     *
+     * See {@link ReaderGroupConfig.StreamDataRetention#MANUAL_RELEASE_AT_USER_STREAMCUT}
+     *
+     * @param streamCuts A Map with a Stream-Cut for each Stream.
+     *                   StreamCut indicates position in the Stream till which data has been consumed and can be deleted.
+     */
+    void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
+
+    /**
      * Returns current distribution of number of segments assigned to each reader in the reader group. 
      *
      * @return an instance of ReaderSegmentDistribution which describes the distribution of segments to readers 
      * including unassigned segments.   
      */
     ReaderSegmentDistribution getReaderSegmentDistribution();
-
-    /**
-     * Updates the stream-cut above which this {@link ReaderGroup} would like data to be retained. The {@link StreamCut}s
-     * provided to this API indicate that the streams have processed data upto that point. Hence, Pravega no longer needs
-     * to retain data prior to those {@link StreamCut}s for this {@link ReaderGroup}.
-     *
-     * @param streamCuts Map of streams to their respective stream-cuts below which data needs to be retained.
-     */
-    void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
 
     /**
      * Closes the reader group, freeing any resources associated with it.
