@@ -71,7 +71,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                             // Check preconditions
                             checkPreconditions(streamSegmentName, segmentMetadata);
 
-                            if (segmentMetadata.getStartOffset() == offset) {
+                            if (segmentMetadata.getStartOffset() >= offset) {
                                 // Nothing to do
                                 return CompletableFuture.completedFuture(null);
                             }
@@ -200,7 +200,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         // chunkedSegmentStorage.checkNotSealed(streamSegmentName, segmentMetadata);
         chunkedSegmentStorage.checkOwnership(streamSegmentName, segmentMetadata);
 
-        if (segmentMetadata.getLength() < offset || segmentMetadata.getStartOffset() > offset) {
+        if (segmentMetadata.getLength() < offset) {
             throw new IllegalArgumentException(String.format("offset %d is outside of valid range [%d, %d) for segment %s",
                     offset, segmentMetadata.getStartOffset(), segmentMetadata.getLength(), streamSegmentName));
         }
