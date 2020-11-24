@@ -90,14 +90,14 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertEquals(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT, cfg.getRetentionConfig());
+        assertEquals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT, cfg.getRetentionType());
     }
 
     @Test
@@ -106,14 +106,14 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
 
         assertEquals(-1, cfg.getAutomaticCheckpointIntervalMillis());
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertEquals(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT, cfg.getRetentionConfig());
+        assertEquals(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT, cfg.getRetentionType());
     }
 
     @Test
@@ -128,7 +128,7 @@ public class ReaderGroupConfigTest {
         assertEquals(3000L, cfg.getGroupRefreshTimeMillis());
         assertEquals(getStreamCut("s1"), cfg.getStartingStreamCuts().get(Stream.of("scope/s1")));
         assertEquals(getStreamCut("s2"), cfg.getStartingStreamCuts().get(Stream.of("scope/s2")));
-        assertEquals(ReaderGroupConfig.RetentionConfig.NONE, cfg.getRetentionConfig());
+        assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, cfg.getRetentionType());
     }
 
     @Test
@@ -365,12 +365,12 @@ public class ReaderGroupConfigTest {
     }
 
     @Test
-    public void testReaderGroupConfigRetentionConfigSerialization() {
+    public void testReaderGroupConfigRetentionTypeSerialization() {
         ReaderGroupConfig cfg0 = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.RetentionConfig.NONE)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.NONE)
                 .build();
         ByteBuffer buf0 = cfg0.toBytes();
         assertEquals(cfg0, ReaderGroupConfig.fromBytes(buf0));
@@ -379,7 +379,7 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_USER_STREAMCUT)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
         ByteBuffer buf1 = cfg1.toBytes();
         assertEquals(cfg1, ReaderGroupConfig.fromBytes(buf1));
@@ -388,7 +388,7 @@ public class ReaderGroupConfigTest {
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
                 .stream(Stream.of(SCOPE, "s2"), getStreamCut("s2"))
-                .retentionConfig(ReaderGroupConfig.RetentionConfig.TRUNCATE_AT_LAST_CHECKPOINT)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
         ByteBuffer buf2 = cfg2.toBytes();
         assertEquals(cfg2, ReaderGroupConfig.fromBytes(buf2));

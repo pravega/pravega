@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -49,45 +50,26 @@ public class ReaderGroupConfig implements Serializable {
 
     private final int maxOutstandingCheckpointRequest;
 
-    private final RetentionConfig retentionConfig;
+    private final StreamDataRetention retentionType;
 
-    public enum RetentionConfig {
-        /**
-         * This {@link ReaderGroup} is not a subscriber and does not participate in Consumption Based Retention.
-         *
-         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
-         *
-         */
-        NONE(false, false),
-
-        /**
-         * This {@link ReaderGroup} is a subscriber and can retain stream data using Consumption Based Retention. This will configure the
-         * {@link ReaderGroup} to truncate the stream according to its read positions. These read positions have to be provided
-         * manually in the form of a {@link StreamCut}, see this method:
-         *
-         * {@link ReaderGroup#updateRetentionStreamCut(Map)}
-         *
-         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
-         *
-         */
-        TRUNCATE_AT_USER_STREAMCUT(true, false),
-
-        /**
-         * This {@link ReaderGroup} is a subscriber and can retain stream data using Consumption Based Retention. This will configure the
-         * {@link ReaderGroup} to truncate the stream using the read positions from the last {@link Checkpoint}.
-         *
-         * See <a href="https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention">Consumption Based Retention</a>
-         *
-         */
-        TRUNCATE_AT_LAST_CHECKPOINT(true, true);
-
-        private final boolean isReaderGroupASubscriber;
-        private final boolean autoTruncateAtLastCheckpoint;
-
-        RetentionConfig(boolean isReaderGroupASubscriber, boolean autoTruncateAtLastCheckpoint) {
-            this.isReaderGroupASubscriber = isReaderGroupASubscriber;
-            this.autoTruncateAtLastCheckpoint = autoTruncateAtLastCheckpoint;
-        }
+    /**
+     * If a Reader Group wants unconsumed data to be retained in a Stream,
+     * the retentionType in {@link ReaderGroupConfig} should be set to
+     * to 'MANUAL_RELEASE_AT_USER_STREAMCUT' or 'AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT'.
+     * Setting these options implies the Reader Group will supply its consumption {@link StreamCut},
+     * so only un-consumed data can be retained.
+     * This notification can be manual ('MANUAL_RELEASE_AT_USER_STREAMCUT') or automatic ('AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT')
+     * To ensure Reader Groups' read positions do not impact data retention in the Stream set retentionType='NONE',
+     * so consumption position notifications are not sent to Controller.
+     *
+     * NONE - Set when the reader's positions of this Reader Group should not impact Stream retention.
+     * MANUAL_RELEASE_AT_USER_STREAMCUT - User provides StreamCut to mark position in the Stream till which data is consumed using {@link ReaderGroup#updateRetentionStreamCut(java.util.Map) } API.
+     * AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT - StreamCut of the last completed checkpoint is used as the retention Stream-Cut.
+     */
+    public enum StreamDataRetention {
+        NONE,
+        MANUAL_RELEASE_AT_USER_STREAMCUT,
+        AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT;
     }
 
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
@@ -95,18 +77,7 @@ public class ReaderGroupConfig implements Serializable {
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
-       private RetentionConfig readerGroupRetentionConfig = RetentionConfig.NONE;
-
-       /**
-        * Set the retention config for the {@link ReaderGroup}.
-        *
-        * @param retentionConfig The retention configuration for this {@link ReaderGroup}.
-        * @return Reader group config builder.
-        */
-       public ReaderGroupConfigBuilder retentionConfig(RetentionConfig retentionConfig) {
-           this.readerGroupRetentionConfig = retentionConfig;
-           return this;
-       }
+       private StreamDataRetention retentionType = StreamDataRetention.NONE;
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -230,6 +201,21 @@ public class ReaderGroupConfig implements Serializable {
            return this;
        }
 
+       /**
+        * Set the retention config for the {@link ReaderGroup}.
+        * For Consumption based retention of data in the Stream, this field should be set to
+        * MANUAL_RELEASE_AT_USER_STREAMCUT or AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT.
+        * See: {@link ReaderGroupConfig.StreamDataRetention}
+        * Default value: NONE.
+        *
+        * @param type A type parameter that indicates if the reads of this ReaderGroup would impact retention of data in the Stream. {@link ReaderGroupConfig.StreamDataRetention}.
+        * @return Reader group config builder.
+        */
+       public ReaderGroupConfigBuilder retentionType(StreamDataRetention type) {
+           this.retentionType = type;
+           return this;
+       }
+
        @Override
        public ReaderGroupConfig build() {
            checkArgument(startingStreamCuts != null && startingStreamCuts.size() > 0,
@@ -252,7 +238,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, readerGroupRetentionConfig);
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -361,11 +347,11 @@ public class ReaderGroupConfig implements Serializable {
 
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
             int ordinal = revisionDataInput.readCompactInt();
-            builder.retentionConfig(RetentionConfig.values()[ordinal]);
+            builder.retentionType(StreamDataRetention.values()[ordinal]);
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCompactInt(object.retentionConfig.ordinal());
+            revisionDataOutput.writeCompactInt(object.retentionType.ordinal());
         }
     }
 

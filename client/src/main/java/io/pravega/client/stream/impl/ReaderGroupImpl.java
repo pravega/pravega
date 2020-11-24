@@ -257,7 +257,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         val config = state.getConfig();
         val generation = state.getGeneration();
         long segment = synchronizer.getSegmentId();
-        if (!ReaderGroupConfig.RetentionConfig.NONE.equals(config.getRetentionConfig())) {
+        if (!ReaderGroupConfig.StreamDataRetention.NONE.equals(config.getRetentionType())) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
             streams.forEach(s -> getThrowingException(controller.addSubscriber(scope, s.getStreamName(), groupName + segment, generation)));
         }
@@ -286,7 +286,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         val config = state.getConfig();
         val generation = state.getGeneration();
         long segment = synchronizer.getSegmentId();
-        if (!ReaderGroupConfig.RetentionConfig.NONE.equals(config.getRetentionConfig())) {
+        if (!ReaderGroupConfig.StreamDataRetention.NONE.equals(config.getRetentionType())) {
             Set<Stream> streams = config.getStartingStreamCuts().keySet();
             streams.forEach(s -> getThrowingException(controller.deleteSubscriber(scope, s.getStreamName(), groupName + segment, generation)));
         }
@@ -294,8 +294,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private void manageSubscriptions(ReaderGroupConfig oldConfig, ReaderGroupConfig newConfig, long generation) {
         long segment = synchronizer.getSegmentId();
-        Set<Stream> oldStreams = oldConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
-        Set<Stream> newStreams = newConfig.getRetentionConfig() != ReaderGroupConfig.RetentionConfig.NONE ? newConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> oldStreams = oldConfig.getRetentionType() != ReaderGroupConfig.StreamDataRetention.NONE ? oldConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
+        Set<Stream> newStreams = newConfig.getRetentionType() != ReaderGroupConfig.StreamDataRetention.NONE ? newConfig.getStartingStreamCuts().keySet() : Collections.emptySet();
         Set<String> streamsToSub = filterOut(newStreams, oldStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
         Set<String> streamsToUnsub = filterOut(oldStreams, newStreams).stream().map(Stream::getStreamName).collect(Collectors.toSet());
         streamsToSub.forEach(s -> getThrowingException(controller.addSubscriber(scope, s, groupName + segment, generation)));
