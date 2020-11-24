@@ -56,6 +56,10 @@ public class BookKeeperConfig {
      * Maximum append length, as specified by BookKeeper (this is hardcoded inside BookKeeper's code).
      */
     static final int MAX_APPEND_LENGTH = 1024 * 1024 - 1024;
+    /**
+     * Size of Bookkeeper header message (see {@link org.apache.bookkeeper.proto.BookieProtoEncoding}).
+     */
+    static final int BK_MESSAGE_PADDING = 24 * 1024;
 
     //endregion
 
