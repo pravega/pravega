@@ -25,11 +25,13 @@ public abstract class AbstractUserCommandTest {
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
     // Setup utility.
-    protected final SecureSetupUtils setupUtils = new SecureSetupUtils();
+    protected SecureSetupUtils setupUtils;
+    protected boolean authEnabled = false;
     protected final AtomicReference<InteractiveConfig> config = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
+        setupUtils = new SecureSetupUtils(authEnabled);
         setupUtils.startAllServices();
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
         interactiveConfig.setControllerUri(setupUtils.getControllerUri().toString().replace("tcp://", ""));

@@ -61,20 +61,20 @@ public final class SecureSetupUtils implements AutoCloseable {
 
     // The different services.
     @Getter
-    private ScheduledExecutorService executor = null;
+    private final ScheduledExecutorService executor;
     @Getter
-    private Controller controller = null;
+    private final Controller controller;
     @Getter
-    private EventStreamClientFactory clientFactory = null;
-    private ControllerWrapper controllerWrapper = null;
+    private final EventStreamClientFactory clientFactory;
+    private final ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server = null;
     @Getter
-    private TestingServer zkTestServer = null;
-    private ServiceBuilder serviceBuilder = null;
+    private final TestingServer zkTestServer;
+    private final ServiceBuilder serviceBuilder;
 
     @Getter
     @Setter
-    private boolean authEnabled = false;
+    private boolean authEnabled;
 
     // Manage the state of the class.
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -86,7 +86,7 @@ public final class SecureSetupUtils implements AutoCloseable {
     private final int controllerRESTPort = TestUtils.getAvailableListenPort();
     @Getter
     private final int servicePort = TestUtils.getAvailableListenPort();
-    private ClientConfig clientConfig = null;
+    private final ClientConfig clientConfig;
 
     public ClientConfig generateValidClientConfig() {
         ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
@@ -96,6 +96,21 @@ public final class SecureSetupUtils implements AutoCloseable {
                     SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
         }
         return clientConfigBuilder.build();
+    }
+
+    public SecureSetupUtils(boolean authEnabled) throws Exception {
+        this.authEnabled = authEnabled;
+        this.clientConfig = generateValidClientConfig();
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                executor);
+        this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
+        this.zkTestServer = new TestingServerStarter().start();
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.controllerWrapper = new ControllerWrapper(
+                this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
+                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, this.authEnabled,
+                "../" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH, "secret", 600);
     }
 
     /**
@@ -118,19 +133,9 @@ public final class SecureSetupUtils implements AutoCloseable {
             log.warn("Services already started, not attempting to start again");
             return;
         }
-        this.clientConfig = generateValidClientConfig();
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "Controller pool");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                executor);
-        this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
 
         // Start zookeeper.
-        this.zkTestServer = new TestingServerStarter().start();
         this.zkTestServer.start();
-
-        // Start Pravega Service.
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-
         this.serviceBuilder.initialize();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         this.server = new PravegaConnectionListener(false, servicePort, store, this.serviceBuilder.createTableStoreService(),
@@ -139,10 +144,6 @@ public final class SecureSetupUtils implements AutoCloseable {
         log.info("Started Pravega Service");
 
         // Start Controller.
-        this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, this.authEnabled,
-                "../" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH, "secret", 600);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(scope).get();
         log.info("Initialized Pravega Controller");

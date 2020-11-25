@@ -61,7 +61,7 @@ public class AuthEnabledControllerCommandsTest extends AbstractAdminCommandTest 
     @Before
     @Override
     public void setUp() throws Exception {
-        setupUtils.setAuthEnabled(true);
+        authEnabled = true;
         super.setUp();
     }
 
