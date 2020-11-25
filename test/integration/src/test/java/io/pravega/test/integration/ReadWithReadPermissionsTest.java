@@ -114,9 +114,12 @@ public class ReadWithReadPermissionsTest {
 
         // Setup the cluster and create the objects
         @Cleanup
-        final ClusterWrapper cluster = new ClusterWrapper(true, "secret",
-                600, writeToInternalStreamsWithReadPermission,
-                this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
+        final ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
+                .rgWritesWithReadPermEnabled(writeToInternalStreamsWithReadPermission)
+                .passwordAuthHandlerEntries(this.preparePasswordInputFileEntries(passwordInputFileEntries))
+                .build();
         cluster.initialize();
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
