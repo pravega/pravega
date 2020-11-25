@@ -67,14 +67,13 @@ public final class SecureSetupUtils implements AutoCloseable {
     @Getter
     private final EventStreamClientFactory clientFactory;
     private final ControllerWrapper controllerWrapper;
-    private PravegaConnectionListener server = null;
+    private final PravegaConnectionListener server;
     @Getter
     private final TestingServer zkTestServer;
     private final ServiceBuilder serviceBuilder;
 
     @Getter
-    @Setter
-    private boolean authEnabled;
+    private final boolean authEnabled;
 
     // Manage the state of the class.
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -107,6 +106,9 @@ public final class SecureSetupUtils implements AutoCloseable {
         this.clientFactory = new ClientFactoryImpl(scope, controller, clientConfig);
         this.zkTestServer = new TestingServerStarter().start();
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        this.server = new PravegaConnectionListener(false, servicePort, store, this.serviceBuilder.createTableStoreService(),
+                this.serviceBuilder.getLowPriorityExecutor());
         this.controllerWrapper = new ControllerWrapper(
                 this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, this.authEnabled,
@@ -137,9 +139,6 @@ public final class SecureSetupUtils implements AutoCloseable {
         // Start zookeeper.
         this.zkTestServer.start();
         this.serviceBuilder.initialize();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, this.serviceBuilder.createTableStoreService(),
-                this.serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
         log.info("Started Pravega Service");
 
