@@ -54,10 +54,12 @@ public class ClusterWrapper implements AutoCloseable {
     private File passwordInputFile;
 
     @Getter
-    private int controllerPort;
+    @Builder.Default
+    private int controllerPort = TestUtils.getAvailableListenPort();
 
     @Getter
-    private int segmentStorePort;
+    @Builder.Default
+    private int segmentStorePort = TestUtils.getAvailableListenPort();
 
     @Getter
     @Builder.Default
@@ -96,14 +98,32 @@ public class ClusterWrapper implements AutoCloseable {
     @Builder.Default
     private int containerCount = 4;
 
+    @Getter
+    @Builder.Default
+    private boolean tlsEnabled = false;
+
+    @Getter
+    private String tlsServerCertificatePath;
+
+    @Getter
+    private String tlsServerKeyPath;
+
+    @Getter
+    @Builder.Default
+    private boolean tlsHostVerificationEnabled = false;
+
+    @Getter
+    private String tlsServerKeystorePath;
+
+    @Getter
+    private String tlsServerKeystorePasswordPath;
+
+
     public void initialize() {
         try {
             if (this.isAuthEnabled() && passwordAuthHandlerEntries == null) {
                 this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
             }
-            this.segmentStorePort = TestUtils.getAvailableListenPort();
-            this.controllerPort = TestUtils.getAvailableListenPort();
-
             startZookeeper();
             startSegmentStore();
             startController();
@@ -136,10 +156,10 @@ public class ClusterWrapper implements AutoCloseable {
             passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
         }
 
-        segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
+        segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            null, null, true, serviceBuilder.getLowPriorityExecutor());
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
 
         segmentStoreServer.startListening();
         log.info("Done starting Segment Store");
@@ -180,15 +200,32 @@ public class ClusterWrapper implements AutoCloseable {
         if (passwordInputFile != null) {
             passwordInputFilePath = passwordInputFile.getPath();
         }
-        return new ControllerWrapper(zookeeperServer.getConnectString(),
-                false, true,
-                controllerPort, serviceHost, segmentStorePort, containerCount, -1,
-                authEnabled, passwordInputFilePath,
-                tokenSigningKeyBasis, this.rgWritesWithReadPermEnabled, tokenTtlInSeconds);
+
+        return ControllerWrapper.builder()
+                .connectionString(zookeeperServer.getConnectString())
+                .disableEventProcessor(false)
+                .disableControllerCluster(true)
+                .controllerPort(controllerPort)
+                .serviceHost(serviceHost)
+                .servicePort(segmentStorePort)
+                .containerCount(containerCount)
+                .restPort(-1)
+                .enableAuth(authEnabled)
+                .passwordAuthHandlerInputFilePath(passwordInputFilePath)
+                .tokenSigningKey(tokenSigningKeyBasis)
+                .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
+                .accessTokenTtlInSeconds(tokenTtlInSeconds)
+                .enableTls(tlsEnabled)
+                .enableHostnameVerification(tlsHostVerificationEnabled)
+                .serverCertificatePath(tlsServerCertificatePath)
+                .serverKeyPath(tlsServerKeyPath)
+                .serverKeystorePath(tlsServerKeystorePath)
+                .serverKeystorePasswordPath(tlsServerKeystorePasswordPath)
+                .build();
     }
 
     public String controllerUri() {
-        return "tcp://localhost:" + controllerPort;
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "tls" : "tcp", controllerPort);
     }
 
     private Entry defaultAuthHandlerEntry() {
