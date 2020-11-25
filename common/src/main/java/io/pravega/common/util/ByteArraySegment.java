@@ -29,7 +29,6 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region Members
 
     private final ByteBuffer buffer;
-    private final int bufferPosition;
     @Getter
     private final int length;
 
@@ -69,7 +68,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
      */
     public ByteArraySegment(byte[] array, int startOffset, int length) {
         this.buffer = ByteBuffer.wrap(array, startOffset, length);
-        this.bufferPosition = startOffset;
+        this.buffer.position(startOffset);
         this.length = length;
     }
 
@@ -79,22 +78,22 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
     @Override
     public byte get(int index) {
-        return this.buffer.get(this.bufferPosition + index);
+        return this.buffer.get(this.buffer.position() + index);
     }
 
     @Override
     public short getShort(int index) {
-        return this.buffer.getShort(this.bufferPosition + index);
+        return this.buffer.getShort(this.buffer.position() + index);
     }
 
     @Override
     public int getInt(int index) {
-        return this.buffer.getInt(this.bufferPosition + index);
+        return this.buffer.getInt(this.buffer.position() + index);
     }
 
     @Override
     public long getLong(int index) {
-        return this.buffer.getLong(this.bufferPosition + index);
+        return this.buffer.getLong(this.buffer.position() + index);
     }
 
     @Override
@@ -104,7 +103,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
     @Override
     public int arrayOffset() {
-        return this.buffer.arrayOffset() + this.bufferPosition;
+        return this.buffer.arrayOffset() + this.buffer.position();
     }
 
     @Override
@@ -193,22 +192,22 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
 
     @Override
     public void set(int index, byte value) {
-        this.buffer.put(this.bufferPosition + index, value);
+        this.buffer.put(this.buffer.position() + index, value);
     }
 
     @Override
     public void setShort(int index, short value) {
-        this.buffer.putShort(this.bufferPosition + index, value);
+        this.buffer.putShort(this.buffer.position() + index, value);
     }
 
     @Override
     public void setInt(int index, int value) {
-        this.buffer.putInt(this.bufferPosition + index, value);
+        this.buffer.putInt(this.buffer.position() + index, value);
     }
 
     @Override
     public void setLong(int index, long value) {
-        this.buffer.putLong(this.bufferPosition + index, value);
+        this.buffer.putLong(this.buffer.position() + index, value);
     }
 
     //endregion
@@ -227,7 +226,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
-        System.arraycopy(source.array(), source.arrayOffset(), this.array(), this.bufferPosition + targetOffset, length);
+        System.arraycopy(source.array(), source.arrayOffset(), this.array(), this.buffer.position() + targetOffset, length);
     }
 
     /**
@@ -244,7 +243,7 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, this.length, "index", "values.length");
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
-        System.arraycopy(source.array(), source.arrayOffset() + sourceOffset, this.array(), this.bufferPosition + targetOffset, length);
+        System.arraycopy(source.array(), source.arrayOffset() + sourceOffset, this.array(), this.buffer.position() + targetOffset, length);
     }
 
     @Override

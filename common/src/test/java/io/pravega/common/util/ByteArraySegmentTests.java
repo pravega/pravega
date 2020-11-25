@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import lombok.val;
 import org.junit.Assert;
@@ -113,6 +114,22 @@ public class ByteArraySegmentTests extends StructuredBufferTestBase {
         Assert.assertEquals(segment.getLength(), b.remaining());
         AssertExtensions.assertArrayEquals("", segment.array(), segment.arrayOffset(),
                 b.array(), b.arrayOffset() + b.position(), b.remaining());
+    }
+
+    @Test
+    public void testByteBufferConstructor() {
+        val data = createFormattedBuffer();
+        val b1 = ByteBuffer.wrap(data, 1, data.length - 1);
+        b1.position(2).limit(10);
+
+        val bas = new ByteArraySegment(b1);
+        Assert.assertSame(data, b1.array());
+        Assert.assertEquals(b1.position() + b1.arrayOffset(), bas.arrayOffset());
+        Assert.assertEquals(b1.remaining(), bas.getLength());
+        AssertExtensions.assertThrows(IndexOutOfBoundsException.class, () -> bas.set(10, (byte) 1));
+
+        val b2 = bas.asByteBuffer();
+        Assert.assertEquals(b1, b2);
     }
 
     @Override
