@@ -11,6 +11,7 @@ package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthComponent;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,7 +24,7 @@ public interface HealthEndpoint {
     }
 
     default String errorMessage() {
-        return String.format("%s (root) contributor not found severe malfunction occurred.", getDefaultContributorName());
+        return String.format("%s (root) contributor not found -- severe malfunction occurred.", getDefaultContributorName());
     }
 
 
@@ -36,16 +37,11 @@ public interface HealthEndpoint {
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The current {@link Status} of the {@link HealthContributor}.
-     * @throws ContributorNotFoundException If a contributor does not map to {@param id}.
      */
-    Status status(String id) throws ContributorNotFoundException;
+    Status status(String id);
 
     default boolean readiness() {
-        try {
-            return readiness(getDefaultContributorName());
-        } catch (ContributorNotFoundException e) {
-            throw new RuntimeException(errorMessage());
-        }
+        return readiness(getDefaultContributorName());
     }
 
     /**
@@ -53,16 +49,11 @@ public interface HealthEndpoint {
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The 'readiness' result.
-     * @throws ContributorNotFoundException If a contributor does not map to {@param id}.
      */
-    boolean readiness(String id) throws ContributorNotFoundException;
+    boolean readiness(String id);
 
     default boolean liveness() {
-        try {
-            return liveness(getDefaultContributorName());
-        } catch (ContributorNotFoundException e) {
-            throw new RuntimeException(errorMessage());
-        }
+        return liveness(getDefaultContributorName());
     }
 
     /**
@@ -70,16 +61,11 @@ public interface HealthEndpoint {
      * @param id The id of some {@link HealthContributor} to search for.
      *
      * @return The 'liveness' result.
-     * @throws ContributorNotFoundException If a contributor does not map to {@param id}.
      */
-    boolean liveness(String id) throws ContributorNotFoundException;
+    boolean liveness(String id);
 
     default Details details() {
-        try {
-            return details(getDefaultContributorName());
-        } catch (ContributorNotFoundException e) {
-            throw new RuntimeException(errorMessage());
-        }
+        return details(getDefaultContributorName());
     }
 
     /**
@@ -88,20 +74,15 @@ public interface HealthEndpoint {
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The {@link Map} of details results.
-     * @throws ContributorNotFoundException If a contributor does not map to {@param id}.
      */
-    Details details(String id) throws ContributorNotFoundException;
+    Details details(String id);
 
-    default Health health(String id) throws ContributorNotFoundException {
+    default Health health(String id) {
         return health(id, false);
     }
 
     default Health health(boolean includeDetails) {
-        try {
-            return health(getDefaultContributorName(), includeDetails);
-        } catch (ContributorNotFoundException e) {
-            throw new RuntimeException(errorMessage());
-        }
+        return health(getDefaultContributorName(), includeDetails);
     }
 
     /**
@@ -112,7 +93,19 @@ public interface HealthEndpoint {
      * @param name  The name of the {@link HealthComponent} to check the {@link Health} of.
      * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
      * @return The {@link Health} object of the component.
-     * @throws ContributorNotFoundException If a contributor does not map to {@param id}.
      */
-    Health health(String name, boolean includeDetails) throws ContributorNotFoundException;
+    Health health(String name, boolean includeDetails);
+
+    default List<String> dependencies() {
+        return dependencies(getDefaultContributorName());
+    }
+
+    /**
+     * Retrieve the list of {@link HealthContributor} names that are used to determine the {@link Health} result
+     * for a particular {@link HealthContributor} mapped by {@param id}.
+     *
+     * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
+     * @return The list of names (ids) that the {@link HealthContributor} relies on.
+     */
+    List<String> dependencies(String id);
 }

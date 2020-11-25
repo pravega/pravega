@@ -38,10 +38,8 @@ public class Health {
      * {@link Health#ready} and {@link Health#alive} should not (for the moment) take a default value, as the distinction
      * between unset and false (not ready/alive) is important.
      */
-    @Getter
     private Boolean ready;
 
-    @Getter
     private Boolean alive;
 
     @Getter
@@ -67,9 +65,12 @@ public class Health {
      */
     public boolean isReady() {
         if (ready == null) {
-            return Status.alive(status);
+            ready = Status.alive(status);
         }
-        return this.ready;
+        if (ready && status.getCode() <= 0) {
+            throw new RuntimeException("A Health object should not logically be in an UNKNOWN/DOWN (Status) and a ready state.");
+        }
+        return ready;
     }
 
     /**
@@ -86,8 +87,16 @@ public class Health {
      */
     public boolean isAlive() {
         if (alive == null) {
-            return Status.alive(status);
+            alive = Status.alive(status);
         }
-        return this.alive;
+        // Can't (logically) be marked both in an 'Alive' state and in a 'DOWN/UNKNOWN' state.
+        if (alive && status.getCode() <= 0) {
+            throw new RuntimeException("A Health object should not logically be in an UNKNOWN/DOWN (Status) and an alive state.");
+        }
+        // Can't (logically) be marked both in a non-alive state and in a 'UP/WARNING' state.
+        if (!alive && status.getCode() > 0) {
+            throw new RuntimeException("A Health object should not logically be in an UP/WARNING(Status) and a non-alive state.");
+        }
+        return alive;
     }
 }

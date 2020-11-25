@@ -50,11 +50,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: List of currently available scopes
           schema:
             $ref: "#/definitions/ScopesList"
-        501:
+        500:
           description: Internal server error while fetching list of scopes
     post:
       tags:
@@ -76,13 +76,13 @@ paths:
       produces:
         - application/json
       responses:
-        202:
+        201:
           description: Successfully created the scope
           schema:
             $ref: "#/definitions/ScopeProperty"
-        410:
+        409:
           description: Scope with the given name already exists
-        501:
+        500:
           description: Internal server error while creating a scope
   /scopes/{scopeName}:
     parameters:
@@ -99,13 +99,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Successfully retrieved the scope details
           schema:
             $ref: "#/definitions/ScopeProperty"
         404:
           description: Scope with the given name not found
-        501:
+        500:
           description: Internal server error while fetching scope details
     delete:
       tags:
@@ -113,13 +113,13 @@ paths:
       operationId: deleteScope
       description: Delete a scope
       responses:
-        205:
+        204:
           description: Successfully deleted the scope
         404:
           description: Scope not found
-        413:
+        412:
           description: Cannot delete scope since it has non-empty list of streams
-        501:
+        500:
           description: Internal server error while deleting a scope
   /scopes/{scopeName}/streams:
     parameters:
@@ -142,13 +142,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: List of all streams configured for the given scope
           schema:
             $ref: "#/definitions/StreamsList"
         404:
           description: Scope not found
-        501:
+        500:
           description: Internal server error while fetching the list of streams for the given scope
     post:
       tags:
@@ -174,15 +174,15 @@ paths:
       produces:
         - application/json
       responses:
-        202:
+        201:
           description: Successfully created the stream with the given configuration
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
           description: Scope not found
-        410:
+        409:
           description: Stream with given name already exists
-        501:
+        500:
           description: Internal server error while creating a stream
   /scopes/{scopeName}/streams/{streamName}:
     parameters:
@@ -204,13 +204,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Found stream properties
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
           description: Scope or stream with given name not found
-        501:
+        500:
           description: Internal server error while fetching stream details
     put:
       tags:
@@ -234,13 +234,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Successfully updated the stream configuration
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
           description: Scope or stream with given name not found
-        501:
+        500:
           description: Internal server error while updating the stream
     delete:
       tags:
@@ -248,13 +248,13 @@ paths:
       operationId: deleteStream
       description: Delete a stream
       responses:
-        205:
+        204:
           description: Successfully deleted the stream
         404:
           description: Stream not found
-        413:
+        412:
           description: Cannot delete stream since it is not sealed
-        501:
+        500:
           description: Internal server error while deleting the stream
   /scopes/{scopeName}/streams/{streamName}/state:
     parameters:
@@ -285,13 +285,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Successfully updated the stream state
           schema:
             $ref: "#/definitions/StreamState"
         404:
           description: Scope or stream with given name not found
-        501:
+        500:
           description: Internal server error while updating the stream state
   /scopes/{scopeName}/streams/{streamName}/scaling-events:
     parameters:
@@ -326,13 +326,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Successfully fetched list of scaling events.
           schema:
             $ref: "#/definitions/ScalingEventList"
         404:
           description: Scope/Stream not found.
-        501:
+        500:
           description: Internal Server error while fetching scaling events.
   /scopes/{scopeName}/readergroups:
     parameters:
@@ -349,13 +349,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: List of all reader groups configured for the given scope
           schema:
             $ref: "#/definitions/ReaderGroupsList"
         404:
           description: Scope not found
-        501:
+        500:
           description: Internal server error while fetching the list of reader groups for the given scope
   /scopes/{scopeName}/readergroups/{readerGroupName}:
     parameters:
@@ -377,13 +377,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: Found reader group properties
           schema:
             $ref: "#/definitions/ReaderGroupProperty"
         404:
           description: Scope or reader group with given name not found
-        501:
+        500:
           description: Internal server error while fetching reader group details
   /health:
     get:
@@ -403,11 +403,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The Health result of the Controller.
           schema:
             $ref: "#/definitions/HealthResult"
-        501:
+        500:
           description: Internal server error while fetching the Health.
   /health/readiness:
     get:
@@ -418,11 +418,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The ready status.
           schema:
             type: boolean
-        501:
+        500:
           description: Internal server error while fetching the ready state of the Controller.
   /health/liveness:
     get:
@@ -433,11 +433,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The alive status.
           schema:
             type: boolean
-        501:
+        500:
           description: Internal server error while fetching the liveness state of the Controller.
   /health/details:
     get:
@@ -448,11 +448,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The list of details.
           schema:
             $ref: "#/definitions/HealthDetails"
-        501:
+        500:
           description: Internal server error while fetching the health details of the Controller.
   /health/components:
     get:
@@ -463,11 +463,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The list of health dependencies of the Controller.
           schema:
             $ref: "#/definitions/HealthDependencies"
-        501:
+        500:
           description: Internal server error while fetching the health dependencies of the Controller.
   /health/status:
     get:
@@ -478,11 +478,11 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The health status of the Controller.
           schema:
             $ref: "#/definitions/HealthStatus"
-        501:
+        500:
           description: Internal server error while fetching the health status of the Controller.
   /health/{id}:
     parameters:
@@ -505,13 +505,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The Health result of the Controller.
           schema:
             $ref: "#/definitions/HealthResult"
         404:
           description: "A health provider for the given id could not be found."
-        501:
+        500:
           description: Internal server error while fetching the health for a given contributor.
   /health/readiness/{id}:
     parameters:
@@ -528,13 +528,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The readiness status for the health contributor with given id.
           schema:
             type: boolean
         404:
           description: "The readiness status for the contributor with given id was not found."
-        501:
+        500:
           description: Internal server error while fetching the ready state for a given health contributor.
   /health/liveness/{id}:
     parameters:
@@ -551,13 +551,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The alive status for the specified health contributor.
           schema:
             type: boolean
         404:
           description: "The liveness status for the contributor with given id was not found."
-        501:
+        500:
           description: Internal server error while fetching the liveness state for a given health contributor.
   /health/details/{id}:
     parameters:
@@ -574,13 +574,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The list of details for the health contributor with a given id.
           schema:
             $ref: "#/definitions/HealthDetails"
         404:
           description: "The health details for the contributor with given id was not found."
-        501:
+        500:
           description: Internal server error while fetching the health details for a given health contributor.
   /health/components/{id}:
     parameters:
@@ -597,13 +597,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The list of health dependencies for a specific health contributor.
           schema:
             $ref: "#/definitions/HealthDependencies"
         404:
           description: "The health dependencies for the contributor with given id was not found."
-        501:
+        500:
           description: Internal server error while fetching the health dependencies of a given health contributor.
   /health/status/{id}:
     parameters:
@@ -620,13 +620,13 @@ paths:
       produces:
         - application/json
       responses:
-        201:
+        200:
           description: The health status of the Controller.
           schema:
             $ref: "#/definitions/HealthStatus"
         404:
           description: "The health status for the contributor with given id was not found."
-        501:
+        500:
           description: Internal server error while fetching the health status of a given health contributor.
 definitions:
   ScalingEventList:

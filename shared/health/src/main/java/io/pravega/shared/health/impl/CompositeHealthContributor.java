@@ -60,7 +60,8 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
                 .map(contributor -> {
                     Health health = contributor.health(includeDetails);
                     if (health.getStatus() == Status.UNKNOWN) {
-                        log.warn("{} has a Status of 'UNKNOWN', your `doHealthCheck` method may not define the Status logic.", health.getName());
+                        log.warn("{} has a Status of 'UNKNOWN'. This indicates `doHealthCheck` does not set a status" +
+                                "or is an empty HealthComponent.", health.getName());
                     }
                     return health;
                 })

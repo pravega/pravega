@@ -18,7 +18,9 @@ import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class HealthEndpointImpl implements HealthEndpoint {
@@ -30,8 +32,8 @@ public class HealthEndpointImpl implements HealthEndpoint {
     }
 
     @Override
-    public Health health(String name, boolean includeDetails) throws ContributorNotFoundException {
-        Optional<HealthContributor> result = registry.get();
+    public Health health(String name, boolean includeDetails) {
+        Optional<HealthContributor> result = registry.get(name);
         if (result.isEmpty()) {
             throw new ContributorNotFoundException();
         }
@@ -39,22 +41,29 @@ public class HealthEndpointImpl implements HealthEndpoint {
     }
 
     @Override
-    public Status status(String id) throws ContributorNotFoundException {
+    public List<String> dependencies(String id) {
+        return health(id, false).getChildren().stream()
+                .map(child -> child.getName())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Status status(String id) {
         return health(id).getStatus();
     }
 
     @Override
-    public boolean readiness(String id) throws ContributorNotFoundException {
+    public boolean readiness(String id) {
         return health(id).isReady();
     }
 
     @Override
-    public boolean liveness(String id) throws ContributorNotFoundException {
+    public boolean liveness(String id) {
         return health(id).isAlive();
     }
 
     @Override
-    public Details details(String id) throws ContributorNotFoundException {
+    public Details details(String id) {
         return health(id, true).getDetails();
     }
 

@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rest.resources;
 
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
+import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
@@ -31,6 +32,7 @@ import io.pravega.shared.health.HealthProvider;
 
 import io.pravega.common.LoggerHelpers;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -84,12 +86,14 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Status status = service.endpoint().status(id);
+            boolean alive = service.endpoint().liveness(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
-                    .entity(adapter(status))
+                    .entity(alive)
                     .build());
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } catch (RuntimeException e) {
+            asyncResponse.resume(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
@@ -109,9 +113,9 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDependencies(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Health health = service.endpoint().health(id);
+            List<String> dependencies = service.endpoint().dependencies(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
-                    .entity(adapter(health).getChildren())
+                    .entity(adapter(dependencies))
                     .build());
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
@@ -165,6 +169,8 @@ public class HealthImpl implements ApiV1.HealthApi {
                     .build());
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
+        } catch (RuntimeException e) {
+            asyncResponse.resume(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
@@ -217,6 +223,12 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private static HealthStatus adapter(Status status) {
         return HealthStatus.fromValue(status.name());
+    }
+
+    private static HealthDependencies adapter(List<String> dependencies) {
+        HealthDependencies result = new HealthDependencies();
+        result.addAll(dependencies);
+        return result;
     }
 
 }
