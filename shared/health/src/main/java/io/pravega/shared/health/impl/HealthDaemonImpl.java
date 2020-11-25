@@ -15,6 +15,7 @@ import io.pravega.shared.health.HealthDaemon;
 import io.pravega.shared.health.HealthService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.Future;
@@ -46,7 +47,8 @@ public class HealthDaemonImpl implements HealthDaemon {
      * The interval at which to run the health check.
      */
     @Getter
-    private final int interval;
+    @Setter
+    private int interval = DEFAULT_INTERVAL_SECONDS;
 
     /**
      * The {@link Future} representing the ongoing health check.

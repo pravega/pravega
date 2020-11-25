@@ -24,6 +24,8 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.health.HealthConfig;
+import io.pravega.shared.health.impl.HealthConfigImpl;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import java.lang.management.ManagementFactory;
@@ -46,6 +48,8 @@ public class Main {
             MetricsProvider.initialize(Config.METRICS_CONFIG);
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
+
+            // Initialize the HealthService
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
@@ -89,6 +93,8 @@ public class Main {
                     .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();
 
+            HealthConfig healthConfig = HealthConfigImpl.builder().empty();
+
             ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                     .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                     .storeClientConfig(storeClientConfig)
@@ -98,6 +104,7 @@ public class Main {
                     .eventProcessorConfig(Optional.of(eventProcessorConfig))
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
+                    .healthConfig(Optional.of(healthConfig))
                     .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
                     .build();
 

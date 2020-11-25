@@ -90,6 +90,8 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     @Override
     public HealthContributor register(HealthComponent component, HealthComponent parent) {
+        // Use the default (root) component if parent is undefined.
+        parent = parent == null ? root : parent;
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
         if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
             log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);

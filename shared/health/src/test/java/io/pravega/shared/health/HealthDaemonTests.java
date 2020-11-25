@@ -12,7 +12,6 @@ package io.pravega.shared.health;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
@@ -27,15 +26,11 @@ public class HealthDaemonTests {
 
     HealthDaemon daemon;
 
-    @BeforeClass
-    public static void initialize() {
-        HealthProvider.initialize();
-    }
-
     @Before
     public void before() {
-        service = HealthProvider.getHealthService();
-        daemon = HealthProvider.getHealthDaemon();
+        HealthServiceFactory factory = new HealthServiceFactory();
+        service = factory.createHealthService(true);
+        daemon = service.daemon();
     }
 
     @Test

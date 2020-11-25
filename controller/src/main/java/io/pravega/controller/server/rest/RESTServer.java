@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.UriBuilder;
+
+import io.pravega.shared.health.HealthService;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -47,7 +49,12 @@ public class RESTServer extends AbstractIdleService {
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(LocalController localController, ControllerService controllerService, AuthHandlerManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
+    public RESTServer(LocalController localController,
+                      ControllerService controllerService,
+                      AuthHandlerManager pravegaAuthManager,
+                      RESTServerConfig restServerConfig,
+                      ConnectionFactory connectionFactory,
+                      HealthService healthService) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
@@ -55,7 +62,7 @@ public class RESTServer extends AbstractIdleService {
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
-        resourceObjs.add(new HealthImpl(pravegaAuthManager));
+        resourceObjs.add(new HealthImpl(pravegaAuthManager, healthService));
         resourceObjs.add(new StreamMetadataResourceImpl(localController, controllerService, pravegaAuthManager, connectionFactory));
 
         final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);

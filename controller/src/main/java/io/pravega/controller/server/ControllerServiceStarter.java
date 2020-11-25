@@ -72,6 +72,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.HealthServiceFactory;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -105,6 +108,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
     private ControllerService controllerService;
+    private HealthService healthService;
+    private HealthServiceFactory healthServiceFactory;
 
     private LocalController localController;
     private ControllerEventProcessors controllerEventProcessors;
@@ -123,7 +128,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final Optional<ConnectionFactory> connectionFactoryRef;
     private final Optional<StreamMetadataStore> streamMetadataStoreRef;
     private final Optional<KVTableMetadataStore> kvtMetaStoreRef;
-    
+
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final CompletableFuture<Void> storeClientFailureFuture;
@@ -149,6 +154,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
+        this.healthServiceFactory = new HealthServiceFactory(serviceConfig.getHealthConfig());
     }
 
     @Override
@@ -162,6 +168,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
+        log.info("   HealthService enabled = {}", serviceConfig.getHealthConfig().isPresent());
 
         final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
@@ -331,13 +338,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 grpcServer.awaitRunning();
             }
 
+            // Start HealthService.
+            if (serviceConfig.getHealthConfig().isPresent()) {
+                healthService = healthServiceFactory.createHealthService(true);
+            }
+
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
                 restServer = new RESTServer(this.localController,
                         controllerService,
                         grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
-                        connectionFactory);
+                        connectionFactory,
+                        healthService);
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

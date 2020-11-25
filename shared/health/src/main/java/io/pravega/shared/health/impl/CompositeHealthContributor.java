@@ -15,6 +15,7 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Registry;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.StatusAggregator;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -28,6 +29,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
      */
+    @Getter
     private final StatusAggregator aggregator;
 
     private ContributorRegistry registry = null;
@@ -53,6 +55,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     }
 
     public Health health(boolean includeDetails) {
+        log.info("getName: {}", getName());
         Health.HealthBuilder builder = Health.builder().name(getName());
         // Fetch the Health Status of all dependencies.
         val children =  contributors().stream()
@@ -61,7 +64,7 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
                     Health health = contributor.health(includeDetails);
                     if (health.getStatus() == Status.UNKNOWN) {
                         log.warn("{} has a Status of 'UNKNOWN'. This indicates `doHealthCheck` does not set a status" +
-                                "or is an empty HealthComponent.", health.getName());
+                                " or is an empty HealthComponent.", health.getName());
                     }
                     return health;
                 })

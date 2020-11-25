@@ -49,6 +49,8 @@ public interface HealthService {
      */
     HealthEndpoint endpoint();
 
+    HealthDaemon daemon();
+
     /**
      * This method should remove all state from the {@link HealthService} object. Meaning the {@link HealthService} should
      * act as if it was just constructed.

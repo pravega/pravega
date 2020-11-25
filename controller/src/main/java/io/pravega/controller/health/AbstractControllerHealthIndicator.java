@@ -9,10 +9,5 @@
  */
 package io.pravega.controller.health;
 
-import io.pravega.shared.health.HealthProvider;
-import io.pravega.shared.health.HealthService;
-
 public class AbstractControllerHealthIndicator {
-
-    static final HealthService HEALTH_SERVICE = HealthProvider.getHealthService();
 }

@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.HealthConfigImpl;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -33,23 +32,21 @@ public class HealthServiceTests {
     @Rule
     public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
 
-    HealthConfig config = HealthConfigImpl.builder().empty();
-
     HealthService service;
 
     public void start() throws IOException {
-        HealthProvider.initialize(config);
-        service = HealthProvider.getHealthService();
+        HealthServiceFactory factory = new HealthServiceFactory();
+        service = factory.createHealthService(true);
     }
 
     public void stop() {
-        HealthProvider.getHealthService().clear();
+        service.clear();
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
                 1,
-                HealthProvider.getHealthService().components().size());
+                service.components().size());
         Assert.assertEquals("The ContributorRegistry should not maintain any references to HealthContributors",
                 1,
-                HealthProvider.getHealthService().registry().contributors().size());
+                service.registry().contributors().size());
     }
 
     @Before

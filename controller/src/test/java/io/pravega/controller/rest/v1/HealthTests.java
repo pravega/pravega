@@ -21,17 +21,19 @@ import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthIndicator;
-import io.pravega.shared.health.HealthProvider;
 import io.pravega.shared.health.HealthService;
 
+import io.pravega.shared.health.HealthServiceFactory;
 import io.pravega.shared.health.Status;
+import io.pravega.shared.health.impl.HealthConfigImpl;
+import io.pravega.shared.health.impl.StatusAggregatorImpl;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -45,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -62,9 +65,15 @@ public class HealthTests {
 
     private static final String HOST = "localhost";
 
+    private static final String IMPLICIT_INDICATOR = "implicit-health-child";
+
+    private static final String IMPLICIT_COMPONENT = "health-component";
+
     //Ensure each test completes within 30 seconds.
     @Rule
-    public final Timeout globalTimeout = new Timeout(100, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(10000, TimeUnit.SECONDS);
+
+    private  HealthServiceFactory healthServiceFactory;
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
@@ -72,22 +81,20 @@ public class HealthTests {
     private ConnectionFactory connectionFactory;
     private HealthService service;
 
-    @BeforeClass
-    public static void before() {
-        HealthProvider.initialize();
-    }
-
     @Before
     public void setup() throws Exception {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        healthServiceFactory = new HealthServiceFactory(Optional.ofNullable(getHealthConfig()));
+        service = healthServiceFactory.createHealthService(true);
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory);
+                connectionFactory, service);
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
-        service = HealthProvider.getHealthService();
+        // Must provide a HealthIndicator to the HealthComponent(s) defined by the HealthConfig.
+        service.registry().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR), IMPLICIT_COMPONENT);
     }
 
     @After
@@ -106,6 +113,12 @@ public class HealthTests {
 
     RESTServerConfig getServerConfig() throws Exception {
         return RESTServerConfigImpl.builder().host(HOST).port(TestUtils.getAvailableListenPort())
+                .build();
+    }
+
+    HealthConfig getHealthConfig() throws Exception {
+        return HealthConfigImpl.builder()
+                .define("health-component", StatusAggregatorImpl.DEFAULT)
                 .build();
     }
 
@@ -131,8 +144,10 @@ public class HealthTests {
 
     @Test
     public void testHealthNoContributors() {
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
+        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", IMPLICIT_COMPONENT)))
                 .scheme(getURLScheme()).build();
+        // Remove the only contributor of 'IMPLICIT_COMPONENT'.
+        service.registry().unregister(IMPLICIT_INDICATOR);
 
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         HealthResult healthResult = response.readEntity(HealthResult.class);
@@ -319,12 +334,12 @@ public class HealthTests {
     }
 
     @Test
-    // TODO: Once the HealthService transitions away from a SINGLETON, add HealthConfig usage.
     public void testDependencies()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
         service.registry().register(healthyIndicator);
         HealthDependencies  expected = new HealthDependencies();
+        expected.add(IMPLICIT_COMPONENT);
         expected.add(healthyIndicator.getName());
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/components"))
                 .scheme(getURLScheme()).build();

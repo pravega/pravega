@@ -20,6 +20,7 @@ package io.pravega.shared.health;
  */
 public interface HealthDaemon {
 
+    public static final int DEFAULT_INTERVAL_SECONDS = 10;
     /**
      * Supplies the most recent {@link Health} check result.
      *

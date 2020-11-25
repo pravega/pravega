@@ -11,6 +11,7 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthConfig;
+import io.pravega.shared.health.HealthDaemon;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.extern.slf4j.Slf4j;
@@ -27,14 +28,20 @@ public class HealthServiceImpl implements HealthService {
      */
     private HealthConfig config;
 
+    /**
+     * The {@link HealthDaemon} used *if* a daemon is passed in during construction.
+     */
+    private final HealthDaemon daemon;
 
     private final HealthEndpoint endpoint;
 
     public HealthServiceImpl(HealthConfig config) {
-        this.registry = new ContributorRegistryImpl();
         this.config = config;
-        this.config.reconcile(this.registry);
+        this.registry = new ContributorRegistryImpl();
         this.endpoint = new HealthEndpointImpl(this.registry);
+        this.config.reconcile(this.registry);
+        // Risk of escaped 'this' is we call HealthDaemon.start() within this (HealthServiceImpl) constructor?
+        this.daemon = new HealthDaemonImpl(this);
     }
 
     @Override
@@ -50,6 +57,11 @@ public class HealthServiceImpl implements HealthService {
     @Override
     public HealthEndpoint endpoint() {
         return this.endpoint;
+    }
+
+    @Override
+    public HealthDaemon daemon() {
+        return daemon;
     }
 
     @Override

@@ -28,8 +28,6 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 
-import io.pravega.shared.health.HealthProvider;
-
 import io.pravega.common.LoggerHelpers;
 
 import java.util.List;
@@ -38,11 +36,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class HealthImpl implements ApiV1.HealthApi {
 
-    private HealthService service = HealthProvider.getHealthService();
+    private final HealthService service;
 
     private final RESTAuthHelper restAuthHelper;
 
-    public HealthImpl(AuthHandlerManager pravegaAuthManager) {
+    public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthService service) {
+        this.service = service;
         this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
     }
 

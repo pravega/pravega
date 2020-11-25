@@ -43,6 +43,7 @@ public abstract class HealthIndicator implements HealthContributor {
       }
 
       public Health health(boolean includeDetails) {
+            log.info("name: {}", name);
             Health.HealthBuilder builder = new Health.HealthBuilder();
             try {
                   doHealthCheck(builder);
