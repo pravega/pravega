@@ -30,10 +30,7 @@ import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
@@ -42,7 +39,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
@@ -87,16 +83,6 @@ public final class SecureSetupUtils implements AutoCloseable {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig;
 
-    public ClientConfig generateValidClientConfig() {
-        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
-                .controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
-        if (this.authEnabled) {
-            clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
-        }
-        return clientConfigBuilder.build();
-    }
-
     public SecureSetupUtils(boolean authEnabled) throws Exception {
         this.authEnabled = authEnabled;
         this.clientConfig = generateValidClientConfig();
@@ -113,6 +99,16 @@ public final class SecureSetupUtils implements AutoCloseable {
                 this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort, this.authEnabled,
                 "../" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH, "secret", 600);
+    }
+
+    public ClientConfig generateValidClientConfig() {
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
+                .controllerURI(URI.create("tcp://localhost:" + controllerRPCPort));
+        if (this.authEnabled) {
+            clientConfigBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
+        }
+        return clientConfigBuilder.build();
     }
 
     /**
