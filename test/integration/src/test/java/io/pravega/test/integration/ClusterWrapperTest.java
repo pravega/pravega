@@ -13,7 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
-import io.pravega.test.integration.utils.StreamUtils;
+import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Rule;
@@ -22,6 +22,8 @@ import org.junit.rules.Timeout;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -34,7 +36,7 @@ public class ClusterWrapperTest {
     public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
 
     @Test
-    public void testSetsDefaultValuesWhenBuilderSpecifiesNoValues() {
+    public void setsDefaultValuesWhenBuilderSpecifiesNoValues() {
         ClusterWrapper objectUnderTest = ClusterWrapper.builder().build();
 
         assertFalse(objectUnderTest.isAuthEnabled());
@@ -45,12 +47,21 @@ public class ClusterWrapperTest {
     }
 
     @Test
-    public void testTlsEnabledWriteAndReadAMessage() {
+    public void writeAndReadBackAMessageWithTlsAndAuthEnabledServer() {
         String scopeName = "testScope";
         String streamName = "testStream";
         String readerGroupName = "testReaderGroup";
         String testMessage = "test message";
         String pathToConfig = "../../config/";
+        String password = "secret-password";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put("writer", "prn::*,READ_UPDATE");
+        passwordInputFileEntries.put("reader", String.join(";",
+                "prn::/scope:testScope,READ",
+                "prn::/scope:testScope/stream:testStream,READ",
+                "prn::/scope:testScope/reader-group:testReaderGroup,READ"
+        ));
 
         @Cleanup
         ClusterWrapper cluster = ClusterWrapper.builder()
@@ -58,22 +69,29 @@ public class ClusterWrapperTest {
                 .tlsEnabled(true)
                 .tlsServerCertificatePath(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .tlsServerKeyPath(pathToConfig + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                .passwordAuthHandlerEntries(TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, password))
                 .tlsHostVerificationEnabled(false)
                 .build();
 
-        final ClientConfig adminClientConfig = ClientConfig.builder()
+        final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .trustStore(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .validateHostName(false)
-                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                .credentials(new DefaultCredentials(password, "writer"))
                 .build();
 
         cluster.initialize();
 
-        StreamUtils.createStreams(adminClientConfig, scopeName, Arrays.asList(streamName));
-        StreamUtils.writeDataToStream(scopeName, streamName, testMessage, adminClientConfig);
+        TestUtils.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        TestUtils.writeDataToStream(scopeName, streamName, testMessage, writerClientConfig);
 
-        String readMessage = StreamUtils.readAMessageFromStream(scopeName, streamName, adminClientConfig, readerGroupName);
+        final ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .trustStore(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .validateHostName(false)
+                .credentials(new DefaultCredentials(password, "reader"))
+                .build();
+        String readMessage = TestUtils.readAMessageFromStream(scopeName, streamName, writerClientConfig, readerGroupName);
         assertEquals(testMessage, readMessage);
     }
 }

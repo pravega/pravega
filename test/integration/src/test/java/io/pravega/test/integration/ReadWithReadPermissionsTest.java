@@ -12,11 +12,9 @@ package io.pravega.test.integration;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
-import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
-import io.pravega.test.integration.utils.StreamUtils;
+import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -25,12 +23,8 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.net.URI;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -97,6 +91,7 @@ public class ReadWithReadPermissionsTest {
         final String streamName = "StockPriceUpdates";
         final String readerGroupName = "PriceChangeCalculator";
         final String message = "SCRIP:DELL,EXCHANGE:NYSE,PRICE=100";
+        final String pwd = "secret-password";
 
         // Setup the cluster and create the objects
         @Cleanup
@@ -104,38 +99,27 @@ public class ReadWithReadPermissionsTest {
                 .authEnabled(true)
                 .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
                 .rgWritesWithReadPermEnabled(writeToInternalStreamsWithReadPermission)
-                .passwordAuthHandlerEntries(this.preparePasswordInputFileEntries(passwordInputFileEntries))
+                .passwordAuthHandlerEntries(TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, pwd))
                 .build();
         cluster.initialize();
+
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials("1111_aaaa", "creator"))
+                .credentials(new DefaultCredentials(pwd, "creator"))
                 .build();
-        StreamUtils.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
-        StreamUtils.writeDataToStream(scopeName, streamName, message, writerClientConfig);
+        TestUtils.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        TestUtils.writeDataToStream(scopeName, streamName, message, writerClientConfig);
 
         // Now, read data back using the reader account.
 
         ClientConfig readerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials("1111_aaaa", "reader"))
+                .credentials(new DefaultCredentials(pwd, "reader"))
                 .build();
 
-        String readMessage = StreamUtils.readAMessageFromStream(scopeName, streamName, readerClientConfig, readerGroupName);
+        String readMessage = TestUtils.readAMessageFromStream(scopeName, streamName, readerClientConfig, readerGroupName);
         log.info("Done reading event [{}]", readMessage);
 
         assertEquals(message, readMessage);
-    }
-
-    private List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(Map<String, String> entries) {
-        StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
-        try {
-            String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
-            List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
-            entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
-            return result;
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

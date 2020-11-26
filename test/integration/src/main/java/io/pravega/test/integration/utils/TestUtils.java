@@ -22,17 +22,26 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * A helper class with general-purpose utility methods for integration tests.
+ */
 @Slf4j
-public class StreamUtils {
+public class TestUtils {
 
     public static void createStreams(ClientConfig clientConfig, String scopeName, List<String> streamNames) {
         @Cleanup
@@ -89,5 +98,18 @@ public class StreamUtils {
         String readMessage = reader.readNextEvent(10000).getEvent();
         log.info("Done reading event [{}]", readMessage);
         return readMessage;
+    }
+
+    public static List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(
+            Map<String, String> entries, String password) {
+        StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
+        try {
+            String encryptedPassword = passwordProcessor.encryptPassword(password);
+            List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
+            entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
+            return result;
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
