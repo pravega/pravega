@@ -509,31 +509,6 @@ public class StreamMetadataTasks extends TaskBase {
         return truncateInternal(scope, stream, context, policy, updatedRetentionSet, requestId);
     }
 
-    private CompletableFuture<Void> truncate(String scope, String stream, OperationContext context, long requestId,
-                                                   StreamCutReferenceRecord truncationRecord) {
-        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
-                truncationRecord.getRecordingTime(), truncationRecord.getRecordingSize());
-        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord, context, executor)
-                                  .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                                  .thenCompose(started -> {
-                                      if (started) {
-                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord, context, executor);
-                                      } else {
-                                          throw new RuntimeException("Could not start truncation");
-                                      }
-                                  })
-                                  .exceptionally(e -> {
-                                      if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                          // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                          log.debug(requestId, "Cannot truncate at given " +
-                                                  "streamCut because it intersects with existing truncation point");
-                                          return null;
-                                      } else {
-                                          throw new CompletionException(e);
-                                      }
-                                  });
-    }
-
     private CompletableFuture<Void> truncateInternal(String scope, String stream, OperationContext context,
                                                      RetentionPolicy policy, RetentionSet retentionSet,
                                                      long requestId) {
