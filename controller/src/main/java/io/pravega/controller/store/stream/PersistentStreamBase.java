@@ -271,12 +271,9 @@ public abstract class PersistentStreamBase implements Stream {
         return computeStreamCutSpan(streamCut)
                 .thenCompose(span1 -> {
                     fetched.put(streamCut.keySet(), span1);
-                    BiFunction<StreamCutReferenceRecord, Boolean, CompletableFuture<Integer>> fn = (refRecord, comparison) -> {
+                    Function<StreamCutReferenceRecord, CompletableFuture<Integer>> fn = (refRecord) -> {
                         return getStreamCutRecord(refRecord)
                                 .thenCompose(record -> {
-                                    if (record.getStreamCut().equals(streamCut)) {
-                                        return CompletableFuture.completedFuture(0);
-                                    }
                                     ImmutableMap<StreamSegmentRecord, Integer> sc = fetched.get(record.getStreamCut().keySet());
                                     CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> future;
                                     if (sc != null) {
@@ -289,8 +286,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 });
                                     }
                                     return future.thenApply(span2 -> {
-                                        boolean compare = comparison ? greaterThan(streamCut, span1, record.getStreamCut(), span2) :
-                                                greaterThan(record.getStreamCut(), span2, streamCut, span1);
+                                        boolean compare = greaterThan(streamCut, span1, record.getStreamCut(), span2);
                                         if (compare) {
                                             return 1;
                                         } else {
@@ -301,15 +297,21 @@ public abstract class PersistentStreamBase implements Stream {
                     };
 
                     // binary search retention set. 
-                    return binarySearch(0, size, index -> {
+                    return binarySearch(0, size - 1, index -> {
                         StreamCutReferenceRecord refRecord = retentionSet.getRetentionRecords().get(index);
-                        return fn.apply(refRecord, true)
+                        return fn.apply(refRecord)
                                  .thenCompose(compared -> {
-                                     if (compared == 1 && index < size) {
-                                         StreamCutReferenceRecord next = retentionSet.getRetentionRecords().get(index + 1);
+                                     if (compared == 1) {
+                                         if (index < size - 1) {
+                                             StreamCutReferenceRecord next = retentionSet.getRetentionRecords().get(index + 1);
 
-                                         return fn.apply(next, false)
-                                                  .thenApply(r -> r == 1 ? 1 : 0);
+                                             // if its greater than current but not strictly greater than next then return found.
+                                             return fn.apply(next)
+                                                      .thenApply(r -> r == 1 ? 1 : 0);
+                                         } else {
+                                             // if its greater than the latest element, then return matched
+                                             return CompletableFuture.completedFuture(0);
+                                         }
                                      } else {
                                          return CompletableFuture.completedFuture(compared);
                                      }

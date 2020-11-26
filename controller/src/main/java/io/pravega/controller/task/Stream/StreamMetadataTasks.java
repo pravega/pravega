@@ -478,7 +478,7 @@ public class StreamMetadataTasks extends TaskBase {
                     StreamCutReferenceRecord latestCut = retentionSet.getLatest();
                     
                     return generateStreamCutIfRequired(scope, stream, latestCut, recordingTime, context, delegationToken)
-                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
+                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, requestId));
                 })
                 .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
 
@@ -504,50 +504,15 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
-                                             RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-        if (policy.getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
-            RetentionSet updatedRetentionSet = newRecord == null ? retentionSet : RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, newRecord);
-            return subscriberBasedTruncation(scope, stream, context, policy, updatedRetentionSet, requestId);
-        } else {
-            Optional<StreamCutReferenceRecord> truncationRecord = findTruncationRecord(policy, retentionSet, newRecord, recordingTime);
-            if (!truncationRecord.isPresent()) {
-                log.info("No suitable truncation record found, per retention policy for stream {}/{}", scope, stream);
-                return CompletableFuture.completedFuture(null);
-            }
-            log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
-                    truncationRecord.get().getRecordingTime(), truncationRecord.get().getRecordingSize());
+                                             RetentionSet retentionSet, StreamCutRecord newRecord, long requestId) {
+        RetentionSet updatedRetentionSet = newRecord == null ? retentionSet : RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, newRecord);
 
-            return truncate(scope, stream, context, requestId, truncationRecord.get());
-        }
+        return truncateInternal(scope, stream, context, policy, updatedRetentionSet, requestId);
     }
 
-    private CompletableFuture<Void> truncate(String scope, String stream, OperationContext context, long requestId,
-                                             StreamCutReferenceRecord truncationRecord) {
-        log.info("Found truncation record for stream {}/{} truncationRecord time/size: {}/{}", scope, stream,
-                truncationRecord.getRecordingTime(), truncationRecord.getRecordingSize());
-        return streamMetadataStore.getStreamCutRecord(scope, stream, truncationRecord, context, executor)
-                                  .thenCompose(streamCutRecord -> startTruncation(scope, stream, streamCutRecord.getStreamCut(), context, requestId))
-                                  .thenCompose(started -> {
-                                      if (started) {
-                                          return streamMetadataStore.deleteStreamCutBefore(scope, stream, truncationRecord, context, executor);
-                                      } else {
-                                          throw new RuntimeException("Could not start truncation");
-                                      }
-                                  })
-                                  .exceptionally(e -> {
-                                      if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
-                                          // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                          log.debug(requestId, "Cannot truncate at given " +
-                                                  "streamCut because it intersects with existing truncation point");
-                                          return null;
-                                      } else {
-                                          throw new CompletionException(e);
-                                      }
-                                  });
-    }
-
-    private CompletableFuture<Void> subscriberBasedTruncation(String scope, String stream, OperationContext context, RetentionPolicy policy, RetentionSet retentionSet,
-                                             long requestId) {
+    private CompletableFuture<Void> truncateInternal(String scope, String stream, OperationContext context,
+                                                     RetentionPolicy policy, RetentionSet retentionSet,
+                                                     long requestId) {
         return streamMetadataStore.listSubscribers(scope, stream, context, executor)
                            .thenCompose(list -> Futures.allOfWithResults(list.stream().map(x -> 
                                    streamMetadataStore.getSubscriber(scope, stream, x, context, executor)).collect(Collectors.toList())))
@@ -563,7 +528,7 @@ public class StreamMetadataTasks extends TaskBase {
                            .thenApply(this::computeSubscribersLowerBound)
                 .thenCompose(lowerBound -> {
                     CompletableFuture<Map<Long, Long>> toTruncateAt; 
-                    if (policy.getConsumptionLimits().getType().equals(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES)) {
+                    if (policy.getRetentionType().equals(RetentionPolicy.RetentionType.SIZE)) {
                         toTruncateAt = getTruncationStreamCutBySizeLimit(scope, stream, context, policy, retentionSet, lowerBound);
                     } else {
                         toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound);
@@ -587,7 +552,17 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         throw new RuntimeException("Could not start truncation");
                                     }
+                                }).exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                        // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                        log.debug(requestId, "Cannot truncate at given " +
+                                                "streamCut because it intersects with existing truncation point");
+                                        return null;
+                                    } else {
+                                        throw new CompletionException(e);
+                                    }
                                 });
+
                     });
                 });
     }
@@ -605,7 +580,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (lowerBound == null || lowerBound.isEmpty()) {
             return retentionSet
                     .getRetentionRecords().stream()
-                    .filter(x -> currentSize - x.getRecordingSize() > policy.getConsumptionLimits().getMaxValue())
+                    .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionParam())
                     .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime))
                     .map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor).thenApply(StreamCutRecord::getStreamCut))
                     .orElse(CompletableFuture.completedFuture(null));
@@ -616,17 +591,18 @@ public class StreamMetadataTasks extends TaskBase {
                                long retainedSize = currentSize - sizeTill;
                                Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
                                       .getRetentionRecords().stream()
-                                      .filter(x -> currentSize - x.getRecordingSize() > policy.getConsumptionLimits().getMaxValue())
+                                      .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
                                       .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
 
-                               // if retainedSize is less than min size then truncate the stream at max bound. 
-                               if (retainedSize < policy.getConsumptionLimits().getMinValue()) {
+                               // if retainedSize is less than min size then do not truncate the stream. 
+                               if (retainedSize < policy.getRetentionParam()) {
+                                   // if retainedSize is less than min size then truncate the stream at max bound. 
                                    return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
                                                                                .thenApply(StreamCutRecord::getStreamCut))
                                                   .orElse(CompletableFuture.completedFuture(null));
                                } else {
                                    // if retained size is less than max allowed, then truncate the stream at subscriber lower bound. 
-                                   if (retainedSize < policy.getConsumptionLimits().getMaxValue()) {
+                                   if (retainedSize < policy.getRetentionMax()) {
                                        return CompletableFuture.completedFuture(lowerBound);
                                    } else {
                                        // if retained size is greater than max allowed, then truncate the stream at streamcut
@@ -654,7 +630,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                  RetentionPolicy policy, RetentionSet retentionSet,
                                                                                  Map<Long, Long> lowerBound) {
         Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> limits =
-                getBoundStreamCuts(policy.getConsumptionLimits(), retentionSet);
+                getBoundStreamCuts(policy, retentionSet);
         // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time 
         // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
         // exists
@@ -836,9 +812,8 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy.ConsumptionLimits policy,
+    private Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> getBoundStreamCuts(RetentionPolicy policy,
                                                                                              RetentionSet retentionSet) {
-        assert RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS.equals(policy.getType());
         AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
         AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
 
@@ -847,11 +822,11 @@ public class StreamMetadataTasks extends TaskBase {
         long currentTime = retentionClock.get().get();
         retentionSet.getRetentionRecords().forEach(x -> {
             long value = currentTime - x.getRecordingTime();
-            if (value >= policy.getMaxValue() && value < maxSoFar.get()) {
+            if (value >= policy.getRetentionMax() && value < maxSoFar.get()) {
                 max.set(x);
                 maxSoFar.set(value);
             }
-            if (value >= policy.getMinValue() && value < minSoFar.get()) {
+            if (value >= policy.getRetentionParam() && value < minSoFar.get()) {
                 min.set(x);
                 minSoFar.set(value);
             }

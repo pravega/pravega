@@ -125,11 +125,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public abstract class StreamMetadataTasksTest {
 
@@ -605,6 +601,7 @@ public abstract class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
+        doAnswer(x -> CompletableFuture.completedFuture(Collections.emptyList())).when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -612,8 +609,10 @@ public abstract class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        AtomicLong time = new AtomicLong(System.currentTimeMillis());
+        streamMetadataTasks.setRetentionClock(time::get);
 
-        long recordingTime1 = System.currentTimeMillis();
+        long recordingTime1 = time.get();
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 1L);
         map1.put(1L, 1L);
@@ -643,7 +642,7 @@ public abstract class StreamMetadataTasksTest {
         StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, Long.MIN_VALUE, ImmutableMap.copyOf(map2));
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
-
+        time.set(recordingTime2);
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null, "").get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
                                      .thenCompose(retentionSet -> {
@@ -668,6 +667,7 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
 
+        time.set(recordingTime3);
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null, "").get();
         // verify two stream cuts are in retention set. Cut 1 and 3.
         // verify that Truncation not not happened.
@@ -692,7 +692,7 @@ public abstract class StreamMetadataTasksTest {
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, ImmutableMap.copyOf(map4));
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
-
+        time.set(recordingTime4);
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime4, null, "").get();
         // verify that only two stream cut are in retention set. streamcut 3 and 4
         // verify that truncation has started. verify that streamCut1 is removed from retention set as that has been used for truncation
@@ -711,6 +711,8 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(list.contains(streamCut4));
         assertTrue(truncProp.isUpdating());
         assertTrue(truncProp.getStreamCut().get(0L) == 1L && truncProp.getStreamCut().get(1L) == 1L);
+        
+        doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
 
     @Test(timeout = 30000)
@@ -723,6 +725,7 @@ public abstract class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
+        doAnswer(x -> CompletableFuture.completedFuture(Collections.emptyList())).when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
         streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
@@ -1033,12 +1036,13 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(truncProp.isUpdating());
         // endregion
         // endregion
+        doCallRealMethod().when(streamStorePartialMock).listSubscribers(any(), any(), any(), any());
     }
     
     @Test(timeout = 30000)
     public void consumptionBasedRetentionSizeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 2L, 10L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(2L, 10L);
 
         String stream1 = "consumptionSize";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1173,7 +1177,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionTimeLimitTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 1L, 10L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(1L), Duration.ofMillis(10L));
 
         String stream1 = "consumptionTime";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1315,7 +1319,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(3);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, 1000L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
 
         String stream1 = "consumptionSize";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1388,7 +1392,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithScale2() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, 1000L);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.bySizeBytes(0L, 1000L);
 
         String stream1 = "consumptionSize2";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1478,7 +1482,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoBounds() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 0L, Long.MAX_VALUE);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(0L), Duration.ofMillis(Long.MAX_VALUE));
 
         String stream1 = "consumptionSize3";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1568,7 +1572,7 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void consumptionBasedRetentionWithNoSubscriber() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 0L, Long.MAX_VALUE);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMillis(0L), Duration.ofMillis(Long.MAX_VALUE));
 
         String stream1 = "consumptionSize4";
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
