@@ -40,8 +40,7 @@ public class RetentionPolicy implements Serializable {
     private final long retentionMax;
 
     /**
-     * Create a retention policy to configure a stream to periodically truncated
-     * according to the specified duration
+     * Create a retention policy to configure a stream to be periodically truncated according to the specified duration.
      *
      * @param duration Period to retain data in a stream.
      * @return Retention policy object.
