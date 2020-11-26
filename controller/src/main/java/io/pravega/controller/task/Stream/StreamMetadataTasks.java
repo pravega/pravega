@@ -569,7 +569,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (lowerBound == null || lowerBound.isEmpty()) {
             return retentionSet
                     .getRetentionRecords().stream()
-                    .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
+                    .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionParam())
                     .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime))
                     .map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor).thenApply(StreamCutRecord::getStreamCut))
                     .orElse(CompletableFuture.completedFuture(null));
