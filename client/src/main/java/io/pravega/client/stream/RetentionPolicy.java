@@ -36,7 +36,8 @@ public class RetentionPolicy implements Serializable {
         SIZE,
 
         /**
-         * Set retention policy based on Consumption. 
+         * Set retention policy based on Consumption.
+         * Also see: {@link ReaderGroupConfig.StreamDataRetention}
          */
         CONSUMPTION
     }
