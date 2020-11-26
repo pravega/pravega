@@ -60,11 +60,11 @@ public class ModelHelper {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
                     retentionPolicy = RetentionPolicy.bySizeBytes(
-                            createStreamRequest.getRetentionPolicy().getMinValue() * 1024 * 1024);
+                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                            createStreamRequest.getRetentionPolicy().getMinValue());
+                            createStreamRequest.getRetentionPolicy().getValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
@@ -105,11 +105,11 @@ public class ModelHelper {
             switch (updateStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
                     retentionPolicy = RetentionPolicy.bySizeBytes(
-                            updateStreamRequest.getRetentionPolicy().getMinValue() * 1024 * 1024);
+                            updateStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                                                        updateStreamRequest.getRetentionPolicy().getMinValue());
+                                                                        updateStreamRequest.getRetentionPolicy().getValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
@@ -149,24 +149,24 @@ public class ModelHelper {
             switch (streamConfiguration.getRetentionPolicy().getRetentionType()) {
                 case SIZE:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
-                    retentionConfig.setMinValue(streamConfiguration.getRetentionPolicy().getRetentionMin() / (1024 * 1024));
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getRetentionParam() / (1024 * 1024));
                     break;
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
                     TimeBasedRetention timeRetention = new TimeBasedRetention();
-                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionMin();
-                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionMin()).toDays();
+                    long totalMilliSecs = streamConfiguration.getRetentionPolicy().getRetentionParam();
+                    long days = Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays();
                     long daysInMs = Duration.ofDays(days).toMillis();
                     long hours = 0L, minutes = 0L;
                     if (totalMilliSecs == daysInMs) {
                         // retention is specified only in days
                         hours = 0L;
                         minutes = 0L;
-                        retentionConfig.setMinValue(days);
+                        retentionConfig.setValue(days);
                     } else {
                         hours = TimeUnit.MILLISECONDS.toHours(totalMilliSecs - daysInMs);
                         minutes = getMinsFromMillis(totalMilliSecs, daysInMs, hours);
-                        retentionConfig.setMinValue(0L);
+                        retentionConfig.setValue(0L);
                     }
                     retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
                     break;

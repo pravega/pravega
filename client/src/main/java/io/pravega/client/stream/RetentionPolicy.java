@@ -36,19 +36,19 @@ public class RetentionPolicy implements Serializable {
     }
 
     private final RetentionType retentionType;
-    private final long retentionMin;
+    private final long retentionParam;
     private final long retentionMax;
 
     /**
      * Create a retention policy to configure a stream to periodically truncated
-     * according to the specified duration.
+     * according to the specified duration
      *
      * @param duration Period to retain data in a stream.
      * @return Retention policy object.
      */
     public static RetentionPolicy byTime(Duration duration) {
         return RetentionPolicy.builder().retentionType(RetentionType.TIME)
-                .retentionMin(duration.toMillis()).retentionMax(duration.toMillis()).build();
+                .retentionParam(duration.toMillis()).retentionMax(duration.toMillis()).build();
     }
 
     /**
@@ -61,7 +61,7 @@ public class RetentionPolicy implements Serializable {
      */
     public static RetentionPolicy byTime(Duration durationMin, Duration durationMax) {
         return RetentionPolicy.builder().retentionType(RetentionType.TIME)
-                .retentionMin(durationMin.toMillis()).retentionMax(durationMax.toMillis()).build();
+                .retentionParam(durationMin.toMillis()).retentionMax(durationMax.toMillis()).build();
     }
 
     /**
@@ -73,7 +73,7 @@ public class RetentionPolicy implements Serializable {
      */
     public static RetentionPolicy bySizeBytes(long size) {
         return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
-                .retentionMin(size).retentionMax(size).build();
+                .retentionParam(size).retentionMax(size).build();
     }
 
     /**
@@ -86,6 +86,6 @@ public class RetentionPolicy implements Serializable {
      */
     public static RetentionPolicy bySizeBytes(long sizeMin, long sizeMax) {
         return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
-                .retentionMin(sizeMin).retentionMax(sizeMax).build();
+                .retentionParam(sizeMin).retentionMax(sizeMax).build();
     }
 }

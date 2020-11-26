@@ -600,7 +600,7 @@ public abstract class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
-                .retentionMin(Duration.ofMinutes(60).toMillis())
+                .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -688,7 +688,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(0L, 20L);
         map4.put(1L, 20L);
-        long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionMin() + 2;
+        long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionParam() + 2;
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, ImmutableMap.copyOf(map4));
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
@@ -717,7 +717,7 @@ public abstract class StreamMetadataTasksTest {
     public void sizeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
-                .retentionType(RetentionPolicy.RetentionType.SIZE).retentionMin(100L).build();
+                .retentionType(RetentionPolicy.RetentionType.SIZE).retentionParam(100L).build();
 
         String streamName = "test";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
@@ -1600,7 +1600,7 @@ public abstract class StreamMetadataTasksTest {
 
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
-                .retentionMin(Duration.ofMinutes(60).toMillis())
+                .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
         final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy)

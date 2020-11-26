@@ -1335,7 +1335,7 @@ public abstract class StreamMetadataStoreTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
-                .retentionMin(Duration.ofDays(2).toMillis())
+                .retentionParam(Duration.ofDays(2).toMillis())
                 .build();
         final StreamConfiguration configuration = StreamConfiguration.builder()
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
@@ -1398,7 +1398,7 @@ public abstract class StreamMetadataStoreTest {
         final String stream = "StreamSize";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.SIZE)
-                .retentionMin(100L).build();
+                .retentionParam(100L).build();
         final StreamConfiguration configuration = StreamConfiguration.builder()
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 

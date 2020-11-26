@@ -101,7 +101,7 @@ public final class ModelHelper {
         if (policy != null && policy.getRetentionType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
                     .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
-                    .retentionMin(policy.getRetentionParam())
+                    .retentionParam(policy.getRetentionParam())
                     .retentionMax(policy.getRetentionMax())
                     .build();
         } else {
@@ -303,7 +303,7 @@ public final class ModelHelper {
         if (policyModel != null) {
             Controller.RetentionPolicy.Builder builder = Controller.RetentionPolicy.newBuilder()
                                               .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                                              .setRetentionParam(policyModel.getRetentionMin())
+                                              .setRetentionParam(policyModel.getRetentionParam())
                                               .setRetentionMax(policyModel.getRetentionMax());
                 
             return builder.build();

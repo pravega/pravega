@@ -597,7 +597,7 @@ public class StreamMetadataTasks extends TaskBase {
                                       .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
 
                                // if retainedSize is less than min size then do not truncate the stream. 
-                               if (retainedSize < policy.getRetentionMin()) {
+                               if (retainedSize < policy.getRetentionParam()) {
                                    return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
                                                                                .thenApply(StreamCutRecord::getStreamCut))
                                                   .orElse(CompletableFuture.completedFuture(null));
@@ -664,7 +664,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                     });
                              } else {
                                  // if min limit is 0 then latest effectively becomes the min. and we truncate at the lowerbound.
-                                 if (latest != null && policy.getRetentionMin() == 0L) {
+                                 if (latest != null && policy.getRetentionParam() == 0L) {
                                      // truncate at the lower bound 
                                      return CompletableFuture.completedFuture(lowerBound);
                                  } else {
@@ -789,7 +789,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                            StreamCutRecord newRecord, long recordingTime) {
         switch (policy.getRetentionType()) {
             case TIME:
-                return retentionSet.getRetentionRecords().stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionMin())
+                return retentionSet.getRetentionRecords().stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionParam())
                         .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
             case SIZE:
                 // find a stream cut record Si from retentionSet R = {S1.. Sn} such that Sn.size - Si.size > policy and
@@ -797,7 +797,7 @@ public class StreamMetadataTasks extends TaskBase {
                 Optional<StreamCutRecord> latestOpt = Optional.ofNullable(newRecord);
 
                 return latestOpt.flatMap(latest ->
-                        retentionSet.getRetentionRecords().stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionMin())
+                        retentionSet.getRetentionRecords().stream().filter(x -> (latest.getRecordingSize() - x.getRecordingSize()) > policy.getRetentionParam())
                                 .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime)));
             default:
                 throw new NotImplementedException(policy.getRetentionType().toString());
@@ -818,7 +818,7 @@ public class StreamMetadataTasks extends TaskBase {
                 max.set(x);
                 maxSoFar.set(value);
             }
-            if (value >= policy.getRetentionMin() && value < minSoFar.get()) {
+            if (value >= policy.getRetentionParam() && value < minSoFar.get()) {
                 min.set(x);
                 minSoFar.set(value);
             }

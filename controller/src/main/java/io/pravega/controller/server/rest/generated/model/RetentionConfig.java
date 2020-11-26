@@ -17,8 +17,10 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-
+import javax.validation.constraints.*;
 
 /**
  * RetentionConfig
@@ -33,30 +35,22 @@ public class RetentionConfig   {
     
     LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
-    private String minValue;
-    private String maxValue;
+    private String value;
 
     TypeEnum(String value) {
-      this.minValue = value;
-      this.maxValue = value;
-    }
-
-    TypeEnum(String min, String max) {
-      this.minValue = min;
-      this.maxValue = max;
+      this.value = value;
     }
 
     @Override
     @JsonValue
     public String toString() {
-      return "minLimit:" + String.valueOf(minValue) + "maxLimit:" + String.valueOf(maxValue);
+      return String.valueOf(value);
     }
 
     @JsonCreator
-    public static TypeEnum fromValue(String minVal, String maxVal) {
+    public static TypeEnum fromValue(String text) {
       for (TypeEnum b : TypeEnum.values()) {
-        if (String.valueOf(b.minValue).equals(minVal)
-           && String.valueOf(b.maxValue).equals(maxVal)) {
+        if (String.valueOf(b.value).equals(text)) {
           return b;
         }
       }
@@ -67,17 +61,14 @@ public class RetentionConfig   {
   @JsonProperty("type")
   private TypeEnum type = null;
 
-  @JsonProperty("minValue")
-  private Long minValue = null;
+  @JsonProperty("value")
+  private Long value = null;
 
   @JsonProperty("maxValue")
   private Long maxValue = null;
 
   @JsonProperty("timeBasedRetention")
   private TimeBasedRetention timeBasedRetention = null;
-
-  @JsonProperty("consumptionLimits")
-  private ConsumptionLimits consumptionLimits = null;
 
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
@@ -98,31 +89,42 @@ public class RetentionConfig   {
     this.type = type;
   }
 
-  public RetentionConfig minValue(Long value) {
-    this.minValue = value;
-    return this;
-  }
-
-  public RetentionConfig maxValue(Long value) {
-    this.maxValue = value;
+  public RetentionConfig value(Long value) {
+    this.value = value;
     return this;
   }
 
   /**
-   * Get Value
-   * Value Represents number of days when type=LIMITED_DAYS
-   * and retention size in MB when type=LIMITED_SIZE_MB
-   * If type=LIMITED_DAYS and value=0, timeBasedRetention has the retention time.
+   * Get value
    * @return value
    **/
   @JsonProperty("value")
   @ApiModelProperty(value = "")
-  public Long getMinValue() {
-    return minValue;
+  public Long getValue() {
+    return value;
   }
 
-  public void setMinValue(Long value) {
-    this.minValue = value;
+  public void setValue(Long value) {
+    this.value = value;
+  }
+
+  public RetentionConfig maxValue(Long maxValue) {
+    this.maxValue = maxValue;
+    return this;
+  }
+
+  /**
+   * Get maxValue
+   * @return maxValue
+   **/
+  @JsonProperty("maxValue")
+  @ApiModelProperty(value = "")
+  public Long getMaxValue() {
+    return maxValue;
+  }
+
+  public void setMaxValue(Long maxValue) {
+    this.maxValue = maxValue;
   }
 
   public RetentionConfig timeBasedRetention(TimeBasedRetention timeBasedRetention) {
@@ -131,7 +133,7 @@ public class RetentionConfig   {
   }
 
   /**
-   * Get retention duration in days, hours and minutes.
+   * Get timeBasedRetention
    * @return timeBasedRetention
    **/
   @JsonProperty("timeBasedRetention")
@@ -144,6 +146,7 @@ public class RetentionConfig   {
     this.timeBasedRetention = timeBasedRetention;
   }
 
+
   @Override
   public boolean equals(java.lang.Object o) {
     if (this == o) {
@@ -154,14 +157,14 @@ public class RetentionConfig   {
     }
     RetentionConfig retentionConfig = (RetentionConfig) o;
     return Objects.equals(this.type, retentionConfig.type) &&
-        Objects.equals(this.minValue, retentionConfig.minValue) &&
+        Objects.equals(this.value, retentionConfig.value) &&
         Objects.equals(this.maxValue, retentionConfig.maxValue) &&
         Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, minValue, maxValue, timeBasedRetention, consumptionLimits);
+    return Objects.hash(type, value, maxValue, timeBasedRetention);
   }
 
 
@@ -171,8 +174,8 @@ public class RetentionConfig   {
     sb.append("class RetentionConfig {\n");
     
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
-    sb.append("    minvalue: ").append(toIndentedString(minValue)).append("\n");
-    sb.append("    maxvalue: ").append(toIndentedString(maxValue)).append("\n");
+    sb.append("    value: ").append(toIndentedString(value)).append("\n");
+    sb.append("    maxValue: ").append(toIndentedString(maxValue)).append("\n");
     sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
     sb.append("}");
     return sb.toString();
