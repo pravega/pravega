@@ -764,6 +764,61 @@ public class ReaderGroupStateManagerTest {
         readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap()));
         assertNull(readerState.getCheckpoint());
     }
+
+    @Test(timeout = 10000)
+    public void testCheckpointWithCBR() throws ReaderNotInReaderGroupException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        SegmentWithRange initialSegment = new SegmentWithRange(new Segment(scope, stream, 0), 0, 1);
+        SegmentWithRange successorA = new SegmentWithRange(new Segment(scope, stream, 1), 0.0, 0.5);
+        SegmentWithRange successorB = new SegmentWithRange(new Segment(scope, stream, 2), 0.5, 1.0);
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory,
+                new StreamSegmentsWithPredecessors(
+                        ImmutableMap.of(successorA, singletonList(0L),
+                                successorB, singletonList(0L)), ""));
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+                streamFactory, streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
+        Map<SegmentWithRange, Long> segments = new HashMap<>();
+        segments.put(initialSegment, 1L);
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, stream))
+                .disableAutomaticCheckpoints().retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .build();
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(rgConfig, segments, Collections.emptyMap()));
+        val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
+        readerState.initializeReader(0);
+        assertNull(readerState.getCheckpoint());
+        stateSynchronizer.updateStateUnconditionally(new CreateCheckpoint("CP1"));
+        stateSynchronizer.fetchUpdates();
+        assertEquals("CP1", readerState.getCheckpoint());
+        assertEquals("CP1", readerState.getCheckpoint());
+        assertTrue(stateSynchronizer.getState().getCheckpointState().isLastCheckpointPublished());
+        readerState.checkpoint("CP1", new PositionImpl(Collections.emptyMap()));
+        assertNull(readerState.getCheckpoint());
+        stateSynchronizer.fetchUpdates();
+        assertFalse(stateSynchronizer.getState().getCheckpointState().isLastCheckpointPublished());
+        readerState.updateTruncationStreamCutIfNeeded();
+        stateSynchronizer.fetchUpdates();
+        assertTrue(stateSynchronizer.getState().isCheckpointComplete("CP1"));
+        assertTrue(stateSynchronizer.getState().getCheckpointState().isLastCheckpointPublished());
+        stateSynchronizer.updateStateUnconditionally(new CreateCheckpoint("CP2"));
+        stateSynchronizer.updateStateUnconditionally(new CreateCheckpoint("CP3"));
+        stateSynchronizer.fetchUpdates();
+        assertEquals("CP2", readerState.getCheckpoint());
+        readerState.checkpoint("CP2", new PositionImpl(Collections.emptyMap()));
+        assertEquals("CP3", readerState.getCheckpoint());
+        readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap()));
+        assertNull(readerState.getCheckpoint());
+    }
     
     @Test(timeout = 10000)
     public void testCheckpointContainsAllShards() throws ReaderNotInReaderGroupException {
