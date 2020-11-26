@@ -190,10 +190,14 @@ public class CredentialsExtractorTest {
                 credentials.getAuthenticationType());
     }
 
+    /**
+     * The intent of this test is to verify whether an existing Credentials implementation works if the
+     * service definition is made using the new interface: `META-INF/services/io.pravega.shared.security.auth.Credentials`.
+     * In effect, it verifies that the existing plugin works with a modified service definition based on the new
+     * interface.
+     */
     @Test
     public void testLoadsLegacyCredentialsUsingNewInterfacePackage() {
-        // This method depends on service definition in
-        // resources/META-INF/services/io.pravega.shared.security.auth.Credentials file.
         Map<String, String> authEnvVariables = new HashMap<>();
         authEnvVariables.put("pravega_client_auth_loadDynamic", "true");
         authEnvVariables.put("pravega_client_auth_method", LegacyCredentials1.AUTHENTICATION_METHOD);
@@ -209,6 +213,11 @@ public class CredentialsExtractorTest {
                 credentials.getAuthenticationType());
     }
 
+    /**
+     * The intent of this test is to verify whether an existing Credentials implementation works if the
+     * service definition is via `META-INF/services/io.pravega.client.stream.impl.Credentials` file.
+     * In effect, it verifies that the existing plugin works as-is with the new client.
+     */
     @Test
     public void testLoadsLegacyCredentialsUsingOldInterfacePackage() {
         Map<String, String> authEnvVariables = new HashMap<>();
@@ -273,6 +282,11 @@ public class CredentialsExtractorTest {
         }
     }
 
+    /**
+     * This implementation looks the same as {@link LegacyCredentials1}. But, these two are loaded differently.
+     * See how they are loaded differently in the corresponding service definition files under
+     * resources/META-INF/services.
+     */
     public static class LegacyCredentials2 implements io.pravega.client.stream.impl.Credentials {
         private static final String TOKEN = "custom-token-legacy-2";
         private static final String AUTHENTICATION_METHOD = "custom-method-legacy-2";
