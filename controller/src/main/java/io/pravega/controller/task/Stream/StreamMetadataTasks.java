@@ -478,7 +478,7 @@ public class StreamMetadataTasks extends TaskBase {
                     StreamCutReferenceRecord latestCut = retentionSet.getLatest();
                     
                     return generateStreamCutIfRequired(scope, stream, latestCut, recordingTime, context, delegationToken)
-                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
+                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, requestId));
                 })
                 .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
 
@@ -504,8 +504,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
-                                             RetentionSet retentionSet, StreamCutRecord newRecord, long recordingTime, long requestId) {
-           return truncateInternal(scope, stream, context, policy, retentionSet, newRecord, requestId);
+                                             RetentionSet retentionSet, StreamCutRecord newRecord, long requestId) {
+        RetentionSet updatedRetentionSet = newRecord == null ? retentionSet : RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, newRecord);
+        return truncateInternal(scope, stream, context, policy, updatedRetentionSet, requestId);
     }
 
     private CompletableFuture<Void> truncate(String scope, String stream, OperationContext context, long requestId,
@@ -535,7 +536,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> truncateInternal(String scope, String stream, OperationContext context,
                                                      RetentionPolicy policy, RetentionSet retentionSet,
-                                                     StreamCutRecord newRecord, long requestId) {
+                                                     long requestId) {
         return streamMetadataStore.listSubscribers(scope, stream, context, executor)
                            .thenCompose(list -> Futures.allOfWithResults(list.stream().map(x -> 
                                    streamMetadataStore.getSubscriber(scope, stream, x, context, executor)).collect(Collectors.toList())))
@@ -552,9 +553,9 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(lowerBound -> {
                     CompletableFuture<Map<Long, Long>> toTruncateAt; 
                     if (policy.getRetentionType().equals(RetentionPolicy.RetentionType.SIZE)) {
-                        toTruncateAt = getTruncationStreamCutBySizeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
+                        toTruncateAt = getTruncationStreamCutBySizeLimit(scope, stream, context, policy, retentionSet, lowerBound);
                     } else {
-                        toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound, newRecord);
+                        toTruncateAt = getTruncationStreamCutByTimeLimit(scope, stream, context, policy, retentionSet, lowerBound);
                     }
                     return toTruncateAt.thenCompose(truncationStreamCut -> {
                         if (truncationStreamCut == null || truncationStreamCut.isEmpty()) {
@@ -581,97 +582,117 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Map<Long, Long>> getTruncationStreamCutBySizeLimit(String scope, String stream, OperationContext context, RetentionPolicy policy,
-                                                                                 RetentionSet retentionSet, Map<Long, Long> lowerBound, StreamCutRecord newRecord) {
+                                                                                 RetentionSet retentionSet, Map<Long, Long> lowerBound) {
         // if the lowerbound on subscribers streamcuts satisfies the policy size bound, then return it. 
         // else return the stream cut that satisfies maximum bound on size. 
         // 1. if lowerbound.size < max and lowerbound.size > min truncate at lowerbound
         // 2. if lowerbound.size < min, truncate at max irrespective of if lowerbound overlaps with max or not. 
         // 3. if lowerbound.size > max, truncate at max
-        long currentSize = newRecord != null ? newRecord.getRecordingSize() : retentionSet.getLatest().getRecordingSize();
-        return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
-                          .thenCompose(sizeTill -> {
-                               long retainedSize = currentSize - sizeTill;
-                               Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
-                                      .getRetentionRecords().stream()
-                                      .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
-                                      .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
+        long currentSize = retentionSet.getLatest().getRecordingSize();
 
-                               // if retainedSize is less than min size then do not truncate the stream. 
-                               if (retainedSize < policy.getRetentionParam()) {
-                                   return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
-                                                                               .thenApply(StreamCutRecord::getStreamCut))
-                                                  .orElse(CompletableFuture.completedFuture(null));
-                               } else {
-                                   // if retained size is less than max allowed, then truncate the stream at subscriber lower bound. 
-                                   if (retainedSize < policy.getRetentionMax()) {
-                                       return CompletableFuture.completedFuture(lowerBound);
-                                   } else {
-                                       // if retained size is greater than max allowed, then truncate the stream at streamcut
-                                       // from retention set that matches the retention policy size bound. 
-                                       return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
-                                                   .thenApply(StreamCutRecord::getStreamCut)
-                                                   .thenCompose(maxRecord -> {
-                                                       // if max record is strictly greater than lowerbound then we can truncate at max record
-                                                       return streamMetadataStore.streamCutStrictlyGreaterThan(
-                                                               scope, stream, maxRecord, lowerBound, context, executor)
-                                                                                 .thenApply(gt -> {
-                                                                                     if (gt) {
-                                                                                         return maxRecord;
-                                                                                     } else {
-                                                                                         return lowerBound;
-                                                                                     }
-                                                                                 });
-                                                   })).orElse(CompletableFuture.completedFuture(null));   
-                                   }
-                               }
-                           });
+        // if lowerbound is empty simply return min
+        if (lowerBound == null || lowerBound.isEmpty()) {
+            return retentionSet
+                    .getRetentionRecords().stream()
+                    .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
+                    .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime))
+                    .map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor).thenApply(StreamCutRecord::getStreamCut))
+                    .orElse(CompletableFuture.completedFuture(null));
+        }
+
+        return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
+                .thenCompose(sizeTill -> {
+                    long retainedSize = currentSize - sizeTill;
+                    Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
+                            .getRetentionRecords().stream()
+                            .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
+                            .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
+
+                    // if retainedSize is less than min size then truncate the stream at max bound.
+                    if (retainedSize < policy.getRetentionParam()) {
+                        return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                .thenApply(StreamCutRecord::getStreamCut))
+                                .orElse(CompletableFuture.completedFuture(null));
+                    } else {
+                        // if retained size is less than max allowed, then truncate the stream at subscriber lower bound.
+                        if (retainedSize < policy.getRetentionMax()) {
+                            return CompletableFuture.completedFuture(lowerBound);
+                        } else {
+                            // if retained size is greater than max allowed, then truncate the stream at streamcut
+                            // from retention set that matches the retention policy size bound.
+                            return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
+                                    .thenApply(StreamCutRecord::getStreamCut)
+                                    .thenCompose(maxRecord -> {
+                                        // if max record is strictly greater than lowerbound then we can truncate at max record
+                                        return streamMetadataStore.streamCutStrictlyGreaterThan(
+                                                scope, stream, maxRecord, lowerBound, context, executor)
+                                                .thenApply(gt -> {
+                                                    if (gt) {
+                                                        return maxRecord;
+                                                    } else {
+                                                        return lowerBound;
+                                                    }
+                                                });
+                                    })).orElse(CompletableFuture.completedFuture(null));
+                        }
+                    }
+                });
     }
 
     private CompletableFuture<Map<Long, Long>> getTruncationStreamCutByTimeLimit(String scope, String stream, OperationContext context,
                                                                                  RetentionPolicy policy, RetentionSet retentionSet,
-                                                                                 Map<Long, Long> lowerBound, StreamCutRecord latest) {
+                                                                                 Map<Long, Long> lowerBound) {
         Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> limits =
                 getBoundStreamCuts(policy, retentionSet);
-        // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time 
+        // if subscriber lowerbound is ahead of streamcut corresponding to the max time and is behind stream cut for min time
         // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
         // exists
         // 1. if LB > min => truncate at min
         // 2. if LB < max => truncate at max
         // 3. if LB < min && LB > max => truncate at LB
-        // 4. if LB < min && overlaps max => truncate at LB
-        CompletableFuture<StreamCutRecord> limitMaxFuture = limits.getKey() == null ? CompletableFuture.completedFuture(null) :
-                streamMetadataStore.getStreamCutRecord(scope, stream, limits.getKey(), context, executor);
+        // 4. if LB < min && overlaps max => truncate at max
         CompletableFuture<StreamCutRecord> limitMinFuture = limits.getValue() == null ? CompletableFuture.completedFuture(null) :
                 streamMetadataStore.getStreamCutRecord(scope, stream, limits.getValue(), context, executor);
+
+        // if lowerbound is empty simply return min
+        if (lowerBound == null || lowerBound.isEmpty()) {
+            return limitMinFuture.thenApply(min -> Optional.ofNullable(min).map(StreamCutRecord::getStreamCut).orElse(null));
+        }
+
+        CompletableFuture<StreamCutRecord> limitMaxFuture = limits.getKey() == null ? CompletableFuture.completedFuture(null) :
+                streamMetadataStore.getStreamCutRecord(scope, stream, limits.getKey(), context, executor);
         return CompletableFuture.allOf(limitMaxFuture, limitMinFuture)
-                         .thenCompose(v -> {
-                             StreamCutRecord limitMax = limitMaxFuture.join();
-                             StreamCutRecord limitMin = limitMinFuture.join();
-                             if (limitMin != null) {
-                                 return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
-                                                    .thenCompose(gtMin -> {
-                                                        if (gtMin) {
-                                                            if (limitMax == null) {
-                                                                return CompletableFuture.completedFuture(lowerBound);
-                                                            } else {
-                                                                return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMax.getStreamCut(), lowerBound, context, executor)
-                                                                                          .thenApply(gtMax -> gtMax ? limitMax.getStreamCut() : lowerBound);
-                                                            }
-                                                        } else {
-                                                            return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
-                                                                               .thenApply(gt -> gt ? limitMin.getStreamCut() : null);
-                                                        }
-                                                    });
-                             } else {
-                                 // if min limit is 0 then latest effectively becomes the min. and we truncate at the lowerbound.
-                                 if (latest != null && policy.getRetentionParam() == 0L) {
-                                     // truncate at the lower bound 
-                                     return CompletableFuture.completedFuture(lowerBound);
-                                 } else {
-                                     return CompletableFuture.completedFuture(null);
-                                 }
-                             }
-                         });
+                .thenCompose(v -> {
+                    StreamCutRecord limitMax = limitMaxFuture.join();
+                    StreamCutRecord limitMin = limitMinFuture.join();
+                    if (limitMin != null) {
+                        return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
+                                .thenCompose(gtMin -> {
+                                    if (gtMin) {
+                                        if (limitMax == null) {
+                                            return CompletableFuture.completedFuture(lowerBound);
+                                        } else {
+                                            return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMax.getStreamCut(), context, executor)
+                                                    .thenApply(gtMax -> gtMax ? lowerBound : limitMax.getStreamCut());
+                                        }
+                                    } else {
+                                        return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
+                                                .thenApply(gt -> {
+                                                    if (gt) {
+                                                        // lowerbound strictly ahead of min
+                                                        return limitMin.getStreamCut();
+                                                    } else {
+                                                        // lowerbound overlaps with min.
+                                                        // if max bound exists truncate at max
+                                                        return limitMax != null ? limitMax.getStreamCut() : null;
+                                                    }
+                                                });
+                                    }
+                                });
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
     }
 
     private Map<Long, Long> computeSubscribersLowerBound(List<Map<StreamSegmentRecord, Long>> subscribers) {
