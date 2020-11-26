@@ -172,8 +172,8 @@ public class StreamConfigurationRecord {
                 if (retentionPolicyRecordBuilder.retentionPolicy != null ) {
                     RetentionPolicy.RetentionPolicyBuilder builder = RetentionPolicy.builder()
                             .retentionType(retentionPolicyRecordBuilder.retentionPolicy.getRetentionType())
-                                           .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam())
-                                           .retentionMax(retentionPolicyRecordBuilder.retentionPolicy.getRetentionMax());
+                            .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam())
+                            .retentionMax(revisionDataInput.readLong());
                     retentionPolicyRecordBuilder.retentionPolicy(builder.build());
                 }
             }
@@ -193,7 +193,6 @@ public class StreamConfigurationRecord {
             private void write01(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
                     throws IOException {
                 if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null) {
-                    revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionParam());
                     revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionMax());
                 }
             }

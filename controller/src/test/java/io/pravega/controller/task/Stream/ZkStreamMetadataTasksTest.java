@@ -81,4 +81,16 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     public void consumptionBasedRetentionWithNoSubscriber() {
         // no op
     }
+
+    @Test
+    @Override
+    public void sizeBasedRetentionStreamTest() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void timeBasedRetentionStreamTest() {
+
+    }
 }
