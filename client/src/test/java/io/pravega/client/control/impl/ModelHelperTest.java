@@ -115,11 +115,11 @@ public class ModelHelperTest {
     public void encodeRetentionPolicy() {
         RetentionPolicy policy1 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.bySizeBytes(1000L)));
         assertEquals(RetentionPolicy.RetentionType.SIZE, policy1.getRetentionType());
-        assertEquals(1000L, (long) policy1.getRetentionMin());
+        assertEquals(1000L, (long) policy1.getRetentionParam());
 
         RetentionPolicy policy2 = ModelHelper.encode(ModelHelper.decode(RetentionPolicy.byTime(Duration.ofDays(100L))));
         assertEquals(RetentionPolicy.RetentionType.TIME, policy2.getRetentionType());
-        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionMin());
+        assertEquals(Duration.ofDays(100L).toMillis(), (long) policy2.getRetentionParam());
 
         RetentionPolicy policy3 = ModelHelper.encode(ModelHelper.decode((RetentionPolicy) null));
         assertNull(policy3);
@@ -179,7 +179,7 @@ public class ModelHelperTest {
         assertEquals(3, policy.getMinNumSegments());
         RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(RetentionPolicy.RetentionType.SIZE, retentionPolicy.getRetentionType());
-        assertEquals(1000L, (long) retentionPolicy.getRetentionMin());
+        assertEquals(1000L, (long) retentionPolicy.getRetentionParam());
     }
 
     @Test
