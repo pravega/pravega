@@ -551,6 +551,14 @@ public class StreamMetadataTasks extends TaskBase {
                                     } else {
                                         throw new RuntimeException("Could not start truncation");
                                     }
+                                }).exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                                      // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
+                                      log.debug(requestId, "Cannot truncate at given streamCut because it intersects with existing truncation point");
+                                      return null;
+                                    } else {
+                                      throw new CompletionException(e);
+                                    }
                                 });
                     });
                 });
@@ -579,16 +587,16 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(sizeTill -> {
                     long retainedSize = currentSize - sizeTill;
                     Supplier<Optional<StreamCutReferenceRecord>> maxBound = () -> retentionSet
-                            .getRetentionRecords().stream()
-                            .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
-                            .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
-
-                    // if retainedSize is less than min size then truncate the stream at max bound.
+                    .getRetentionRecords().stream()
+                    .filter(x -> currentSize - x.getRecordingSize() > policy.getRetentionMax())
+                    .max(Comparator.comparingLong(StreamCutReferenceRecord::getRecordingTime));
+                    // if retainedSize is less than min size then do not truncate the stream.
                     if (retainedSize < policy.getRetentionParam()) {
+                        // if retainedSize is less than min size then truncate the stream at max bound.
                         return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
-                                .thenApply(StreamCutRecord::getStreamCut))
-                                .orElse(CompletableFuture.completedFuture(null));
-                    } else {
+                        .thenApply(StreamCutRecord::getStreamCut))
+                        .orElse(CompletableFuture.completedFuture(null));
+                        } else {
                         // if retained size is less than max allowed, then truncate the stream at subscriber lower bound.
                         if (retainedSize < policy.getRetentionMax()) {
                             return CompletableFuture.completedFuture(lowerBound);
@@ -596,21 +604,21 @@ public class StreamMetadataTasks extends TaskBase {
                             // if retained size is greater than max allowed, then truncate the stream at streamcut
                             // from retention set that matches the retention policy size bound.
                             return maxBound.get().map(x -> streamMetadataStore.getStreamCutRecord(scope, stream, x, context, executor)
-                                    .thenApply(StreamCutRecord::getStreamCut)
-                                    .thenCompose(maxRecord -> {
-                                        // if max record is strictly greater than lowerbound then we can truncate at max record
-                                        return streamMetadataStore.streamCutStrictlyGreaterThan(
-                                                scope, stream, maxRecord, lowerBound, context, executor)
-                                                .thenApply(gt -> {
-                                                    if (gt) {
-                                                        return maxRecord;
-                                                    } else {
-                                                        return lowerBound;
-                                                    }
-                                                });
-                                    })).orElse(CompletableFuture.completedFuture(null));
+                            .thenApply(StreamCutRecord::getStreamCut)
+                            .thenCompose(maxRecord -> {
+                            // if max record is strictly greater than lowerbound then we can truncate at max record
+                            return streamMetadataStore.streamCutStrictlyGreaterThan(
+                            scope, stream, maxRecord, lowerBound, context, executor)
+                            .thenApply(gt -> {
+                            if (gt) {
+                                return maxRecord;
+                              } else {
+                                return lowerBound;
+                              }
+                            });
+                            })).orElse(CompletableFuture.completedFuture(null));
                         }
-                    }
+                      }
                 });
     }
 
@@ -642,28 +650,28 @@ public class StreamMetadataTasks extends TaskBase {
                     StreamCutRecord limitMin = limitMinFuture.join();
                     if (limitMin != null) {
                         return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
-                                .thenCompose(gtMin -> {
-                                    if (gtMin) {
-                                        if (limitMax == null) {
-                                            return CompletableFuture.completedFuture(lowerBound);
-                                        } else {
-                                            return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMax.getStreamCut(), context, executor)
-                                                    .thenApply(gtMax -> gtMax ? lowerBound : limitMax.getStreamCut());
-                                        }
-                                    } else {
-                                        return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
-                                                .thenApply(gt -> {
-                                                    if (gt) {
-                                                        // lowerbound strictly ahead of min
-                                                        return limitMin.getStreamCut();
-                                                    } else {
-                                                        // lowerbound overlaps with min.
-                                                        // if max bound exists truncate at max
-                                                        return limitMax != null ? limitMax.getStreamCut() : null;
-                                                    }
-                                                });
+                        .thenCompose(gtMin -> {
+                           if (gtMin) {
+                                if (limitMax == null) {
+                                    return CompletableFuture.completedFuture(lowerBound);
+                                } else {
+                                    return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMax.getStreamCut(), context, executor)
+                                           .thenApply(gtMax -> gtMax ? lowerBound : limitMax.getStreamCut());
                                     }
-                                });
+                                } else {
+                                return streamMetadataStore.streamCutStrictlyGreaterThan(scope, stream, lowerBound, limitMin.getStreamCut(), context, executor)
+                                .thenApply(gt -> {
+                                    if (gt) {
+                                        // lowerbound strictly ahead of min
+                                        return limitMin.getStreamCut();
+                                    } else {
+                                        // lowerbound overlaps with min.
+                                        // if max bound exists truncate at max
+                                        return limitMax != null ? limitMax.getStreamCut() : null;
+                                    }
+                                  });
+                                }
+                            });
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
