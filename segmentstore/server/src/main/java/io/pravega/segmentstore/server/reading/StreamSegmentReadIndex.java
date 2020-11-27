@@ -1172,7 +1172,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     insert(offset, data);
                 }
             } catch (Exception ex) {
-                log.error("{}: Unable to process Storage Read callback. Offset={}, Result=[{}].", this.traceObjectId, offset, result);
+                log.error("{}: Unable to process Storage Read callback. Offset={}, Result=[{}].", this.traceObjectId, offset, result, ex);
             }
         };
 
