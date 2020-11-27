@@ -1584,13 +1584,13 @@ public abstract class StreamMetadataStoreTest {
         streamCut.put(0L, 20L);
         streamCut.put(1L, 20L);
         beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
-        assertEquals(beforeRef.getRecordingTime(), streamCut3.getRecordingTime());
+        assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
 
         // 0/21, 1/21 ... 0/20, 1/20
         streamCut.put(0L, 21L);
         streamCut.put(1L, 21L);
         beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
-        assertEquals(beforeRef.getRecordingTime(), streamCut3.getRecordingTime());
+        assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
 
         // 0/31, 1/31 ... 0/30, 1/30
         streamCut.put(0L, 30L);
