@@ -9,41 +9,29 @@
  */
 package io.pravega.shared.health;
 
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 
 @Slf4j
 public class InlineHealthIndicator extends HealthIndicator {
 
-    private final Function<Health.HealthBuilder, Void> doHealthCheck;
+    private final BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck;
 
-    InlineHealthIndicator(String name, Function<Health.HealthBuilder, Void> doHealthCheck) {
+    @NonNull
+    InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck) {
         this(name, doHealthCheck, new DetailsProvider());
     }
 
-    InlineHealthIndicator(String name, Function<Health.HealthBuilder, Void> doHealthCheck, DetailsProvider provider) {
+    @NonNull
+    InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck, DetailsProvider provider) {
         super(name, provider);
         this.doHealthCheck = doHealthCheck;
     }
 
     @Override
-    public Health health(boolean includeDetails) {
-        Health.HealthBuilder builder = new Health.HealthBuilder();
-        try {
-            doHealthCheck.apply(builder);
-        } catch (Exception ex) {
-            log.warn(this.healthCheckFailedMessage());
-            builder.status(Status.DOWN);
-        }
-        if (includeDetails) {
-            builder.details(provider.fetch());
-        }
-        return builder.name(getName()).build();
-    }
-
-    @Override
     public void doHealthCheck(Health.HealthBuilder builder) throws Exception {
-        log.error("NOP -- an InlineHealthIndicator should supply health check logic via a lambda.");
+        doHealthCheck.accept(builder, this.provider);
     }
 }

@@ -23,12 +23,7 @@ public interface HealthEndpoint {
         return ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME;
     }
 
-    default String errorMessage() {
-        return String.format("%s (root) contributor not found -- severe malfunction occurred.", getDefaultContributorName());
-    }
-
-
-    default Status status() throws ContributorNotFoundException {
+    default Status status() {
         return status(getDefaultContributorName());
     }
 

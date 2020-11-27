@@ -38,10 +38,6 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
-    protected HealthComponent(String name) {
-        this.name = name;
-    }
-
     protected HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
         super(aggregator, registry);
         this.name = name;

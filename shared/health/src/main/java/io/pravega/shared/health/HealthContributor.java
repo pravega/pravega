@@ -11,7 +11,6 @@ package io.pravega.shared.health;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Optional;
 
 public interface HealthContributor {
 
@@ -23,16 +22,6 @@ public interface HealthContributor {
      */
     default Collection<HealthContributor> contributors() {
         return Collections.emptyList();
-    }
-
-    /**
-     * A {@link HealthContributor} may optionally have a parent, which represents a {@link HealthContributor} that
-     * depends on the health status of this {@link HealthContributor}.
-     *
-     * @return The parent of this {@link HealthContributor} if it exists.
-     */
-    default Optional<HealthContributor> parent() {
-        return Optional.empty();
     }
 
     /**

@@ -12,7 +12,6 @@ package io.pravega.shared.health.impl;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
-import io.pravega.shared.health.Registry;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.StatusAggregator;
 import lombok.Getter;
@@ -24,7 +23,7 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 
 @Slf4j
-public abstract class CompositeHealthContributor implements HealthContributor, Registry<HealthContributor> {
+public abstract class CompositeHealthContributor implements HealthContributor {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
@@ -36,18 +35,10 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
 
     private Collection<HealthContributor> contributors = new HashSet<>();
 
-    CompositeHealthContributor() {
-        this(StatusAggregatorImpl.DEFAULT, new HashSet<>());
-    }
 
     CompositeHealthContributor(StatusAggregator aggregator, ContributorRegistry registry) {
         this.aggregator = aggregator;
         this.registry = registry;
-    }
-
-    CompositeHealthContributor(StatusAggregator aggregator, Collection<HealthContributor> contributors) {
-        this.aggregator = aggregator;
-        this.contributors = contributors;
     }
 
     public Health health() {
@@ -55,7 +46,6 @@ public abstract class CompositeHealthContributor implements HealthContributor, R
     }
 
     public Health health(boolean includeDetails) {
-        log.info("getName: {}", getName());
         Health.HealthBuilder builder = Health.builder().name(getName());
         // Fetch the Health Status of all dependencies.
         val children =  contributors().stream()

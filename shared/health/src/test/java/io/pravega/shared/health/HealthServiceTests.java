@@ -34,13 +34,16 @@ public class HealthServiceTests {
 
     HealthService service;
 
+    HealthServiceFactory factory;
+
     public void start() throws IOException {
-        HealthServiceFactory factory = new HealthServiceFactory();
+        factory = new HealthServiceFactory();
         service = factory.createHealthService(true);
     }
 
     public void stop() {
         service.clear();
+        factory.close();
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
                 1,
                 service.components().size());
@@ -58,6 +61,7 @@ public class HealthServiceTests {
     @After
     public void after() {
         stop();
+
     }
 
     @Test

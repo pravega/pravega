@@ -53,13 +53,13 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     private final HealthComponent root;
 
     @NonNull
-    ContributorRegistryImpl(StatusAggregator aggregator) {
+    public ContributorRegistryImpl(StatusAggregator aggregator) {
         root = new HealthComponent(DEFAULT_CONTRIBUTOR_NAME, aggregator, this);
         initialize(root);
     }
 
     @NonNull
-    ContributorRegistryImpl() {
+    public ContributorRegistryImpl() {
         this(StatusAggregatorImpl.DEFAULT);
     }
 
@@ -182,16 +182,14 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     }
 
     @Override
+    @NonNull
     public Optional<HealthContributor> get(String name) {
-        if (name == null) {
-            name = DEFAULT_CONTRIBUTOR_NAME;
-        }
         return Optional.of(contributors.get(name));
     }
 
     @Override
-    public Optional<HealthContributor> get() {
-        return Optional.of(contributors.get(DEFAULT_CONTRIBUTOR_NAME));
+    public HealthContributor get() {
+        return contributors.get(DEFAULT_CONTRIBUTOR_NAME);
     }
 
     @Override

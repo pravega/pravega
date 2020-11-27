@@ -54,8 +54,7 @@ public class HealthDaemonTests {
         daemon.start();
         // First Update.
         assertHealthServiceStatus(Status.UP);
-        // We register an indicator that will return a failing result, so the next health check should contain
-        // a DOWN status.
+        // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
         service.registry().register(new SampleFailingIndicator());
         assertHealthServiceStatus(Status.DOWN);
     }

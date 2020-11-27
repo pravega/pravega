@@ -43,12 +43,13 @@ public abstract class HealthIndicator implements HealthContributor {
       }
 
       public Health health(boolean includeDetails) {
-            log.info("name: {}", name);
             Health.HealthBuilder builder = new Health.HealthBuilder();
             try {
                   doHealthCheck(builder);
             } catch (Exception ex) {
                   log.warn(this.healthCheckFailedMessage());
+                  builder.alive(false);
+                  builder.ready(false);
                   builder.status(Status.DOWN);
             }
             if (includeDetails) {

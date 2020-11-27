@@ -50,7 +50,7 @@ public class StatusAggregatorTests {
     // Will return an UP status as long as *any* of the individual Status results notes an UP status.
     @Test
     public void anyRuleTest() {
-        StatusAggregator aggregator = StatusAggregatorImpl.MAJORITY;
+        StatusAggregator aggregator = StatusAggregatorImpl.ANY;
         Assert.assertEquals("The aggregator should return an UP status.",
                 aggregator.aggregate(statuses),
                 Status.UP);

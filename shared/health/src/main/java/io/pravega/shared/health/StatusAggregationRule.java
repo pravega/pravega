@@ -18,6 +18,10 @@ import java.util.Collection;
  *
  * Particularly in the case where a component has many instances of a particular service, it may tolerate a certain
  * number of failures before entering an unhealthy state.
+ *
+ * A {@link Status} will only reduce to an {@link Status#UNKNOWN} state *if* it has no dependencies. A {@link HealthContributor}
+ * that has dependencies signifies that it is now provided with something that (in the abstract) should provide information
+ * about it's {@link Health}.
  */
 public class StatusAggregationRule {
     /**

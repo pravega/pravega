@@ -104,7 +104,7 @@ public class HealthTests {
         Assert.assertEquals(service.registry().contributors().size(), 1);
         Assert.assertEquals(service.registry().components().size(), 1);
         // Assert that the component does not contain children.
-        Assert.assertTrue(service.registry().get().get().contributors().isEmpty());
+        Assert.assertTrue(service.registry().get().contributors().isEmpty());
     }
 
     protected Client createJerseyClient() throws Exception {
@@ -177,8 +177,11 @@ public class HealthTests {
                 .scheme(getURLScheme()).queryParam("details", true).build();
         response = client.target(streamResourceURI).request().buildGet().invoke();
         healthResult = response.readEntity(HealthResult.class);
-        log.info("{}", healthResult);
-        Assert.assertTrue("HealthService should provide details.", !firstChild(healthResult).getDetails().isEmpty());
+        boolean found = false;
+        for (HealthResult child : healthResult.getChildren()) {
+            found |= !child.getDetails().isEmpty();
+        }
+        Assert.assertTrue("HealthService should provide details.", found);
     }
 
     @Test
@@ -383,6 +386,11 @@ public class HealthTests {
         HealthDetails expected = new HealthDetails();
         expected.put(StaticHealthyIndicator.DETAILS_KEY, StaticHealthyIndicator.DETAILS_VAL);
         assertDetails(streamResourceURI, expected);
+    }
+
+    @Test
+    public void testContributorNotExists() {
+
     }
 
     private void assertDetails(URI uri, HealthDetails expected) {

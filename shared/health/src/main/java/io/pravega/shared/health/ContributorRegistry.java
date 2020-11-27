@@ -12,7 +12,6 @@ package io.pravega.shared.health;
 import io.pravega.shared.health.impl.HealthComponent;
 
 import java.util.Collection;
-import java.util.Optional;
 
 /**
  * Holds the set of {@link HealthContributor} objects that will be tracked to determine
@@ -22,7 +21,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
 
     static final String DEFAULT_CONTRIBUTOR_NAME = "health-service";
 
-    Optional<HealthContributor> get();
+    HealthContributor get();
 
     /**
      * Registers the component to the default {@link HealthContributor} registry.
