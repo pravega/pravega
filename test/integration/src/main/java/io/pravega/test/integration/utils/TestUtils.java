@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 /**
  * A helper class with general-purpose utility methods for integration tests.
@@ -53,22 +52,21 @@ public class TestUtils {
      * @param clientConfig the {@link ClientConfig} to use for connecting to the server
      * @param scope the scope
      * @param streams the streams
+     * @return whether all the objects (scope and each of the streams) were newly created. Returns {@code false}, if
+     *         any of those objects were already present.
      */
-    public static void createScopeAndStreams(ClientConfig clientConfig, String scope, List<String> streams) {
+    public static boolean createScopeAndStreams(ClientConfig clientConfig, String scope, List<String> streams) {
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
         assertNotNull(streamManager);
 
-        boolean isScopeCreated = streamManager.createScope(scope);
-        assertTrue("Failed to create scope", isScopeCreated);
-
-        streams.forEach(s -> {
-            boolean isStreamCreated = streamManager.createStream(scope, s,
+        boolean result = streamManager.createScope(scope);
+        for (String stream: streams) {
+            boolean isStreamCreated = streamManager.createStream(scope, stream,
                     StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-            if (!isStreamCreated) {
-                throw new RuntimeException("Failed to create stream: " + s);
-            }
-        });
+            result = result && !isStreamCreated ? false : true;
+        }
+        return result;
     }
 
     /**
@@ -130,7 +128,7 @@ public class TestUtils {
      * @return the event message
      */
     public static String readAMessageFromStream(String scope, String stream, ClientConfig readerClientConfig,
-                                                 String readerGroup) {
+                                                String readerGroup) {
         List<String> messages = readDataFromStream(scope, stream, 1, readerClientConfig, readerGroup);
         if (messages == null || messages.size() == 0) {
             return null;
@@ -153,7 +151,7 @@ public class TestUtils {
      * @throws RuntimeException if any exception is thrown by the client
      */
     public static List<String> readDataFromStream(@NonNull String scope, @NonNull String stream, int numMessages,
-                                            @NonNull ClientConfig readerClientConfig, @NonNull String readerGroup) {
+                                                  @NonNull ClientConfig readerClientConfig, @NonNull String readerGroup) {
         Preconditions.checkArgument(numMessages > 0);
 
         @Cleanup
