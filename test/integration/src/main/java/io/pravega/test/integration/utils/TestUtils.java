@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.utils;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -22,17 +23,18 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import lombok.Cleanup;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -43,73 +45,170 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class TestUtils {
 
-    public static void createStreams(ClientConfig clientConfig, String scopeName, List<String> streamNames) {
+    /**
+     * Creates the specified {@code scope} and {@code streams}, using the specified {@code clientConfig}.
+     *
+     * Note: This method creates the streams using a scaling policy with a fixed number of segments (one each).
+     *
+     * @param clientConfig the {@link ClientConfig} to use for connecting to the server
+     * @param scope the scope
+     * @param streams the streams
+     */
+    public static void createScopeAndStreams(ClientConfig clientConfig, String scope, List<String> streams) {
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
         assertNotNull(streamManager);
 
-        boolean isScopeCreated = streamManager.createScope(scopeName);
+        boolean isScopeCreated = streamManager.createScope(scope);
         assertTrue("Failed to create scope", isScopeCreated);
 
-        streamNames.forEach(s -> {
-            boolean isStreamCreated =
-                    streamManager.createStream(scopeName, s, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
+        streams.forEach(s -> {
+            boolean isStreamCreated = streamManager.createStream(scope, s,
+                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
             if (!isStreamCreated) {
                 throw new RuntimeException("Failed to create stream: " + s);
             }
         });
     }
 
+    /**
+     * Write the {@code message} to the specified {@code scope}/{@code stream}, using the
+     * provided {@writerClientConfig}.
+     *
+     * @param scope the scope
+     * @param stream the stream
+     * @param message the message to write. If it is null, a default message will be used.
+     * @param writerClientConfig the {@link ClientConfig} object to use to connect to the server
+     * @throws NullPointerException if {@code scope} or {@code stream} or {@writerClientConfig} is null
+     * @throws RuntimeException if any exception is thrown by the client
+     */
     @SneakyThrows
-    public static void writeDataToStream(String scope1, String stream1, String message1, ClientConfig writerClientConfig) {
-        @Cleanup final EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scope1,
-                writerClientConfig);
-
-        @Cleanup final EventStreamWriter<String> writer = writerClientFactory.createEventWriter(stream1,
-                new JavaSerializer<String>(),
-                EventWriterConfig.builder().build());
-        writer.writeEvent(message1).get();
-        log.info("Wrote a message to the stream {}/{}", scope1, stream1);
+    public static void writeDataToStream(String scope, String stream, String message, ClientConfig writerClientConfig) {
+        writeDataToStream(scope, stream, message, 1, writerClientConfig);
     }
 
-    public static String readAMessageFromStream(String scopeName, String streamName, ClientConfig readerClientConfig,
-                                                 String readerGroupName) {
+    /**
+     * Write the specified number of messages to the specified {@code scope}/{@code stream}, using the
+     * provided {@writerClientConfig}.
+     *
+     * @param scope the scope
+     * @param stream the stream
+     * @param message the event message to write. If it is null, a default message will be used.
+     * @param numMessages the number of event messages to write
+     * @param writerClientConfig the {@link ClientConfig} object to use to connect to the server
+     * @throws NullPointerException if {@code scope} or {@code stream} or {@writerClientConfig} is null
+     * @throws IllegalArgumentException if {@code numMessages} < 1
+     * @throws RuntimeException if any exception is thrown by the client
+     */
+    public static void writeDataToStream(@NonNull String scope, @NonNull String stream, String message, int numMessages,
+                                         @NonNull ClientConfig writerClientConfig) {
+        Preconditions.checkArgument(numMessages > 0);
+        if (message == null) {
+            message = "Test message";
+        }
+        @Cleanup final EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scope,
+                writerClientConfig);
+
+        @Cleanup final EventStreamWriter<String> writer = writerClientFactory.createEventWriter(stream,
+                new JavaSerializer<String>(),
+                EventWriterConfig.builder().build());
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (int i = 0; i < numMessages; i++) {
+            futures.add(writer.writeEvent(message));
+        }
+        Futures.allOf(futures).join();
+        log.info("Wrote {} message(s) to the stream {}/{}", numMessages, scope, stream);
+    }
+
+    /**
+     * Returns the first message from the specified {@code scope}/{@code stream}.
+     *
+     * @param scope the scope
+     * @param stream the stream
+     * @param readerClientConfig the {@link ClientConfig} object to use to connect to the server
+     * @param readerGroup the name of the reader group application
+     * @return the event message
+     */
+    public static String readAMessageFromStream(String scope, String stream, ClientConfig readerClientConfig,
+                                                 String readerGroup) {
+        List<String> messages = readDataFromStream(scope, stream, 1, readerClientConfig, readerGroup);
+        if (messages == null || messages.size() == 0) {
+            return null;
+        } else {
+            return messages.get(0);
+        }
+    }
+
+    /**
+     * Returns the specified number of messages from the specified {@code scope}/{@code stream}.
+     *
+     * @param scope the scope
+     * @param stream the stream
+     * @param numMessages the number of event messages to write
+     * @param readerClientConfig the {@link ClientConfig} object to use to connect to the server
+     * @param readerGroup the name of the reader group application
+     * @return the event messages
+     * @throws NullPointerException if {@code scope} or {@code stream} or {@writerClientConfig} is null
+     * @throws IllegalArgumentException if {@code numMessages} < 1
+     * @throws RuntimeException if any exception is thrown by the client
+     */
+    public static List<String> readDataFromStream(@NonNull String scope, @NonNull String stream, int numMessages,
+                                            @NonNull ClientConfig readerClientConfig, @NonNull String readerGroup) {
+        Preconditions.checkArgument(numMessages > 0);
+
         @Cleanup
-        EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scopeName, readerClientConfig);
+        EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scope, readerClientConfig);
         log.debug("Created the readerClientFactory");
 
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                .stream(Stream.of(scopeName, streamName))
+                .stream(Stream.of(scope, stream))
                 .disableAutomaticCheckpoints()
                 .build();
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-        readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
-        log.debug("Created reader group with name {}", readerGroupName);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, readerClientConfig);
+        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
+        log.debug("Created reader group with name {}", readerGroup);
 
         @Cleanup
         EventStreamReader<String> reader = readerClientFactory.createReader(
-                "readerId", readerGroupName,
+                "readerId", readerGroup,
                 new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
         log.debug("Created an event reader");
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        String readMessage = reader.readNextEvent(10000).getEvent();
-        log.info("Done reading event [{}]", readMessage);
-        return readMessage;
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < numMessages; i++) {
+            result.add(reader.readNextEvent(20000).getEvent());
+        }
+        log.info("Done reading {} events", numMessages);
+        return result;
     }
 
+    /**
+     * Prepares a list of password auth handler user account database file entries. The
+     * {@link io.pravega.test.integration.demo.ClusterWrapper} accepts entries in the returned format.
+     *
+     * @param entries ACLs by user
+     * @param password the plaintext password for each user
+     * @return Password auth handler user account database entries
+     */
+    @SneakyThrows
     public static List<PasswordAuthHandlerInput.Entry> preparePasswordInputFileEntries(
             Map<String, String> entries, String password) {
         StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
-        try {
-            String encryptedPassword = passwordProcessor.encryptPassword(password);
-            List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
-            entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
-            return result;
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            throw new RuntimeException(e);
-        }
+        String encryptedPassword = passwordProcessor.encryptPassword(password);
+        List<PasswordAuthHandlerInput.Entry> result = new ArrayList<>();
+        entries.forEach((k, v) -> result.add(PasswordAuthHandlerInput.Entry.of(k, encryptedPassword, v)));
+        return result;
+    }
+
+    /**
+     * Returns the relative path to `pravega/config` source directory from integration tests.
+     *
+     * @return the path
+     */
+    public static String pathToConfig() {
+        return "../../config/";
     }
 }

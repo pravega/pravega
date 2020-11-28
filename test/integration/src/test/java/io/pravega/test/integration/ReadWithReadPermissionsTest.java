@@ -107,7 +107,7 @@ public class ReadWithReadPermissionsTest {
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials(pwd, "creator"))
                 .build();
-        TestUtils.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
         TestUtils.writeDataToStream(scopeName, streamName, message, writerClientConfig);
 
         // Now, read data back using the reader account.

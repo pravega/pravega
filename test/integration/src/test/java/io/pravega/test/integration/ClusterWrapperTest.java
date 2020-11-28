@@ -25,7 +25,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ClusterWrapperTest {
@@ -52,7 +54,6 @@ public class ClusterWrapperTest {
         String streamName = "testStream";
         String readerGroupName = "testReaderGroup";
         String testMessage = "test message";
-        String pathToConfig = "../../config/";
         String password = "secret-password";
 
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
@@ -67,27 +68,27 @@ public class ClusterWrapperTest {
         ClusterWrapper cluster = ClusterWrapper.builder()
                 .authEnabled(true)
                 .tlsEnabled(true)
-                .tlsServerCertificatePath(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
-                .tlsServerKeyPath(pathToConfig + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                .tlsServerCertificatePath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .tlsServerKeyPath(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                 .passwordAuthHandlerEntries(TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, password))
                 .tlsHostVerificationEnabled(false)
                 .build();
 
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
-                .trustStore(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .trustStore(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .validateHostName(false)
                 .credentials(new DefaultCredentials(password, "writer"))
                 .build();
 
         cluster.initialize();
 
-        TestUtils.createStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
         TestUtils.writeDataToStream(scopeName, streamName, testMessage, writerClientConfig);
 
         final ClientConfig readerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
-                .trustStore(pathToConfig + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .trustStore(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .validateHostName(false)
                 .credentials(new DefaultCredentials(password, "reader"))
                 .build();
