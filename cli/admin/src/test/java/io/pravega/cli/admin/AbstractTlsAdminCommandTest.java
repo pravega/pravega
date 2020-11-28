@@ -9,20 +9,36 @@
  */
 package io.pravega.cli.admin;
 
+import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
+import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
+import io.pravega.cli.admin.controller.ControllerListScopesCommand;
+import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.net.URI;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public abstract class AbstractTlsAdminCommandTest {
 
@@ -34,7 +50,7 @@ public abstract class AbstractTlsAdminCommandTest {
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
 
-    // Security related flags and instantiate local pravega server.
+    // Security related flags and instantiate local Pravega server.
     private final Integer controllerPort = TestUtils.getAvailableListenPort();
     private final Integer segmentStorePort = TestUtils.getAvailableListenPort();
     private final Integer restServerPort = TestUtils.getAvailableListenPort();
@@ -85,8 +101,9 @@ public abstract class AbstractTlsAdminCommandTest {
         pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(authEnabled));
         pravegaProperties.setProperty("cli.security.auth.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
         pravegaProperties.setProperty("cli.security.auth.credentials.password", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        pravegaProperties.setProperty("cli.security.auth.token.signingKey", "secret");
         pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
-        pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME);
+        pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
 
         state.get().getConfigBuilder().include(pravegaProperties);
     }
@@ -110,5 +127,54 @@ public abstract class AbstractTlsAdminCommandTest {
                     .validateHostName(false);
         }
         return clientBuilder.build();
+    }
+
+    @Test
+    public void testAllCommands() throws Exception {
+        String scope = "testScope";
+        String testStream = "testStream";
+        String readerGroup = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, testStream))
+                .disableAutomaticCheckpoints()
+                .build();
+        ClientConfig clientConfig = prepareValidClientConfig();
+
+        // Generate the scope and stream required for testing.
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertNotNull(streamManager);
+
+        boolean isScopeCreated = streamManager.createScope(scope);
+
+        // Check if scope created successfully.
+        assertTrue("Failed to create scope", isScopeCreated);
+
+        boolean isStreamCreated = streamManager.createStream(scope, testStream, StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+
+        // Check if stream created successfully.
+        assertTrue("Failed to create the stream ", isStreamCreated);
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
+
+        String commandResult = io.pravega.cli.admin.utils.TestUtils.executeCommand("controller list-scopes", state.get());
+        assertTrue("ListScopesCommand failed.", commandResult.contains(scope));
+        assertNotNull(ControllerListScopesCommand.descriptor());
+
+        commandResult = io.pravega.cli.admin.utils.TestUtils.executeCommand("controller list-streams " + scope, state.get());
+        assertTrue("ListStreamsCommand failed.", commandResult.contains(testStream));
+        assertNotNull(ControllerListStreamsInScopeCommand.descriptor());
+
+        commandResult = io.pravega.cli.admin.utils.TestUtils.executeCommand("controller list-readergroups " + scope, state.get());
+        assertTrue("ListReaderGroupsCommand failed.", commandResult.contains(readerGroup));
+        assertNotNull(ControllerListReaderGroupsInScopeCommand.descriptor());
+
+        commandResult = io.pravega.cli.admin.utils.TestUtils.executeCommand("controller describe-scope " + scope, state.get());
+        assertTrue("DescribeScopeCommand failed.", commandResult.contains(scope));
+        assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }
 }

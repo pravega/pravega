@@ -12,10 +12,10 @@ package io.pravega.cli.admin.controller;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.cli.admin.utils.ControllerHostnameVerifier;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import lombok.AccessLevel;
-import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
@@ -26,15 +26,13 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 
+import static io.pravega.common.util.CertificateUtils.createTrustStore;
 import static javax.ws.rs.core.Response.Status.OK;
 import static javax.ws.rs.core.Response.Status.UNAUTHORIZED;
 
@@ -59,21 +57,18 @@ public abstract class ControllerCommand extends AdminCommand {
      * @return REST client.
      */
     protected Context createContext() {
+        CLIControllerConfig config = getCLIControllerConfig();
         ClientConfig clientConfig = new ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
 
         Client client;
 
-        // If tls parameters are configured, set them in client
-        if (getCLIControllerConfig().isTlsEnabled()) {
+        // If TLS parameters are configured, set them in client.
+        if (config.isTlsEnabled()) {
             KeyStore ks = null;
             try {
-                @Cleanup
-                InputStream trustStore = new FileInputStream(new File(getCLIControllerConfig().getTruststore()));
-                ks = KeyStore.getInstance("JKS");
-                ks.load(trustStore, null);
-
+                ks = createTrustStore(config.getTruststore());
             } catch (KeyStoreException e) {
                 output("The keystore file is invalid, the keystore type is not supported: %s", e.toString());
             } catch (IOException e) {
@@ -95,9 +90,9 @@ public abstract class ControllerCommand extends AdminCommand {
         }
 
         // If authorization parameters are configured, set them in the client.
-        if (getCLIControllerConfig().isAuthEnabled()) {
-            HttpAuthenticationFeature auth = HttpAuthenticationFeature.basic(getCLIControllerConfig().getUserName(),
-                    getCLIControllerConfig().getPassword());
+        if (config.isAuthEnabled()) {
+            HttpAuthenticationFeature auth = HttpAuthenticationFeature.basic(config.getUserName(),
+                    config.getPassword());
             client = client.register(auth);
         }
         return new Context(client);

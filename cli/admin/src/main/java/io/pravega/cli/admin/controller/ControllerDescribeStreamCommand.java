@@ -74,7 +74,7 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
                 segmentHelper = instantiateSegmentHelper(zkClient);
                 GrpcAuthHelper authHelper;
                 if (getCLIControllerConfig().isAuthEnabled()) {
-                    authHelper = new GrpcAuthHelper(true, "secret", 300);
+                    authHelper = new GrpcAuthHelper(true, getCLIControllerConfig().getTokenSigningKey(), 300);
                 } else {
                     authHelper = GrpcAuthHelper.getDisabledAuthHelper();
                 }

@@ -42,6 +42,7 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(setupUtils.isAuthEnabled()));
         pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
         pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
+        pravegaProperties.setProperty("cli.security.auth.token.signingKey", "secret");
         pravegaProperties.setProperty("cli.security.tls.enable", "false");
         pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH);
         state.get().getConfigBuilder().include(pravegaProperties);
@@ -52,5 +53,4 @@ public abstract class AbstractAdminCommandTest {
         setupUtils.close();
         state.get().close();
     }
-
 }

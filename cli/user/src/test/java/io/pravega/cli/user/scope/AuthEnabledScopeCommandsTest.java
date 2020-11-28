@@ -9,43 +9,14 @@
  */
 package io.pravega.cli.user.scope;
 
-import io.pravega.cli.user.AbstractUserCommandTest;
-import io.pravega.cli.user.CommandArgs;
-import io.pravega.cli.user.TestUtils;
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.Collections;
-
-public class AuthEnabledScopeCommandsTest extends AbstractUserCommandTest {
+public class AuthEnabledScopeCommandsTest extends ScopeCommandsTest {
 
     @Before
     @Override
     public void setUp() throws Exception {
         authEnabled = true;
         super.setUp();
-    }
-
-    @Test(timeout = 5000)
-    public void testCreateScope() throws Exception {
-        final String scope = "testCreate";
-        String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
-        Assert.assertTrue(commandResult.contains("created successfully"));
-        Assert.assertNotNull(ScopeCommand.Create.descriptor());
-
-        commandResult = TestUtils.executeCommand("scope delete " + scope, config.get());
-        Assert.assertTrue(commandResult.contains("deleted successfully"));
-    }
-
-    @Test(timeout = 5000)
-    public void testDeleteScope() throws Exception {
-        String scopeToDelete = "toDelete";
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), config.get());
-        Assert.assertNotNull(commandArgs.toString());
-        new ScopeCommand.Create(commandArgs).execute();
-        String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, config.get());
-        Assert.assertTrue(commandResult.contains("deleted successfully"));
-        Assert.assertNotNull(ScopeCommand.Delete.descriptor());
     }
 }
