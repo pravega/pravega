@@ -191,6 +191,52 @@ public class CredentialsExtractorTest {
     }
 
     /**
+     * The intent of this test is to verify whether an existing Credentials implementation works if the
+     * service definition is made using the new interface: `META-INF/services/io.pravega.shared.security.auth.Credentials`.
+     * In effect, it verifies that the existing plugin works with a modified service definition based on the new
+     * interface.
+     */
+    @Test
+    public void testLoadsLegacyCredentialsUsingNewInterfacePackage() {
+        Map<String, String> authEnvVariables = new HashMap<>();
+        authEnvVariables.put("pravega_client_auth_loadDynamic", "true");
+        authEnvVariables.put("pravega_client_auth_method", LegacyCredentials1.AUTHENTICATION_METHOD);
+
+        ClientConfig clientConfig = ClientConfig.builder()
+                .extractCredentials(null, authEnvVariables)
+                .build();
+        Credentials credentials = clientConfig.getCredentials();
+
+        assertNotNull("Credentials is null", credentials);
+        assertNotNull(LegacyCredentials1.class.getName(), credentials.getClass());
+        assertEquals("Expected a different authentication type", LegacyCredentials1.AUTHENTICATION_METHOD,
+                credentials.getAuthenticationType());
+    }
+
+    /**
+     * The intent of this test is to verify whether an existing Credentials implementation works if the
+     * service definition is via `META-INF/services/io.pravega.client.stream.impl.Credentials` file.
+     * In effect, it verifies that the existing plugin works as-is with the new client.
+     */
+    @Test
+    public void testLoadsLegacyCredentialsUsingOldInterfacePackage() {
+        Map<String, String> authEnvVariables = new HashMap<>();
+        authEnvVariables.put("pravega_client_auth_loadDynamic", "true");
+        authEnvVariables.put("pravega_client_auth_method",
+                LegacyCredentials2.AUTHENTICATION_METHOD);
+
+        ClientConfig clientConfig = ClientConfig.builder()
+                .extractCredentials(null, authEnvVariables)
+                .build();
+        Credentials credentials = clientConfig.getCredentials();
+
+        assertNotNull("Credentials is null", credentials);
+        assertNotNull(LegacyCredentials2.class.getName(), credentials.getClass());
+        assertEquals("Expected a different authentication type",
+                LegacyCredentials2.AUTHENTICATION_METHOD, credentials.getAuthenticationType());
+    }
+
+    /**
      * A class representing Credentials. It is dynamically loaded using a {@link java.util.ServiceLoader} by
      * the code under test, in the enclosing test class. For ServiceLoader to find it, it is configured in
      * META-INF/services/io.pravega.shared.security.auth.Credentials.
@@ -218,6 +264,41 @@ public class CredentialsExtractorTest {
         @Override
         public String getAuthenticationToken() {
             return "DynamicallyLoadedCredsSecond";
+        }
+    }
+
+    public static class LegacyCredentials1 implements io.pravega.client.stream.impl.Credentials {
+        private static final String TOKEN = "custom-token-legacy";
+        private static final String AUTHENTICATION_METHOD = "custom-method-legacy";
+
+        @Override
+        public String getAuthenticationType() {
+            return AUTHENTICATION_METHOD;
+        }
+
+        @Override
+        public String getAuthenticationToken() {
+            return TOKEN;
+        }
+    }
+
+    /**
+     * This implementation looks the same as {@link LegacyCredentials1}. But, these two are loaded differently.
+     * See how they are loaded differently in the corresponding service definition files under
+     * resources/META-INF/services.
+     */
+    public static class LegacyCredentials2 implements io.pravega.client.stream.impl.Credentials {
+        private static final String TOKEN = "custom-token-legacy-2";
+        private static final String AUTHENTICATION_METHOD = "custom-method-legacy-2";
+
+        @Override
+        public String getAuthenticationType() {
+            return AUTHENTICATION_METHOD;
+        }
+
+        @Override
+        public String getAuthenticationToken() {
+            return TOKEN;
         }
     }
 }
