@@ -652,12 +652,6 @@ interface Stream {
     CompletableFuture<Map<String, WriterMark>> getAllWriterMarks();
 
     /**
-     * Refresh the stream object. Typically to be used to invalidate any caches.
-     * This allows us reuse of stream object without having to recreate a new stream object for each new operation
-     */
-    void refresh();
-
-    /**
      * Method to get the requested chunk of the HistoryTimeSeries.
      *
      * @param chunkNumber chunk number.

@@ -1810,7 +1810,7 @@ public abstract class StreamMetadataTasksTest {
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
 
-        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream).join());
+        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null).join());
     }
 
     @Test
@@ -1827,7 +1827,7 @@ public abstract class StreamMetadataTasksTest {
         
         // region case 1: only add stream to scope without any additional metadata
         StreamMetadataStoreTestHelper.addStreamToScope(store, scopeName, streamName);
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
         deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
         // verify that event is not posted 
@@ -1838,7 +1838,7 @@ public abstract class StreamMetadataTasksTest {
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, 
                 Optional.of(100L), false);
 
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
 
         deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
@@ -1849,7 +1849,7 @@ public abstract class StreamMetadataTasksTest {
         // region case 3: create stream again but this time create the `state` but not history record.
         // this should result in delete workflow being invoked as segments also have to be deleted. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
 
         CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(scopeName,
                 streamName, null);
@@ -1865,7 +1865,7 @@ public abstract class StreamMetadataTasksTest {
         // configuration 2 has 3 segments. So highest segment number should be 2. 
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
         store.createStream(scopeName, streamName, configuration, 101L, null, executor).join();
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
 
         assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
                           .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 2L);

@@ -80,11 +80,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    Stream newStream(String scope, String name) {
-        if (streams.containsKey(scopedStreamName(scope, name))) {
-            return streams.get(scopedStreamName(scope, name));
+    Stream newStream(String scopeName, String name, OperationContext context) {
+        String key = scopedStreamName(scopeName, name);
+        if (streams.containsKey(key)) {
+            return streams.get(key);
         } else {
-            return new InMemoryStream(scope, name);
+            return new InMemoryStream(scopeName, name);
         }
     }
 
@@ -142,8 +143,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                        final String streamName) {
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName, 
+                                                        final OperationContext context) {
         return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
     }
 
@@ -161,10 +162,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                 final Executor executor) {
         String scopedStreamName = scopedStreamName(scopeName, streamName);
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
-            streams.remove(scopedStreamName);
             return getCreationTime(scopeName, streamName, context, executor)
                     .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName))
-                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor));
+                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor))
+                    .thenAccept(v -> streams.remove(scopedStreamName));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));

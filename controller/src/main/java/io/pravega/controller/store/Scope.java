@@ -65,7 +65,9 @@ public interface Scope {
      * Refresh the scope object. Typically to be used to invalidate any caches.
      * This allows us reuse of scope object without having to recreate a new scope object for each new operation
      */
-    void refresh();
+    default void refresh() {
+        // no op
+    }
 
     /**
      * A paginated api on the scope to get requested number of KeyValueTables from under the scope

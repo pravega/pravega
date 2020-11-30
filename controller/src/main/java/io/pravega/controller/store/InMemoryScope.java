@@ -138,11 +138,7 @@ public class InMemoryScope implements Scope {
     public boolean checkTableExists(String kvt) {
         return kvTablesMap.containsKey(kvt);
     }
-
-    @Override
-    public void refresh() {
-    }
-
+    
     @Override
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
         if (kvTablesMap.size() == 0) {

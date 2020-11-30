@@ -1908,7 +1908,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     protected CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxnsHelper(ZkOrderedStore txnCommitOrderer) {
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
-                ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
                       .thenApply(map -> map.entrySet().stream()
                                            .collect(Collectors.toMap(Map.Entry::getKey, x -> UUID.fromString(x.getValue()))));
     }
@@ -1971,7 +1971,7 @@ public abstract class PersistentStreamBase implements Stream {
         return Futures.allOfWithResults(txnIds.stream().map(txnIdStr -> {
             UUID txnId = UUID.fromString(txnIdStr);
             return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId).thenApply(VersionedMetadata::getObject),
-                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
+                    DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
         }).collect(Collectors.toList()));
     }
 

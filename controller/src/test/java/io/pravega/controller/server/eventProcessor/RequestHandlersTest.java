@@ -554,7 +554,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
 
         // mark stream should still be present and active
-        assertTrue(streamStore.checkStreamExists(scope, markStream).join());
+        assertTrue(streamStore.checkStreamExists(scope, markStream, null).join());
         assertEquals(streamStore.getState(scope, markStream, true, null, executor).join(), State.ACTIVE);
 
         // delete the stream
@@ -563,7 +563,7 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(firstDeleteEvent).join();
 
         // verify that mark stream is also deleted
-        assertFalse(streamStore.checkStreamExists(scope, markStream).join());
+        assertFalse(streamStore.checkStreamExists(scope, markStream, null).join());
     }
 
     @Test

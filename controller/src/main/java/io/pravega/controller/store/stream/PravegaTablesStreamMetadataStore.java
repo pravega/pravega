@@ -152,9 +152,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    PravegaTablesStream newStream(final String scope, final String name) {
+    PravegaTablesStream newStream(final String scope, final String name, OperationContext context) {
         return new PravegaTablesStream(scope, name, storeHelper, orderer, completedTxnGCRef.get()::getLatestBatch,
-                () -> ((PravegaTablesScope) getScope(scope)).getStreamsInScopeTableName(), executor);
+                () -> ((PravegaTablesScope) getScope(scope, context)).getStreamsInScopeTableName(), executor, context == null);
     }
 
     @Override
@@ -177,7 +177,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                 final OperationContext context,
                                                                 final Executor executor) {
         return Futures.completeOn(
-                ((PravegaTablesScope) getScope(scope))
+                ((PravegaTablesScope) getScope(scope, context))
                         .addStreamToScope(name)
                         .thenCompose(id -> super.createStream(scope, name, configuration, createTimestamp, context, executor)), 
                 executor);
@@ -189,7 +189,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                 final OperationContext context,
                                                 final Executor executor) {
         return Futures.completeOn(super.deleteStream(scope, name, context, executor)
-                    .thenCompose(status -> ((PravegaTablesScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status)),
+                    .thenCompose(status -> ((PravegaTablesScope) getScope(scope, context)).removeStreamFromScope(name).thenApply(v -> status)),
                 executor);
     }
 
@@ -237,8 +237,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                        final String streamName) {
-        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkStreamExistsInScope(streamName), executor);
+                                                        final String streamName,
+                                                        final OperationContext context) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName, context)).checkStreamExistsInScope(streamName), executor);
     }
 
     @Override

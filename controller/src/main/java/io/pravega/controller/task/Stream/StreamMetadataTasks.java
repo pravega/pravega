@@ -305,7 +305,7 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream, context)
         .thenCompose(exists -> {
             // 1. check Stream exists
             if (!exists) {
@@ -345,7 +345,7 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("removeSubscriber", scope, stream);
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream, context)
            .thenCompose(exists -> {
                // 1. check Stream exists
                if (!exists) {
@@ -380,7 +380,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("listSubscribers", scope, stream);
-        return streamMetadataStore.checkStreamExists(scope, stream)
+        return streamMetadataStore.checkStreamExists(scope, stream, context)
                 .thenCompose(exists -> {
                     if (!exists) {
                         return CompletableFuture.completedFuture(SubscribersResponse.newBuilder()
@@ -423,7 +423,7 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("updateSubscriberStreamCut", scope, stream);
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream, context)
                 .thenCompose(exists -> {
                      // 1. check Stream exists
                      if (!exists) {
@@ -1040,7 +1040,7 @@ public class StreamMetadataTasks extends TaskBase {
                 })
                 .thenCompose(result -> {
                     if (result) {
-                        return eventHelper.checkDone(() -> isDeleted(scope, stream))
+                        return eventHelper.checkDone(() -> isDeleted(scope, stream, context))
                                 .thenApply(x -> DeleteStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
@@ -1052,8 +1052,8 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
-        return streamMetadataStore.checkStreamExists(scope, stream)
+    private CompletableFuture<Boolean> isDeleted(String scope, String stream, OperationContext context) {
+        return streamMetadataStore.checkStreamExists(scope, stream, context)
                 .thenApply(x -> !x);
     }
 
@@ -1176,7 +1176,9 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
-        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
+        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+
+        return this.streamMetadataStore.createStream(scope, stream, config, timestamp, context, executor)
                 .thenComposeAsync(response -> {
                     log.info(requestId, "{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
@@ -1193,8 +1195,6 @@ public class StreamMetadataTasks extends TaskBase {
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
                                 .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
                                 .thenCompose(y -> {
-                                    final OperationContext context = streamMetadataStore.createContext(scope, stream);
-
                                     return withRetries(() -> {
                                         CompletableFuture<Void> future;
                                         if (config.getRetentionPolicy() != null) {

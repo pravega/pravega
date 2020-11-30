@@ -623,7 +623,6 @@ public class ZkStreamTest {
 
         // refresh the stream object to indicate new request context
         stream.refresh();
-
         AssertExtensions.assertFutureThrows("should throw data not found for stream", stream.getEpochRecord(0), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         
@@ -631,7 +630,8 @@ public class ZkStreamTest {
         stream.refresh();
 
         // verify that metadata doesn't exist in the store.
-        AssertExtensions.assertFutureThrows("Stream deleted", stream.getCreationTime(), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        AssertExtensions.assertFutureThrows("Stream deleted", stream.getCreationTime(), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         
         // verify that cached entries still exist. 
         VersionedMetadata<?> cachedCreationTimeExists = storeHelper.getCache().getCachedData(key);

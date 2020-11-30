@@ -14,9 +14,6 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -46,10 +43,8 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
@@ -62,7 +57,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -78,47 +73,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     
-    private final LoadingCache<String, Scope> scopeCache;
-    private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostTxnIndex;
     @Getter
     private final HostIndex hostTaskIndex;
     private final ControllerEventSerializer controllerEventSerializer = new ControllerEventSerializer();
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
-        cache = CacheBuilder.newBuilder()
-                .maximumSize(10000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<Pair<String, String>, Stream>() {
-                            @Override
-                            @ParametersAreNonnullByDefault
-                            public Stream load(Pair<String, String> input) {
-                                try {
-                                    return newStream(input.getKey(), input.getValue());
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        });
-
-        scopeCache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<String, Scope>() {
-                            @Override
-                            @ParametersAreNonnullByDefault
-                            public Scope load(String scopeName) {
-                                try {
-                                    return newScope(scopeName);
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        });
 
         this.hostTxnIndex = hostTxnIndex;
         this.hostTaskIndex = hostTaskIndex;
@@ -133,8 +93,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Scope newScope(final String scopeName);
 
     @Override
-    public OperationContext createContext(String scope, String name) {
-        return new OperationContextImpl<>(getStream(scope, name, null));
+    public OperationContext createContext(String scopeName, String streamName) {
+        Function<OperationContext, Scope> scopefunction = x -> newScope(scopeName);
+        Function<OperationContext, Stream> streamfunction = x -> newStream(scopeName, streamName, x);
+        return new OperationContextImpl(scopefunction, streamfunction);
     }
 
     @Override
@@ -169,8 +131,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                     .reduce(Integer::max).get())
                 .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor)),
                 DATA_NOT_FOUND_PREDICATE, null)
-                .thenCompose(v -> Futures.completeOn(s.delete(), executor))
-                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
+                .thenCompose(v -> Futures.completeOn(s.delete(), executor));
     }
 
     @Override
@@ -896,27 +857,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
-        Stream stream;
         if (context != null) {
-            stream = context.getStream();
-            assert stream.getScope().equals(scope);
-            assert stream.getName().equals(name);
+            return ((OperationContextImpl) context).getStream();
         } else {
-            stream = cache.getUnchecked(new ImmutablePair<>(scope, name));
-            stream.refresh();
+            return newStream(scope, name, null);
         }
-        return stream;
     }
-
-    @VisibleForTesting
-    void setStream(Stream stream) {
-        cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
-    }
-
+    
     public Scope getScope(final String scopeName) {
-        Scope scope = scopeCache.getUnchecked(scopeName);
-        scope.refresh();
-        return scope;
+        return getScope(scopeName, null);
+    }
+    
+    public Scope getScope(final String scopeName, final OperationContext context) {
+        if (context != null) {
+            return ((OperationContextImpl) context).getScope();
+        } else {
+            return newScope(scopeName);
+        }
     }
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
@@ -959,7 +916,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,
                                                              OperationContext context, final Executor executor);
 
-    abstract Stream newStream(final String scope, final String name);
+    abstract Stream newStream(final String scopeName, final String name, OperationContext context);
 
     abstract CompletableFuture<Int96> getNextCounter();
 

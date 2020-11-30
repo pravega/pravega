@@ -9,14 +9,38 @@
  */
 package io.pravega.controller.store.stream;
 
-import lombok.Getter;
+import io.pravega.controller.store.Scope;
+import lombok.Synchronized;
 
-class OperationContextImpl<T> implements OperationContext {
+import javax.annotation.concurrent.GuardedBy;
+import java.util.function.Function;
 
-    @Getter
-    private final Stream stream;
-
-    OperationContextImpl(Stream stream) {
-        this.stream = stream;
+class OperationContextImpl implements OperationContext {
+    private final Function<OperationContext, Scope> scopeFactory;
+    private final Function<OperationContext, Stream> streamFactory;
+    @GuardedBy("$lock")
+    private Scope scope;
+    @GuardedBy("$lock")
+    private Stream stream;
+    
+    OperationContextImpl(Function<OperationContext, Scope> scopeFactory, Function<OperationContext, Stream> streamFactory) {
+        this.scopeFactory = scopeFactory;
+        this.streamFactory = streamFactory;
+    }
+    
+    @Synchronized
+    Scope getScope() {
+        if (scope == null) {
+            scope = scopeFactory.apply(this);
+        }
+        return scope;
+    }
+    
+    @Synchronized
+    Stream getStream() {
+        if (stream == null) {
+            stream = streamFactory.apply(this);
+        }
+        return stream;
     }
 }

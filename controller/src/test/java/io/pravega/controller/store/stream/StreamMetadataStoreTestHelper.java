@@ -17,7 +17,7 @@ import java.util.Optional;
 public class StreamMetadataStoreTestHelper {
     public static PersistentStreamBase getStream(StreamMetadataStore store, String scopeName, String streamName) {
         return (PersistentStreamBase) ((AbstractStreamMetadataStore) store)
-                .newStream(scopeName, streamName);
+                .newStream(scopeName, streamName, null);
     }
     
     public static void partiallyCreateStream(StreamMetadataStore store, String scopeName, String streamName, 

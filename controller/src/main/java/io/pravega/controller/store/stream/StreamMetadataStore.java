@@ -82,10 +82,12 @@ public interface StreamMetadataStore extends AutoCloseable {
      * Api to check if a stream exists in the store or not.
      * @param scopeName scope name
      * @param streamName stream name
+     * @param context Operation context
      * @return true if stream exists, false otherwise
      */
     CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                 final String streamName);
+                                                 final String streamName, 
+                                                 final OperationContext context);
 
 
     /**

@@ -757,10 +757,16 @@ class ZKStream extends PersistentStreamBase {
                 });
     }
 
-    @Override
-    public void refresh() {
-        String id = this.idRef.getAndSet(null);
+    @VisibleForTesting
+    void refresh() {
+        String id = idRef.get();
         id = id == null ? "" : id;
+        refresh(id);
+        idRef.set(null);
+    }
+
+    @VisibleForTesting
+    void refresh(String id) {
         // invalidate all mutable records in the cache 
         store.invalidateCache(statePath, id);
         store.invalidateCache(configurationPath, id);
@@ -791,6 +797,9 @@ class ZKStream extends PersistentStreamBase {
                     .thenApply(pos -> {
                         String s = pos.toString();
                         this.idRef.compareAndSet(null, s);
+                        // we will refresh the cache before using any other apis in this object. 
+                        // earlier we would create one single zkstream object but now we are creating 
+                        this.refresh(s);
                         return s;
                     }), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, "");
         }

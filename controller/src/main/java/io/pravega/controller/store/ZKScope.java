@@ -213,11 +213,7 @@ public class ZKScope implements Scope {
 
         return new ImmutablePair<>(toReturn, last.get());
     }
-
-    @Override
-    public void refresh() {
-    }
-
+    
     /**
      * When a new stream is created under a scope, we first get a new counter value by creating a sequential znode under 
      * a counter node. this is a 10 digit integer which the store passes to the zkscope object as position.

@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
@@ -188,6 +190,8 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
 
         String stream = "test";
         String scope = "test";
+        getStore().createScope(scope).join();
+        getStore().createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis(), null, executorService()).join();
         CompletableFuture<Void> started1 = new CompletableFuture<>();
         CompletableFuture<Void> started2 = new CompletableFuture<>();
         CompletableFuture<Void> waitForIt1 = new CompletableFuture<>();
@@ -263,8 +267,11 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         BlockingQueue<TestEvent2> queue2 = new LinkedBlockingQueue<>();
         TestRequestProcessor2 requestProcessor2 = new TestRequestProcessor2(getStore(), executorService(), queue2);
 
-        String stream = "test";
-        String scope = "test";
+        String stream = "test2";
+        String scope = "test2";
+        getStore().createScope(scope).join();
+        getStore().createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis(), null, executorService()).join();
+
         CompletableFuture<Void> started1 = new CompletableFuture<>();
         CompletableFuture<Void> waitForIt1 = new CompletableFuture<>();
 

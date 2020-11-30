@@ -148,11 +148,6 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public void refresh() {
-
-    }
-
-    @Override
     CompletableFuture<Void> deleteStream() {
         return CompletableFuture.completedFuture(null);
     }

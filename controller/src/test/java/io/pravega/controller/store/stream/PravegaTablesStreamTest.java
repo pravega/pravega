@@ -64,6 +64,6 @@ public class PravegaTablesStreamTest extends StreamTestBase {
         pravegaTableScope.addStreamToScope(stream).join();
         
         return new PravegaTablesStream(scope, stream, storeHelper, orderer,  
-                () -> 0, chunkSize, shardSize, pravegaTableScope::getStreamsInScopeTableName, executor);
+                () -> 0, chunkSize, shardSize, pravegaTableScope::getStreamsInScopeTableName, executor, true);
     }
 }

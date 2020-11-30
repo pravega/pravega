@@ -110,8 +110,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor, orderer);
+    ZKStream newStream(final String scopeName, final String name, OperationContext context) {
+        return new ZKStream(scopeName, name, storeHelper, completedTxnGC::getLatestBatch, executor, orderer);
     }
 
     @Override
@@ -167,7 +167,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration,
                                                                 long createTimestamp, OperationContext context, Executor executor) {
-        ZKScope zkScope = (ZKScope) getScope(scope);
+        ZKScope zkScope = (ZKScope) getScope(scope, context);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
 
         return super.createStream(scope, name, configuration, createTimestamp, context, executor)
@@ -181,8 +181,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                        final String streamName) {
-        ZKStream stream = newStream(scopeName, streamName);
+                                                        final String streamName, final OperationContext context) {
+        ZKStream stream = (ZKStream) getStream(scopeName, streamName, context);
         return storeHelper.checkExists(stream.getStreamPath());
     }
 
@@ -232,7 +232,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     public CompletableFuture<Void> deleteStream(String scope, String name, OperationContext context, Executor executor) {
-        ZKScope zkScope = (ZKScope) getScope(scope);
+        ZKScope zkScope = (ZKScope) getScope(scope, context);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
         return Futures.exceptionallyExpecting(zkStream.getStreamPosition()
                 .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),

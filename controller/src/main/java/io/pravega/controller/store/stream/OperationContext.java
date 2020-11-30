@@ -15,6 +15,4 @@ package io.pravega.controller.store.stream;
  * read operations against the store are requested, the values are served from the context's cache.
  */
 public interface OperationContext {
-
-    Stream getStream();
 }
