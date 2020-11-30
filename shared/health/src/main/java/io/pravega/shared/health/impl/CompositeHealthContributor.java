@@ -35,7 +35,6 @@ public abstract class CompositeHealthContributor implements HealthContributor {
 
     private Collection<HealthContributor> contributors = new HashSet<>();
 
-
     CompositeHealthContributor(StatusAggregator aggregator, ContributorRegistry registry) {
         this.aggregator = aggregator;
         this.registry = registry;
@@ -77,6 +76,14 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         return builder.build();
     }
 
+    /**
+     * A method which supplies the {@link CompositeHealthContributor#health(boolean)} method with the collection of
+     * {@link HealthContributor} objects to perform the aggregate health check on. This is helpful because it gives us
+     * flexibility in defining where the contributors may be but also avoids the requirement of being bound to a
+     * {@link ContributorRegistry} instance.
+     *
+     * @return The {@link Collection} of {@link HealthContributor}.
+     */
     public Collection<HealthContributor> contributors() {
         if (registry != null) {
             return registry.dependencies(getName());

@@ -10,11 +10,14 @@
 package io.pravega.shared.health;
 
 import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.function.BiConsumer;
 
-@Slf4j
+/**
+ * {@link InlineHealthIndicator} provides a syntactic alternative to the {@link HealthIndicator}, but is ultimately functionally
+ * equivalent. Instead of creating a {@link HealthIndicator} by subclassing it and implementing {@link HealthIndicator#doHealthCheck(Health.HealthBuilder)},
+ * this simply provides the option to supply that abstract method as a lambda expression.
+ */
 public class InlineHealthIndicator extends HealthIndicator {
 
     private final BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck;

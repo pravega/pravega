@@ -15,8 +15,8 @@ import java.util.Collection;
 public interface StatusAggregator {
 
     /**
-     * A reduction function aggregation a {@link Collection} of {@link Status} objects into a single {@link Status} object
-     * representing the overall health of the given {@link HealthIndicator}.
+     * Reduces a {@link Collection} of {@link Status} objects into a single {@link Status} object
+     * representing the overall health of the given {@link io.pravega.shared.health.impl.CompositeHealthContributor}.
      *
      * @param statuses The {@link Collection} of {@link Status}.
      * @return

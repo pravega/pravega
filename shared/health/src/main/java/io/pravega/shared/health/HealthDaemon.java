@@ -12,11 +12,9 @@ package io.pravega.shared.health;
 
 /**
  * The {@link HealthDaemon} is responsible for regularly updating the {@link Health} of the {@link HealthService}.
- * This is useful in cases where health information is not regularly queried by some client. In the event of a crash,
+ * This is useful in cases where health information is not regularly queried by some client. In the event of a crash or failure,
  * (should we want to provide this information) it allows us to place an upper bound on how stale this {@link Health}
  * information may be.
- *
- * @return The {@link HealthDaemon} belonging to this particular {@link HealthService}.
  */
 public interface HealthDaemon {
 

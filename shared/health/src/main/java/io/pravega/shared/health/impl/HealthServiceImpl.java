@@ -21,7 +21,7 @@ import java.util.Collection;
 @Slf4j
 public class HealthServiceImpl implements HealthService {
 
-    private ContributorRegistryImpl registry;
+    private final ContributorRegistry registry;
 
     /**
      * The {@link HealthConfig} object used to setup the {@link HealthComponent} hierarchy.
@@ -29,7 +29,7 @@ public class HealthServiceImpl implements HealthService {
     private HealthConfig config;
 
     /**
-     * The {@link HealthDaemon} used *if* a daemon is passed in during construction.
+     * The {@link HealthDaemon} which provides passive health updates.
      */
     private final HealthDaemon daemon;
 
@@ -39,8 +39,8 @@ public class HealthServiceImpl implements HealthService {
         this.config = config;
         this.registry = new ContributorRegistryImpl();
         this.endpoint = new HealthEndpointImpl(this.registry);
+        // Initializes the ContributorRegistry into the expected starting state.
         this.config.reconcile(this.registry);
-        // Risk of escaped 'this' is we call HealthDaemon.start() within this (HealthServiceImpl) constructor?
         this.daemon = new HealthDaemonImpl(this);
     }
 
@@ -64,8 +64,14 @@ public class HealthServiceImpl implements HealthService {
         return daemon;
     }
 
+    /**
+     * Reverts the state of the {@link HealthService} had it just been initialized and applied the provided
+     * {@link  HealthConfig}.
+     */
     @Override
     public void clear() {
         this.registry.reset();
+        // The ContributorRegistry clears all it's internal state, so the reconcile process must be repeated.
+        this.config.reconcile(this.registry);
     }
 }

@@ -12,6 +12,10 @@ package io.pravega.shared.health;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
+ * an arbitrary component, process, object, etc.
+ */
 public interface HealthContributor {
 
     /**

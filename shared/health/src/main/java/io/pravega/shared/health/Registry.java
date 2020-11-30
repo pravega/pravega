@@ -12,7 +12,6 @@ package io.pravega.shared.health;
 import java.util.Optional;
 
 public interface Registry<T> {
-
     /**
      * Register some object of arbitrary type to the registry.
      *

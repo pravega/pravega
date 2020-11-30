@@ -15,6 +15,9 @@ import io.pravega.shared.health.impl.HealthServiceImpl;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Provides instances of a {@link HealthService} and optionally starts the {@link HealthDaemon}.
+ */
 public class HealthServiceFactory implements AutoCloseable {
     private final HealthConfig config;
     private final AtomicBoolean closed;

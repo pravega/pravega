@@ -18,12 +18,10 @@ import java.util.function.Supplier;
 /**
  * A details object encapsulates any health related, non-{@link Status} state that an operator may be interested in. A details
  * object should provide information that helps gauge the well-being of the associated component.
- *
- * This interface is to be deserialized into JSON.
  */
 public class DetailsProvider {
     /**
-     * The underlying {@link java.util.Collection} used to hold detailed information.
+     * The underlying {@link java.util.Collection} used to hold the detailed information.
      */
     @Getter
     private Map<String, Supplier<Object>> suppliers = new HashMap<String, Supplier<Object>>();

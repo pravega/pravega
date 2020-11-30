@@ -13,14 +13,8 @@ import java.util.Collection;
 
 /**
  * The top level interface used to provide any and all health related information for a particular component
- * of Pravega. It holds the {@link ContributorRegistry} and provides the endpoint used to make health information
- * accessible to clients.
- *
- * A {@link HealthService} should provide four endpoints:
- *  * /health               A route providing the aggregate of the three routes listed below.
- *  * /health/readiness     Exposes the top level 'ready' status.
- *  * /health/liveness      Exposes the top level 'liveness' status.
- *  * /health/details       Exposes the aggregate {@link Health} details.
+ * of Pravega. It holds the {@link ContributorRegistry} and provides the {@link HealthEndpoint} used to make health
+ * information accessible to clients.
  */
 public interface HealthService {
 

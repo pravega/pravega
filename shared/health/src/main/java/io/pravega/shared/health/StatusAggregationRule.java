@@ -13,7 +13,7 @@ import java.util.Collection;
 
 /**
  * Any component that implements {@link HealthIndicator} may depend on one or more contributors to determine
- * the true {@link Status} of itself. An aggregation rule gives components flexibility in determining it's overall health,
+ * its own {@link Status}. An aggregation rule gives components flexibility in determining it's overall health,
  * given the health of itself and its dependencies.
  *
  * Particularly in the case where a component has many instances of a particular service, it may tolerate a certain
@@ -34,6 +34,7 @@ public class StatusAggregationRule {
         if (statuses.isEmpty()) {
             return Status.UNKNOWN;
         }
+        // Should be a strict majority.
         if (statuses.stream().filter(Status::alive).count() > Math.floor(statuses.size() / 2.0)) {
             return Status.UP;
         }

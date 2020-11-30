@@ -27,7 +27,11 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiredArgsConstructor
 public class HealthDaemonImpl implements HealthDaemon {
 
+    /**
+     * The {@link Health} the daemon should report in the case it has not started querying the {@link HealthService}.
+     */
     private static final Health INITIAL_HEALTH = Health.builder().build();
+
     /**
      * Represents the most recent {@link Health} information provided by the {@link ScheduledExecutorService}.
      */
@@ -55,6 +59,9 @@ public class HealthDaemonImpl implements HealthDaemon {
      */
     private Future<?> future;
 
+    /**
+     * Starts the underlying {@link ScheduledExecutorService} to repeatedly call {@link io.pravega.shared.health.HealthEndpoint#health(boolean)}.
+     */
     public void start() {
         log.info("Starting a HealthDaemon thread -- running at {} second intervals.", interval);
         future = executor.scheduleAtFixedRate(() -> {
@@ -65,21 +72,35 @@ public class HealthDaemonImpl implements HealthDaemon {
                 TimeUnit.SECONDS);
     }
 
+    /**
+     * Stops any ongoing health checks. May be restarted by calling {@link HealthDaemon#start()}.
+     */
     public void stop() {
-        log.info("Cancelling active HealthDaemon thread.");
+        log.info("Cancelling the active HealthDaemon thread.");
         future.cancel(true);
         future = null;
     }
 
+    /**
+     * Permanently shuts down the {@link HealthDaemon}'s {@link ScheduledExecutorService}. It will not be able to be restarted.
+     */
     public void shutdown() {
+        log.info("Permanently shutting down the HealthDaemon.");
         executor.shutdownNow();
         try {
             executor.awaitTermination(interval, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             log.error("Unexpected InterruptedException shutting down HealthDaemon.", e);
         }
+        future = null;
+        // The HealthDaemon should be able to continue to report a healthy result.
+        latest.set(INITIAL_HEALTH);
     }
 
+    /**
+     * Determines if the {@link HealthDaemon} is actively performing recurring health checks.
+     * @return The {@link HealthDaemon} running status.
+     */
     public boolean isRunning() {
         if (future == null || (executor.isTerminated() && executor.isShutdown())) {
             return false;
@@ -87,15 +108,19 @@ public class HealthDaemonImpl implements HealthDaemon {
         return true;
     }
 
+    /**
+     * Returns the {@link HealthDaemon} to its state had it just been initialized.
+     */
     public void reset() {
         stop();
         latest.set(INITIAL_HEALTH);
     }
 
+    /**
+     * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#health(boolean)} calls.
+     * @return The latest {@link Health} result.
+     */
     public Health getLatestHealth() {
-        if (latest.get() == null) {
-            return INITIAL_HEALTH;
-        }
         return latest.get();
     }
 }

@@ -26,10 +26,11 @@ import lombok.extern.slf4j.Slf4j;
  * The children/dependencies of a {@link HealthComponent} are used to determine the {@link Status} of this component, based
  * on some {@link StatusAggregationRule}.
  *
- * If a {@link HealthComponent} is registered under a {@link ContributorRegistry}, the {@link ContributorRegistry} should treat
- * said {@link HealthComponent} as immutable, meaning that it cannot be removed (unregistered) once registered. *However* a
- * {@link HealthComponent} can still be used to dynamically aggregate various {@link HealthContributor}, so long as the component
- * is registered as a {@link HealthContributor} and not its native {@link HealthComponent} type.
+ * If a {@link HealthComponent} is registered under a {@link ContributorRegistry}, the {@link ContributorRegistry} should
+ * (but is not currently a strict requirement) treat said {@link HealthComponent} as immutable, meaning that it should not
+ * be removed (unregistered) once registered. *However* a {@link HealthComponent} can still be used to dynamically aggregate
+ * various {@link HealthContributor}, so long as the component is registered as a {@link HealthContributor} and not its
+ * native {@link HealthComponent} type.
  */
 @Slf4j
 public class HealthComponent extends CompositeHealthContributor {

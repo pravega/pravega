@@ -18,10 +18,10 @@ import java.util.function.Supplier;
 
 /**
  * The {@link HealthIndicator} interface is the primary interface a client (some arbitrary class) uses to export health
- * information to the {@link HealthService}. A {@link HealthIndicator} is something that *contributes* health {@link Status}
+ * information to the {@link HealthService}. At a *minimum* {@link HealthIndicator} is something that *contributes* health {@link Status}
  * information used to determine the well-being of one or more components.
  *
- * A {@link HealthIndicator} will implicitly register itself with the {@link ContributorRegistry}.
+ * A {@link HealthIndicator} will likely want to provide readiness and liveness information of the component.
  */
 @Slf4j
 public abstract class HealthIndicator implements HealthContributor {

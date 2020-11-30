@@ -51,6 +51,13 @@ public class HealthConfigImpl implements HealthConfig {
 
         private final Set<HealthComponent> roots = new HashSet<>();
 
+        /**
+         * Defines a new {@link HealthComponent} to be created.
+         * @param name The name of the to-be {@link HealthComponent}.
+         * @param aggregator The aggregration rule to use.
+         *
+         * @return A reference to the *same* object, with updates to its internal data-structures made.
+         */
         public Builder define(String name, StatusAggregator aggregator) {
             if (components.containsKey(name)) {
                 log.warn("Overwriting a pre-existing component definition -- aborting.");
@@ -63,6 +70,14 @@ public class HealthConfigImpl implements HealthConfig {
             return this;
         }
 
+        /**
+         * Defines that there should be a parent-child relation between a {@link HealthComponent} called {@param child}
+         * and a {@link HealthComponent} called {@param parent}.
+         *
+         * @param child The name of the child {@link HealthComponent}.
+         * @param parent The name of the parent {@link HealthComponent}.
+         * @return A reference to the *same* object, with updates to its internal data-structures made.
+         */
         public Builder relation(String child, String parent) {
             if (child.equals(parent)) {
                 log.warn("Attempting to add a reference to itself -- aborting.");
@@ -91,6 +106,14 @@ public class HealthConfigImpl implements HealthConfig {
             return !cycle;
         }
 
+        /**
+         * The main recursive method used for the traversal.
+         *
+         * @param name The name of the {@link HealthComponent} currently being checked.
+         * @param visited The list of {@link HealthComponent} visited so far.
+         *
+         * @return Whether or not this component has been searched previously.
+         */
         private boolean validate(String name, Map<String, Boolean> visited) {
             if (visited.containsKey(name) && visited.get(name)) {
                 return true;
@@ -113,11 +136,18 @@ public class HealthConfigImpl implements HealthConfig {
             return config;
         }
 
+        /**
+         * Returns the final constructed {@link HealthConfig} implementation, but validates the configuration to ensure
+         * that there are no cyclic relations.
+         *
+         * @return The resulting {@link HealthConfig}.
+         * @throws Exception Thrown {@link Exception} in the case the validation fails.
+         */
         public HealthConfig build() throws Exception {
             if (validate()) {
                 return new HealthConfigImpl(components, roots, relations);
             } else {
-                throw new RuntimeException("Invalid HealthComponentConfig definition -- cyclic references.");
+                throw new RuntimeException("Invalid HealthComponentConfig definition: Cyclic reference(s) detected.");
             }
         }
     }
@@ -126,6 +156,12 @@ public class HealthConfigImpl implements HealthConfig {
         return components.isEmpty() && relations.isEmpty() && roots.isEmpty();
     }
 
+    /**
+     * Applies the necessary operations to take an empty {@link ContributorRegistry} and transform it to mirror the
+     * topology defined by this {@link HealthConfig} implementation.
+     *
+     * @param registry The {@link ContributorRegistry} to apply this reconciliation on.
+     */
     public void reconcile(ContributorRegistry registry) {
         for (val component : this.roots) {
             recurse(registry, component, null);
