@@ -32,7 +32,7 @@ public class RetentionConfig   {
    */
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
-    
+
     LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
     private String value;
@@ -69,6 +69,9 @@ public class RetentionConfig   {
 
   @JsonProperty("timeBasedRetention")
   private TimeBasedRetention timeBasedRetention = null;
+
+  @JsonProperty("maxTimeBasedRetention")
+  private TimeBasedRetention maxTimeBasedRetention = null;
 
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
@@ -146,6 +149,25 @@ public class RetentionConfig   {
     this.timeBasedRetention = timeBasedRetention;
   }
 
+  public RetentionConfig maxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
+    return this;
+  }
+
+  /**
+   * Get maxTimeBasedRetention
+   * @return maxTimeBasedRetention
+   **/
+  @JsonProperty("maxTimeBasedRetention")
+  @ApiModelProperty(value = "")
+  public TimeBasedRetention getMaxTimeBasedRetention() {
+    return maxTimeBasedRetention;
+  }
+
+  public void setMaxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -159,12 +181,13 @@ public class RetentionConfig   {
     return Objects.equals(this.type, retentionConfig.type) &&
         Objects.equals(this.value, retentionConfig.value) &&
         Objects.equals(this.maxValue, retentionConfig.maxValue) &&
-        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention);
+        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention) &&
+        Objects.equals(this.maxTimeBasedRetention, retentionConfig.maxTimeBasedRetention);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, value, maxValue, timeBasedRetention);
+    return Objects.hash(type, value, maxValue, timeBasedRetention, maxTimeBasedRetention);
   }
 
 
@@ -177,6 +200,7 @@ public class RetentionConfig   {
     sb.append("    value: ").append(toIndentedString(value)).append("\n");
     sb.append("    maxValue: ").append(toIndentedString(maxValue)).append("\n");
     sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
+    sb.append("    maxTimeBasedRetention: ").append(toIndentedString(maxTimeBasedRetention)).append("\n");
     sb.append("}");
     return sb.toString();
   }

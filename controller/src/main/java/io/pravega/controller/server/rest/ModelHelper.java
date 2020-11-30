@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class ModelHelper {
 
     public static final int MILLIS_TO_MINUTES = 60 * 1000;
-    public static final int BYTES_TO_MB = 1024 * 1024;
+    public static final int MB_TO_BYTES = 1024 * 1024;
 
     /**
      * This method translates the REST request object CreateStreamRequest into internal object StreamConfiguration.
@@ -59,12 +59,29 @@ public class ModelHelper {
         if (createStreamRequest.getRetentionPolicy() != null) {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
-                    retentionPolicy = RetentionPolicy.bySizeBytes(
-                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == 0) {
+                        // max value is not specified
+                        retentionPolicy = RetentionPolicy.bySizeBytes(
+                                createStreamRequest.getRetentionPolicy().getValue() * MB_TO_BYTES);
+                    } else {
+                        retentionPolicy = RetentionPolicy.bySizeBytes(
+                                createStreamRequest.getRetentionPolicy().getValue() * MB_TO_BYTES,
+                                createStreamRequest.getRetentionPolicy().getMaxValue() * MB_TO_BYTES);
+                    }
                     break;
                 case LIMITED_DAYS:
-                    retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                            createStreamRequest.getRetentionPolicy().getValue());
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == 0
+                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getDays() == 0
+                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getHours() == 0
+                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getMinutes() == 0) {
+                        retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                    createStreamRequest.getRetentionPolicy().getValue());
+                    } else {
+                        retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                createStreamRequest.getRetentionPolicy().getValue(),
+                                createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention(),
+                                createStreamRequest.getRetentionPolicy().getMaxValue());
+                    }
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
@@ -190,6 +207,21 @@ public class ModelHelper {
                         .plusMinutes(timeRetention.getMinutes())
                 :  Duration.ofDays(retentionInDays);
         return RetentionPolicy.byTime(retentionDuration);
+    }
+
+    private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays,
+                                                      TimeBasedRetention maxTimeRetention, long maxRetentionInDays) {
+        Duration retentionDurationMin = (timeRetention != null && retentionInDays == 0) ?
+                Duration.ofDays(timeRetention.getDays())
+                        .plusHours(timeRetention.getHours())
+                        .plusMinutes(timeRetention.getMinutes())
+                :  Duration.ofDays(retentionInDays);
+        Duration retentionDurationMax = (maxTimeRetention != null && maxRetentionInDays == 0) ?
+                Duration.ofDays(maxTimeRetention.getDays())
+                        .plusHours(maxTimeRetention.getHours())
+                        .plusMinutes(maxTimeRetention.getMinutes())
+                :  Duration.ofDays(maxRetentionInDays);
+        return RetentionPolicy.byTime(retentionDurationMin, retentionDurationMax);
     }
 
     /**
