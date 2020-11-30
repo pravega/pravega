@@ -28,7 +28,7 @@ public abstract class HealthApiService {
     public abstract Response getContributorStatus(String id,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getDependencies(SecurityContext securityContext) throws NotFoundException;
     public abstract Response getDetails(SecurityContext securityContext) throws NotFoundException;
-    public abstract Response getHealth( String details,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response getHealth( Boolean details,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getLiveness(SecurityContext securityContext) throws NotFoundException;
     public abstract Response getReadiness(SecurityContext securityContext) throws NotFoundException;
     public abstract Response getStatus(SecurityContext securityContext) throws NotFoundException;

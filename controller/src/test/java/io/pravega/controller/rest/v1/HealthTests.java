@@ -100,11 +100,13 @@ public class HealthTests {
     @After
     public void teardown() {
         service.clear();
-        // Only the root component should be left.
-        Assert.assertEquals(service.registry().contributors().size(), 1);
-        Assert.assertEquals(service.registry().components().size(), 1);
+        // The ROOT component + the component supplied by our HealthConfig (getHealthConfig).
+        Assert.assertEquals(2, service.registry().contributors().size());
+        Assert.assertEquals(2, service.registry().components().size());
         // Assert that the component does not contain children.
-        Assert.assertTrue(service.registry().get().contributors().isEmpty());
+        Assert.assertEquals("The HealthService should report only one component.",
+                1,
+                service.registry().get().contributors().size());
     }
 
     protected Client createJerseyClient() throws Exception {

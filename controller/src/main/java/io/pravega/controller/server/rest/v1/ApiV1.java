@@ -441,7 +441,7 @@ public final class ApiV1 {
                     @io.swagger.annotations.ApiResponse(code = 201, message = "The Health result of the Controller.", response = HealthResult.class),
 
                     @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the Health.", response = HealthResult.class) })
-            void getHealth(@ApiParam(value = "Whether or not to provide the details in the health response.") @QueryParam("details") Boolean details,
+            void getHealth(@ApiParam(value = "Whether or not to provide the details in the health response.", defaultValue = "false") @QueryParam("details") Boolean details,
                                   @Context SecurityContext securityContext, @Suspended AsyncResponse asyncResponse)
                     throws NotFoundException;
 

@@ -188,7 +188,7 @@ public class HealthApi  {
         @io.swagger.annotations.ApiResponse(code = 200, message = "The Health result of the Controller.", response = HealthResult.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the Health.", response = HealthResult.class) })
-    public Response getHealth(@ApiParam(value = "Whether or not to provide the details in the health response.") @QueryParam("details") String details
+    public Response getHealth(@ApiParam(value = "Whether or not to provide the details in the health response.", defaultValue="false") @DefaultValue("false") @QueryParam("details") Boolean details
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
         return delegate.getHealth(details,securityContext);

@@ -390,9 +390,8 @@ paths:
       parameters:
         - in: query
           name: details
-          schema:
-            type: boolean
-            default: false
+          type: boolean
+          default: false
           required: false
           allowEmptyValue: true
           description: Whether or not to provide the details in the health response.
@@ -494,8 +493,9 @@ paths:
       - in: query
         name: details
         type: boolean
-        required: false
         default: false
+        required: false
+        allowEmptyValue: true
         description: Whether or not to include details in response response.
     get:
       tags:

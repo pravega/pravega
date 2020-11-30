@@ -61,7 +61,7 @@ public class HealthApiServiceImpl extends HealthApiService {
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
     @Override
-    public Response getHealth( String details, SecurityContext securityContext) throws NotFoundException {
+    public Response getHealth( Boolean details, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }
