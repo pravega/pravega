@@ -882,6 +882,17 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testConditionalBlockEnd() throws IOException {
+        testCommand(new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, -1),
+                WireCommands.ConditionalBlockEnd::readFrom,
+                ce -> ce.getData().refCnt());
+    }
+
+    @Test
     public void testErrorMessage() throws IOException {
         for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
             Class exceptionType = code.getExceptionType();
