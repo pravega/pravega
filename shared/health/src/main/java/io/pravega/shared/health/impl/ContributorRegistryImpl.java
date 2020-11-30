@@ -134,12 +134,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
         return contributor;
     }
 
-    // Exists for testing purposes.
-    @NonNull
-    private void register(HealthContributor contributor, HealthContributor parent) {
-        register(contributor, parent.getName());
-    }
-
     @NonNull
     @Override
     public HealthContributor unregister(HealthContributor contributor) {
@@ -184,7 +178,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @Override
     @NonNull
     public Optional<HealthContributor> get(String name) {
-        return Optional.of(contributors.get(name));
+        return Optional.ofNullable(contributors.get(name));
     }
 
     @Override

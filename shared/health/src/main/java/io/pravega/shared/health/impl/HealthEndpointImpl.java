@@ -16,6 +16,7 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
         this.registry = registry;
     }
 
+    @NonNull
     @Override
     public Health health(String name, boolean includeDetails) {
         Optional<HealthContributor> result = registry.get(name);

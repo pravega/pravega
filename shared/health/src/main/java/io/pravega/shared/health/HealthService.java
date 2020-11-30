@@ -10,7 +10,6 @@
 package io.pravega.shared.health;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * The top level interface used to provide any and all health related information for a particular component
@@ -29,9 +28,7 @@ public interface HealthService {
      * Returns a {@link Collection} of all the components the {@link HealthService} is responsible for and observes.
      * @return
      */
-    default Collection<String> components() {
-        return Collections.emptyList();
-    }
+    Collection<String> components();
 
     /**
      * The {@link ContributorRegistry} acts as the means to organize and references to the various {@link HealthContributor}

@@ -53,14 +53,14 @@ public class Health {
     @Builder.Default
     private Collection<Health> children = Collections.emptyList();
 
-    Health(HealthBuilder builder) {
-        this.name = builder.name;
-    }
-
     /**
      * Used to perform readiness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'ready'.
      * A component is considered 'ready' if it has completed it's initialization step(s) and is ready to execute.
      *
+     * Checks should be made to make sure {@link Health#isReady()} will not report a result if it is in a logically invalid state. Those include:
+     * - ready is *true* if {@link Health#isAlive()} returns false.
+     * - ready is *true* with a {@link Status} representing a 'weaker' {@link Status} than {@link Status#UNKNOWN}.
+
      * @return
      */
     public boolean isReady() {
@@ -70,6 +70,9 @@ public class Health {
         if (ready && status.getCode() <= 0) {
             throw new RuntimeException("A Health object should not logically be in an UNKNOWN/DOWN (Status) and a ready state.");
         }
+        if (ready && !isAlive()) {
+            throw new RuntimeException("A Health object can not be ready and not alive.");
+        }
         return ready;
     }
 
@@ -77,11 +80,16 @@ public class Health {
      * Used to perform liveness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'alive'.
      * A component is considered 'alive' if it is able to perform it's expected duties.
      *
-     * The distinction is not as useful within a single process, but might mean that there exists some number of threads
+     * The distinction is not as useful within a single process, but could be used to show the state of some number of threads
      * backing the service. Otherwise, if the {@link Health} object describes the entire process, 'alive' describes whether
      * or not it is running.
      *
      * A component that is 'ready' implies that it is 'alive', but not vice versa.
+     *
+     * Checks should be made to make sure {@link Health#isAlive} will not report a result if it is in a logically invalid state. Those include:
+     * - alive is *false* if {@link Health#isReady()} returns *true*.
+     * - alive is *true* with a {@link Status} representing a 'weaker/equivalent' {@link Status} than {@link Status#UNKNOWN}.
+     * - alive is *false* with a {@link Status} representing a 'strictly stronger' {@link Status} than {@link Status#UNKNOWN}.
      *
      * @return
      */
@@ -96,6 +104,9 @@ public class Health {
         // Can't (logically) be marked both in a non-alive state and in a 'UP/WARNING' state.
         if (!alive && status.getCode() > 0) {
             throw new RuntimeException("A Health object should not logically be in an UP/WARNING(Status) and a non-alive state.");
+        }
+        if (!alive && isReady()) {
+            throw new RuntimeException("A Health object can not be ready but not alive.");
         }
         return alive;
     }
