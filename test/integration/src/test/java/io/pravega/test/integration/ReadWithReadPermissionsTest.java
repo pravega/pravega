@@ -117,7 +117,7 @@ public class ReadWithReadPermissionsTest {
                 .credentials(new DefaultCredentials(pwd, "reader"))
                 .build();
 
-        String readMessage = TestUtils.readAMessageFromStream(scopeName, streamName, readerClientConfig, readerGroupName);
+        String readMessage = TestUtils.readNextEventMessage(scopeName, streamName, readerClientConfig, readerGroupName);
         log.info("Done reading event [{}]", readMessage);
 
         assertEquals(message, readMessage);

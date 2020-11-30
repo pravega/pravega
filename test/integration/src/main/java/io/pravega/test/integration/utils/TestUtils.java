@@ -23,7 +23,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import lombok.Cleanup;
@@ -34,7 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -110,16 +108,15 @@ public class TestUtils {
         @Cleanup final EventStreamWriter<String> writer = writerClientFactory.createEventWriter(stream,
                 new JavaSerializer<String>(),
                 EventWriterConfig.builder().build());
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < numMessages; i++) {
-            futures.add(writer.writeEvent(message));
+            writer.writeEvent(message);
         }
-        Futures.allOf(futures).join();
+        writer.flush();
         log.info("Wrote {} message(s) to the stream {}/{}", numMessages, scope, stream);
     }
 
     /**
-     * Returns the first message from the specified {@code scope}/{@code stream}.
+     * Returns the next unread message from the specified {@code scope}/{@code stream}.
      *
      * @param scope the scope
      * @param stream the stream
@@ -127,9 +124,9 @@ public class TestUtils {
      * @param readerGroup the name of the reader group application
      * @return the event message
      */
-    public static String readAMessageFromStream(String scope, String stream, ClientConfig readerClientConfig,
-                                                String readerGroup) {
-        List<String> messages = readDataFromStream(scope, stream, 1, readerClientConfig, readerGroup);
+    public static String readNextEventMessage(String scope, String stream, ClientConfig readerClientConfig,
+                                              String readerGroup) {
+        List<String> messages = readNextEventMessages(scope, stream, 1, readerClientConfig, readerGroup);
         if (messages == null || messages.size() == 0) {
             return null;
         } else {
@@ -138,7 +135,7 @@ public class TestUtils {
     }
 
     /**
-     * Returns the specified number of messages from the specified {@code scope}/{@code stream}.
+     * Returns the specified number of unread messages from the given {@code scope}/{@code stream}.
      *
      * @param scope the scope
      * @param stream the stream
@@ -150,8 +147,8 @@ public class TestUtils {
      * @throws IllegalArgumentException if {@code numMessages} < 1
      * @throws RuntimeException if any exception is thrown by the client
      */
-    public static List<String> readDataFromStream(@NonNull String scope, @NonNull String stream, int numMessages,
-                                                  @NonNull ClientConfig readerClientConfig, @NonNull String readerGroup) {
+    public static List<String> readNextEventMessages(@NonNull String scope, @NonNull String stream, int numMessages,
+                                                     @NonNull ClientConfig readerClientConfig, @NonNull String readerGroup) {
         Preconditions.checkArgument(numMessages > 0);
 
         @Cleanup

@@ -64,6 +64,7 @@ public class ClusterWrapperTest {
                 "prn::/scope:testScope/reader-group:testReaderGroup,READ"
         ));
 
+        // Instantiate and run the cluster
         @Cleanup
         ClusterWrapper cluster = ClusterWrapper.builder()
                 .authEnabled(true)
@@ -73,26 +74,26 @@ public class ClusterWrapperTest {
                 .passwordAuthHandlerEntries(TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, password))
                 .tlsHostVerificationEnabled(false)
                 .build();
+        cluster.initialize();
 
+        // Write an event to the stream
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .trustStore(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .validateHostName(false)
                 .credentials(new DefaultCredentials(password, "writer"))
                 .build();
-
-        cluster.initialize();
-
         TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
         TestUtils.writeDataToStream(scopeName, streamName, testMessage, writerClientConfig);
 
+        // Read back the event from the stream and verify it is the same as what was written
         final ClientConfig readerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .trustStore(TestUtils.pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                 .validateHostName(false)
                 .credentials(new DefaultCredentials(password, "reader"))
                 .build();
-        String readMessage = TestUtils.readAMessageFromStream(scopeName, streamName, writerClientConfig, readerGroupName);
+        String readMessage = TestUtils.readNextEventMessage(scopeName, streamName, readerClientConfig, readerGroupName);
         assertEquals(testMessage, readMessage);
     }
 }
