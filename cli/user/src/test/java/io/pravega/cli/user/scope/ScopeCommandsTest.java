@@ -12,6 +12,7 @@ package io.pravega.cli.user.scope;
 import io.pravega.cli.user.AbstractUserCommandTest;
 import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
+import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -20,7 +21,8 @@ import java.util.Collections;
 public class ScopeCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 5000)
-    public void testCreateScope() throws Exception {
+    @SneakyThrows
+    public void testCreateScope() {
         final String scope = "testCreate";
         String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
@@ -31,7 +33,8 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 5000)
-    public void testDeleteScope() throws Exception {
+    @SneakyThrows
+    public void testDeleteScope() {
         String scopeToDelete = "toDelete";
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), config.get());
         Assert.assertNotNull(commandArgs.toString());

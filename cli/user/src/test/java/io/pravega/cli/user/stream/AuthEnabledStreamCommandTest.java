@@ -15,7 +15,7 @@ public class AuthEnabledStreamCommandTest extends StreamCommandTest {
 
     @Before
     @Override
-    public void setUp() throws Exception {
+    public void setUp() {
         authEnabled = true;
         super.setUp();
     }

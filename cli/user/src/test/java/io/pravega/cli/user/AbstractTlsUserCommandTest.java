@@ -13,6 +13,7 @@ import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -29,16 +30,18 @@ public abstract class AbstractTlsUserCommandTest {
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
+    String location = "../../config/";
 
-    // Security related flags and instantiate local pravega server.
+    // Security related flags and instantiate local Pravega server.
     private final Integer controllerPort = TestUtils.getAvailableListenPort();
     private final Integer segmentStorePort = TestUtils.getAvailableListenPort();
     private final Integer restServerPort = TestUtils.getAvailableListenPort();
 
     @Before
-    public void setUp() throws Exception {
+    @SneakyThrows
+    public void setUp() {
 
-        // Create the secure pravega server to test commands against.
+        // Create the secure Pravega server to test commands against.
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(controllerPort)
                 .segmentStorePort(segmentStorePort)
@@ -55,17 +58,17 @@ public abstract class AbstractTlsUserCommandTest {
         // explicit in the respective test classes.
 
         if (authEnabled) {
-            emulatorBuilder.passwdFile("../../config/" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME)
+            emulatorBuilder.passwdFile(location + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME)
                     .userName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME)
                     .passwd(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         }
 
         if (tlsEnabled) {
-            emulatorBuilder.certFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
-                    .keyFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
-                    .jksKeyFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
-                    .jksTrustFile("../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME)
-                    .keyPasswordFile("../../config/" + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+            emulatorBuilder.certFile(location + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                    .keyFile(location + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                    .jksKeyFile(location + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
+                    .jksTrustFile(location + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME)
+                    .keyPasswordFile(location + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
         }
 
         localPravega = emulatorBuilder.build();
@@ -80,12 +83,13 @@ public abstract class AbstractTlsUserCommandTest {
         interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(tlsEnabled);
-        interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        interactiveConfig.setTruststore(location + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
         config.set(interactiveConfig);
     }
 
     @After
-    public void tearDown() throws Exception {
+    @SneakyThrows
+    public void tearDown() {
         if (localPravega != null) {
             localPravega.close();
         }

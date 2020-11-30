@@ -14,6 +14,7 @@ import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
+import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,7 +23,8 @@ import java.util.Collections;
 public class StreamCommandTest extends AbstractUserCommandTest {
 
     @Test(timeout = 20000)
-    public void testStreamCommands() throws Exception {
+    @SneakyThrows
+    public void testStreamCommands() {
         String scope = "testScope";
         String streamName = "testStream";
         String stream = NameUtils.getScopedStreamName(scope, streamName);

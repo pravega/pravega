@@ -13,20 +13,21 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
-import io.pravega.cli.admin.utils.ControllerHostnameVerifier;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 
-import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -66,24 +67,21 @@ public abstract class ControllerCommand extends AdminCommand {
 
         // If TLS parameters are configured, set them in client.
         if (config.isTlsEnabled()) {
-            KeyStore ks = null;
+            SSLContext tlsContext;
             try {
-                ks = createTrustStore(config.getTruststore());
-            } catch (KeyStoreException e) {
-                output("The keystore file is invalid, the keystore type is not supported: %s", e.toString());
-            } catch (IOException e) {
-                output("The keystore file is invalid, check if the file exists: %s", e.toString());
-            } catch (NoSuchAlgorithmException e) {
-                output("The keystore file is invalid, the keystore file might be in the wrong format: %s", e.toString());
-            } catch (CertificateException e) {
-                output("The keystore file is invalid, check if the certificates are valid: %s", e.toString());
+                KeyStore ks = createTrustStore(config.getTruststore());
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(ks);
+                tlsContext = SSLContext.getInstance("TLS");
+                tlsContext.init(null, tmf.getTrustManagers(), null);
+            } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException | KeyManagementException e) {
+                output("Encountered exception while trying to use the given truststore: %s", config.getTruststore());
+                e.printStackTrace();
+                return null;
             }
-
-            HostnameVerifier controllerHostnameVerifier = new ControllerHostnameVerifier();
             client = ClientBuilder.newBuilder()
                     .withConfig(clientConfig)
-                    .trustStore(ks)
-                    .hostnameVerifier(controllerHostnameVerifier)
+                    .sslContext(tlsContext)
                     .build();
         } else {
             client = ClientBuilder.newClient(clientConfig);

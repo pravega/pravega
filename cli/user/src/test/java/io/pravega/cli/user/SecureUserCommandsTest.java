@@ -12,6 +12,7 @@ package io.pravega.cli.user;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.cli.user.stream.StreamCommand;
 import io.pravega.shared.NameUtils;
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -20,7 +21,7 @@ import org.junit.Test;
 public class SecureUserCommandsTest extends AbstractTlsUserCommandTest {
     @Before
     @Override
-    public void setUp() throws Exception {
+    public void setUp() {
         tlsEnabled = true;
         authEnabled = true;
         super.setUp();
@@ -28,12 +29,13 @@ public class SecureUserCommandsTest extends AbstractTlsUserCommandTest {
 
     @After
     @Override
-    public void tearDown() throws Exception {
+    public void tearDown() {
         super.tearDown();
     }
 
     @Test
-    public void testCommands() throws Exception {
+    @SneakyThrows
+    public void testCommands() {
         final String scope = "SecureTestScope";
         final String streamName = "SecureTestStream";
         String stream = NameUtils.getScopedStreamName(scope, streamName);

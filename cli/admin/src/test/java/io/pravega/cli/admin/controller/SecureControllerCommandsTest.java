@@ -16,7 +16,7 @@ public class SecureControllerCommandsTest extends AbstractTlsAdminCommandTest {
 
     @Before
     @Override
-    public void setUp() throws Exception {
+    public void setUp() {
         authEnabled = true;
         tlsEnabled = true;
         super.setUp();

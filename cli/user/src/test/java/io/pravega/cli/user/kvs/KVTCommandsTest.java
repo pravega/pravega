@@ -14,6 +14,7 @@ import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
+import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,7 +23,8 @@ import java.util.Collections;
 public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 10000)
-    public void testCreateKVT() throws Exception {
+    @SneakyThrows
+    public void testCreateKVT() {
         final String scope = "createKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
@@ -34,7 +36,8 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 20000)
-    public void testDeleteKVT() throws Exception {
+    @SneakyThrows
+    public void testDeleteKVT() {
         final String scope = "deleteKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
@@ -49,7 +52,8 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 10000)
-    public void testListKVT() throws Exception {
+    @SneakyThrows
+    public void testListKVT() {
         final String scope = "listKVTable";
         final String table = scope + "/kvt1";
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());
@@ -64,7 +68,8 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 60000)
-    public void testPutAndGetKVT() throws Exception {
+    @SneakyThrows
+    public void testPutAndGetKVT() {
         final String scope = "putAndGetKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), config.get());

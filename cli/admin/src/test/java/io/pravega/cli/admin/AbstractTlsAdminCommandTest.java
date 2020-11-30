@@ -25,6 +25,7 @@ import io.pravega.local.LocalPravegaEmulator;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,6 +50,7 @@ public abstract class AbstractTlsAdminCommandTest {
     protected boolean authEnabled = false;
     protected boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
+    private final String location = "../../config/";
 
     // Security related flags and instantiate local Pravega server.
     private final Integer controllerPort = TestUtils.getAvailableListenPort();
@@ -56,7 +58,8 @@ public abstract class AbstractTlsAdminCommandTest {
     private final Integer restServerPort = TestUtils.getAvailableListenPort();
 
     @Before
-    public void setUp() throws Exception {
+    @SneakyThrows
+    public void setUp() {
 
         // Create the secure Pravega server to test commands against.
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
@@ -75,17 +78,17 @@ public abstract class AbstractTlsAdminCommandTest {
         // explicit in the respective test classes.
 
         if (authEnabled) {
-            emulatorBuilder.passwdFile("../../config/" + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME)
+            emulatorBuilder.passwdFile(location + SecurityConfigDefaults.AUTH_HANDLER_INPUT_FILE_NAME)
                     .userName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME)
                     .passwd(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         }
 
         if (tlsEnabled) {
-            emulatorBuilder.certFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
-                    .keyFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
-                    .jksKeyFile("../../config/" + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
-                    .jksTrustFile("../../config/" + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME)
-                    .keyPasswordFile("../../config/" + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
+            emulatorBuilder.certFile(location + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                    .keyFile(location + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                    .jksKeyFile(location + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
+                    .jksTrustFile(location + SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME)
+                    .keyPasswordFile(location + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME);
         }
 
         localPravega = emulatorBuilder.build();
@@ -103,13 +106,14 @@ public abstract class AbstractTlsAdminCommandTest {
         pravegaProperties.setProperty("cli.security.auth.credentials.password", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         pravegaProperties.setProperty("cli.security.auth.token.signingKey", "secret");
         pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
-        pravegaProperties.setProperty("cli.security.tls.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        pravegaProperties.setProperty("cli.security.tls.trustStore.location", location + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
 
         state.get().getConfigBuilder().include(pravegaProperties);
     }
 
     @After
-    public void tearDown() throws Exception {
+    @SneakyThrows
+    public void tearDown() {
         if (localPravega != null) {
             localPravega.close();
         }
@@ -123,14 +127,15 @@ public abstract class AbstractTlsAdminCommandTest {
                     SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
         }
         if (tlsEnabled) {
-            clientBuilder.trustStore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
+            clientBuilder.trustStore(location + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
                     .validateHostName(false);
         }
         return clientBuilder.build();
     }
 
     @Test
-    public void testAllCommands() throws Exception {
+    @SneakyThrows
+    public void testAllCommands() {
         String scope = "testScope";
         String testStream = "testStream";
         String readerGroup = UUID.randomUUID().toString().replace("-", "");

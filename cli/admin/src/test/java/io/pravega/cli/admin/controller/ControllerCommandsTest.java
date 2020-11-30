@@ -34,6 +34,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -61,7 +62,8 @@ import java.util.stream.IntStream;
 public class ControllerCommandsTest extends AbstractAdminCommandTest {
 
     @Test
-    public void testListScopesCommand() throws Exception {
+    @SneakyThrows
+    public void testListScopesCommand() {
         setupUtils.createTestStream("testListScopesCommand", 2);
         String commandResult = TestUtils.executeCommand("controller list-scopes", state.get());
         // Check that both the new scope and the system one exist.
@@ -71,14 +73,16 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
-    public void testDescribeScopeCommand() throws Exception {
+    @SneakyThrows
+    public void testDescribeScopeCommand() {
         String commandResult = TestUtils.executeCommand("controller describe-scope _system", state.get());
         Assert.assertTrue(commandResult.contains("_system"));
         Assert.assertNotNull(ControllerDescribeStreamCommand.descriptor());
     }
 
     @Test
-    public void testListStreamsCommand() throws Exception {
+    @SneakyThrows
+    public void testListStreamsCommand() {
         String testStream = "testListStreamsCommand";
         setupUtils.createTestStream(testStream, 1);
         String commandResult = TestUtils.executeCommand("controller list-streams " + setupUtils.getScope(), state.get());
@@ -88,7 +92,8 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
-    public void testListReaderGroupsCommand() throws Exception {
+    @SneakyThrows
+    public void testListReaderGroupsCommand() {
         // Check that the system reader group can be listed.
         String commandResult = TestUtils.executeCommand("controller list-readergroups _system", state.get());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
@@ -96,7 +101,8 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
-    public void testDescribeReaderGroupCommand() throws Exception {
+    @SneakyThrows
+    public void testDescribeReaderGroupCommand() {
         // Check that the system reader group can be listed.
         String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", state.get());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
@@ -104,7 +110,8 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
-    public void testDescribeStreamCommand() throws Exception {
+    @SneakyThrows
+    public void testDescribeStreamCommand() {
         String scope = "testScope";
         String testStream = "testStream";
         ClientConfig clientConfig = setupUtils.generateValidClientConfig();
@@ -155,7 +162,8 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
-    public void testAuthConfig() throws Exception {
+    @SneakyThrows
+    public void testAuthConfig() {
         setupUtils.createTestStream("testListScopesCommand", 2);
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.security.auth.enable", "true");
@@ -178,13 +186,13 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
     }
 
-    static String executeCommand(String inputCommand, AdminCommandState state, int servicePort) throws Exception {
+    static String executeCommand(String inputCommand, AdminCommandState state, int servicePort) {
         Parser.Command pc = Parser.parse(inputCommand);
         Assert.assertNotNull(pc.toString());
         CommandArgs args = new CommandArgs(pc.getArgs(), state);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         TestingDescribeStreamCommand cmd = new TestingDescribeStreamCommand(args, servicePort);
-        try (PrintStream ps = new PrintStream(baos, true, "UTF-8")) {
+        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
             cmd.setOut(ps);
             cmd.execute();
         }

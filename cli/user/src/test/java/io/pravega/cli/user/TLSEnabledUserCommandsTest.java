@@ -13,6 +13,7 @@ import io.pravega.cli.user.kvs.KeyValueTableCommand;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.cli.user.stream.StreamCommand;
 import io.pravega.shared.NameUtils;
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,19 +22,20 @@ import org.junit.Test;
 public class TLSEnabledUserCommandsTest extends AbstractTlsUserCommandTest {
     @Before
     @Override
-    public void setUp() throws Exception {
+    public void setUp() {
         tlsEnabled = true;
         super.setUp();
     }
 
     @After
     @Override
-    public void tearDown() throws Exception {
+    public void tearDown() {
         super.tearDown();
     }
 
     @Test
-    public void testCommands() throws Exception {
+    @SneakyThrows
+    public void testCommands() {
         final String scope = "TLSEnabledTestScope";
         final String streamName = "TLSEnabledTestStream";
         String stream = NameUtils.getScopedStreamName(scope, streamName);

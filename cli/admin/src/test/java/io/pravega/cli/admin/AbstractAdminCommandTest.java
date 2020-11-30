@@ -11,6 +11,7 @@ package io.pravega.cli.admin;
 
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.utils.SecureSetupUtils;
+import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -30,7 +31,8 @@ public abstract class AbstractAdminCommandTest {
     protected final AtomicReference<AdminCommandState> state = new AtomicReference<>();
 
     @Before
-    public void setUp() throws Exception {
+    @SneakyThrows
+    public void setUp() {
         setupUtils = new SecureSetupUtils(authEnabled);
         setupUtils.startAllServices();
         state.set(new AdminCommandState());
@@ -49,7 +51,8 @@ public abstract class AbstractAdminCommandTest {
     }
 
     @After
-    public void tearDown() throws Exception {
+    @SneakyThrows
+    public void tearDown() {
         setupUtils.close();
         state.get().close();
     }

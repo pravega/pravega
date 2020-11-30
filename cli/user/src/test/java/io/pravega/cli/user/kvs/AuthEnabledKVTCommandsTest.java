@@ -15,7 +15,7 @@ public class AuthEnabledKVTCommandsTest extends KVTCommandsTest {
 
     @Before
     @Override
-    public void setUp() throws Exception {
+    public void setUp() {
         authEnabled = true;
         super.setUp();
     }
