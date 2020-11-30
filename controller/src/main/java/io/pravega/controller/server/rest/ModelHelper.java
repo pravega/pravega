@@ -79,7 +79,7 @@ public class ModelHelper {
                                 createStreamRequest.getRetentionPolicy().getValue(),
                                 createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention(),
                                 createStreamRequest.getRetentionPolicy().getMaxValue() == null ?
-                                        0: createStreamRequest.getRetentionPolicy().getMaxValue());
+                                        0 : createStreamRequest.getRetentionPolicy().getMaxValue());
                     }
                     break;
                 default:
