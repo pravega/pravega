@@ -58,7 +58,7 @@ public abstract class AbstractTlsAdminCommandTest {
     @Before
     public void setUp() throws Exception {
 
-        // Create the secure pravega server to test commands against.
+        // Create the secure Pravega server to test commands against.
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(controllerPort)
                 .segmentStorePort(segmentStorePort)

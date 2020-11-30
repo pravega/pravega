@@ -28,15 +28,15 @@ public class InteractiveConfigCommandTest {
         Assert.assertEquals(0, interactiveConfig.getDefaultSegmentCount());
         interactiveConfig.setPrettyPrint(false);
         Assert.assertFalse(interactiveConfig.isPrettyPrint());
-        interactiveConfig.setAuthEnabled(true);
+        interactiveConfig.set(InteractiveConfig.AUTH_ENABLED, "true");
         Assert.assertTrue(interactiveConfig.isAuthEnabled());
-        interactiveConfig.setUserName(testString);
+        interactiveConfig.set(InteractiveConfig.CONTROLLER_USER_NAME, testString);
         Assert.assertEquals(testString, interactiveConfig.getUserName());
-        interactiveConfig.setPassword(testString);
+        interactiveConfig.set(InteractiveConfig.CONTROLLER_PASSWORD, testString);
         Assert.assertEquals(testString, interactiveConfig.getPassword());
-        interactiveConfig.setTlsEnabled(true);
+        interactiveConfig.set(InteractiveConfig.TLS_ENABLED, "true");
         Assert.assertTrue(interactiveConfig.isTlsEnabled());
-        interactiveConfig.setTruststore(testString);
+        interactiveConfig.set(InteractiveConfig.TRUSTSTORE_JKS, testString);
         Assert.assertEquals(testString, interactiveConfig.getTruststore());
         Assert.assertNotNull(interactiveConfig.getAll());
     }
