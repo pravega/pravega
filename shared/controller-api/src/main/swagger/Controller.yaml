@@ -311,13 +311,13 @@ paths:
       parameters:
         - in: query
           name: from
-          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 2 1970.
+          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.
           required: true
           type: integer
           format: int64
         - in: query
           name: to
-          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 2 1970.
+          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.
           required: true
           type: integer
           format: int64
