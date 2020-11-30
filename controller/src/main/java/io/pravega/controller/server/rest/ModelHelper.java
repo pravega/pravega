@@ -59,7 +59,7 @@ public class ModelHelper {
         if (createStreamRequest.getRetentionPolicy() != null) {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
-                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == 0) {
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == null) {
                         // max value is not specified
                         retentionPolicy = RetentionPolicy.bySizeBytes(
                                 createStreamRequest.getRetentionPolicy().getValue() * MB_TO_BYTES);
@@ -70,17 +70,16 @@ public class ModelHelper {
                     }
                     break;
                 case LIMITED_DAYS:
-                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == 0
-                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getDays() == 0
-                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getHours() == 0
-                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention().getMinutes() == 0) {
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == null
+                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                                     createStreamRequest.getRetentionPolicy().getValue());
                     } else {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                                 createStreamRequest.getRetentionPolicy().getValue(),
                                 createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention(),
-                                createStreamRequest.getRetentionPolicy().getMaxValue());
+                                createStreamRequest.getRetentionPolicy().getMaxValue() == null ?
+                                        0: createStreamRequest.getRetentionPolicy().getMaxValue());
                     }
                     break;
                 default:
