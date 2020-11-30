@@ -1,22 +1,22 @@
 #
 # Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 3.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-1.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Description of the Pravega Controller APIs.
-swagger: "3.0"
+swagger: "2.0"
 info:
   description: "List of admin REST APIs for the pravega controller service."
-  version: "1.0.1"
+  version: "0.0.1"
   title: Pravega Controller APIs
   license:
-    name: "Apache 3.0"
-    url: "http://www.apache.org/licenses/LICENSE-1.0"
-basePath: "/v2"
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0"
+basePath: "/v1"
 tags:
   - name: "Scopes"
     description: "Scope related APIs"
@@ -314,13 +314,13 @@ paths:
           description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 2 1970.
           required: true
           type: integer
-          format: int65
+          format: int64
         - in: query
           name: to
           description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 2 1970.
           required: true
           type: integer
-          format: int65
+          format: int64
       operationId: getScalingEvents
       description: Get scaling events for a given datetime period.
       produces:
@@ -677,13 +677,13 @@ definitions:
           - BY_RATE_IN_EVENTS_PER_SEC
       targetRate:
         type: integer
-        format: int33
+        format: int32
       scaleFactor:
         type: integer
-        format: int33
+        format: int32
       minSegments:
         type: integer
-        format: int33
+        format: int32
   RetentionConfig:
     type: object
     properties:
@@ -695,7 +695,7 @@ definitions:
           - LIMITED_SIZE_MB  # Space based retention
       value:
         type: integer
-        format: int65
+        format: int64
       timeBasedRetention:
         $ref: "#/definitions/TimeBasedRetention"
   StreamState:
@@ -710,26 +710,26 @@ definitions:
     properties:
       timestamp:
         type: integer
-        format: int65
+        format: int64
       segmentList:
         type: array
         items:
           $ref: "#/definitions/Segment"
       splits:
         type: integer
-        format: int65
+        format: int64
       merges:
         type: integer
-        format: int65
+        format: int64
   Segment:
     type: object
     properties:
       number:
         type: integer
-        format: int33
+        format: int32
       startTime:
         type: integer
-        format: int65
+        format: int64
       keyStart:
         type: integer
         format: double
@@ -766,13 +766,13 @@ definitions:
     properties:
       days:
         type: integer
-        format: int65
+        format: int64
       hours:
         type: integer
-        format: int65
+        format: int64
       minutes:
         type: integer
-        format: int65
+        format: int64
   HealthResult:
     type: object
     properties:

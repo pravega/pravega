@@ -32,7 +32,7 @@ public abstract class ScopesApiService {
     public abstract Response deleteScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getReaderGroup(String scopeName,String readerGroupName,SecurityContext securityContext) throws NotFoundException;
-    public abstract Response getScalingEvents(String scopeName,String streamName, @NotNull Integer from, @NotNull Integer to,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response getScalingEvents(String scopeName,String streamName, @NotNull Long from, @NotNull Long to,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response listReaderGroups(String scopeName,SecurityContext securityContext) throws NotFoundException;

@@ -165,8 +165,8 @@ public class ScopesApi  {
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal Server error while fetching scaling events.", response = ScalingEventList.class) })
     public Response getScalingEvents(@ApiParam(value = "Scope name",required=true) @PathParam("scopeName") String scopeName
 ,@ApiParam(value = "Stream name",required=true) @PathParam("streamName") String streamName
-,@ApiParam(value = "Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 2 1970.",required=true) @QueryParam("from") Integer from
-,@ApiParam(value = "Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 2 1970.",required=true) @QueryParam("to") Integer to
+,@ApiParam(value = "Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 2 1970.",required=true) @QueryParam("from") Long from
+,@ApiParam(value = "Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 2 1970.",required=true) @QueryParam("to") Long to
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
         return delegate.getScalingEvents(scopeName,streamName,from,to,securityContext);

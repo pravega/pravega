@@ -395,7 +395,7 @@ public class StreamMetaDataAuthFocusedTests {
 
         RetentionConfig retentionPolicy = new RetentionConfig();
         retentionPolicy.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
-        retentionPolicy.setValue((int) 123L);
+        retentionPolicy.setValue(123L);
 
         createStreamRequest.setScalingPolicy(scalingPolicy);
         createStreamRequest.setRetentionPolicy(retentionPolicy);

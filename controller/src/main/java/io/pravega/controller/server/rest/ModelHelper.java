@@ -141,7 +141,7 @@ public class ModelHelper {
             switch (streamConfiguration.getRetentionPolicy().getRetentionType()) {
                 case SIZE:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
-                    retentionConfig.setValue((int) (streamConfiguration.getRetentionPolicy().getRetentionParam() / (1024 * 1024)));
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getRetentionParam() / (1024 * 1024));
                     break;
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
@@ -154,13 +154,13 @@ public class ModelHelper {
                         // retention is specified only in days
                         hours = 0L;
                         minutes = 0L;
-                        retentionConfig.setValue((int) days);
+                        retentionConfig.setValue(days);
                     } else {
                         hours = TimeUnit.MILLISECONDS.toHours(totalMilliSecs - daysInMs);
                         minutes = getMinsFromMillis(totalMilliSecs, daysInMs, hours);
-                        retentionConfig.setValue((int) 0L);
+                        retentionConfig.setValue(0L);
                     }
-                    retentionConfig.setTimeBasedRetention(timeRetention.days((int) days).hours((int) hours).minutes((int) minutes));
+                    retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
                     break;
             }
         }
