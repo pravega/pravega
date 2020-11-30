@@ -32,10 +32,8 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 public class ReadWithReadPermissionsTest {
 
-    private static final int TIMEOUT_MILLIS = 60000;
-
     @Rule
-    public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
+    public Timeout globalTimeout = Timeout.seconds(60);
 
     /**
      * This test verifies that data can be read from a stream using read-only permissions, if the system is configured

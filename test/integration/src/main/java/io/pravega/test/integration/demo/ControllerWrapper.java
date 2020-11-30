@@ -105,7 +105,7 @@ public class ControllerWrapper implements AutoCloseable {
                              int accessTokenTtlInSeconds) {
         this (connectionString, disableEventProcessor, disableControllerCluster, controllerPort, serviceHost,
                 servicePort, containerCount, restPort, enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
-                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "", "", "", "", false);
+                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "", "", "", "");
     }
 
     @Builder
@@ -116,8 +116,7 @@ public class ControllerWrapper implements AutoCloseable {
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
                              String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
                              int accessTokenTtlInSeconds, boolean enableTls, String serverCertificatePath,
-                             String serverKeyPath, String serverKeystorePath, String serverKeystorePasswordPath,
-                             boolean enableHostnameVerification) {
+                             String serverKeyPath, String serverKeystorePath, String serverKeystorePasswordPath) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)

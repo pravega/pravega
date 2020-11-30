@@ -25,6 +25,7 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
@@ -49,6 +50,7 @@ import io.pravega.shared.security.auth.PasswordAuthHandlerInput.Entry;
 @ToString
 @Slf4j
 @Builder
+@AllArgsConstructor
 public class ClusterWrapper implements AutoCloseable {
 
     private File passwordInputFile;
@@ -63,7 +65,7 @@ public class ClusterWrapper implements AutoCloseable {
 
     @Getter
     @Builder.Default
-    private final String serviceHost = "localhost";
+    private String serviceHost = "localhost";
 
     // The servers
     private TestingServer zookeeperServer;
@@ -118,6 +120,7 @@ public class ClusterWrapper implements AutoCloseable {
     @Getter
     private String tlsServerKeystorePasswordPath;
 
+    private ClusterWrapper() {}
 
     public void initialize() {
         try {
@@ -216,7 +219,6 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
-                .enableHostnameVerification(tlsHostVerificationEnabled)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)

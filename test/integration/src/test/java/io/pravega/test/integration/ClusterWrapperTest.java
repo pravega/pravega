@@ -32,10 +32,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ClusterWrapperTest {
 
-    private static final int TIMEOUT_MILLIS = 50000;
-
     @Rule
-    public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
+    public Timeout globalTimeout = Timeout.seconds(50);
 
     @Test
     public void setsDefaultValuesWhenBuilderSpecifiesNoValues() {

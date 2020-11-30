@@ -139,7 +139,7 @@ public class TestUtils {
      *
      * @param scope the scope
      * @param stream the stream
-     * @param numMessages the number of event messages to write
+     * @param numMessages the number of event messages to read
      * @param readerClientConfig the {@link ClientConfig} object to use to connect to the server
      * @param readerGroup the name of the reader group application
      * @return the event messages
