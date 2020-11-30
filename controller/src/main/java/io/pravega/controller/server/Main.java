@@ -49,8 +49,6 @@ public class Main {
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
 
-            // Initialize the HealthService
-
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
                     .secureConnectionToZooKeeper(Config.SECURE_ZK)

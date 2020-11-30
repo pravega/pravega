@@ -287,10 +287,6 @@ project ('shared:health') {
         source = delombok.outputDir
         failOnError = true
     }
-
-    test {
-        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
-    }
 }
 
 project('client') {
