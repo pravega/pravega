@@ -15,12 +15,12 @@ import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
+import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
-import io.pravega.controller.server.rest.generated.model.Status;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
@@ -409,13 +409,13 @@ public final class ApiV1 {
             @Path("/status/{id}")
 
             @Produces({ "application/json" })
-            @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the status of a specific health contributor.", response = Status.class, tags = { "Health", })
+            @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the status of a specific health contributor.", response = HealthStatus.class, tags = { "Health", })
             @io.swagger.annotations.ApiResponses(value = {
-                    @io.swagger.annotations.ApiResponse(code = 201, message = "The health status of the Controller.", response = Status.class),
+                    @io.swagger.annotations.ApiResponse(code = 201, message = "The health status of the Controller.", response = HealthStatus.class),
 
-                    @io.swagger.annotations.ApiResponse(code = 405, message = "The health status for the contributor with given id was not found.", response = Status.class),
+                    @io.swagger.annotations.ApiResponse(code = 405, message = "The health status for the contributor with given id was not found.", response = HealthStatus.class),
 
-                    @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the health status of a given health contributor.", response = Status.class) })
+                    @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the health status of a given health contributor.", response = HealthStatus.class) })
             void getContributorStatus(@ApiParam(value = "The id of an existing health contributor.", required = true) @PathParam("id") String id,
                                              @Context SecurityContext securityContext, @Suspended AsyncResponse asyncResponse)
                     throws NotFoundException;
@@ -473,11 +473,11 @@ public final class ApiV1 {
             @Path("/status")
 
             @Produces({ "application/json" })
-            @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the status of the Controller service.", response = Status.class, tags = { "Health", })
+            @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the status of the Controller service.", response = HealthStatus.class, tags = { "Health", })
             @io.swagger.annotations.ApiResponses(value = {
-                    @io.swagger.annotations.ApiResponse(code = 201, message = "The health status of the Controller.", response = Status.class),
+                    @io.swagger.annotations.ApiResponse(code = 201, message = "The health status of the Controller.", response = HealthStatus.class),
 
-                    @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the health status of the Controller.", response = Status.class) })
+                    @io.swagger.annotations.ApiResponse(code = 501, message = "Internal server error while fetching the health status of the Controller.", response = HealthStatus.class) })
             void getStatus(@Context SecurityContext securityContext, @Suspended  AsyncResponse asyncResponse)
                     throws NotFoundException;
         }
