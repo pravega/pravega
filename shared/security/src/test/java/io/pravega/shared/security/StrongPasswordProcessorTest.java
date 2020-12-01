@@ -7,11 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth;
+package io.pravega.shared.security;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import org.junit.Assert;
 import org.junit.Test;
 

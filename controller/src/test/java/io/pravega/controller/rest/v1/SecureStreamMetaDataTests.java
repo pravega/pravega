@@ -12,7 +12,7 @@ package io.pravega.controller.rest.v1;
 import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import javax.ws.rs.client.Invocation;
