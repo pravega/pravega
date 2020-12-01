@@ -242,7 +242,7 @@ public class SegmentHelper implements AutoCloseable {
         return getTransactionNameFromId(qualifiedName, txId);
     }
 
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope,
+    public CompletableFuture<Long> commitTransaction(final String scope,
                                                           final String stream,
                                                           final long targetSegmentId,
                                                           final long sourceSegmentId,
@@ -261,21 +261,22 @@ public class SegmentHelper implements AutoCloseable {
                 qualifiedNameTarget, transactionName, delegationToken);
 
         return sendRequest(connection, requestId, request)
-                .thenApply(r -> {
+                .thenCompose(r -> {
                     handleReply(requestId, r, connection, transactionName, WireCommands.MergeSegments.class, type);
                     if (r instanceof WireCommands.NoSuchSegment) {
                         WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
                         if (reply.getSegment().equals(transactionName)) {
-                            return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
+                            // idempotent case when segment is already merged, we get the write offset for the parent segment.
+                            return getSegmentInfo(scope, stream, targetSegmentId, delegationToken)
+                                    .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
                         } else {
                             log.error(requestId, "Commit Transaction: Source segment {} not found.", reply.getSegment());
-                            return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
+                            return CompletableFuture.completedFuture(-1L);
                         }
                     } else {
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
+                        return CompletableFuture.completedFuture(((WireCommands.SegmentsMerged) r).getNewTargetWriteOffset());
                     }
                 });
-
     }
 
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,
