@@ -221,6 +221,11 @@ public abstract class AbstractService implements Service {
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
     }
 
+    private String[] getBookkeeperMemoryOptions() {
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+    }
+
+
     private Map<String, Object> getPersistentVolumeClaimSpec(String size, String storageClass) {
         return ImmutableMap.<String, Object>builder()
                 .put("accessModes", singletonList("ReadWriteOnce"))
@@ -292,7 +297,7 @@ public abstract class AbstractService implements Service {
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
-                // request operator to deploy bookkeeper nodes.
+                // request operator to deploy bgetBookkeeperDeploymentgetBookkeeperDeploymentookkeeper nodes.
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER,
                         NAMESPACE, CUSTOM_RESOURCE_PLURAL_BOOKKEEPER,
                         getBookkeeperDeployment(zkUri.getAuthority(),
@@ -331,6 +336,7 @@ public abstract class AbstractService implements Service {
                 .put("options", ImmutableMap.builder()  .put("journalDirectories", JOURNALDIRECTORIES)
                         .put("ledgerDirectories", LEDGERDIRECTORIES)
                         .build())
+		.put("jvmOptions", ImmutableMap.builder()  .put("memoryOpts", getBookkeeperMemoryOptions()).build ())
                 .build();
 
         return ImmutableMap.<String, Object>builder()
