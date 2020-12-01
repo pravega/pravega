@@ -66,7 +66,7 @@ import static org.mockito.Mockito.spy;
 public abstract class ZKBackedControllerServiceStarterTest extends ControllerServiceStarterTest {
     private TestingServer zkServer;
     private ConcurrentHashMap<String, byte[]> segments;
-    private ConcurrentHashMap<String, List<WireCommands.Event>> segmentEvent; 
+    private ConcurrentHashMap<String, List<WireCommands.Event>> segmentEvent;
     private ConcurrentHashMap<UUID, String> writers;
     private ConcurrentHashMap<UUID, Long> writerEventNumber;
 
