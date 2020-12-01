@@ -126,7 +126,6 @@ public class ModelHelperTest {
         retentionDuration = Duration.ofDays(200L).plusHours(2L).plusMinutes(5L);
         Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionMax());
 
-
         retentionConfig = new RetentionConfig();
         retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
         retentionConfig.setValue(0L);
