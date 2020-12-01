@@ -28,6 +28,7 @@ import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -62,6 +63,17 @@ public class ClusterWrapper implements AutoCloseable {
     @Getter
     @Builder.Default
     private int segmentStorePort = TestUtils.getAvailableListenPort();
+
+    /**
+     * Represents the port on which the Controller REST API listens.
+     *
+     * We don't want to enable Controller REST APIs by default, as most tests do not exercise them. While the port
+     * can be set directly via the builder method, it is recommended that callers use {@code controllerRestEnabled}
+     * instead, which results in dynamic assignment of this port.
+     */
+    @Getter
+    @Builder.Default
+    private int controllerRestPort = -1;
 
     @Getter
     @Builder.Default
@@ -104,6 +116,9 @@ public class ClusterWrapper implements AutoCloseable {
     @Builder.Default
     private boolean tlsEnabled = false;
 
+    @Builder.Default
+    private boolean controllerRestEnabled = false;
+
     @Getter
     private String tlsServerCertificatePath;
 
@@ -122,30 +137,30 @@ public class ClusterWrapper implements AutoCloseable {
 
     private ClusterWrapper() {}
 
-    public void initialize() {
-        try {
-            if (this.isAuthEnabled() && passwordAuthHandlerEntries == null) {
-                this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
-            }
-            startZookeeper();
-            startSegmentStore();
-            startController();
-            log.info("Done initializing.");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    @SneakyThrows
+    public void start() {
+        if (this.isAuthEnabled() && passwordAuthHandlerEntries == null) {
+            this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
         }
+        if (this.controllerRestEnabled && this.controllerRestPort <= 0) {
+            this.controllerRestPort = TestUtils.getAvailableListenPort();
+        }
+        startZookeeper();
+        log.info("Started Zookeeper");
+        startSegmentStore();
+        log.info("Started Segment store");
+        startController();
+        log.info("Started Controller");
     }
 
     private void startZookeeper() throws Exception {
         zookeeperServer = new TestingServerStarter().start();
-        log.info("Done starting Zookeeper.");
     }
 
     private void startController() {
         // Create and start controller service
         controllerServerWrapper = createControllerWrapper();
         controllerServerWrapper.awaitRunning();
-        log.info("Done starting Controller");
     }
 
     private void startSegmentStore() throws DurableDataLogException {
@@ -165,7 +180,6 @@ public class ClusterWrapper implements AutoCloseable {
             this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
 
         segmentStoreServer.startListening();
-        log.info("Done starting Segment Store");
     }
 
     @Override
@@ -212,7 +226,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .serviceHost(serviceHost)
                 .servicePort(segmentStorePort)
                 .containerCount(containerCount)
-                .restPort(-1)
+                .restPort(controllerRestPort)
                 .enableAuth(authEnabled)
                 .passwordAuthHandlerInputFilePath(passwordInputFilePath)
                 .tokenSigningKey(tokenSigningKeyBasis)
@@ -228,6 +242,10 @@ public class ClusterWrapper implements AutoCloseable {
 
     public String controllerUri() {
         return String.format("%s://localhost:%d", isTlsEnabled() ? "tls" : "tcp", controllerPort);
+    }
+
+    public String controllerRestUri() {
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "https" : "http", controllerRestPort);
     }
 
     private Entry defaultAuthHandlerEntry() {
