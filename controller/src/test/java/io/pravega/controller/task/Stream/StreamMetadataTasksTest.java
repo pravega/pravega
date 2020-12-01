@@ -1851,7 +1851,7 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, context).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void deletePartiallyCreatedStreamTest() throws InterruptedException {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -1876,6 +1876,7 @@ public abstract class StreamMetadataTasksTest {
         // region case 2: only add creation time for the stream and then delete it. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, 
                 Optional.of(100L), false);
+        context = streamStorePartialMock.createContext(scopeName, streamName);
 
         assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
@@ -1888,6 +1889,8 @@ public abstract class StreamMetadataTasksTest {
         // region case 3: create stream again but this time create the `state` but not history record.
         // this should result in delete workflow being invoked as segments also have to be deleted. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
+        
+        context = streamStorePartialMock.createContext(scopeName, streamName);
         assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
         CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(scopeName,
@@ -1903,7 +1906,8 @@ public abstract class StreamMetadataTasksTest {
         // since there was no active segments, so we should have segments created from segment 0.
         // configuration 2 has 3 segments. So highest segment number should be 2. 
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
-        store.createStream(scopeName, streamName, configuration, 101L, context, executor).join();
+        store.createStream(scopeName, streamName, configuration, 101L, null, executor).join();
+        context = streamStorePartialMock.createContext(scopeName, streamName);
         assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
         assertEquals(store.getActiveEpoch(scopeName, streamName, context, true, executor).join()
@@ -1915,7 +1919,9 @@ public abstract class StreamMetadataTasksTest {
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.join());
 
-        store.createStream(scopeName, streamName, configuration, 102L, context, executor).join();
+        store.createStream(scopeName, streamName, configuration, 102L, null, executor).join();
+        context = streamStorePartialMock.createContext(scopeName, streamName);
+
         assertEquals(store.getActiveEpoch(scopeName, streamName, context, true, executor).join()
                           .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 5L);
         // endregion
@@ -2143,7 +2149,7 @@ public abstract class StreamMetadataTasksTest {
         // start next update with different configuration. 
         Map<Long, Long> map2 = Collections.singletonMap(0L, 10L);
 
-        streamMetadataTasks.truncateStream(SCOPE, test, map2, null);
+        streamMetadataTasks.truncateStream(SCOPE, test, map2, context);
         Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
         streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, context, executor).join();
