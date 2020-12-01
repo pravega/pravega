@@ -419,15 +419,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 // For backward compatibility: Older clients will not send access operation in the request.
                 log.debug("Access operation was unspecified for request with scope {} and stream {}",
                         request.getScope(), request.getStream());
-
-                final AuthHandler.Permissions authAndTokenPermission;
-                if (authParams.isMarkStream()) {
-                    // Clients are allowed to read from a mark stream, but aren't allowed to write to it. Since the
-                    // client didn't specify the access operation, we assume here that it intends to read from it.
-                    authAndTokenPermission = AuthHandler.Permissions.READ;
-                } else {
-                    authAndTokenPermission = AuthHandler.Permissions.READ_UPDATE;
-                }
+                final AuthHandler.Permissions authAndTokenPermission = AuthHandler.Permissions.READ_UPDATE;
                 this.grpcAuthHelper.checkAuthorization(resource, authAndTokenPermission);
                 return this.grpcAuthHelper.createDelegationToken(streamResource, authAndTokenPermission);
             } else {
@@ -466,14 +458,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 } else {
                     final AuthHandler.Permissions authorizationPermission;
                     if (requestedPermissions.equals(AuthHandler.Permissions.READ_UPDATE)) {
-                        // Clients have no business requesting for delegation tokens with write permissions for
-                        // mark streams. Clients are allowed to read from a mark stream, but aren't allowed to write to
-                        // it. (Only Controller writes to it.)
-                        if (authParams.isMarkStream()) {
-                            throw new AuthorizationException(String.format(
-                                    "Client is not authorized to obtain delegation token for watermark stream %s/%s",
-                                    authParams.getScope(), authParams.getStream()));
-                        }
                         authorizationPermission = authParams.requiredPermissionForWrites();
                         tokenPermission = AuthHandler.Permissions.READ_UPDATE;
                     } else if (requestedPermissions.equals(AuthHandler.Permissions.READ)) {
