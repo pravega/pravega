@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.CompositeArrayView;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -29,6 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -264,7 +264,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region EntryCollection
 
     static class EntryCollection {
-        private final SequencedItemList<Entry> entries;
+        private final LinkedList<Entry> entries;
         private final AtomicReference<String> writeLock;
         private final AtomicLong epoch;
         private final AtomicBoolean enabled;
@@ -275,7 +275,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         EntryCollection(int maxAppendSize) {
-            this.entries = new SequencedItemList<>();
+            this.entries = new LinkedList<>();
             this.writeLock = new AtomicReference<>();
             this.epoch = new AtomicLong();
             this.maxAppendSize = maxAppendSize;
@@ -298,7 +298,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
         public void add(Entry entry, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
             ensureEnabled();
-            this.entries.add(entry);
+            synchronized (this.entries) {
+                this.entries.add(entry);
+            }
         }
 
         int getMaxAppendSize() {
@@ -306,18 +308,31 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         Entry getLast() {
-            return this.entries.getLast();
+            synchronized (this.entries) {
+                return this.entries.peekLast();
+            }
         }
 
         void truncate(long upToSequence, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
             ensureEnabled();
-            this.entries.truncate(upToSequence);
+            synchronized (this.entries) {
+                while (!this.entries.isEmpty()) {
+                    Entry first = this.entries.peekFirst();
+                    if (first.getSequenceNumber() <= upToSequence) {
+                        this.entries.removeFirst();
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         Iterator<Entry> iterator() {
             ensureEnabled();
-            return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
+            synchronized (this.entries) {
+                return new LinkedList<>(this.entries).iterator();
+            }
         }
 
         long acquireLock(String clientId) throws DataLogDisabledException {
@@ -356,7 +371,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //region Entry
 
-    static class Entry implements SequencedItemList.Element {
+    static class Entry {
         @Getter
         long sequenceNumber = -1;
         final byte[] data;

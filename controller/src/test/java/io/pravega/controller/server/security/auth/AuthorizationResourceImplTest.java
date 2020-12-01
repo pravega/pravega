@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.server.security.auth;
 
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -72,5 +74,20 @@ public class AuthorizationResourceImplTest {
     public void testOfAKvtableInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("prn::/scope:testScopeName/key-value-table:kvtName",
                 objectUnderTest.ofKeyValueTableInScope("testScopeName", "kvtName"));
+    }
+
+    @Test
+    public void testOfInternalStream() {
+        assertEquals("prn::/scope:testScopeName/reader-group:testReaderGroup",
+                objectUnderTest.ofInternalStream("testScopeName", "_RGtestReaderGroup"));
+
+        assertEquals("prn::/scope:testScopeName/stream:targetStream",
+                objectUnderTest.ofInternalStream("testScopeName", "_MARKtargetStream"));
+
+        assertEquals("prn::/scope:_system/stream:_requeststream",
+                objectUnderTest.ofInternalStream("_system", "_requeststream"));
+
+        AssertExtensions.assertThrows(NullPointerException.class,
+                () -> objectUnderTest.ofInternalStream("testScope", null));
     }
 }

@@ -172,6 +172,10 @@ project('common_server') {
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
                       exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
+def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
+                    exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime'
+                    exclude group: 'io.jsonwebtoken', module: 'jjwt'}
+
 project('shared:authplugin') {
     dependencies {
     }
@@ -189,10 +193,27 @@ project('shared:authplugin') {
     }
 }
 
+project('shared:basic-authplugin') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile project(':shared:security')
+        testCompile project(':test:testcommon')
+    }
+
+    javadoc {
+        title = "AuthHandler supporting HTTP Basic Authentication"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('shared:security') {
     dependencies {
         compile project(':common')
         compile project(':shared:authplugin')
+        compile project(':shared:protocol')
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
 
         // Adding JAXB API and the reference implementation as a dependency here, since they are not available
@@ -201,6 +222,11 @@ project('shared:security') {
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
 
         testCompile project(':test:testcommon')
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
     }
 
     javadoc {
@@ -295,7 +321,7 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-
+        compile project(":shared:security"), withoutJaxbAndJjwt
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -391,20 +417,31 @@ project ('bindings') {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs-client', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
 
         // Adding JAXB API and the reference implementation as dependencies here, since they are not available
         // in newer Java SE versions (11 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
         compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
+        testCompile group: 'io.netty', name: 'netty-codec-http', version: nettyVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
+
+        // These were previously brought in as transitive dependencies of HDFS, although they were required for running
+        // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
+        // so adding explicit dependencies is necessary (as well as desirable).
+        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
+        implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -691,6 +728,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')
@@ -712,6 +750,7 @@ project('controller') {
         compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: '2.9.10'
         compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-joda', version: '2.9.10'
         testCompile project(':test:testcommon')
+        testCompile project(':shared:basic-authplugin')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE

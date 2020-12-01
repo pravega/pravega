@@ -11,11 +11,6 @@ package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalCause;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -27,6 +22,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
@@ -60,10 +56,9 @@ public class AutoScaleProcessor implements AutoCloseable {
     private static final long TEN_MINUTES = Duration.ofMinutes(10).toMillis();
     private static final long TWENTY_MINUTES = Duration.ofMinutes(20).toMillis();
     private static final int MAX_CACHE_SIZE = 1000000;
-    private static final int INITIAL_CAPACITY = 1000;
 
     private final EventStreamClientFactory clientFactory;
-    private final Cache<String, Pair<Long, Long>> cache;
+    private final SimpleCache<String, Pair<Long, Long>> cache;
     private final CompletableFuture<EventStreamWriter<AutoScaleEvent>> writer;
     private final AtomicBoolean startInitWriter;
     private final AutoScalerConfig configuration;
@@ -109,16 +104,8 @@ public class AutoScaleProcessor implements AutoCloseable {
         this.writer = new CompletableFuture<>();
         this.clientFactory = clientFactory;
         this.startInitWriter = new AtomicBoolean(false);
-        this.cache = CacheBuilder.newBuilder()
-                .initialCapacity(INITIAL_CAPACITY)
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(configuration.getCacheExpiry().getSeconds(), TimeUnit.SECONDS)
-                .removalListener(RemovalListeners.asynchronous((RemovalListener<String, Pair<Long, Long>>) notification -> {
-                    if (notification.getCause().equals(RemovalCause.EXPIRED)) {
-                        triggerScaleDown(notification.getKey(), true);
-                    }
-                }, executor))
-                .build();
+
+        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
 
         // Even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
         // caches do not perform clean up if there is no activity. This is because they do not maintain their
@@ -209,7 +196,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
-        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+        Pair<Long, Long> pair = cache.get(streamSegmentName);
         long lastRequestTs = 0;
 
         if (pair != null && pair.getKey() != null) {
@@ -230,7 +217,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private void triggerScaleDown(String streamSegmentName, boolean silent) {
-        Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
+        Pair<Long, Long> pair = cache.get(streamSegmentName);
         long lastRequestTs = 0;
 
         if (pair != null && pair.getValue() != null) {
@@ -305,7 +292,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     void notifySealed(String segmentStreamName) {
-        cache.invalidate(segmentStreamName);
+        cache.remove(segmentStreamName);
     }
 
     @VisibleForTesting
@@ -315,7 +302,7 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     @VisibleForTesting
     Pair<Long, Long> get(String streamSegmentName) {
-        return cache.getIfPresent(streamSegmentName);
+        return cache.get(streamSegmentName);
     }
     
     @VisibleForTesting

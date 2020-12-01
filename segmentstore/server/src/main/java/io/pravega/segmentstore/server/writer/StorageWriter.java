@@ -37,8 +37,8 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -186,16 +186,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      *
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
-    private CompletableFuture<Iterator<Operation>> readData(Void ignored) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "readData");
+    private CompletableFuture<Queue<Operation>> readData(Void ignored) {
         try {
             Duration readTimeout = getReadTimeout();
             return this.dataSource
-                    .read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout)
-                    .thenApply(result -> {
-                        LoggerHelpers.traceLeave(log, this.traceObjectId, "readData", traceId);
-                        return result;
-                    })
+                    .read(this.config.getMaxItemsToReadAtOnce(), readTimeout)
                     .exceptionally(ex -> {
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof TimeoutException) {
@@ -225,22 +220,20 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      *
      * @param readResult The read result to process.
      */
-    private CompletableFuture<Void> processReadResult(Iterator<Operation> readResult) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "processReadResult");
+    private CompletableFuture<Void> processReadResult(Queue<Operation> readResult) {
         InputReadStageResult result = new InputReadStageResult(this.state);
         if (readResult == null) {
             // This happens when we get a TimeoutException from the read operation.
             this.state.recordReadComplete();
             this.metrics.readComplete(0);
             logStageEvent("InputRead", result);
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
             return CompletableFuture.completedFuture(null);
         }
 
         return Futures.loop(
-                () -> canRun() && readResult.hasNext(),
+                () -> canRun() && !readResult.isEmpty(),
                 () -> {
-                    Operation op = readResult.next();
+                    Operation op = readResult.poll();
                     return processOperation(op).thenRun(() -> {
                         // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
                         // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
@@ -249,10 +242,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     });
                 },
                 this.executor)
-                      .thenRun(() -> {
-                          logStageEvent("InputRead", result);
-                          LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
-                      });
+                .thenRun(() -> logStageEvent("InputRead", result));
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {

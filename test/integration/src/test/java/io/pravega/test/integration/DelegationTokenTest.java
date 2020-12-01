@@ -64,7 +64,7 @@ public class DelegationTokenTest {
     }
 
     private void writeAnEvent(int tokenTtlInSeconds) throws ExecutionException, InterruptedException {
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, tokenTtlInSeconds);
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(600).build();
         try {
             pravegaCluster.initialize();
 
@@ -109,7 +109,7 @@ public class DelegationTokenTest {
     public void testDelegationTokenGetsRenewedAfterExpiry() throws InterruptedException {
         // Delegation token renewal threshold is 5 seconds, so we are using 6 seconds as Token TTL so that token doesn't
         // get renewed before each use.
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, 6);
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
         try {
             pravegaCluster.initialize();
 
@@ -197,7 +197,7 @@ public class DelegationTokenTest {
         // Delegation token renewal threshold is 5 seconds, so we are using 6 seconds as Token TTL so that token doesn't
         // get renewed before each use.
         @Cleanup
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, 6);
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
         pravegaCluster.initialize();
 
         final String scope = "testscope";

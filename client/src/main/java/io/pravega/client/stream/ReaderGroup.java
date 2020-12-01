@@ -170,6 +170,14 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor);
 
     /**
+     * Update Retention Stream-Cut for Streams in this Reader Group.
+     * See {#link ReaderGroupConfig.StreamDataRetention#CONSUMPTION_BASED_USER_STREAMCUT}
+     * @param streamCuts A Map with a Stream-Cut for each Stream.
+     *                   StreamCut indicates position in the Stream till which data has been consumed and can be deleted.
+     */
+    void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
+
+    /**
      * Returns current distribution of number of segments assigned to each reader in the reader group. 
      *
      * @return an instance of ReaderSegmentDistribution which describes the distribution of segments to readers 

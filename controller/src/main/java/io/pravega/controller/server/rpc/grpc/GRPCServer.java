@@ -53,7 +53,7 @@ public class GRPCServer extends AbstractIdleService {
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
                 .addService(ServerInterceptors.intercept(new ControllerServiceImpl(controllerService, authHelper, requestTracker,
-                                serverConfig.isReplyWithStackTraceOnError()),
+                                serverConfig.isReplyWithStackTraceOnError(), serverConfig.isRGWritesWithReadPermEnabled()),
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.authHandlerManager = new AuthHandlerManager(serverConfig);

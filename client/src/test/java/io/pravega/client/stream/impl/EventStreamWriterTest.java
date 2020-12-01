@@ -22,7 +22,10 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.CollectingExecutor;
@@ -98,7 +101,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
     private StreamSegments getSegments(Segment segment) {
         NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
         segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
-        return new StreamSegments(segments, "");
+        return new StreamSegments(segments);
     }
     
     private CompletableFuture<StreamSegments> getSegmentsFuture(Segment segment) {
@@ -436,6 +439,58 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
         outputStream1.invokeSealedCallBack();
         assertEquals(0, outputStream2.unacked.size());
         assertEquals(2, outputStream2.acked.size());
+    }
+
+    @Test
+    public void testSealInvokesFlushError() throws SegmentSealedException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        Segment segment2 = new Segment(scope, streamName, 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        // Setup Mocks.
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
+        SegmentOutputStream outputStream2 = Mockito.mock(SegmentOutputStream.class);
+        // Simulate a connection failure for inflight event re-write on segment2
+        RetriesExhaustedException connectionFailure = new RetriesExhaustedException(new ConnectionFailedException("Connection drop"));
+        Mockito.doAnswer(args -> {
+            PendingEvent event = args.getArgument(0);
+            if (event.getAckFuture() != null) {
+                event.getAckFuture().completeExceptionally(connectionFailure);
+            }
+            return null;
+        }).when(outputStream2).write(any());
+        // A flush will throw a RetriesExhausted exception.
+        Mockito.doThrow(connectionFailure).when(outputStream2).flush();
+
+        // Enable mocks for the controller calls.
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(getSegmentsFuture(segment1));
+        // Successor of segment1 is segment2
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(getReplacement(segment1, segment2));
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenAnswer(i -> {
+            outputStream1.callBackForSealed = i.getArgument(1);
+            return outputStream1;
+        });
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any(), any())).thenReturn(outputStream2);
+
+        // Start of test
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+        // Write an event to the stream.
+        CompletableFuture<Void> writerFuture = writer.writeEvent("Foo");
+        Mockito.verify(controller).getCurrentSegments(any(), any());
+        assertEquals(1, outputStream1.unacked.size());
+        assertEquals(0, outputStream1.acked.size());
+        // Simulate segment1 being sealed, now the writer will fetch its successor, segment2, from the Controller
+        outputStream1.invokeSealedCallBack();
+        // Verify that the inflight event which is written to segment2 due to sealed segment fails incase of a connection failure.
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(writerFuture));
     }
 
     @Test

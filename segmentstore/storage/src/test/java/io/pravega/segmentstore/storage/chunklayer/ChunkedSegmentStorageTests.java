@@ -1386,17 +1386,26 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 testContext.chunkedSegmentStorage.truncate(h, validEnd + 1, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
-        AssertExtensions.assertFutureThrows("truncate() allowed for invalid parameters",
-                testContext.chunkedSegmentStorage.truncate(h, validStart - 1, TIMEOUT),
-                ex -> ex instanceof IllegalArgumentException);
+    }
 
-        // Sealed segment
-        /* This check seems wrong and should be removed.
-        testContext.chunkedSegmentStorage.seal(h, TIMEOUT).join();
-        AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
-                testContext.chunkedSegmentStorage.truncate(h, 11, TIMEOUT),
-                ex -> ex instanceof StreamSegmentSealedException);
-         */
+    @Test
+    public void testTruncateNoOpTruncateOffset() throws Exception {
+        String testSegmentName = "foo";
+        TestContext testContext = getTestContext();        // Setup a segment.
+        val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{25});
+
+        int validStart = 10;
+        int validEnd = 25;
+        val h = testContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
+        testContext.chunkedSegmentStorage.truncate(h, validStart, null).get();
+
+        // Test truncate offset < start offset
+        testContext.chunkedSegmentStorage.truncate(h, validStart - 1, TIMEOUT).join();
+        TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, validStart, validEnd);
+
+        // Test truncate offset == start offset
+        testContext.chunkedSegmentStorage.truncate(h, validStart, TIMEOUT).join();
+        TestUtils.checkSegmentBounds(testContext.metadataStore, testSegmentName, validStart, validEnd);
     }
 
     @Test

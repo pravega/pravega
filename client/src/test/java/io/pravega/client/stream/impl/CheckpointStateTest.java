@@ -123,10 +123,12 @@ public class CheckpointStateTest {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());
         state.beginNewCheckpoint("2" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
-
+        assertTrue(state.isLastCheckpointPublished());
         //Complete checkpoint "1"
         state.readerCheckpointed("1", "a", ImmutableMap.of(getSegment("S1"), 1L));
         assertTrue(state.isCheckpointComplete("1"));
+        // Assert this is set to false by the last reader
+        assertFalse(state.isLastCheckpointPublished());
         assertEquals(ImmutableMap.of(getSegment("S1"), 1L), state.getPositionsForCompletedCheckpoint("1"));
         state.clearCheckpointsBefore("1");
 

@@ -12,6 +12,7 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 import java.time.Duration;
 
+import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -32,12 +33,18 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE
+        SIZE,
+
+        /**
+         * Set retention policy based on Consumption.
+         * Also see: {@link ReaderGroupConfig.StreamDataRetention}
+         */
+        CONSUMPTION
     }
 
     private final RetentionType retentionType;
     private final long retentionParam;
-
+    private final ConsumptionLimits consumptionLimits;
     /**
      * Create a retention policy to configure a stream to periodically truncated
      * according to the specified duration.
@@ -46,7 +53,7 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy byTime(Duration duration) {
-        return new RetentionPolicy(RetentionType.TIME, duration.toMillis());
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME).retentionParam(duration.toMillis()).build();
     }
 
     /**
@@ -57,6 +64,45 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy bySizeBytes(long size) {
-        return new RetentionPolicy(RetentionType.SIZE, size);
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE).retentionParam(size).build();
+    }
+    
+    /**
+     * Create a retention policy to configure a stream to truncate a stream
+     * according to positions of subscribed reader groups.
+     *
+     * Provide null values for min and max if either limit is not desired.  
+     * @param type Type of consumption limit which is one of time or size. 
+     * @param minLimit min limit
+     * @param maxLimit max limit
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy byConsumption(ConsumptionLimits.Type type, Long minLimit, Long maxLimit) {
+        Preconditions.checkArgument(minLimit >= 0, "minLimit should be greater than 0");
+        Preconditions.checkArgument(maxLimit >= minLimit, "maxLimit should be greater than minLimit");
+        return RetentionPolicy.builder().retentionType(RetentionType.CONSUMPTION)
+                              .consumptionLimits(ConsumptionLimits.builder().type(type)
+                                                                  .minValue(minLimit)
+                                                                  .maxValue(maxLimit)
+                                                                  .build()).build();
+    }
+    
+    @Data
+    @Builder
+    public static class ConsumptionLimits {
+        public enum Type {
+            TIME_MILLIS,
+            SIZE_BYTES
+        }
+
+        private final Type type;
+        private final long minValue;
+        private final long maxValue;
+
+        private ConsumptionLimits(Type type, Long minValue, Long maxValue) {
+            this.type = type;
+            this.minValue = minValue != null ? minValue : 0L;
+            this.maxValue = maxValue != null ? maxValue : Long.MAX_VALUE;
+        }
     }
 }
