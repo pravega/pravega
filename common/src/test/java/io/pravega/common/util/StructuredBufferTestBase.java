@@ -72,7 +72,7 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
         val s = newWritableBuffer();
 
         // Generate values, both negative and positive.
-        val count = s.getLength() / byteSize;
+        val count = s.getLength() / byteSize - 1;
         val values = IntStream.range(-count / 2, count / 2 + 1).boxed().map(toPrimitiveType).collect(Collectors.toList());
         testPrimitiveType(values, writer, reader, streamReader, bufferViewReader, byteSize);
     }
@@ -82,49 +82,53 @@ public abstract class StructuredBufferTestBase extends BufferViewTestBase {
                                        Function<BufferView.Reader, T> bufferViewReader, int byteSize) {
         val buffer = newWritableBuffer();
 
-        int bufferIndex = 0;
-        int valueIndex = 0;
-        for (; valueIndex < values.size(); valueIndex++) {
-            val v = values.get(valueIndex);
-            if (bufferIndex + byteSize > buffer.getLength()) {
-                val finalIndex = bufferIndex;
-                AssertExtensions.assertThrows(
-                        "Expected call to be rejected if insufficient space remaining.",
-                        () -> writer.accept(buffer, finalIndex, v),
-                        ex -> ex instanceof IndexOutOfBoundsException);
-                break;
-            } else {
-                writer.accept(buffer, bufferIndex, v);
-                bufferIndex += byteSize;
+        // Vary the start index. This will ensure that the tested code works even without "unaligned" offsets.
+        for (int startIndex = 0; startIndex < byteSize; startIndex++) {
+            int bufferIndex = startIndex;
+            int valueIndex = 0;
+            for (; valueIndex < values.size(); valueIndex++) {
+                val v = values.get(valueIndex);
+                if (bufferIndex + byteSize > buffer.getLength()) {
+                    val finalIndex = bufferIndex;
+                    AssertExtensions.assertThrows(
+                            "Expected call to be rejected if insufficient space remaining.",
+                            () -> writer.accept(buffer, finalIndex, v),
+                            ex -> ex instanceof IndexOutOfBoundsException);
+                    break;
+                } else {
+                    writer.accept(buffer, bufferIndex, v);
+                    bufferIndex += byteSize;
+                }
             }
-        }
 
-        // Read all values back using BufferView.Reader and validate they are correct.
-        BufferView.Reader bufferReader = buffer.getBufferViewReader();
-        for (int i = 0; i < valueIndex; i++) {
-            val expected = values.get(i);
-            T actual = bufferViewReader.apply(bufferReader);
-            Assert.assertEquals("Unexpected value read (BufferView.Reader) at value index " + i, expected, actual);
-        }
-
-        Assert.assertEquals("Unexpected number of bytes read.", buffer.getLength() - bufferIndex, bufferReader.available());
-
-        // Read all values back using StructuredReadableBuffer (if available) and validate they are correct.
-        if (buffer instanceof StructuredReadableBuffer) {
-            val srb = (StructuredReadableBuffer) buffer;
-            @Cleanup
-            val readStream = new DataInputStream(srb.getReader());
-
-            bufferIndex = 0;
+            // Read all values back using BufferView.Reader and validate they are correct.
+            BufferView.Reader bufferReader = buffer.getBufferViewReader();
+            bufferReader.readSlice(startIndex); // Skip over the first few bytes.
             for (int i = 0; i < valueIndex; i++) {
                 val expected = values.get(i);
-                T actual = reader.apply(srb, bufferIndex);
-                Assert.assertEquals("Unexpected value read (StructuredReadableBuffer) at buffer index " + bufferIndex, expected, actual);
+                T actual = bufferViewReader.apply(bufferReader);
+                Assert.assertEquals("Unexpected value read (BufferView.Reader) at value index " + i, expected, actual);
+            }
 
-                // Use DataInputStream to ensure the value has been properly encoded.
-                T streamValue = streamReader.apply(readStream);
-                Assert.assertEquals("Unexpected value read (DataInputStream) at buffer index " + bufferIndex, streamValue, actual);
-                bufferIndex += byteSize;
+            Assert.assertEquals("Unexpected number of bytes read.", buffer.getLength() - bufferIndex, bufferReader.available());
+
+            // Read all values back using StructuredReadableBuffer (if available) and validate they are correct.
+            if (buffer instanceof StructuredReadableBuffer) {
+                val srb = (StructuredReadableBuffer) buffer.slice(startIndex, buffer.getLength() - startIndex);
+                @Cleanup
+                val readStream = new DataInputStream(srb.getReader());
+
+                bufferIndex = 0;
+                for (int i = 0; i < valueIndex; i++) {
+                    val expected = values.get(i);
+                    T actual = reader.apply(srb, bufferIndex);
+                    Assert.assertEquals("Unexpected value read (StructuredReadableBuffer) at buffer index " + bufferIndex, expected, actual);
+
+                    // Use DataInputStream to ensure the value has been properly encoded.
+                    T streamValue = streamReader.apply(readStream);
+                    Assert.assertEquals("Unexpected value read (DataInputStream) at buffer index " + bufferIndex, streamValue, actual);
+                    bufferIndex += byteSize;
+                }
             }
         }
     }

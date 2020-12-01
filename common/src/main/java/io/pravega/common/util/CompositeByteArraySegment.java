@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.SequenceInputStream;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -39,7 +39,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     /**
      * Default component array size. 4KB maps to the kernel's page size.
      */
-    private static final int DEFAULT_ARRAY_SIZE = 4 * 1024;
+    private static final BufferLayout DEFAULT_BUFFER_LAYOUT = new BufferLayout(12); // 2^12 == 4KB
     /**
      * The offset at which the {@link CompositeByteArraySegment} begins, counted from the first block. This is helpful
      * for slicing a {@link CompositeByteArraySegment}. See {@link #slice}.
@@ -48,7 +48,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     /**
      * Size of each component array.
      */
-    private final int arraySize;
+    private final BufferLayout bufferLayout;
     private final ByteBuffer[] buffers;
     @Getter
     private final int length;
@@ -60,25 +60,25 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
      * @param length The length of the {@link CompositeByteArraySegment}. This will determine the number of components
      *               to use, but doesn't allocate any of them yet.
      */
+    @VisibleForTesting
     public CompositeByteArraySegment(int length) {
-        this(length, DEFAULT_ARRAY_SIZE);
+        this(length, DEFAULT_BUFFER_LAYOUT);
     }
 
     /**
      * Creates a new instance of the {@link CompositeByteArraySegment} class with the given component array size.
      *
-     * @param length    The length of the {@link CompositeByteArraySegment}. This will determine the number of components
-     *                  to use, but doesn't allocate any of them yet.
-     * @param arraySize The component array size.
+     * @param length       The length of the {@link CompositeByteArraySegment}. This will determine the number of
+     *                     components to use, but doesn't allocate any of them yet.
+     * @param bufferLayout The {@link BufferLayout} to use.
      */
-    public CompositeByteArraySegment(int length, int arraySize) {
+    public CompositeByteArraySegment(int length, BufferLayout bufferLayout) {
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number.");
-        Preconditions.checkArgument(arraySize >= Long.BYTES, "arraySize must be a number greater than or equal to %s.", Long.BYTES);
 
         this.length = length;
-        this.arraySize = Math.min(length, arraySize); // No point in allocating more memory if total length is smaller than arraySize.
+        this.bufferLayout = bufferLayout;
         this.startOffset = 0;
-        int count = length / arraySize + (length % arraySize == 0 ? 0 : 1);
+        int count = length / this.bufferLayout.bufferSize + (length % this.bufferLayout.bufferSize == 0 ? 0 : 1);
         this.buffers = new ByteBuffer[count];
     }
 
@@ -91,20 +91,20 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
      */
     @VisibleForTesting
     public CompositeByteArraySegment(@NonNull byte[] source) {
-        this(new ByteBuffer[]{ByteBuffer.wrap(source)}, source.length, 0, source.length);
+        this(new ByteBuffer[]{ByteBuffer.wrap(source)}, BufferLayout.fromLength(source.length), 0, source.length);
     }
 
     /**
      * Creates a new instance of the {@link CompositeByteArraySegment} that uses the given arguments. Useful for slicing.
      *
-     * @param buffers     The array components to use.
-     * @param arraySize   Size of each individual component.
-     * @param startOffset Start offset.
-     * @param length      Length of {@link CompositeByteArraySegment}.
+     * @param buffers      The array components to use.
+     * @param bufferLayout The {@link BufferLayout} to use
+     * @param startOffset  Start offset.
+     * @param length       Length of {@link CompositeByteArraySegment}.
      */
-    private CompositeByteArraySegment(ByteBuffer[] buffers, int arraySize, int startOffset, int length) {
+    private CompositeByteArraySegment(ByteBuffer[] buffers, BufferLayout bufferLayout, int startOffset, int length) {
         this.buffers = buffers;
-        this.arraySize = arraySize;
+        this.bufferLayout = bufferLayout;
         this.startOffset = startOffset;
         this.length = length;
     }
@@ -127,12 +127,12 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     public void setShort(int offset, short value) {
         Exceptions.checkArrayRange(offset, Short.BYTES, this.length, "index", "length");
 
-        int bufferId = getBufferId(offset);
-        ByteBuffer bb = getBuffer(bufferId, true);
-        int bufferOffset = getBufferOffset(offset);
-        try {
+        final int bufferId = getBufferId(offset);
+        final ByteBuffer bb = getBuffer(bufferId, true);
+        final int bufferOffset = getBufferOffset(offset);
+        if (bufferOffset <= this.bufferLayout.maxShortOffset) {
             bb.putShort(bufferOffset, value);
-        } catch (IndexOutOfBoundsException | BufferOverflowException ex) {
+        } else {
             bb.array()[bufferOffset] = (byte) (value >>> 8 & 255);
             getBuffer(bufferId + 1, true).array()[0] = (byte) (value & 255);
         }
@@ -142,33 +142,14 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     public void setInt(int offset, int value) {
         Exceptions.checkArrayRange(offset, Integer.BYTES, this.length, "index", "length");
 
-        int bufferId = getBufferId(offset);
-        ByteBuffer bb = getBuffer(bufferId, true);
+        final int bufferId = getBufferId(offset);
+        final ByteBuffer bb = getBuffer(bufferId, true);
         int bufferOffset = getBufferOffset(offset);
 
-        try {
+        if (bufferOffset <= this.bufferLayout.maxIntOffset) {
             bb.putInt(bufferOffset, value);
-            return;
-        } catch (IndexOutOfBoundsException | BufferOverflowException ex) {
-            // Intentionally left blank.
-        }
-
-        int diff = bb.remaining() - bufferOffset;
-        if (diff == 3) {
-            // We can only fit 3 bytes. Write as 1 short + 2 bytes.
-            bb.putShort(bufferOffset, (short) (value >>> 16));
-            bb.array()[bufferOffset + Short.BYTES] = (byte) (value >>> 8);
-            getBuffer(bufferId + 1, true).array()[0] = (byte) value;
-        } else if (diff == 2) {
-            // We can only fit 2 bytes. Write as 2 shorts
-            bb.putShort(bufferOffset, (short) (value >>> 16));
-            getBuffer(bufferId + 1, true).putShort(0, (short) value);
         } else {
-            // We can only fit 1 byte. Write as 2 bytes + 1 short.
-            bb.array()[bufferOffset] = (byte) (value >>> 24);
-            bb = getBuffer(bufferId + 1, true);
-            bb.array()[0] = (byte) (value >>> 16);
-            bb.putShort(1, (short) value);
+            setValue(value, Integer.SIZE, bb.array(), bufferId, bufferOffset);
         }
     }
 
@@ -176,63 +157,29 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     public void setLong(int offset, long value) {
         Exceptions.checkArrayRange(offset, Long.BYTES, this.length, "index", "length");
 
-        int bufferId = getBufferId(offset);
-        ByteBuffer bb = getBuffer(bufferId, true);
+        final int bufferId = getBufferId(offset);
+        final ByteBuffer bb = getBuffer(bufferId, true);
         int bufferOffset = getBufferOffset(offset);
 
-        try {
+        if (bufferOffset <= this.bufferLayout.maxLongOffset) {
             bb.putLong(bufferOffset, value);
-            return;
-        } catch (IndexOutOfBoundsException | BufferOverflowException ex) {
-            // Intentionally left blank.
-        }
-
-        int diff = bb.remaining() - bufferOffset;
-        if (diff == 7) {
-            // Write as 1 int, 1 short, 2 bytes.
-            bb.putInt(bufferOffset, (int) (value >>> 32));
-            bb.putShort(bufferOffset + Integer.BYTES, (short) ((int) (value >>> 16)));
-            bb.array()[bufferOffset + Integer.BYTES + Short.BYTES] = (byte) (value >>> 8);
-            getBuffer(bufferId + 1, true).array()[0] = (byte) value;
-        } else if (diff == 6) {
-            // Write as 1 int, 2 shorts.
-            bb.putInt(bufferOffset, (int) (value >>> 32));
-            bb.putShort(bufferOffset + Integer.BYTES, (short) ((int) (value >>> 16)));
-            bb = getBuffer(bufferId + 1, true);
-            bb.putShort(0, (short) ((int) value));
-        } else if (diff == 5) {
-            // Write as 1 int, 1 byte, 1 short, 1 byte.
-            bb.putInt(bufferOffset, (int) (value >>> 32));
-            bb.array()[bufferOffset + Integer.BYTES] = (byte) (value >>> 24);
-            bb = getBuffer(bufferId + 1, true);
-            bb.putShort(0, (short) ((int) (value >>> 8)));
-            bb.array()[Short.BYTES] = (byte) value;
-        } else if (diff == 4) {
-            // Write as 2 ints.
-            bb.putInt(bufferOffset, (int) (value >>> 32));
-            bb = getBuffer(bufferId + 1, true);
-            bb.putInt(0, (int) value);
-        } else if (diff == 3) {
-            // Write as 1 short, 1 byte, 1 int, 1 byte.
-            bb.putShort(bufferOffset, (short) ((int) (value >>> 48)));
-            bb.array()[bufferOffset + Short.BYTES] = (byte) (value >>> 40);
-            bb = getBuffer(bufferId + 1, true);
-            bb.putInt(0, (int) (value >>> 8));
-            bb.array()[Integer.BYTES] = (byte) value;
-        } else if (diff == 2) {
-            // Write as 1 short, 1 int, 1 short
-            bb.putShort(bufferOffset, (short) ((int) (value >>> 48)));
-            bb = getBuffer(bufferId + 1, true);
-            bb.putInt(0, (int) (value >>> 16));
-            bb.putShort(Integer.BYTES, (short) ((int) value));
         } else {
-            // Write as 1 byte, 1 int, 1 short, 1 byte.
-            bb.array()[bufferOffset] = (byte) (value >>> 56);
-            bb = getBuffer(bufferId + 1, true);
-            bb.putInt(0, (int) (value >>> 24));
-            bb.putShort(Integer.BYTES, (short) ((int) (value >>> 8)));
-            bb.array()[Integer.BYTES + Short.BYTES] = (byte) value;
+            setValue(value, Long.SIZE, bb.array(), bufferId, bufferOffset);
         }
+    }
+
+    private void setValue(long value, int bits, byte[] array, int bufferId, int bufferOffset) {
+        // Write each byte at a time, making sure we move over to the next buffer when needed.
+        bits -= 8;
+        do {
+            array[bufferOffset] = (byte) (value >>> bits);
+            bufferOffset++;
+            if (bufferOffset >= this.bufferLayout.bufferSize) {
+                bufferOffset = 0;
+                array = getBuffer(bufferId + 1, true).array();
+            }
+            bits -= 8;
+        } while (bits >= 0);
     }
 
     @Override
@@ -261,7 +208,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
             return this;
         }
 
-        return new CompositeByteArraySegment(this.buffers, this.arraySize, this.startOffset + offset, length);
+        return new CompositeByteArraySegment(this.buffers, this.bufferLayout, this.startOffset + offset, length);
     }
 
     @Override
@@ -281,7 +228,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
         int bufferOffset = getBufferOffset(0); // The first ByteBuffer may need an offset, if this.startOffset > 0.
         for (int bufferId = startId; bufferId <= endId; bufferId++) {
-            int arrayLength = Math.min(length, this.arraySize - bufferOffset);
+            int arrayLength = Math.min(length, this.bufferLayout.bufferSize - bufferOffset);
             ByteBuffer bb = getBuffer(bufferId, false); // Don't allocate array if not allocated yet.
             if (bb == null) {
                 // Providing a dummy, empty array of the correct size is the easiest way to handle unallocated components
@@ -308,7 +255,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         AtomicInteger length = new AtomicInteger(this.length);
         return Arrays.stream(this.buffers, getBufferId(0), getBufferId(this.length - 1) + 1)
                 .map(o -> {
-                    int arrayLength = Math.min(length.get(), this.arraySize - arrayOffset.get());
+                    int arrayLength = Math.min(length.get(), this.bufferLayout.bufferSize - arrayOffset.get());
                     byte[] b;
                     if (o == null) {
                         b = new byte[arrayLength];
@@ -325,7 +272,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     @Override
     public int getComponentCount() {
-        return this.length == 0 ? 0 : (this.startOffset + this.length - 1) / this.arraySize - this.startOffset / this.arraySize + 1;
+        return this.length == 0 ? 0 : (this.startOffset + this.length - 1) / this.bufferLayout.bufferSize - this.startOffset / this.bufferLayout.bufferSize + 1;
     }
 
     @Override
@@ -355,7 +302,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
             int copyLength = source.readBytes(bb);
 
             // Reset position and limit after copy.
-            bb.position(0).limit(this.arraySize);
+            bb.position(0).limit(this.bufferLayout.bufferSize);
             length -= copyLength;
             bufferOffset += copyLength;
             if (bufferOffset >= bb.array().length) {
@@ -400,7 +347,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
      * @return The offset within a component array.
      */
     private int getBufferOffset(int offset) {
-        return (this.startOffset + offset) % this.arraySize;
+        return (this.startOffset + offset) & this.bufferLayout.bufferOffsetMask;
     }
 
     /**
@@ -412,7 +359,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
      */
     private int getBufferId(int offset) {
         Preconditions.checkElementIndex(offset, this.length, "offset");
-        return (this.startOffset + offset) / this.arraySize;
+        return (this.startOffset + offset) >> this.bufferLayout.bufferSizeBits;
     }
 
     /**
@@ -426,7 +373,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     private ByteBuffer getBuffer(int arrayId, boolean allocate) {
         ByteBuffer a = this.buffers[arrayId];
         if (a == null && allocate) {
-            a = ByteBuffer.wrap(new byte[this.arraySize]);
+            a = ByteBuffer.wrap(new byte[this.bufferLayout.bufferSize]);
             this.buffers[arrayId] = a;
         }
 
@@ -467,7 +414,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         @Override
         public int readInt() {
             int arrayPos = getBufferOffset(this.position);
-            if (CompositeByteArraySegment.this.arraySize - arrayPos >= Integer.BYTES) {
+            if (CompositeByteArraySegment.this.bufferLayout.bufferSize - arrayPos >= Integer.BYTES) {
                 int nextPos = this.position + Integer.BYTES;
                 if (nextPos > length) {
                     throw new OutOfBoundsException();
@@ -485,7 +432,7 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
         @Override
         public long readLong() {
             int arrayPos = getBufferOffset(this.position);
-            if (CompositeByteArraySegment.this.arraySize - arrayPos >= Long.BYTES) {
+            if (CompositeByteArraySegment.this.bufferLayout.bufferSize - arrayPos >= Long.BYTES) {
                 int nextPos = this.position + Long.BYTES;
                 if (nextPos > length) {
                     throw new OutOfBoundsException();
@@ -525,5 +472,80 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
          * @throws ExceptionT (Optional) Any exception to throw.
          */
         void accept(byte[] array, int arrayOffset, int length) throws ExceptionT;
+    }
+
+    /**
+     * Defines the internal layout of a {@link CompositeByteArraySegment}.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    public static class BufferLayout {
+        private static final int MIN_BIT_COUNT = 3;
+        private static final int MAX_BIT_COUNT = Integer.SIZE - 1;
+        /**
+         * The size of an internal, component buffer.
+         */
+        private final int bufferSize;
+        /**
+         * The number of bits that are required to hold {@link #bufferSize}. In other words, {@link #bufferSize} is 2 to
+         * the power of this value.
+         */
+        private final int bufferSizeBits;
+        /**
+         * A bit mask that can be used to extract component buffer offsets, given the offset within the {@link CompositeByteArraySegment}.
+         */
+        private final int bufferOffsetMask;
+        /**
+         * The highest offset within a component buffer where a {@link Long} can be written at.
+         */
+        private final int maxLongOffset;
+        /**
+         * The highest offset within a component buffer where an {@link Integer} can be written at.
+         */
+        private final int maxIntOffset;
+        /**
+         * The highest offset within a component buffer where a {@link Short} can be written at.
+         */
+        private final int maxShortOffset;
+
+        /**
+         * Creates a new instance of the {@link BufferLayout} class.
+         *
+         * @param bufferSizeBits The size of the buffer, expressed in bits. The size of the buffer will be equal to 2 to
+         *                       the power of this value.
+         * @throws IllegalArgumentException If bufferSizeBits is less than {@link #MIN_BIT_COUNT} or greater than or equal
+         *                                  {@link #MAX_BIT_COUNT}.
+         */
+        public BufferLayout(int bufferSizeBits) {
+            Preconditions.checkArgument(bufferSizeBits >= MIN_BIT_COUNT && bufferSizeBits < MAX_BIT_COUNT,
+                    "bufferSizeBits must be a number in the range [%s, %s).", MIN_BIT_COUNT, MAX_BIT_COUNT);
+            this.bufferSizeBits = bufferSizeBits;
+            this.bufferSize = 1 << this.bufferSizeBits; // Array Size is always a power of 2.
+            this.bufferOffsetMask = this.bufferSize - 1; // This will set the power-of-2 bit to 0 and all bits to the right to 1.
+            this.maxLongOffset = this.bufferSize - Long.BYTES;
+            this.maxIntOffset = this.bufferSize - Integer.BYTES;
+            this.maxShortOffset = this.bufferSize - Short.BYTES;
+        }
+
+        /**
+         * Creates a new {@link BufferLayout} instance with the correct number of bits that can hold a SINGLE component
+         * buffers of the given size (i.e., the {@link CompositeByteArraySegment} has 1 component).
+         *
+         * @param bufferLength The size of the component buffer/{@link CompositeByteArraySegment}.
+         * @return A {@link BufferLayout}.
+         */
+        @VisibleForTesting
+        static BufferLayout fromLength(int bufferLength) {
+            Preconditions.checkArgument(bufferLength >= 0, "arrayLength must be a non-negative number.");
+            int bitCount = 0;
+            while (bufferLength != 0) {
+                bufferLength = bufferLength >>> 1;
+                bitCount++;
+            }
+
+            if (bitCount < MIN_BIT_COUNT) {
+                bitCount = MIN_BIT_COUNT;
+            }
+            return new BufferLayout(bitCount);
+        }
     }
 }

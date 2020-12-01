@@ -38,7 +38,7 @@ public class DataFrame {
     //region Members
 
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
-    private static final int BUFFER_BLOCK_SIZE = 128 * 1024; // 128KB
+    private static final CompositeByteArraySegment.BufferLayout BUFFER_LAYOUT = new CompositeByteArraySegment.BufferLayout(17); // 128KB
     private static final byte CURRENT_VERSION = 0;
     private final CompositeArrayView data;
     private WriteFrameHeader header;
@@ -89,7 +89,7 @@ public class DataFrame {
      *                that the frame may use to organize records.
      */
     static DataFrame ofSize(int maxSize) {
-        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_BLOCK_SIZE));
+        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_LAYOUT));
     }
 
     //endregion
