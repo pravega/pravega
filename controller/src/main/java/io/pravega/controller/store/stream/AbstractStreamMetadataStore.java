@@ -773,10 +773,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                               OperationContext context, ScheduledExecutorService executor) {
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record), executor)
-                .thenAccept(result -> {
+                .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions().thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, stream, count));
-                });
+                }, executor);
     }
 
     @Override

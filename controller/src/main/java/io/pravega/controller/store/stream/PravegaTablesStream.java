@@ -686,6 +686,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         List<CompletableFuture<Integer>> futures = new ArrayList<>();
+        // first get the number of ongoing transactions from the cache. 
         return getEpochsWithTransactionsTable()
                 .thenCompose(epochsWithTxn -> storeHelper.getAllKeys(epochsWithTxn)
                                                          .forEachRemaining(x -> {

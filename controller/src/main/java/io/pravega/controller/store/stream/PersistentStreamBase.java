@@ -1724,8 +1724,6 @@ public abstract class PersistentStreamBase implements Stream {
                             }));
         }
         return future
-                .thenCompose(x -> getNumberOfOngoingTransactions().thenAccept(count ->
-                                TransactionMetrics.reportOpenTransactions(getScope(), getName(), count)))
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }

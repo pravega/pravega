@@ -837,7 +837,7 @@ public abstract class RequestHandlersTest {
         streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
         
         // 4. reset segment helper to return success
-        doAnswer(x -> CompletableFuture.completedFuture(null))
+        doAnswer(x -> CompletableFuture.completedFuture(0L))
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
         
         // 5. process again. it should succeed while ignoring waiting processor
