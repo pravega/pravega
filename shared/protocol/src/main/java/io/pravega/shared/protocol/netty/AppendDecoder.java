@@ -49,7 +49,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @Override
     public boolean acceptInboundMessage(Object msg) throws Exception {
         return msg instanceof WireCommands.SetupAppend || msg instanceof WireCommands.AppendBlock || msg instanceof WireCommands.AppendBlockEnd
-                || msg instanceof WireCommands.Padding || msg instanceof WireCommands.ConditionalAppend;
+                || msg instanceof WireCommands.Padding || msg instanceof WireCommands.ConditionalAppend || msg instanceof  WireCommands.ConditionalBlockEnd;
     }
 
     @Override
@@ -65,7 +65,8 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
      *
      * @param command Inbound {@link WireCommand}. Supported types are: {@link WireCommandType#PADDING},
      *                {@link WireCommandType#SETUP_APPEND}, {@link WireCommandType#CONDITIONAL_APPEND},
-     *                {@link WireCommandType#APPEND_BLOCK} and {@link WireCommandType#APPEND_BLOCK_END}.
+     *                {@link WireCommandType#APPEND_BLOCK} and {@link WireCommandType#APPEND_BLOCK_END},
+     *                {@link WireCommandType#CONDITIONAL_BLOCK_END}.
      * @return One of the following:
      * - null if command type is {@link WireCommandType#PADDING} or {@link WireCommandType#APPEND_BLOCK}.
      * - command if command type is A {@link WireCommandType#SETUP_APPEND}.
@@ -117,6 +118,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 break;
             case APPEND_BLOCK_END:
                 result = processAppendBlockEnd((WireCommands.AppendBlockEnd) command);
+                break;
+            case CONDITIONAL_BLOCK_END:
+                result = processConditionalBlockEnd((WireCommands.ConditionalBlockEnd) command);
                 break;
             //$CASES-OMITTED$
             default:
@@ -186,6 +190,20 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         segment.lastEventNumber = blockEnd.getLastEventNumber();
         currentBlock = null;
         return new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null, blockEnd.getRequestId());
+    }
+
+    private Append processConditionalBlockEnd(WireCommands.ConditionalBlockEnd ca) {
+        Segment segment = getSegment(ca.getWriterId());
+        if (ca.getEventNumber() < segment.lastEventNumber) {
+            throw new InvalidMessageException("Last event number went backwards.");
+        }
+        segment.lastEventNumber = ca.getEventNumber();
+        return new Append(segment.getName(),
+                ca.getWriterId(),
+                ca.getEventNumber(),
+                1,
+                ca.getData(),
+                ca.getExpectedOffset(), ca.getRequestId());
     }
 
     private ByteBuf getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
