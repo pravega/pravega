@@ -55,7 +55,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 10;
+    public static final int WIRE_VERSION = 11;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -2420,6 +2420,63 @@ public final class WireCommands {
         @Override
         void releaseInternal() {
             this.entries.release();
+        }
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    public static final class ConditionalBlockEnd extends ReleasableCommand implements Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_BLOCK_END;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final ByteBuf data;
+        final long requestId;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            if (data == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(data.readableBytes());
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            }
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            long eventNumber = in.readLong();
+            long expectedOffset = in.readLong();
+            int dataLength = in.readInt();
+            ByteBuf data;
+            if (dataLength > 0) {
+                data = in.readFully(dataLength);
+            } else {
+                data = EMPTY_BUFFER;
+            }
+            long requestId = in.readLong();
+            return new ConditionalBlockEnd(writerId, eventNumber, expectedOffset, data.retain(), requestId).requireRelease();
+        }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        void releaseInternal() {
+            this.data.release();
         }
     }
 
