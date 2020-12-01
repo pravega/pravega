@@ -70,6 +70,7 @@ import java.util.stream.Collectors;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
+    public static final Predicate<Throwable> WRITE_CONFLICT_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException;
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     

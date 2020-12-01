@@ -239,6 +239,7 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void updateStreamTest() throws Exception {
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -246,28 +247,29 @@ public abstract class StreamMetadataTasksTest {
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
+        StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertFalse(configProp.isUpdating());
         // 1. happy day test
         // update.. should succeed
-        CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
+        CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, 
+                stream1, streamConfiguration, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
-        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
 
         // 2. change state to scaling
-        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, context, executor).get();
         // call update should fail without posting the event
-        streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
+        streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, context);
 
         AtomicBoolean loop = new AtomicBoolean(false);
         Futures.loop(() -> !loop.get(),
-                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor)
+                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor)
                         .thenApply(x -> x.getObject().isUpdating())
                         .thenAccept(loop::set), executor).join();
 
@@ -277,7 +279,7 @@ public abstract class StreamMetadataTasksTest {
         AssertExtensions.assertFutureThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
         assertTrue(Futures.await(updateStreamTask.execute(taken)));
@@ -287,17 +289,17 @@ public abstract class StreamMetadataTasksTest {
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 1, 2)).build();
 
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
-                streamConfiguration1, null);
+                streamConfiguration1, context);
 
         // ensure that previous updatestream has posted the event and set status to updating,
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
         Futures.loop(() -> !loop2.get(),
-                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor)
+                () -> streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor)
                         .thenApply(x -> x.getObject().isUpdating())
                         .thenAccept(loop2::set), executor).join();
 
-        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && configProp.isUpdating());
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
@@ -305,7 +307,7 @@ public abstract class StreamMetadataTasksTest {
 
         // post the second update request. This should fail here itself as previous one has started.
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture2 = streamMetadataTasks.updateStream(SCOPE, stream1,
-                streamConfiguration2, null);
+                streamConfiguration2, context);
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture2.join());
 
         // process event
@@ -313,90 +315,94 @@ public abstract class StreamMetadataTasksTest {
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
 
-        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && !configProp.isUpdating());
 
-        streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, context, executor).join();
         UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1, System.nanoTime());
         assertTrue(Futures.await(updateStreamTask.execute(event)));
         // execute the event again. It should complete without doing anything. 
         updateStreamTask.execute(event).join();
-        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
+        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, context, executor).join());
     }
 
     @Test(timeout = 30000)
     public void addSubscriberTest() throws InterruptedException, ExecutionException {
         // add a new subscriber - positive case
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         String subscriber1 = "subscriber1";
-        Controller.AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        Controller.AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 
+                0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(1, allSubscribers.size());
 
         String subscriber2 = "subscriber2";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber3 = "subscriber3";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Add subscriber with same name, next generation idempotent operation
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 1L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         // Add subscriber with same name, old generation
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         // Add subscriber when stream/scope does not exist
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, "nostream", "subscriber4", 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, "nostream", "subscriber4", 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.STREAM_NOT_FOUND, addStatus);
     }
 
     @Test(timeout = 30000)
     public void removeSubscriberTest() throws InterruptedException, ExecutionException {
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
         // add a new subscriber - positive case
         String subscriber1 = "subscriber1";
-        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 1L, null).get();
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 1L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber2 = "subscriber2";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber3 = "subscriber3";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber
-        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, 1L, null).get();
+        DeleteSubscriberStatus.Status removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber2, 1L, context).get();
         assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
 
         // Remove subscriber, old generation
-        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, stream1, subscriber1, 0L, context).get();
         assertEquals(DeleteSubscriberStatus.Status.SUCCESS, removeStatus);
 
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(2, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber3));
 
         // Remove subscriber from non-existing stream
-        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber3, 2L, null).get();
+        removeStatus = streamMetadataTasks.deleteSubscriber(SCOPE, "nostream", subscriber3, 2L, context).get();
         assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, removeStatus);
 
         // Remove non-existing subscriber from stream
@@ -407,27 +413,32 @@ public abstract class StreamMetadataTasksTest {
     @Test(timeout = 30000)
     public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
         // subscribers for non-existing stream
-        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, "stream2", null).get().getSubscribersList();
+        String stream2 = "stream2";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream2);
+
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream2, context).get().getSubscribersList();
         assertEquals(0, allSubscribers.size());
 
+        context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         // no subscribers found for existing Stream
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(0, allSubscribers.size());
 
         // add a new subscribers - positive case
         String subscriber1 = "subscriber1";
-        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber2 = "subscriber2";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber3 = "subscriber3";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(3, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
@@ -436,45 +447,47 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         String subscriber1 = "subscriber1";
-        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
+        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
         String subscriber2 = "subscriber2";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
+        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).get();
         assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
+        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, context).get().getSubscribersList();
         assertEquals(2, allSubscribers.size());
         assertTrue(allSubscribers.contains(subscriber1));
         assertTrue(allSubscribers.contains(subscriber2));
 
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L, 1L, 10L);
         UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1,
-                                                                                            streamCut1, null).get();
+                                                                                            streamCut1, context).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut1, context).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 20L, 1L, 30L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut2, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut2, context).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut3 = ImmutableMap.of(0L, 20L, 1L, 1L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut3, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut3, context).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
 
         ImmutableMap<Long, Long> streamCut4 = ImmutableMap.of(0L, 25L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut4, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, streamCut4, context).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID, updateStatus);
 
         // update non-existing stream
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2, streamCut1, context).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
 
         // update non-existing subscriber
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber", streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber", streamCut1, context).get();
         assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
 
@@ -484,43 +497,45 @@ public abstract class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        String stream1 = "test";
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
 
-        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
+        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
-        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
-                newRanges, 30, null).get();
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(1L),
+                newRanges, 30, context).get();
         assertTrue(scaleOpResult.getStatus().equals(ScaleStreamStatus.STARTED));
 
         ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         assertTrue(Futures.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
 
         // start truncation
-        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test",
-                null, executor).join().getObject();
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1,
+                context, executor).join().getObject();
         assertFalse(truncProp.isUpdating());
         // 1. happy day test
         // update.. should succeed
         Map<Long, Long> streamCut = new HashMap<>();
         streamCut.put(0L, 1L);
         streamCut.put(1L, 11L);
-        CompletableFuture<UpdateStreamStatus.Status> truncateFuture = streamMetadataTasks.truncateStream(SCOPE, "test",
-                streamCut, null);
+        CompletableFuture<UpdateStreamStatus.Status> truncateFuture = streamMetadataTasks.truncateStream(SCOPE, stream1,
+                streamCut, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
 
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).join().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(truncProp.getStreamCut().equals(streamCut));
         assertTrue(truncProp.getStreamCut().equals(streamCut));
 
         // 2. change state to scaling
-        streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, context, executor).get();
         // call update should fail without posting the event
         long two = NameUtils.computeSegmentId(2, 1);
         long three = NameUtils.computeSegmentId(3, 1);
@@ -529,11 +544,11 @@ public abstract class StreamMetadataTasksTest {
         streamCut2.put(two, 1L);
         streamCut2.put(three, 1L);
 
-        streamMetadataTasks.truncateStream(SCOPE, "test", streamCut2, null);
+        streamMetadataTasks.truncateStream(SCOPE, stream1, streamCut2, context);
 
         AtomicBoolean loop = new AtomicBoolean(false);
         Futures.loop(() -> !loop.get(),
-                () -> Futures.delayedFuture(() -> streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor), 1000, executor)
+                () -> Futures.delayedFuture(() -> streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor), 1000, executor)
                         .thenApply(x -> x.getObject().isUpdating())
                         .thenAccept(loop::set), executor).join();
 
@@ -543,7 +558,7 @@ public abstract class StreamMetadataTasksTest {
         AssertExtensions.assertFutureThrows("", truncateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
         assertTrue(Futures.await(truncateStreamTask.execute(taken)));
@@ -554,18 +569,18 @@ public abstract class StreamMetadataTasksTest {
         streamCut3.put(0L, 12L);
         streamCut3.put(two, 12L);
         streamCut3.put(three, 12L);
-        CompletableFuture<UpdateStreamStatus.Status> truncateOp1 = streamMetadataTasks.truncateStream(SCOPE, "test",
-                streamCut3, null);
+        CompletableFuture<UpdateStreamStatus.Status> truncateOp1 = streamMetadataTasks.truncateStream(SCOPE, stream1,
+                streamCut3, context);
 
         // ensure that previous updatestream has posted the event and set status to updating,
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
         Futures.loop(() -> !loop2.get(),
-                () -> streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor)
+                () -> streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor)
                         .thenApply(x -> x.getObject().isUpdating())
                         .thenAccept(loop2::set), executor).join();
 
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).join().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(truncProp.getStreamCut().equals(streamCut3) && truncProp.isUpdating());
 
         // post the second update request. This should fail here itself as previous one has started.
@@ -573,8 +588,8 @@ public abstract class StreamMetadataTasksTest {
         streamCut4.put(0L, 14L);
         streamCut4.put(two, 14L);
         streamCut4.put(three, 14L);
-        CompletableFuture<UpdateStreamStatus.Status> truncateOpFuture2 = streamMetadataTasks.truncateStream(SCOPE, "test",
-                streamCut4, null);
+        CompletableFuture<UpdateStreamStatus.Status> truncateOpFuture2 = streamMetadataTasks.truncateStream(SCOPE, stream1,
+                streamCut4, context);
         assertEquals(UpdateStreamStatus.Status.FAILURE, truncateOpFuture2.join());
 
         // process event
@@ -582,17 +597,17 @@ public abstract class StreamMetadataTasksTest {
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateOp1.join());
 
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).join().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join().getObject();
         assertTrue(truncProp.getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
 
-        streamStorePartialMock.setState(SCOPE, "test", State.TRUNCATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, stream1, State.TRUNCATING, context, executor).join();
 
-        TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test", System.nanoTime());
+        TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, stream1, System.nanoTime());
         assertTrue(Futures.await(truncateStreamTask.execute(event)));
         // execute the event again. It should complete without doing anything.
         truncateStreamTask.execute(event).join();
 
-        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
+        assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, context, executor).join());
     }
 
     @Test(timeout = 30000)
@@ -606,10 +621,12 @@ public abstract class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        String stream1 = "test";
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
 
-        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
+        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
@@ -622,15 +639,15 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null, "").get();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, recordingTime1, context, "").get();
         // verify that one streamCut is generated and added.
 
         List<StreamCutRecord> list =
-                streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
+                streamStorePartialMock.getRetentionSet(SCOPE, stream1, context, executor)
                                       .thenCompose(retentionSet -> {
                                           return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                              x, null, executor))
+                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, stream1,
+                                                              x, context, executor))
                                           .collect(Collectors.toList()));
                                       }).join();
         assertTrue(list.contains(streamCut1));
@@ -644,16 +661,16 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null, "").get();
-        list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, recordingTime2, context, "").get();
+        list = streamStorePartialMock.getRetentionSet(SCOPE, stream1, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, stream1,
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
 
-        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).get().getObject();
         // verify that only one stream cut is in retention set. streamCut2 is not added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
@@ -668,17 +685,17 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null, "").get();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, recordingTime3, context, "").get();
         // verify two stream cuts are in retention set. Cut 1 and 3.
         // verify that Truncation not not happened.
-        list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
+        list = streamStorePartialMock.getRetentionSet(SCOPE, stream1, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, stream1,
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).get().getObject();
 
         assertTrue(list.contains(streamCut1));
         assertTrue(!list.contains(streamCut2));
@@ -693,17 +710,17 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime4, null, "").get();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, recordingTime4, context, "").get();
         // verify that only two stream cut are in retention set. streamcut 3 and 4
         // verify that truncation has started. verify that streamCut1 is removed from retention set as that has been used for truncation
-        list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
+        list = streamStorePartialMock.getRetentionSet(SCOPE, stream1, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
+                                                                                     .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, stream1,
                                                                                              x, null, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, "test", null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).get().getObject();
 
         assertTrue(!list.contains(streamCut1));
         assertTrue(!list.contains(streamCut2));
@@ -720,11 +737,13 @@ public abstract class StreamMetadataTasksTest {
                 .retentionType(RetentionPolicy.RetentionType.SIZE).retentionParam(100L).build();
 
         String streamName = "test";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, streamName);
+
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, streamName, State.ACTIVE, context, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, streamName).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -738,16 +757,16 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 9L);
         map1.put(1L, 10L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map1, Optional.empty(), context, executor).join();
         assertEquals(size, 19);
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, size, ImmutableMap.copyOf(map1));
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime1, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime1, context, "").get();
         // verify that one streamCut is generated and added.
-        List<StreamCutRecord> list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        List<StreamCutRecord> list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                                            .thenCompose(retentionSet -> {
                                                                return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                                            .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
@@ -765,21 +784,21 @@ public abstract class StreamMetadataTasksTest {
         map2.put(0L, 50L);
         map2.put(1L, 50L);
         long recordingTime2 = recordingTime1 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map2, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map2, Optional.empty(), context, executor).join();
         assertEquals(size, 100L);
         StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, size, ImmutableMap.copyOf(map2));
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, context, "").get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        StreamTruncationRecord truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
         // verify that two stream cut is in retention set. streamCut2 is added
         // verify that truncation did not happen
         assertTrue(list.contains(streamCut1));
@@ -793,7 +812,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map3 = new HashMap<>();
         map3.put(0L, 60L);
         map3.put(1L, 60L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map3, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map3, Optional.empty(), context, executor).join();
         assertEquals(size, 120L);
 
         long recordingTime3 = recordingTime2 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -801,17 +820,17 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime3, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime3, context, "").get();
         // verify two stream cuts are in retention set. Cut 2 and 3.
         // verify that Truncation has happened.
-        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                       .thenCompose(retentionSet -> {
                                           return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                       .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                              x, null, executor))
+                                                                                              x, context, executor))
                                                                                       .collect(Collectors.toList()));
                                       }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         assertTrue(!list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
@@ -820,7 +839,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(truncProp.getStreamCut().get(0L) == 9L && truncProp.getStreamCut().get(1L) == 10L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
         assertFalse(truncProp.isUpdating());
         // endregion
         // endregion
@@ -842,7 +861,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map4 = new HashMap<>();
         map4.put(two, 29L);
         map4.put(three, 30L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map4, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map4, Optional.empty(), context, executor).join();
         assertEquals(size, 199L);
 
         long recordingTime4 = recordingTime3 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -850,15 +869,15 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime4, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime4, context, "").get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         assertFalse(list.contains(streamCut1));
         assertTrue(list.contains(streamCut2));
@@ -874,7 +893,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map5 = new HashMap<>();
         map5.put(two, 41L);
         map5.put(three, 40L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map5, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map5, Optional.empty(), context, executor).join();
         assertEquals(size, 221L);
 
         long recordingTime5 = recordingTime4 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -882,15 +901,15 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut5)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime5, null, "").get();
-        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime5, context, "").get();
+        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
                                                                                              x, null, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -901,7 +920,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(truncProp.getStreamCut().get(0L) == 60L && truncProp.getStreamCut().get(1L) == 60L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
         assertFalse(truncProp.isUpdating());
         // endregion
 
@@ -922,7 +941,7 @@ public abstract class StreamMetadataTasksTest {
         map6.put(three, 40L);
         map6.put(four, 30L);
         map6.put(five, 30L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map6, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map6, Optional.empty(), context, executor).join();
         assertEquals(size, 290L);
 
         long recordingTime6 = recordingTime5 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -930,15 +949,15 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut6)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime6, null, "").get();
-        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime6, context, "").get();
+        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -955,7 +974,8 @@ public abstract class StreamMetadataTasksTest {
         streamCutManual.put(1L, 65L);
         streamCutManual.put(four, 10L);
         streamCutManual.put(five, 10L);
-        CompletableFuture<UpdateStreamStatus.Status> future = streamMetadataTasks.truncateStream(SCOPE, streamName, streamCutManual, null);
+        CompletableFuture<UpdateStreamStatus.Status> future = streamMetadataTasks.truncateStream(SCOPE, streamName,
+                streamCutManual, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertTrue(Futures.await(future));
         assertEquals(future.join(), UpdateStreamStatus.Status.SUCCESS);
@@ -965,7 +985,7 @@ public abstract class StreamMetadataTasksTest {
         map7.put(three, 50L);
         map7.put(four, 50L);
         map7.put(five, 50L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map7, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map7, Optional.empty(), context, executor).join();
         assertEquals(size, 340L);
 
         long recordingTime7 = recordingTime6 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -974,15 +994,15 @@ public abstract class StreamMetadataTasksTest {
                 anyString(), anyString(), any(), any(), anyString());
 
         // verify no new truncation.. streamcut5 should be chosen but discarded because it is not strictly-ahead-of-truncationRecord
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null, "").join();
-        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, context, "").join();
+        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         assertFalse(list.contains(streamCut1));
         assertFalse(list.contains(streamCut2));
@@ -998,7 +1018,7 @@ public abstract class StreamMetadataTasksTest {
         map8.put(three, 70L);
         map8.put(four, 70L);
         map8.put(five, 70L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map8, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map8, Optional.empty(), context, executor).join();
         assertEquals(size, 400L);
 
         long recordingTime8 = recordingTime7 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
@@ -1006,15 +1026,15 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut8)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime8, null, "").get();
-        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime8, context, "").get();
+        list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, context, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
                                                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
-                                                                                             x, null, executor))
+                                                                                             x, context, executor))
                                                                                      .collect(Collectors.toList()));
                                      }).join();
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
 
         // verify truncation happens at streamcut6
         assertFalse(list.contains(streamCut1));
@@ -1029,7 +1049,7 @@ public abstract class StreamMetadataTasksTest {
                 && truncProp.getStreamCut().get(five) == 30L);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, null, executor).get().getObject();
+        truncProp = streamStorePartialMock.getTruncationRecord(SCOPE, streamName, context, executor).get().getObject();
         assertFalse(truncProp.isUpdating());
         // endregion
         // endregion
@@ -1041,11 +1061,13 @@ public abstract class StreamMetadataTasksTest {
         final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 2L, 10L);
 
         String stream1 = "consumptionSize";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -1060,47 +1082,47 @@ public abstract class StreamMetadataTasksTest {
         String subscriber2 = "subscriber2";
         streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
         
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 1L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 1L, 2L), context).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 2L);
         map1.put(1L, 2L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(1L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // call retention and verify that retention policy applies
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, context, "").join();
         // now retention set has one stream cut 0/2, 1/2
         // subscriber lowerbound is 0/1, 1/1.. trucation should happen at lowerbound
 
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 1L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
         
         // region case 2 min policy check
         // we will update the new streamcut to 0/10, 1/10
         map1.put(0L, 2L);
         map1.put(1L, 2L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(20L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 2L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 2L, 1L, 2L), context).join();
 
         // no new truncation should happen. 
         // verify that truncation record has not changed. 
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 20L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 20L, context, "").join();
         // now retention set has two stream cut 0/2, 1/2...0/2, 1/2
         // subscriber lowerbound is 0/2, 1/2.. does not meet min bound criteria. we also do not have a max that satisfies the limit. no truncation should happen. 
         // no change:
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 1L);
         assertFalse(truncationRecord.getObject().isUpdating());
@@ -1109,64 +1131,64 @@ public abstract class StreamMetadataTasksTest {
         // region case 3: min criteria not met on lower bound. truncate at max. 
         map1.put(0L, 10L);
         map1.put(1L, 10L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(30L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 10L, 1L, 9L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 10L, 1L, 9L), context).join();
 
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 30L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 30L, context, "").join();
         // now retention set has three stream cut 0/2, 1/2...0/2, 1/2... 0/10, 1/10
         // subscriber lowerbound is 0/10, 1/9.. does not meet min bound criteria. but we have max bound on truncation record
         // truncation should happen at 0/2, 1/2
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 2L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 2L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
         
         // region case 4: lowerbound behind max
         // now move the stream further ahead so that max truncation limit is crossed but lowerbound is behind max. 
         map1.put(0L, 20L);
         map1.put(1L, 20L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(40L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
         
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 40L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 40L, context, "").join();
         // now retention set has three stream cut 0/2, 1/2...0/2, 1/2... 0/10, 1/10.. 0/20, 1/20
         // subscriber lowerbound is 0/10, 1/9.. meets min bound criteria. but we have max bound on truncation record
         // truncation should happen at 0/10, 1/10
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 10L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 10L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
 
         // region case 5: lowerbound overlaps with max
         map1.put(0L, 30L);
         map1.put(1L, 30L);
-        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(50L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 21L, 1L, 19L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 21L, 1L, 19L), context).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 50L, null, "").join();
         // now retention set has three stream cut 0/2, 1/2...0/2, 1/2... 0/10, 1/10.. 0/20, 1/20.. 0/30, 1/30
         // subscriber lowerbound is 0/21, 1/19.. meets min bound criteria. and its also greater than max bound. but it overlaps with max bound. 
         // truncation should happen at 0/21, 1/19
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 21L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 19L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
     }
     
@@ -1178,9 +1200,10 @@ public abstract class StreamMetadataTasksTest {
         String stream1 = "consumptionTime";
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
 
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -1192,123 +1215,123 @@ public abstract class StreamMetadataTasksTest {
         // add subscriber 1
         // add subscriber 2
         String subscriber1 = "subscriber1";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, context).join();
 
         String subscriber2 = "subscriber2";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).join();
         
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 2L, 1L, 1L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 1L, 2L), context).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 2L);
         map1.put(1L, 2L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(time.get(), size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // call retention and verify that retention policy applies
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), context, "").join();
         // now retention set has one stream cut 0/2, 1/2, recording time 1L
         // subscriber lowerbound is 0/1, 1/1.. trucation should not happen as this lowerbound is ahead of min retention streamcut.
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertFalse(truncationRecord.getObject().isUpdating());
         // endregion
         
         // region case 2 min policy check
         // subscriber streamcut > min time streamcut while
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(2L, 4L, ImmutableMap.of(0L, 2L, 1L, 2L)), null, executor).join();
+                new StreamCutRecord(2L, 4L, ImmutableMap.of(0L, 2L, 1L, 2L)), context, executor).join();
 
         time.set(10L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 20L, ImmutableMap.of(0L, 10L, 1L, 10L)), null, executor).join();
+                new StreamCutRecord(time.get(), 20L, ImmutableMap.of(0L, 10L, 1L, 10L)), context, executor).join();
 
         time.set(11L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 20L, ImmutableMap.of(0L, 10L, 1L, 10L)), null, executor).join();
+                new StreamCutRecord(time.get(), 20L, ImmutableMap.of(0L, 10L, 1L, 10L)), context, executor).join();
 
         // retentionset: 0L: 0L/2L, 1L/2L... 2L: 0L/2L, 1L/2L... 10L: 0/10, 1/10....11L: 0/10, 1/10. 
         // update both readers to 0/3, 1/3.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 3L, 1L, 3L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 3L, 1L, 3L), context).join();
 
         // new truncation should happen at subscriber lowerbound.
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), context, "").join();
 
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 3L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 3L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
         
         // region case 3: min criteria not met on lower bound. truncate at max.
         time.set(20L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 22L, ImmutableMap.of(0L, 11L, 1L, 11L)), null, executor).join();
+                new StreamCutRecord(time.get(), 22L, ImmutableMap.of(0L, 11L, 1L, 11L)), context, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 11L, 1L, 11L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 11L, 1L, 11L), context).join();
 
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), context, "").join();
         // retentionset: 0L: 0L/2L, 1L/2L... 2L: 0L/2L, 1L/2L... 10L: 0/10, 1/10....11L: 0/10, 1/10... 20: 0/11, 1/11
         // subscriber lowerbound is 0/11, 1/11 
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         // truncate at limit min
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 10L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 10L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
         
         // region case 4: lowerbound behind max
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(30L, 40L, ImmutableMap.of(0L, 20L, 1L, 20L)), null, executor).join();
+                new StreamCutRecord(30L, 40L, ImmutableMap.of(0L, 20L, 1L, 20L)), context, executor).join();
         time.set(40L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 42L, ImmutableMap.of(0L, 21L, 1L, 21L)), null, executor).join();
+                new StreamCutRecord(time.get(), 42L, ImmutableMap.of(0L, 21L, 1L, 21L)), context, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 11L, 1L, 11L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 11L, 1L, 11L), context).join();
 
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), context, "").join();
         // now retention set has five stream cuts 1: 0/2, 1/2...10: 0/10, 1/10... 20: 0/11, 1/11.. 30: 0/20, 1/20.. 40L: 0/21, 1/21
         // subscriber lowerbound is 0/11, 1/11 
         // max = 30. truncate at max
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 20L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 20L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
 
         // region case 5: lowerbound overlaps with max
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(50L, 43L, ImmutableMap.of(0L, 21L, 1L, 22L)), null, executor).join();
+                new StreamCutRecord(50L, 43L, ImmutableMap.of(0L, 21L, 1L, 22L)), context, executor).join();
         time.set(59L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 60L, ImmutableMap.of(0L, 30L, 1L, 30L)), null, executor).join();
+                new StreamCutRecord(time.get(), 60L, ImmutableMap.of(0L, 30L, 1L, 30L)), context, executor).join();
         time.set(60L);
         streamStorePartialMock.addStreamCutToRetentionSet(SCOPE, stream1,
-                new StreamCutRecord(time.get(), 60L, ImmutableMap.of(0L, 30L, 1L, 30L)), null, executor).join();
+                new StreamCutRecord(time.get(), 60L, ImmutableMap.of(0L, 30L, 1L, 30L)), context, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 22L, 1L, 21L), context).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 22L, 1L, 21L), context).join();
 
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), context, "").join();
         // now retention set has five stream cuts 1: 0/2, 1/2...10: 0/10, 1/10... 20: 0/11, 1/11.. 30: 0/20, 1/20.. 40L: 0/21, 1/21
         // 50: 0/21, 1/22 ... 59: 0/30, 1/30.. 60: 0/30, 1/30
         // subscriber lowerbound is 0/22, 1/21 
         // this overlaps with max. so truncate at streamcut
-        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 22L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 21L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
         // endregion
     }
 
@@ -1321,12 +1344,13 @@ public abstract class StreamMetadataTasksTest {
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
         configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).retentionPolicy(retentionPolicy).build();
-        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, null, executor).join();
-        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join();
-        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, null, executor).join();
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, context, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join();
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, context, executor).join();
 
         // example::
         // | s0 | s3      |
@@ -1358,26 +1382,26 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRetentionFrequencyMillis(1L);
         
         String subscriber1 = "subscriber1";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, context).join();
 
         String subscriber2 = "subscriber2";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).join();
         
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 1L, five, -1L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 1L, five, -1L), context).join();
         streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, ImmutableMap.of(0L, 1L, 2L, 1L, five, -1L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(six, 2L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(1L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // call retention and verify that retention policy applies
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, context, "").join();
         // now retention set has one stream cut 6/2
         // subscriber lowerbound is 0/1, 2/1, 5/-1.. trucation should happen at lowerbound
 
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(2L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(five).longValue(), -1L);
@@ -1391,15 +1415,17 @@ public abstract class StreamMetadataTasksTest {
         final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES, 0L, 1000L);
 
         String stream1 = "consumptionSize2";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), context, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).retentionPolicy(retentionPolicy).build();
-        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, null, executor).join();
-        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join();
-        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, null, executor).join();
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, context, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join();
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, context, executor).join();
 
         // example::
         // | s0 | s2           | s7 |
@@ -1449,7 +1475,8 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
 
         // invalid streamcut should be rejected
-        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 1L, three, 1L), null).join();
+        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, 
+                ImmutableMap.of(0L, 1L, three, 1L), context).join();
         assertEquals(status, UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
         
         status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, 
@@ -1459,20 +1486,20 @@ public abstract class StreamMetadataTasksTest {
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(ten, 2L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(1L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // call retention and verify that retention policy applies
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, context, "").join();
         // now retention set has one stream cut 10/2
         // subscriber lowerbound is 0/1, 1/1.. trucation should happen at lowerbound
 
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 1L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
     }
     
     @Test(timeout = 30000)
@@ -1481,15 +1508,17 @@ public abstract class StreamMetadataTasksTest {
         final RetentionPolicy retentionPolicy = RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS, 0L, Long.MAX_VALUE);
 
         String stream1 = "consumptionSize3";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
-        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.createStream(SCOPE, stream1, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
         configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).retentionPolicy(retentionPolicy).build();
-        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, null, executor).join();
-        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join();
-        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, null, executor).join();
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream1, configuration, context, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, context, executor).join();
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, stream1, configRecord, context, executor).join();
 
         // example::
         // | s0 | s2           | s7 |
@@ -1533,36 +1562,37 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRetentionFrequencyMillis(1L);
         
         String subscriber1 = "subscriber1";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, context).join();
 
         String subscriber2 = "subscriber2";
-        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).join();
+        streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, context).join();
 
         // invalid streamcut should be rejected
-        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, ImmutableMap.of(0L, 1L, three, 1L), null).join();
+        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, 
+                ImmutableMap.of(0L, 1L, three, 1L), context).join();
         assertEquals(status, UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID);
         
         status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1, 
-                ImmutableMap.of(0L, 1L, two, -1L, eight, -1L, nine, 1L), null).join();
+                ImmutableMap.of(0L, 1L, two, -1L, eight, -1L, nine, 1L), context).join();
         status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2, 
-                ImmutableMap.of(1L, 1L, two, -1L), null).join();
+                ImmutableMap.of(1L, 1L, two, -1L), context).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(ten, 2L);
-        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), null, executor).join();
+        long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, stream1, map1, Optional.empty(), context, executor).join();
         doReturn(CompletableFuture.completedFuture(new StreamCutRecord(1L, size, ImmutableMap.copyOf(map1))))
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // call retention and verify that retention policy applies
-        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, null, "").join();
+        streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 1L, context, "").join();
         // now retention set has one stream cut 10/2
         // subscriber lowerbound is 0/1, 1/1.. trucation should happen at lowerbound
 
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, stream1, context, executor).join();
         assertEquals(truncationRecord.getObject().getStreamCut().get(0L).longValue(), 1L);
         assertEquals(truncationRecord.getObject().getStreamCut().get(1L).longValue(), 1L);
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, stream1, truncationRecord, context, executor).join();
     }
 
     private void scale(String scope, String stream, Map<Long, Long> sealedSegmentsWithSize,
@@ -1570,16 +1600,17 @@ public abstract class StreamMetadataTasksTest {
         long scaleTs = System.currentTimeMillis();
 
         ArrayList<Long> sealedSegments = Lists.newArrayList(sealedSegmentsWithSize.keySet());
+        OperationContext context = streamStorePartialMock.createContext(scope, stream);
         VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(scope, stream, sealedSegments,
-                newSegments, scaleTs, null, null, executor).join();
+                newSegments, scaleTs, null, context, executor).join();
         response.getObject().getNewSegmentsWithRange();
-        VersionedMetadata<State> state = streamStorePartialMock.getVersionedState(scope, stream, null, executor).join();
-        state = streamStorePartialMock.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
-        streamStorePartialMock.startScale(scope, stream, false, response, state, null, executor).join();
-        streamStorePartialMock.scaleCreateNewEpochs(scope, stream, response, null, executor).join();
-        streamStorePartialMock.scaleSegmentsSealed(scope, stream, sealedSegmentsWithSize, response, null, executor).join();
-        streamStorePartialMock.completeScale(scope, stream, response, null, executor).join();
-        streamStorePartialMock.setState(scope, stream, State.ACTIVE, null, executor).join();
+        VersionedMetadata<State> state = streamStorePartialMock.getVersionedState(scope, stream, context, executor).join();
+        state = streamStorePartialMock.updateVersionedState(scope, stream, State.SCALING, state, context, executor).join();
+        streamStorePartialMock.startScale(scope, stream, false, response, state, context, executor).join();
+        streamStorePartialMock.scaleCreateNewEpochs(scope, stream, response, context, executor).join();
+        streamStorePartialMock.scaleSegmentsSealed(scope, stream, sealedSegmentsWithSize, response, context, executor).join();
+        streamStorePartialMock.completeScale(scope, stream, response, context, executor).join();
+        streamStorePartialMock.setState(scope, stream, State.ACTIVE, context, executor).join();
     }
 
     @Test(timeout = 30000)
@@ -1587,6 +1618,7 @@ public abstract class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
         String stream = "test";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream);
         final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         // add stream without retention policy
@@ -1607,7 +1639,7 @@ public abstract class StreamMetadataTasksTest {
                 .retentionPolicy(retentionPolicy).build();
 
         // now update stream with a retention policy
-        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, withRetentionConfig, null, executor).join();
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, withRetentionConfig, context, executor).join();
         UpdateStreamEvent update = new UpdateStreamEvent(SCOPE, stream, System.nanoTime());
         task.execute(update).join();
 
@@ -1615,7 +1647,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
         // update stream such that stream is updated with null retention policy
-        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, noRetentionConfig, null, executor).join();
+        streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, noRetentionConfig, context, executor).join();
         task.execute(update).join();
 
         // verify that the stream is no longer present in the bucket
@@ -1624,6 +1656,8 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void sealStreamTest() throws Exception {
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream1);
+
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
@@ -1633,7 +1667,7 @@ public abstract class StreamMetadataTasksTest {
             e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
         //seal a stream.
-        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
+        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
@@ -1643,7 +1677,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, streamMetadataTasks.sealStream(SCOPE, stream1, null).get());
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, streamMetadataTasks.sealStream(SCOPE, stream1, context).get());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         //scale operation on the sealed stream.
@@ -1671,13 +1705,14 @@ public abstract class StreamMetadataTasksTest {
         // now set the stream state to active. 
         // it should be sealed.
         String creating = "creating";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, creating);
         streamStorePartialMock.createStream(SCOPE, creating, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis(), null, executor).join();
-        UpdateStreamStatus.Status status = streamMetadataTasks.sealStream(SCOPE, creating, null, 1).join();
+        UpdateStreamStatus.Status status = streamMetadataTasks.sealStream(SCOPE, creating, context, 1).join();
         assertEquals(status, UpdateStreamStatus.Status.FAILURE);
 
         streamStorePartialMock.setState(SCOPE, creating, State.ACTIVE, null, executor).join();
-        CompletableFuture<UpdateStreamStatus.Status> statusFuture = streamMetadataTasks.sealStream(SCOPE, creating, null, 1);
+        CompletableFuture<UpdateStreamStatus.Status> statusFuture = streamMetadataTasks.sealStream(SCOPE, creating, context, 1);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(UpdateStreamStatus.Status.SUCCESS, statusFuture.join());
@@ -1688,6 +1723,7 @@ public abstract class StreamMetadataTasksTest {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         String streamWithTxn = "streamWithTxn";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, streamWithTxn);
 
         // region seal a stream with transactions
         long start = System.currentTimeMillis();
@@ -1698,13 +1734,13 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
-        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, null)
+        VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, context)
                 .get().getKey();
 
-        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, null)
+        VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, context)
                 .get().getKey();
 
-        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, null)
+        VersionedTransactionData abortingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 10000L, context)
                 .get().getKey();
         
         // set transaction to committing
@@ -1716,7 +1752,7 @@ public abstract class StreamMetadataTasksTest {
                 "", Long.MIN_VALUE, null, executor).join();
         
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
-        Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
+        Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, context, executor).join();
 
         Map<UUID, ActiveTxnRecord> retVal = activeTxns.entrySet().stream()
                 .map(tx -> {
@@ -1735,7 +1771,7 @@ public abstract class StreamMetadataTasksTest {
 
         List<AbortEvent> abortListBefore = abortWriter.getEventList();
         
-        streamMetadataTasks.sealStream(SCOPE, streamWithTxn, null);
+        streamMetadataTasks.sealStream(SCOPE, streamWithTxn, context);
         AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
@@ -1743,7 +1779,7 @@ public abstract class StreamMetadataTasksTest {
         reset(streamStorePartialMock);
 
         // verify that the txn status is set to aborting
-        VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
+        VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), context, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
         assertEquals(requestEventWriter.getEventQueue().size(), 1);
 
@@ -1753,7 +1789,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(abortListAfter.stream().anyMatch(x -> x.getTxid().equals(openTxn.getId())));
         assertTrue(abortListAfter.stream().anyMatch(x -> x.getTxid().equals(abortingTxn.getId())));
         
-        txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
+        txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, committingTxn.getId(), context, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.COMMITTING);
 
         // Mock getActiveTransactions call such that we return some non existent transaction id so that DataNotFound is simulated.
@@ -1770,10 +1806,10 @@ public abstract class StreamMetadataTasksTest {
         reset(streamStorePartialMock);
 
         // Now complete all existing transactions and verify that seal completes
-        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
-        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, abortingTxn.getId(), null, executor).join();
-        ((AbstractStreamMetadataStore) streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
-        activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
+        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), context, executor).join();
+        streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, abortingTxn.getId(), context, executor).join();
+        ((AbstractStreamMetadataStore) streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), context, executor).join();
+        activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, context, executor).join();
         assertTrue(activeTxns.isEmpty());
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
@@ -1786,31 +1822,33 @@ public abstract class StreamMetadataTasksTest {
     }
 
     private void deleteStreamTest(String stream) throws InterruptedException, ExecutionException {
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream);
+
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         // delete before seal
-        Controller.DeleteStreamStatus.Status deleteStatus = streamMetadataTasks.deleteStream(SCOPE, stream, null).get();
+        Controller.DeleteStreamStatus.Status deleteStatus = streamMetadataTasks.deleteStream(SCOPE, stream, context).get();
         assertEquals(Controller.DeleteStreamStatus.Status.STREAM_NOT_SEALED, deleteStatus);
         assertNull(requestEventWriter.getEventQueue().peek());
 
         //seal stream.
-        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream, null);
+        CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream, context);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
-        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream, null, executor).get());
+        assertTrue(streamStorePartialMock.isSealed(SCOPE, stream, context, executor).get());
         Futures.await(sealOperationResult);
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
         // delete after seal
-        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, null);
+        CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
 
-        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, null).join());
+        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream, context).join());
     }
 
     @Test
@@ -1821,14 +1859,15 @@ public abstract class StreamMetadataTasksTest {
         
         final String scopeName = "RecreationScopePartial";
         final String streamName = "RecreatedStreamPartial";
+        OperationContext context = streamStorePartialMock.createContext(scopeName, streamName);
 
         store.createScope(scopeName).join();
         Controller.DeleteStreamStatus.Status deleteStatus;
         
         // region case 1: only add stream to scope without any additional metadata
         StreamMetadataStoreTestHelper.addStreamToScope(store, scopeName, streamName);
-        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
-        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
+        assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
+        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, context).join();
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
         // verify that event is not posted 
         assertTrue(requestEventWriter.eventQueue.isEmpty());
@@ -1838,9 +1877,9 @@ public abstract class StreamMetadataTasksTest {
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, 
                 Optional.of(100L), false);
 
-        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
-        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, null).join();
+        deleteStatus = streamMetadataTasks.deleteStream(scopeName, streamName, context).join();
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStatus);
         // verify that event is not posted 
         assertTrue(requestEventWriter.eventQueue.isEmpty());
@@ -1849,10 +1888,10 @@ public abstract class StreamMetadataTasksTest {
         // region case 3: create stream again but this time create the `state` but not history record.
         // this should result in delete workflow being invoked as segments also have to be deleted. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
-        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
         CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(scopeName,
-                streamName, null);
+                streamName, context);
 
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
@@ -1864,20 +1903,20 @@ public abstract class StreamMetadataTasksTest {
         // since there was no active segments, so we should have segments created from segment 0.
         // configuration 2 has 3 segments. So highest segment number should be 2. 
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build();
-        store.createStream(scopeName, streamName, configuration, 101L, null, executor).join();
-        assertTrue(store.checkStreamExists(scopeName, streamName, null).join());
+        store.createStream(scopeName, streamName, configuration, 101L, context, executor).join();
+        assertTrue(store.checkStreamExists(scopeName, streamName, context).join());
 
-        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+        assertEquals(store.getActiveEpoch(scopeName, streamName, context, true, executor).join()
                           .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 2L);
 
         // delete stream should succeed
-        future = streamMetadataTasks.deleteStream(scopeName, streamName, null);
+        future = streamMetadataTasks.deleteStream(scopeName, streamName, context);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.join());
 
-        store.createStream(scopeName, streamName, configuration, 102L, null, executor).join();
-        assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
+        store.createStream(scopeName, streamName, configuration, 102L, context, executor).join();
+        assertEquals(store.getActiveEpoch(scopeName, streamName, context, true, executor).join()
                           .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 5L);
         // endregion
     }
@@ -1888,28 +1927,30 @@ public abstract class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        String stream = "test";
+        streamStorePartialMock.createStream(SCOPE, stream, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
-        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
-                newRanges, 30, null).get();
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream, Collections.singletonList(0L),
+                newRanges, 30, context).get();
 
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
 
         Controller.ScaleStatusResponse scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "UNKNOWN", 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
 
-        scaleStatusResult = streamMetadataTasks.checkScale("UNKNOWN", "test", 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale("UNKNOWN", stream, 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
         
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, stream, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
         
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 5, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, stream, 5, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
     }
 
@@ -1919,30 +1960,32 @@ public abstract class StreamMetadataTasksTest {
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        String stream = "test";
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, stream);
+
+        streamStorePartialMock.createStream(SCOPE, stream, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream, State.ACTIVE, context, executor).get();
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
-        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream, Collections.singletonList(0L),
                 newRanges, 30, null).get();
 
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
-        OperationContext context = streamStorePartialMock.createContext(SCOPE, "test");
-        assertEquals(streamStorePartialMock.getState(SCOPE, "test", false, context, executor).get(), State.ACTIVE);
+        assertEquals(streamStorePartialMock.getState(SCOPE, stream, false, context, executor).get(), State.ACTIVE);
 
         // Now when runScale runs even after that we should get the state as active.
-        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L),
-                new LinkedList<>(newRanges), 30, null, null, executor).get();
+        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, stream, Collections.singletonList(0L),
+                new LinkedList<>(newRanges), 30, null, context, executor).get();
         assertEquals(response.getObject().getActiveEpoch(), 0);
-        VersionedMetadata<State> versionedState = streamStorePartialMock.getVersionedState(SCOPE, "test", context, executor).get();
+        VersionedMetadata<State> versionedState = streamStorePartialMock.getVersionedState(SCOPE, stream, context, executor).get();
         assertEquals(versionedState.getObject(), State.ACTIVE);
 
         // if we call start scale without scale being set to SCALING, this should throw illegal argument exception
-        AssertExtensions.assertThrows("", () -> streamStorePartialMock.startScale(SCOPE, "test", true,
+        AssertExtensions.assertThrows("", () -> streamStorePartialMock.startScale(SCOPE, stream, true,
                 response, versionedState, context, executor).get(), ex -> Exceptions.unwrap(ex) instanceof IllegalArgumentException);
 
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
@@ -1965,54 +2008,56 @@ public abstract class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         String test = "testCheckScale";
-        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, test);
+        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, context, executor).get();
         List<Map.Entry<Double, Double>> newRanges = Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0));
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         
         // region scale
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(0L),
-                newRanges, 30, null).get();
+                newRanges, 30, context).get();
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
 
-        streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.SCALING, context, executor).join();
         
-        Controller.ScaleStatusResponse scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        Controller.ScaleStatusResponse scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
 
         // perform scale steps and check scale after each step
-        VersionedMetadata<EpochTransitionRecord> etr = streamStorePartialMock.getEpochTransition(SCOPE, test, null, executor).join();
-        streamStorePartialMock.scaleCreateNewEpochs(SCOPE, test, etr, null, executor).join();
+        VersionedMetadata<EpochTransitionRecord> etr = streamStorePartialMock.getEpochTransition(SCOPE, test, context, executor).join();
+        streamStorePartialMock.scaleCreateNewEpochs(SCOPE, test, etr, context, executor).join();
 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
 
-        streamStorePartialMock.scaleSegmentsSealed(SCOPE, test, Collections.singletonMap(0L, 0L), etr, null, executor).join();
+        streamStorePartialMock.scaleSegmentsSealed(SCOPE, test, Collections.singletonMap(0L, 0L), etr, context, executor).join();
 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
 
-        streamStorePartialMock.completeScale(SCOPE, test, etr, null, executor).join();
+        streamStorePartialMock.completeScale(SCOPE, test, etr, context, executor).join();
 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
 
-        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, context, executor).join();
 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
 
         // start another scale
-        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
-                newRanges, 30, null).get();
+        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, 
+                Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
+                newRanges, 30, context).get();
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
-        streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.SCALING, context, executor).join();
 
         // even now we should get success for epoch 0 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
 
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 1, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 1, context).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
         // endregion
     }
@@ -2024,41 +2069,42 @@ public abstract class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         String test = "testUpdate";
-        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, test);
+        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), context, executor).get();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, context, executor).get();
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         // region update
         
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
 
-        streamMetadataTasks.updateStream(SCOPE, test, configuration2, null);
+        streamMetadataTasks.updateStream(SCOPE, test, configuration2, context);
         // wait till configuration is updated
-        Supplier<Boolean> configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
+        Supplier<Boolean> configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, test, context, executor).join().getObject().isUpdating();
         Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
-        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, context, executor).join();
 
-        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, context).get());
 
-        VersionedMetadata<StreamConfigurationRecord> configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join();
+        VersionedMetadata<StreamConfigurationRecord> configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, test, context, executor).join();
         assertTrue(configurationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeUpdateConfiguration(SCOPE, test, configurationRecord, null, executor).join();
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, test, configurationRecord, context, executor).join();
 
-        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, context).get());
 
-        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
-        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, context, executor).join();
+        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, context).get());
 
         // start next update with different configuration. 
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
-        streamMetadataTasks.updateStream(SCOPE, test, configuration3, null);
+        streamMetadataTasks.updateStream(SCOPE, test, configuration3, context);
         Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
-        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, context, executor).join();
         // we should still get complete for previous configuration we attempted to update
-        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, context).get());
         
-        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration3, null).get());
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration3, context).get());
         // end region
     }
     
@@ -2072,26 +2118,27 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
-        
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, test);
+
         // region truncate
         Map<Long, Long> map = Collections.singletonMap(0L, 1L);
-        streamMetadataTasks.truncateStream(SCOPE, test, map, null);
+        streamMetadataTasks.truncateStream(SCOPE, test, map, context);
         // wait till configuration is updated
-        Supplier<Boolean> truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
+        Supplier<Boolean> truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, test, context, executor).join().getObject().isUpdating();
         Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
-        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, context, executor).join();
 
-        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, context).get());
 
-        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join();
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, test, context, executor).join();
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, test, truncationRecord, null, executor).join();
+        streamStorePartialMock.completeTruncation(SCOPE, test, truncationRecord, context, executor).join();
 
-        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, context).get());
 
-        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
-        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, context, executor).join();
+        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, context).get());
 
         // start next update with different configuration. 
         Map<Long, Long> map2 = Collections.singletonMap(0L, 10L);
@@ -2099,11 +2146,11 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.truncateStream(SCOPE, test, map2, null);
         Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
-        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
+        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, context, executor).join();
         
         // we should still get complete for previous configuration we attempted to update
-        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
-        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
+        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, context).get());
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, context).get());
         // end region
     }
 

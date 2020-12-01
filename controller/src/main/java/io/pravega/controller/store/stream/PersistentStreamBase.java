@@ -2015,7 +2015,7 @@ public abstract class PersistentStreamBase implements Stream {
                     if (e != null) {
                         if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
                             return SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(Collections.emptyMap()).build();
-                        } 
+                        }
                         throw new CompletionException(e);
                     } else {
                         return r.getObject();
