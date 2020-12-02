@@ -446,14 +446,16 @@ definitions:
         enum:
         - LIMITED_DAYS     # Time based retention, for granularity lower than DAYS use timeBasedRetention field to populate the value
         - LIMITED_SIZE_MB  # Space based retention
-        - CONSUMPTION
       value:
         type: integer
         format: int64
       timeBasedRetention:
         $ref: "#/definitions/TimeBasedRetention"
-      consumptionLimits:
-        $ref: "#/definitions/ConsumptionLimits"  
+      maxValue:
+        type: integer
+        format: int64
+      maxTimeBasedRetention  :
+        $ref: "#/definitions/TimeBasedRetention"
   StreamState:
     type: object
     properties:
@@ -527,20 +529,5 @@ definitions:
         type: integer
         format: int64
       minutes:
-        type: integer
-        format: int64
-  ConsumptionLimits:
-    type: object
-    properties:
-      type:
-        type: string
-        description: Indicates if consumption limits is by space or time.
-        enum:
-        - SIZE_MB
-        - TIME_MINUTES
-      max:
-        type: integer
-        format: int64
-      min:
         type: integer
         format: int64
