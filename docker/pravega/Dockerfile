@@ -9,7 +9,7 @@
 #
 FROM openjdk:11.0.8-jre-slim
 
-RUN apt-get update && apt-get install -y -q \
+RUN mkdir -p /usr/share/man/man1 && apt-get update && apt-get install -y -q \
     rpcbind \
     nfs-common \
     python \
@@ -17,8 +17,11 @@ RUN apt-get update && apt-get install -y -q \
     curl \
     net-tools \
     iproute2  \
+    ca-certificates-java \
+  && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
+  && ln -sf /etc/ssl/certs/java/cacerts /usr/lib/jvm/java-11-openjdk-amd64/lib/security/cacerts \
   && rm -rf /var/lib/apt/lists/*
-
+  
 EXPOSE 9090 9091 10000 12345
 
 WORKDIR /opt/pravega
