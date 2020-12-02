@@ -34,14 +34,12 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -61,13 +59,6 @@ import static org.junit.Assert.assertTrue;
 public class DurableLogRecoveryCommand extends DataRecoveryCommand implements AutoCloseable {
     private static final int CONTAINER_EPOCH = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
-
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
-    private final int containerCount;
-    private final StorageFactory storageFactory;
-    private final CuratorFramework zkClient;
-    private final Storage storage;
-    private BookKeeperLogFactory dataLogFactory = null;
 
     private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
@@ -91,6 +82,12 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
 
     private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
 
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
+    private final int containerCount;
+    private final StorageFactory storageFactory;
+    private final CuratorFramework zkClient;
+    private final Storage storage;
+    private BookKeeperLogFactory dataLogFactory = null;
 
     /**
      * Creates an instance of Tier1RecoveryCommand class.

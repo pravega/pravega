@@ -180,7 +180,7 @@ public class DataRecoveryTest {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Command under test
-        TestUtils.executeCommand("storage Tier1-recovery " + this.logsDir.getAbsolutePath(), STATE.get());
+        TestUtils.executeCommand("storage Tier1-recovery", STATE.get());
 
         // Start a new segment store and controller
         this.factory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(), pravegaRunner.bookKeeperRunner.zkClient.get(),
@@ -253,6 +253,7 @@ public class DataRecoveryTest {
         }
         FileHelpers.deleteFileOrDirectory(this.baseDir);
         FileHelpers.deleteFileOrDirectory(this.logsDir);
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
     }
 
     // write events to the given stream

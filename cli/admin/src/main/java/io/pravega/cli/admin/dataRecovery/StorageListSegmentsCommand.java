@@ -16,7 +16,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
-import lombok.Cleanup;
 import org.apache.hadoop.fs.Path;
 
 import java.io.File;
