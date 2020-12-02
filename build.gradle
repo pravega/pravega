@@ -726,6 +726,10 @@ project('cli:admin') {
     applicationName = "pravega-admin"
     mainClassName = "io.pravega.cli.admin.AdminCLIRunner"
 
+    applicationDefaultJvmArgs = ["-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/admin-cli-logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=adminCli"]
+
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
