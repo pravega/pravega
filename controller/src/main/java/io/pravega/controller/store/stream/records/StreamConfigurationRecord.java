@@ -169,18 +169,11 @@ public class StreamConfigurationRecord {
             private void read01(RevisionDataInput revisionDataInput, 
                                 StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
                     throws IOException {
-                if (retentionPolicyRecordBuilder.retentionPolicy != null &&
-                        retentionPolicyRecordBuilder.retentionPolicy.getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
+                if (retentionPolicyRecordBuilder.retentionPolicy != null ) {
                     RetentionPolicy.RetentionPolicyBuilder builder = RetentionPolicy.builder()
                             .retentionType(retentionPolicyRecordBuilder.retentionPolicy.getRetentionType())
-                                           .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam());
-                    // read consumption limits
-                    RetentionPolicy.ConsumptionLimits limits = RetentionPolicy.ConsumptionLimits.builder()
-                                                                                                .type(RetentionPolicy.ConsumptionLimits.Type.values()[revisionDataInput.readCompactInt()])
-                                                                                                .minValue(revisionDataInput.readLong())
-                                                                                                .maxValue(revisionDataInput.readLong())
-                                                                                                .build();
-                    builder.consumptionLimits(limits);
+                            .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam())
+                            .retentionMax(revisionDataInput.readLong());
                     retentionPolicyRecordBuilder.retentionPolicy(builder.build());
                 }
             }
@@ -199,12 +192,8 @@ public class StreamConfigurationRecord {
 
             private void write01(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
                     throws IOException {
-                if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null &&
-                        retentionPolicyRecord.getRetentionPolicy().getRetentionType().equals(RetentionPolicy.RetentionType.CONSUMPTION)) {
-                    RetentionPolicy.ConsumptionLimits consumptionLimits = retentionPolicyRecord.getRetentionPolicy().getConsumptionLimits();
-                    revisionDataOutput.writeCompactInt(consumptionLimits.getType().ordinal());
-                    revisionDataOutput.writeLong(consumptionLimits.getMinValue());
-                    revisionDataOutput.writeLong(consumptionLimits.getMaxValue());
+                if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null) {
+                    revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionMax());
                 }
             }
 
