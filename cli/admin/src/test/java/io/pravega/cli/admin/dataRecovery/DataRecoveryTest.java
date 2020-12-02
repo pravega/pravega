@@ -180,7 +180,7 @@ public class DataRecoveryTest {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Command under test
-        TestUtils.executeCommand("storage Tier1-recovery", STATE.get());
+        TestUtils.executeCommand("storage DurableLog-recovery", STATE.get());
 
         // Start a new segment store and controller
         this.factory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(), pravegaRunner.bookKeeperRunner.zkClient.get(),
