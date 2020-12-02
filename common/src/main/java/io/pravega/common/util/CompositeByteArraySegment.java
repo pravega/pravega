@@ -170,16 +170,16 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
 
     private void setValue(long value, int bits, byte[] array, int bufferId, int bufferOffset) {
         // Write each byte at a time, making sure we move over to the next buffer when needed.
-        bits -= 8;
-        do {
+        assert bits / 8 > 0 && bits % 8 == 0;
+        while (bits > 0) {
+            bits -= 8;
             array[bufferOffset] = (byte) (value >>> bits);
             bufferOffset++;
             if (bufferOffset >= this.bufferLayout.bufferSize) {
                 bufferOffset = 0;
                 array = getBuffer(bufferId + 1, true).array();
             }
-            bits -= 8;
-        } while (bits >= 0);
+        }
     }
 
     @Override
