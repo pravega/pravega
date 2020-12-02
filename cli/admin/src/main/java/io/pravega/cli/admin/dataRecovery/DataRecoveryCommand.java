@@ -48,7 +48,7 @@ public abstract class DataRecoveryCommand extends AdminCommand {
     }
 
     /**
-     * Outputs the message to the console as well as to the log file.
+     * Outputs the message to the console as well as to the log file as Info.
      *
      * @param messageTemplate   The message.
      * @param args              The arguments with the message.
@@ -58,6 +58,12 @@ public abstract class DataRecoveryCommand extends AdminCommand {
         log.info(String.format(messageTemplate, args));
     }
 
+    /**
+     * Outputs the message to the console as well as to the log file as error.
+     *
+     * @param messageTemplate   The message.
+     * @param args              The arguments with the message.
+     */
     protected void outputError(String messageTemplate, Object... args) {
         System.err.println(String.format(messageTemplate, args));
         log.error(String.format(messageTemplate, args));

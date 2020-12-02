@@ -87,7 +87,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
         }
 
         for (int containerId = 0; containerId < this.containerCount; containerId++) {
-            File f = new File(this.filePath + "/" + "Container_" + containerId + ".csv");
+            File f = new File(this.filePath + Path.SEPARATOR + "Container_" + containerId + ".csv");
             if (f.exists()) {
                 outputInfo("File '%s' already exists.", f.getAbsolutePath());
                 if (!f.delete()) {
