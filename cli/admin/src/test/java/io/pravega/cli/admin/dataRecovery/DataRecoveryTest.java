@@ -76,7 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Tests Tier1 recovery command.
+ * Tests Data recovery commands.
  */
 @Slf4j
 public class DataRecoveryTest {
@@ -135,7 +135,7 @@ public class DataRecoveryTest {
     }
 
     /**
-     * Tests Tier1 recovery command.
+     * Tests DurableLog recovery command.
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test

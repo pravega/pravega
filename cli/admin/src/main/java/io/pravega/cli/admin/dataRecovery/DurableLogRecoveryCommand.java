@@ -203,7 +203,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "Tier1-recovery", "Recover Tier1 state from the storage.");
+        return new CommandDescriptor(COMPONENT, "DurableLog-recovery", "Recover DurableLog state from the storage.");
     }
 
     @Override
