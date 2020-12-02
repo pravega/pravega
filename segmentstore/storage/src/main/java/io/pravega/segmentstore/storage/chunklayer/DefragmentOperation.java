@@ -167,7 +167,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
             concatArgs[i] = ConcatArgument.fromChunkInfo(chunksToConcat.get(i));
         }
         final CompletableFuture<Integer> f;
-        if (!useAppend.get() && chunkedSegmentStorage.getChunkStorage().supportsConcat()) {
+        if ((!useAppend.get() && chunkedSegmentStorage.getChunkStorage().supportsConcat()) || !chunkedSegmentStorage.shouldAppend()) {
             f = chunkedSegmentStorage.getChunkStorage().concat(concatArgs);
         } else {
             f = concatUsingAppend(concatArgs);
