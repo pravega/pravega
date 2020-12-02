@@ -726,6 +726,7 @@ project('controller') {
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile project(":shared:controller-api")
+        compile project(":shared:rest")
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")

@@ -10,7 +10,7 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;

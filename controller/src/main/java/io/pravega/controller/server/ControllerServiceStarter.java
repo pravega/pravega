@@ -37,7 +37,7 @@ import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
+import io.pravega.shared.rest.RESTServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -335,11 +336,10 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
-                restServer = new RESTServer(this.localController,
-                        controllerService,
-                        grpcServer.getAuthHandlerManager(),
+                restServer = new RESTServer(grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
-                        connectionFactory);
+                        connectionFactory,
+                        Set.of(this.localController, controllerService));
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

@@ -13,13 +13,14 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.ProcessingException;
@@ -56,8 +57,8 @@ public abstract class PingTest {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory);
+        restServer = new RESTServer(null, serverConfig,
+                connectionFactory, Set.of(null, mockControllerService));
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();

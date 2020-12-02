@@ -17,8 +17,6 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -31,6 +29,8 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 
 import java.time.Duration;
 import java.util.Optional;
