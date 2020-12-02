@@ -33,7 +33,7 @@ public class StreamConfiguration implements Serializable {
 
     /**
      * API to return retention policy.
-     *
+     * Also see: {@link ReaderGroupConfig.StreamDataRetention}
      * @param retentionPolicy The Stream Retention policy.
      * @return Retention Policy for the Stream.
      */
