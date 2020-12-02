@@ -12,7 +12,6 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 import java.time.Duration;
 
-import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -33,27 +32,35 @@ public class RetentionPolicy implements Serializable {
         /**
          * Set retention based on the total size of the data in the stream in bytes.
          */
-        SIZE,
-
-        /**
-         * Set retention policy based on Consumption.
-         * Also see: {@link ReaderGroupConfig.StreamDataRetention}
-         */
-        CONSUMPTION
+        SIZE
     }
 
     private final RetentionType retentionType;
     private final long retentionParam;
-    private final ConsumptionLimits consumptionLimits;
+    private final long retentionMax;
+
     /**
-     * Create a retention policy to configure a stream to periodically truncated
-     * according to the specified duration.
+     * Create a retention policy to configure a stream to be periodically truncated according to the specified duration.
      *
      * @param duration Period to retain data in a stream.
      * @return Retention policy object.
      */
     public static RetentionPolicy byTime(Duration duration) {
-        return RetentionPolicy.builder().retentionType(RetentionType.TIME).retentionParam(duration.toMillis()).build();
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME)
+                .retentionParam(duration.toMillis()).retentionMax(duration.toMillis()).build();
+    }
+
+    /**
+     * Create a retention policy to configure a stream to periodically truncated
+     * according to the specified duration.
+     *
+     * @param durationMin Minimum period for which data would be retained in the stream.
+     * @param durationMax Maximum period for which data would be retained in the stream.
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy byTime(Duration durationMin, Duration durationMax) {
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME)
+                .retentionParam(durationMin.toMillis()).retentionMax(durationMax.toMillis()).build();
     }
 
     /**
@@ -64,45 +71,20 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy bySizeBytes(long size) {
-        return RetentionPolicy.builder().retentionType(RetentionType.SIZE).retentionParam(size).build();
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
+                .retentionParam(size).retentionMax(size).build();
     }
-    
+
     /**
      * Create a retention policy to configure a stream to truncate a stream
-     * according to positions of subscribed reader groups.
+     * according to the amount of data currently stored.
      *
-     * Provide null values for min and max if either limit is not desired.  
-     * @param type Type of consumption limit which is one of time or size. 
-     * @param minLimit min limit
-     * @param maxLimit max limit
+     * @param sizeMin Minimum amount of data to retain in a Stream.
+     * @param sizeMax Maximum amount of data to retain in a Stream.
      * @return Retention policy object.
      */
-    public static RetentionPolicy byConsumption(ConsumptionLimits.Type type, Long minLimit, Long maxLimit) {
-        Preconditions.checkArgument(minLimit >= 0, "minLimit should be greater than 0");
-        Preconditions.checkArgument(maxLimit >= minLimit, "maxLimit should be greater than minLimit");
-        return RetentionPolicy.builder().retentionType(RetentionType.CONSUMPTION)
-                              .consumptionLimits(ConsumptionLimits.builder().type(type)
-                                                                  .minValue(minLimit)
-                                                                  .maxValue(maxLimit)
-                                                                  .build()).build();
-    }
-    
-    @Data
-    @Builder
-    public static class ConsumptionLimits {
-        public enum Type {
-            TIME_MILLIS,
-            SIZE_BYTES
-        }
-
-        private final Type type;
-        private final long minValue;
-        private final long maxValue;
-
-        private ConsumptionLimits(Type type, Long minValue, Long maxValue) {
-            this.type = type;
-            this.minValue = minValue != null ? minValue : 0L;
-            this.maxValue = maxValue != null ? maxValue : Long.MAX_VALUE;
-        }
+    public static RetentionPolicy bySizeBytes(long sizeMin, long sizeMax) {
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
+                .retentionParam(sizeMin).retentionMax(sizeMax).build();
     }
 }
