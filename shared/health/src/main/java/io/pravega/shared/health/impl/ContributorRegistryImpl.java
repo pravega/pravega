@@ -150,8 +150,8 @@ public class ContributorRegistryImpl implements ContributorRegistry {
             log.debug("Unrecognized HealthContributor::{} -- aborting registration.", component);
             return null;
         }
-        if (contributors.containsKey(contributor)) {
-            log.warn("{} has already been registered -- aborting.", contributors.get(contributor));
+        if (contributors.containsKey(contributor.getName())) {
+            log.warn("{} has already been registered -- aborting.", contributors.get(contributor.getName()));
             return null;
         }
         log.debug("Registering {} to {}.", contributor, contributors.get(component));

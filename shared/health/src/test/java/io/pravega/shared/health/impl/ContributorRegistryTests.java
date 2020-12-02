@@ -123,7 +123,6 @@ public class ContributorRegistryTests {
         registry.register(container);
         registry.register(contributors.get(1), container.getName());
         registry.register(contributors.get(2), container.getName());
-        registry.register(contributors.get(2));
         registry.register(contributors.get(3));
         // Validate the registration process.
         Assert.assertEquals("Only one HealthComponent should be recognized (ROOT).",
@@ -135,9 +134,10 @@ public class ContributorRegistryTests {
                 registry.contributors().size());
         // Remove internal node ('container').
         registry.unregister(container);
-        // This should removes three contributors: the internal node (container) and the leaf nodes (one, two).
-        Assert.assertEquals("Three HealthContributors should be remaining.", registry.contributors().size(), 3);
-        Assert.assertEquals("One HealthComponent should remain.", registry.components().size(), 1);
+        // This should removes three contributors: the internal node (container) and the leaf nodes (one, two), leaving
+        // the root and 'three'.
+        Assert.assertEquals("Three HealthContributors should be remaining.", 2, registry.contributors().size());
+        Assert.assertEquals("One HealthComponent should remain.", 1, registry.components().size());
         // The component should be the 'root'.
         Assert.assertEquals("The HealthComponent should be the root.",
                 registry.components().stream().findFirst().get(),
