@@ -221,6 +221,11 @@ public abstract class AbstractService implements Service {
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
     }
 
+    private String[] getBookkeeperMemoryOptions() {
+        return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
+    }
+
+
     private Map<String, Object> getPersistentVolumeClaimSpec(String size, String storageClass) {
         return ImmutableMap.<String, Object>builder()
                 .put("accessModes", singletonList("ReadWriteOnce"))
@@ -330,6 +335,9 @@ public abstract class AbstractService implements Service {
                 .put("autoRecovery", true)
                 .put("options", ImmutableMap.builder()  .put("journalDirectories", JOURNALDIRECTORIES)
                         .put("ledgerDirectories", LEDGERDIRECTORIES)
+                        .build())
+                .put("jvmOptions", ImmutableMap.builder()
+                        .put("memoryOpts", getBookkeeperMemoryOptions())
                         .build())
                 .build();
 
