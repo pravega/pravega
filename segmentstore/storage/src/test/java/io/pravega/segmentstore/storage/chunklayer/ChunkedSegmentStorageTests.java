@@ -1317,6 +1317,101 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 new long[]{10, 15});
     }
 
+    /**
+     * Test Concat after repeated failure when concat using append mode is on.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testConcatUsingAppendsAfterWriteFailure() throws Exception {
+        long maxRollingSize = 20;
+        // Last chunk of target in these tests always has garbage at end which can not be overwritten.
+        testConcatUsingAppendsAfterWriteFailure(maxRollingSize,
+                new long[] {5},
+                new long[] {1, 2, 3, 4},
+                new int[] {},
+                new long[] {5, 10},
+                15);
+
+        // First chunk in source has garbage at the end.
+        testConcatUsingAppendsAfterWriteFailure(maxRollingSize,
+                new long[] {5},
+                new long[] {1, 2, 3, 4},
+                new int[]  {0}, // add garbage to these chunks
+                new long[] {5, 1, 9},
+                15);
+
+        // First two chunk in source has garbage at the end.
+        testConcatUsingAppendsAfterWriteFailure(maxRollingSize,
+                new long[] {5},
+                new long[] {1, 2, 3, 4},
+                new int[]  {0, 1},  // add garbage to these chunks
+                new long[] {5, 1, 2, 7},
+                15);
+
+        // First three chunks in source has garbage at the end.
+        testConcatUsingAppendsAfterWriteFailure(maxRollingSize,
+                new long[] {5},
+                new long[] {1, 2, 3, 4},
+                new int[]  {0, 1, 2},  // add garbage to these chunks
+                new long[] {5, 1, 2, 3, 4},
+                15);
+
+        // All chunks in source has garbage at the end.
+        testConcatUsingAppendsAfterWriteFailure(maxRollingSize,
+                new long[] {5},
+                new long[] {1, 2, 3, 4},
+                new int[]  {0, 1, 2, 3},  // add garbage to these chunks
+                new long[] {5, 1, 2, 3, 4},
+                15);
+    }
+
+    private void testConcatUsingAppendsAfterWriteFailure(long maxRollingSize,
+                                                         long[] targetLayoutBefore,
+                                                         long[] sourceLayout,
+                                                         int[] chunksWithGarbageIndex,
+                                                         long[] targetLayoutAfter,
+                                                         long expectedLength) throws Exception {
+        String targetSegmentName = "target";
+        String sourceSegmentName = "source";
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(maxRollingSize); // Force rollover after every 20 byte.
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxSizeLimitForConcat(100)
+                .minSizeLimitForConcat(100)
+                .build();
+
+        TestContext testContext = getTestContext(config);
+        ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
+
+        // Create target
+        testContext.insertMetadata(targetSegmentName, maxRollingSize, 1, targetLayoutBefore);
+
+        // Create source
+        testContext.insertMetadata(sourceSegmentName, maxRollingSize, 1, sourceLayout);
+        val hSource = testContext.chunkedSegmentStorage.openWrite(sourceSegmentName).get();
+        testContext.chunkedSegmentStorage.seal(hSource, null).get();
+
+        // Add some garbage data at the end of last chunk
+        val lastChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore,
+                TestUtils.getSegmentMetadata(testContext.metadataStore, targetSegmentName).getLastChunk());
+        testContext.chunkStorage.write(ChunkHandle.writeHandle(lastChunkMetadata.getName()), lastChunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+
+        // Write some garbage at the end.
+        val sourceList = TestUtils.getChunkList(testContext.metadataStore, sourceSegmentName);
+        for (int i : chunksWithGarbageIndex) {
+            // Append some data to the last chunk to simulate partial write during failure
+            val chunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, sourceList.get(i).getName());
+            testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
+        }
+        val hTarget = testContext.chunkedSegmentStorage.openWrite(targetSegmentName).get();
+        testContext.chunkedSegmentStorage.concat(hTarget, 5, sourceSegmentName, null).join();
+        val list = TestUtils.getChunkList(testContext.metadataStore, targetSegmentName);
+        checkDataRead(targetSegmentName, testContext, 0, 15);
+        TestUtils.checkSegmentLayout(testContext.metadataStore, targetSegmentName, targetLayoutAfter);
+        TestUtils.checkSegmentBounds(testContext.metadataStore, targetSegmentName, 0, expectedLength);
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, targetSegmentName);
+    }
+
     @Test
     public void testBaseConcatWithDefrag() throws Exception {
         TestContext testContext = getTestContext();

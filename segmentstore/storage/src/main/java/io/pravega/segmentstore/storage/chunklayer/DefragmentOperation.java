@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -19,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,6 +107,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private volatile ChunkMetadata target;
     private volatile String targetChunkName;
     private final AtomicBoolean useAppend = new AtomicBoolean();
+    private final AtomicBoolean skipFailed = new AtomicBoolean();
     private final AtomicLong targetSizeAfterConcat = new AtomicLong();
     private volatile String nextChunkName;
     private volatile ChunkMetadata next = null;
@@ -144,11 +147,29 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                             CompletableFuture<Void> f;
                             if (chunksToConcat.size() > 1) {
                                 // Concat
-                                f = concatChunks();
+                                f = concatChunks()
+                                .handleAsync((vv, ex) -> {
+                                    if (null != ex) {
+                                        ex = Exceptions.unwrap(ex);
+                                        if (ex instanceof InvalidOffsetException) {
+                                            // Skip ahead by 1 chunk.
+                                            targetChunkName = chunksToConcat.get(1).getName();
+                                            chunksToConcat.clear();
+                                            skipFailed.set(true);
+                                            return null;
+                                        }
+                                        throw new CompletionException(ex);
+                                    }
+                                    return v;
+                                }, chunkedSegmentStorage.getExecutor());
                             } else {
                                 f = CompletableFuture.completedFuture(null);
                             }
                             return f.thenRunAsync(() -> {
+                                if (skipFailed.get()) {
+                                    skipFailed.set(false);
+                                    return;
+                                }
                                 // Move on to next place in list where we can concat if we are done with append based concatenations.
                                 if (!useAppend.get()) {
                                     targetChunkName = nextChunkName;
