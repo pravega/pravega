@@ -13,10 +13,14 @@ import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
+import io.pravega.test.common.SecurityConfigDefaults;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -37,10 +41,50 @@ public final class TestUtils {
         CommandArgs args = new CommandArgs(pc.getArgs(), state);
         AdminCommand cmd = AdminCommand.Factory.get(pc.getComponent(), pc.getName(), args);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (PrintStream ps = new PrintStream(baos, true, "UTF-8")) {
+        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
             cmd.setOut(ps);
             cmd.execute();
         }
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Returns the relative path to `pravega/config` source directory from cli tests.
+     *
+     * @return the path
+     */
+    public static String pathToConfig() {
+        return "../../config/";
+    }
+
+    /**
+     * Sets the admin CLI properties to use during testing.
+     *
+     * @param controllerRestUri the controller REST URI.
+     * @param controllerUri the controller URI.
+     * @param zkConnectUri the zookeeper URI.
+     * @param containerCount the container count.
+     * @param authEnabled whether the cli requires authentication to access the cluster.
+     * @param tokenSigningKey the token signing key to access the cluster if authentication is enabled.
+     * @param tlsEnabled whether the cli requires TLS to access the cluster.
+     * @param state the AdminCommandState in which the properties are included.
+     * @throws IOException in case the state cannot be set.
+     */
+    public static void setAdminCLIProperties(String controllerRestUri, String controllerUri, String zkConnectUri,
+                                             int containerCount, boolean authEnabled, String tokenSigningKey, boolean tlsEnabled,
+                                             AtomicReference<AdminCommandState> state) throws IOException {
+        state.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", controllerRestUri);
+        pravegaProperties.setProperty("cli.controller.grpc.uri", controllerUri);
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", zkConnectUri);
+        pravegaProperties.setProperty("pravegaservice.container.count", Integer.toString(containerCount));
+        pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(authEnabled));
+        pravegaProperties.setProperty("cli.security.auth.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+        pravegaProperties.setProperty("cli.security.auth.credentials.password", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        pravegaProperties.setProperty("cli.security.auth.token.signingKey", tokenSigningKey);
+        pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
+        pravegaProperties.setProperty("cli.security.tls.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        state.get().getConfigBuilder().include(pravegaProperties);
     }
 }

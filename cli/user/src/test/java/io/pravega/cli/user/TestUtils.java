@@ -47,7 +47,7 @@ public final class TestUtils {
     }
 
     /**
-     * Returns the relative path to `pravega/config` source directory from cli tests.
+     * Returns the relative path to `pravega/config` source directory from cli/user tests.
      *
      * @return the path
      */
@@ -55,6 +55,13 @@ public final class TestUtils {
         return "../../config/";
     }
 
+    /**
+     * Creates a local Pravega cluster to test on using {@link ClusterWrapper}.
+     *
+     * @param authEnabled whether accessing the cluster require authentication or not.
+     * @param tlsEnabled whether accessing the cluster require TLS or not.
+     * @return A local Pravega cluster
+     */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
         return ClusterWrapper.builder()
                 .authEnabled(authEnabled)
@@ -65,6 +72,14 @@ public final class TestUtils {
                 .build();
     }
 
+    /**
+     * Sets the given config for the user-cli to use during testing.
+     *
+     * @param controllerUri the controller URI.
+     * @param authEnabled whether the cli requires authentication to access the cluster.
+     * @param tlsEnabled whether the cli requires TLS to access the cluster
+     * @param config the config to be set.
+     */
     public static void setInteractiveConfig(String controllerUri, boolean authEnabled, boolean tlsEnabled,
                                             AtomicReference<InteractiveConfig> config) {
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();

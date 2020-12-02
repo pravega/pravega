@@ -819,14 +819,7 @@ project('cli:user') {
         compile project(':shared:protocol')
         compile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        testCompile (project(':test:integration')) {
-            exclude group: "com.sun.jersey", module: "jersey-core"
-            exclude group: "com.sun.jersey", module: "jersey-server"
-        }
-        testCompile (project(':standalone')) {
-            exclude group: "com.sun.jersey", module: "jersey-core"
-            exclude group: "com.sun.jersey", module: "jersey-server"
-        }
+        testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
     }
 

@@ -9,16 +9,14 @@
  */
 package io.pravega.cli.admin.controller;
 
-import io.pravega.cli.admin.AbstractTlsAdminCommandTest;
-import org.junit.Before;
+import lombok.SneakyThrows;
+import org.junit.BeforeClass;
 
-public class SecureControllerCommandsTest extends AbstractTlsAdminCommandTest {
+public class SecureControllerCommandsTest extends TLSEnabledControllerCommandsTest {
 
-    @Before
-    @Override
-    public void setUp() {
-        authEnabled = true;
-        tlsEnabled = true;
-        super.setUp();
+    @BeforeClass
+    @SneakyThrows
+    public static void setUp() {
+        setUpLocalPravegaEmulator(true, true);
     }
 }
