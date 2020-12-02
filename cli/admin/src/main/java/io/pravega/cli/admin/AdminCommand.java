@@ -28,8 +28,8 @@ import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
 import io.pravega.cli.admin.controller.ControllerListReaderGroupsInScopeCommand;
 import io.pravega.cli.admin.controller.ControllerListScopesCommand;
 import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
+import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
-import io.pravega.cli.admin.dataRecovery.Tier1RecoveryCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
 import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
 import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
@@ -239,7 +239,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentStoreByContainerCommand::descriptor, GetSegmentStoreByContainerCommand::new)
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
-                        .put(Tier1RecoveryCommand::descriptor, Tier1RecoveryCommand::new)
+                        .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .build());
 
         /**

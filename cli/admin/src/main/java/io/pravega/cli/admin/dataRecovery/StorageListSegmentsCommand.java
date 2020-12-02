@@ -17,10 +17,12 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import lombok.Cleanup;
+import org.apache.hadoop.fs.Path;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
@@ -30,7 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Lists all non-shadow segments from there from the storage. The storage is loaded using the config properties.
  */
-public class StorageListSegmentsCommand extends DataRecoveryCommand {
+public class StorageListSegmentsCommand extends DataRecoveryCommand implements AutoCloseable {
     /**
      * Header line for writing segments' details to csv files.
      */
@@ -41,6 +43,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
             "listSegmentsProcessor");
     private final SegmentToContainerMapper segToConMapper;
     private final StorageFactory storageFactory;
+    private final Storage storage;
     private final FileWriter[] csvWriters;
     private String filePath;
 
@@ -54,6 +57,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         this.containerCount = getServiceConfig().getContainerCount();
         this.segToConMapper = new SegmentToContainerMapper(this.containerCount);
         this.storageFactory = createStorageFactory(scheduledExecutorService);
+        this.storage = this.storageFactory.createStorageAdapter();
         this.csvWriters = new FileWriter[this.containerCount];
     }
 
@@ -67,12 +71,12 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
 
         // Set up directory for storing csv files
-        this.filePath = System.getProperty("user.dir") + "/" + descriptor().getName() + "_" + fileSuffix;
+        this.filePath = System.getProperty("user.dir") + Path.SEPARATOR + descriptor().getName() + "_" + fileSuffix;
 
         // If path given as command args, use it
         if (getArgCount() >= 1) {
             this.filePath = getCommandArgs().getArgs().get(0);
-            if (this.filePath.endsWith("/")) {
+            if (this.filePath.endsWith(Path.SEPARATOR)) {
                 this.filePath = this.filePath.substring(0, this.filePath.length()-1);
             }
         }
@@ -108,9 +112,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         outputInfo("Container Count = %d", this.containerCount);
 
         // Get the storage using the config.
-        @Cleanup
-        Storage storage = this.storageFactory.createStorageAdapter();
-        storage.initialize(CONTAINER_EPOCH);
+        this.storage.initialize(CONTAINER_EPOCH);
         outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
         // Gets total number of segments listed.
@@ -120,7 +122,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         createCSVFiles();
 
         outputInfo("Writing segments' details to the csv files...");
-        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        Iterator<SegmentProperties> segmentIterator = this.storage.listSegments();
         while (segmentIterator.hasNext()) {
             SegmentProperties currentSegment = segmentIterator.next();
 
@@ -151,5 +153,11 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "list-segments", "Lists segments from storage with their name, length and sealed status.");
+    }
+
+    @Override
+    public void close() throws Exception {
+        this.storage.close();
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), scheduledExecutorService);
     }
 }

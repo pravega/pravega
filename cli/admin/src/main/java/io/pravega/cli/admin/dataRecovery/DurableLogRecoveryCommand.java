@@ -44,6 +44,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -57,14 +58,16 @@ import static org.junit.Assert.assertTrue;
 /**
  * Loads the storage instance, recovers all segments from there.
  */
-public class Tier1RecoveryCommand extends DataRecoveryCommand {
+public class DurableLogRecoveryCommand extends DataRecoveryCommand implements AutoCloseable {
     private static final int CONTAINER_EPOCH = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
     private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
     private final int containerCount;
     private final StorageFactory storageFactory;
-    private BookKeeperLogFactory dataLogFactory;
+    private final CuratorFramework zkClient;
+    private final Storage storage;
+    private BookKeeperLogFactory dataLogFactory = null;
 
     private static final DurableLogConfig NO_TRUNCATIONS_DURABLE_LOG_CONFIG = DurableLogConfig
             .builder()
@@ -72,44 +75,34 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
             .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 50000)
             .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 1024 * 1024 * 1024L)
             .build();
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ReadIndexConfig.builder().build();
 
-    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
-            .builder()
-            .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
-            .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
-            .build();
+    private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
+
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
+
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
 
-    private static final WriterConfig INFREQUENT_FLUSH_WRITER_CONFIG = WriterConfig
-            .builder()
-            .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1024 * 1024 * 1024)
-            .with(WriterConfig.FLUSH_ATTRIBUTES_THRESHOLD, 3000)
-            .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 250000L)
-            .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
-            .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
-            .build();
-    private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
+    private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
 
-    private Storage storage;
 
     /**
      * Creates an instance of Tier1RecoveryCommand class.
      *
      * @param args The arguments for the command.
      */
-    public Tier1RecoveryCommand(CommandArgs args) {
+    public DurableLogRecoveryCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.storageFactory = createStorageFactory(executorService);
+        this.storage = this.storageFactory.createStorageAdapter();
+        this.zkClient = createZKClient();
     }
 
 
@@ -122,25 +115,22 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
                 .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
                 .build().getConfig(BookKeeperConfig::builder);
 
-        @Cleanup
-        val zkClient = createZKClient();
-        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, zkClient, executorService);
+        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, this.zkClient, executorService);
         try {
             this.dataLogFactory.initialize();
         } catch (DurableDataLogException ex) {
-            zkClient.close();
+            this.zkClient.close();
             ex.printStackTrace();
+            throw ex;
         }
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
-        @Cleanup
-        Storage storage = this.storageFactory.createStorageAdapter();
-        storage.initialize(CONTAINER_EPOCH);
+        this.storage.initialize(CONTAINER_EPOCH);
         outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
         outputInfo("Starting recovery...");
         // create back up of metadata segments
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(this.storage,
                 this.containerCount, executorService, TIMEOUT);
 
         @Cleanup
@@ -151,7 +141,7 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
                 containerCount, this.dataLogFactory, this.storageFactory);
 
         outputInfo("Containers started. Recovering all segments...");
-        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
+        ContainerRecoveryUtils.recoverAllSegments(this.storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
         outputInfo("All segments recovered.");
 
         // Update core attributes from the backUp Metadata segments
@@ -219,6 +209,16 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         return new CommandDescriptor(COMPONENT, "Tier1-recovery", "Recover Tier1 state from the storage.");
     }
 
+    @Override
+    public void close() throws Exception {
+        if (this.dataLogFactory != null) {
+            this.dataLogFactory.close();
+        }
+        this.zkClient.close();
+        this.storage.close();
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executorService);
+    }
+
     private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
         private final ScheduledExecutorService executor;
 
@@ -238,7 +238,6 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
 
 
     private static class Context implements AutoCloseable {
-        public final DurableDataLogFactory dataLogFactory;
         public final ReadIndexFactory readIndexFactory;
         public final AttributeIndexFactory attributeIndexFactory;
         public final WriterFactory writerFactory;
@@ -246,12 +245,11 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         public final CacheManager cacheManager;
 
         Context(ScheduledExecutorService scheduledExecutorService) {
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, scheduledExecutorService);
             this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
-            this.writerFactory = new StorageWriterFactory(INFREQUENT_FLUSH_WRITER_CONFIG, scheduledExecutorService);
+            this.writerFactory = new StorageWriterFactory(WRITER_CONFIG, scheduledExecutorService);
         }
 
         public SegmentContainerFactory.CreateExtensions getDefaultExtensions() {
@@ -265,7 +263,6 @@ public class Tier1RecoveryCommand extends DataRecoveryCommand {
         @Override
         public void close() {
             this.readIndexFactory.close();
-            this.dataLogFactory.close();
             this.cacheManager.close();
             this.cacheStorage.close();
         }
