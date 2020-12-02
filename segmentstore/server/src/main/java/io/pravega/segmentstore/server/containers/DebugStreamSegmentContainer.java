@@ -44,10 +44,10 @@ public class DebugStreamSegmentContainer extends StreamSegmentContainer implemen
      *                                 {@link SegmentContainerExtension}s to be associated with that instance.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    DebugStreamSegmentContainer(int debugSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
-                                ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
-                                WriterFactory writerFactory, StorageFactory storageFactory,
-                                SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
+    protected DebugStreamSegmentContainer(int debugSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
+                                          ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
+                                          WriterFactory writerFactory, StorageFactory storageFactory,
+                                          SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
         super(debugSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
                 storageFactory, createExtensions, executor);
         this.config = config;
