@@ -24,22 +24,19 @@ public class ScopeCommandsTest extends AbstractUserCommandTest {
     @SneakyThrows
     public void testCreateScope() {
         final String scope = "testCreate";
-        String commandResult = TestUtils.executeCommand("scope create " + scope, config.get());
+        String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG.get());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(ScopeCommand.Create.descriptor());
-
-        commandResult = TestUtils.executeCommand("scope delete " + scope, config.get());
-        Assert.assertTrue(commandResult.contains("deleted successfully"));
     }
 
     @Test(timeout = 5000)
     @SneakyThrows
     public void testDeleteScope() {
         String scopeToDelete = "toDelete";
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), config.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scopeToDelete), CONFIG.get());
         Assert.assertNotNull(commandArgs.toString());
         new ScopeCommand.Create(commandArgs).execute();
-        String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, config.get());
+        String commandResult = TestUtils.executeCommand("scope delete " + scopeToDelete, CONFIG.get());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(ScopeCommand.Delete.descriptor());
     }

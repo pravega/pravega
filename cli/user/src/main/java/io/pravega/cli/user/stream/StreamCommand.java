@@ -63,8 +63,8 @@ public abstract class StreamCommand extends Command {
         public void execute() {
             ensureMinArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(getClientConfig());
-            val sc = StreamConfiguration.builder()
+            val streamManager = StreamManager.create(getClientConfig());
+            val streamConfiguration = StreamConfiguration.builder()
                     .scalingPolicy(ScalingPolicy.builder()
                             .scaleType(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)
                             .minNumSegments(getConfig().getDefaultSegmentCount())
@@ -72,7 +72,7 @@ public abstract class StreamCommand extends Command {
                     .build();
             for (int i = 0; i < getCommandArgs().getArgs().size(); i++) {
                 val s = getScopedNameArg(i);
-                val success = sm.createStream(s.getScope(), s.getName(), sc);
+                val success = streamManager.createStream(s.getScope(), s.getName(), streamConfiguration);
                 if (success) {
                     output("Stream '%s/%s' created successfully.", s.getScope(), s.getName());
                 } else {
@@ -245,12 +245,12 @@ public abstract class StreamCommand extends Command {
             val readerGroup = UUID.randomUUID().toString().replace("-", "");
             val readerId = UUID.randomUUID().toString().replace("-", "");
 
-            val cc = getClientConfig();
+            val clientConfig = getClientConfig();
             val readerConfig = ReaderConfig.builder().build();
             @Cleanup
-            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), cc);
+            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), clientConfig);
             @Cleanup
-            val rgManager = ReaderGroupManager.withScope(scopedStream.getScope(), cc);
+            val rgManager = ReaderGroupManager.withScope(scopedStream.getScope(), clientConfig);
             val rgConfig = ReaderGroupConfig.builder().stream(scopedStream.toString()).build();
             rgManager.createReaderGroup(readerGroup, rgConfig);
             try (val reader = factory.createReader(readerId, readerGroup, new UTF8StringSerializer(), readerConfig)) {

@@ -10,48 +10,38 @@
 package io.pravega.cli.user;
 
 import io.pravega.cli.user.config.InteractiveConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.utils.SecureSetupUtils;
+import io.pravega.test.integration.utils.SetupUtils;
 import lombok.SneakyThrows;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.cli.user.TestUtils.setInteractiveConfig;
+
 public abstract class AbstractUserCommandTest {
+
+    // Setup utility.
+    protected static final SetupUtils SETUP_UTILS = new SetupUtils();
+    protected static final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
-    // Setup utility.
-    protected SecureSetupUtils setupUtils;
-    protected boolean authEnabled = false;
-    protected final AtomicReference<InteractiveConfig> config = new AtomicReference<>();
 
-    @Before
+    @BeforeClass
     @SneakyThrows
-    public void setUp() {
-        setupUtils = new SecureSetupUtils(authEnabled);
-        setupUtils.startAllServices();
-        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
-        interactiveConfig.setControllerUri(setupUtils.getControllerUri().toString().replace("tcp://", ""));
-        interactiveConfig.setDefaultSegmentCount(4);
-        interactiveConfig.setMaxListItems(100);
-        interactiveConfig.setTimeoutMillis(1000);
-        interactiveConfig.setAuthEnabled(setupUtils.isAuthEnabled());
-        interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-        interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-        interactiveConfig.setTlsEnabled(false);
-        interactiveConfig.setTruststore("../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        config.set(interactiveConfig);
+    public static void setUp() {
+        SETUP_UTILS.startAllServices();
+        setInteractiveConfig(SETUP_UTILS.getControllerUri().toString().replace("tcp://", "").replace("tls://", ""),
+                false, false, CONFIG);
     }
 
-    @After
+    @AfterClass
     @SneakyThrows
-    public void tearDown() {
-        setupUtils.close();
+    public static void tearDown() {
+        SETUP_UTILS.stopAllServices();
     }
-
 }

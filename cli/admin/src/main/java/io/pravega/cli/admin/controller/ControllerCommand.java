@@ -63,7 +63,7 @@ public abstract class ControllerCommand extends AdminCommand {
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
 
-        Client client;
+        ClientBuilder builder = ClientBuilder.newBuilder().withConfig(clientConfig);
 
         // If TLS parameters are configured, set them in client.
         if (config.isTlsEnabled()) {
@@ -76,17 +76,12 @@ public abstract class ControllerCommand extends AdminCommand {
                 tlsContext.init(null, tmf.getTrustManagers(), null);
             } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException | KeyManagementException e) {
                 output("Encountered exception while trying to use the given truststore: %s", config.getTruststore());
-                e.printStackTrace();
+                output(e.getMessage());
                 return null;
             }
-            client = ClientBuilder.newBuilder()
-                    .withConfig(clientConfig)
-                    .sslContext(tlsContext)
-                    .build();
-        } else {
-            client = ClientBuilder.newClient(clientConfig);
+            builder.sslContext(tlsContext);
         }
-
+        Client client = builder.build();
         // If authorization parameters are configured, set them in the client.
         if (config.isAuthEnabled()) {
             HttpAuthenticationFeature auth = HttpAuthenticationFeature.basic(config.getUserName(),
