@@ -401,7 +401,7 @@ public class HealthTests {
         Assert.assertEquals(200, response.getStatus());
         Assert.assertEquals("Size of HealthDetails result should match the expected.", expected.size(), details.size());
         details.forEach((key, val) -> {
-            if (expected.get(key) != val) {
+            if (!expected.get(key).equals(val)) {
                 Assert.assertEquals("Unexpected difference in Detail entry.", expected.get(key), val);
             }
         });

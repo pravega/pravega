@@ -33,7 +33,7 @@ public class RetentionConfig   {
   public enum TypeEnum {
     LIMITED_DAYS("LIMITED_DAYS"),
 
-    LIMITED_SIZE_MB("LIMITED_SIZE_MB"),
+    LIMITED_SIZE_MB("LIMITED_SIZE_MB");
 
     private String value;
 

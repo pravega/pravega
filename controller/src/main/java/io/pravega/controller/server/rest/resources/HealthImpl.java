@@ -48,12 +48,12 @@ public class HealthImpl implements ApiV1.HealthApi {
     // Note: If 'Boolean details' is a null value, the request will fail -- circle back to Controller.yaml.
     @Override
     public void getContributorHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
-        getHealth(id, details == null ? false : details, securityContext, asyncResponse, "getContributorHealth");
+        getHealth(id, details == null ? Boolean.FALSE : details, securityContext, asyncResponse, "getContributorHealth");
     }
 
     @Override
     public void getHealth(Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
-        getHealth(null, details == null ? false : details, securityContext, asyncResponse, "getHealth");
+        getHealth(null, details == null ? Boolean.FALSE : details, securityContext, asyncResponse, "getHealth");
     }
 
     private void getHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
