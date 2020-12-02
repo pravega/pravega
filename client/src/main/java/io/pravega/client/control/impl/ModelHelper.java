@@ -102,28 +102,8 @@ public final class ModelHelper {
             return RetentionPolicy.builder()
                     .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
                     .retentionParam(policy.getRetentionParam())
-                    .consumptionLimits(encode(policy.getConsumptionLimits()))
+                    .retentionMax(policy.getRetentionMax())
                     .build();
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Helper to convert retention policy's consumption limits from RPC call to internal representation.
-     *
-     * @param limits Consumption based retention policy's limits.
-     * @return New instance of ConsumptionLimits.
-     */
-    public static RetentionPolicy.ConsumptionLimits encode(final Controller.ConsumptionLimits limits) {
-        // Using default enum type of UNKNOWN(0) to detect if limit has been set or not.
-        // This is required since proto3 does not have any other way to detect if a field has been set or not.
-        if (limits != null && limits.getType() != Controller.ConsumptionLimits.ConsumptionLimitType.UNKNOWN) {
-            return RetentionPolicy.ConsumptionLimits.builder()
-                                                    .type(RetentionPolicy.ConsumptionLimits.Type.valueOf(limits.getType().name()))
-                                                    .maxValue(limits.getMax())
-                                                    .minValue(limits.getMin())
-                                                    .build();
         } else {
             return null;
         }
@@ -323,30 +303,10 @@ public final class ModelHelper {
         if (policyModel != null) {
             Controller.RetentionPolicy.Builder builder = Controller.RetentionPolicy.newBuilder()
                                               .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                                              .setRetentionParam(policyModel.getRetentionParam());
-            if (policyModel.getConsumptionLimits() != null) {
-                builder.setConsumptionLimits(decode(policyModel.getConsumptionLimits()));
-            }
+                                              .setRetentionParam(policyModel.getRetentionParam())
+                                              .setRetentionMax(policyModel.getRetentionMax());
                 
             return builder.build();
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Decodes Consumption limits and returns an instance of Retention Policy's Consumption limit.
-     *
-     * @param limitsModel The Consumption limit.
-     * @return Instance of Retention Policy.ConsumptionLimits.
-     */
-    public static Controller.ConsumptionLimits decode(final RetentionPolicy.ConsumptionLimits limitsModel) {
-        if (limitsModel != null) {
-            return Controller.ConsumptionLimits.newBuilder()
-                    .setType(Controller.ConsumptionLimits.ConsumptionLimitType.valueOf(limitsModel.getType().name()))
-                    .setMax(limitsModel.getMaxValue())
-                    .setMin(limitsModel.getMinValue())
-                    .build();
         } else {
             return null;
         }

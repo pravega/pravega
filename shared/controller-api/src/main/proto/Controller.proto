@@ -305,22 +305,10 @@ message RetentionPolicy {
         UNKNOWN = 0;
         TIME = 1;
         SIZE = 2;
-        CONSUMPTION = 3;
     }
     RetentionPolicyType retentionType = 1;
     int64 retentionParam = 2;
-    ConsumptionLimits consumptionLimits = 3;
-}
-
-message ConsumptionLimits {
-    enum ConsumptionLimitType {
-        UNKNOWN = 0;
-        TIME_MILLIS = 1;
-        SIZE_BYTES = 2;
-    }
-    ConsumptionLimitType type = 1;
-    int64 max = 2;
-    int64 min = 3;
+    int64 retentionMax = 3;
 }
 
 message StreamConfig {
