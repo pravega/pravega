@@ -54,7 +54,7 @@ public class HealthConfigImpl implements HealthConfig {
         /**
          * Defines a new {@link HealthComponent} to be created.
          * @param name The name of the to-be {@link HealthComponent}.
-         * @param aggregator The aggregration rule to use.
+         * @param aggregator The aggregation rule to use.
          *
          * @return A reference to the *same* object, with updates to its internal data-structures made.
          */
@@ -71,8 +71,8 @@ public class HealthConfigImpl implements HealthConfig {
         }
 
         /**
-         * Defines that there should be a parent-child relation between a {@link HealthComponent} called {@param child}
-         * and a {@link HealthComponent} called {@param parent}.
+         * Defines that there should be a parent-child relation between a {@link HealthComponent} called 'child'
+         * and a {@link HealthComponent} called 'parent'.
          *
          * @param child The name of the child {@link HealthComponent}.
          * @param parent The name of the parent {@link HealthComponent}.

@@ -16,6 +16,7 @@ public interface Registry<T> {
      * Register some object of arbitrary type to the registry.
      *
      * @param object The object to register.
+     * @return The object registered.
      */
     T register(T object);
 
@@ -23,6 +24,7 @@ public interface Registry<T> {
      * Unregister said object from this {@link Registry}.
      *
      * @param object The object to remove.
+     * @return The object removed.
      */
     T unregister(T object);
 
@@ -33,9 +35,9 @@ public interface Registry<T> {
 
     /**
      * Returns the object associated with the identifier. A key of type {@link String} is used, therefore we should
-     * protect against the case where an no item of type *T* mapped by {@param id} exists.
+     * protect against the case where an no item of type *T* mapped by 'id' exists.
      * @param id The identifier used to query the underlying store.
-     * @return The object of type *T* associated with {@param id}.
+     * @return The object of type *T* associated with  'id'.
      */
     Optional<T> get(String id);
 }

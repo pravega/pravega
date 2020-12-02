@@ -287,7 +287,7 @@ public class ContributorRegistryTests {
                 registry.contributors().size());
     }
 
-    class TestContributorRegistry extends ContributorRegistryImpl {
+    static class TestContributorRegistry extends ContributorRegistryImpl {
         // Validates that all entries in each of the internal containers point to valid references.
         // The 'components' field is not used to determine the validity of the tree-structure.
         public void validate() {
@@ -321,7 +321,7 @@ public class ContributorRegistryTests {
         public String toString() {
             StringBuilder builder = new StringBuilder();
             for (val entry : contributors.entrySet()) {
-                builder = builder.append(String.format("%s:\n", entry.getKey()));
+                builder = builder.append(String.format("%s: %n", entry.getKey()));
                 // Builder the child relations.
                 if (children.containsKey(entry.getKey())) {
                     builder = builder.append(String.format("\t (%d) children: ", children.get(entry.getKey()).size()));

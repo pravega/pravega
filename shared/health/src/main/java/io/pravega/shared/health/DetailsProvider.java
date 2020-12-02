@@ -31,6 +31,7 @@ public class DetailsProvider {
      *
      * @param key The key to associate the value with.
      * @param supplier A supplier used to return the value to be associated with 'key'.
+     * @return Itself with the additions applied.
      */
     DetailsProvider add(String key, Supplier<Object> supplier) {
         this.suppliers.put(key, supplier);

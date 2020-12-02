@@ -28,7 +28,7 @@ public interface HealthEndpoint {
     }
 
     /**
-     * Fetches the {@link Status} of the {@link HealthContributor} mapped to by {@param id}.
+     * Fetches the {@link Status} of the {@link HealthContributor} mapped to by 'id'.
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The current {@link Status} of the {@link HealthContributor}.
@@ -97,7 +97,7 @@ public interface HealthEndpoint {
 
     /**
      * Retrieve the list of {@link HealthContributor} names that are used to determine the {@link Health} result
-     * for a particular {@link HealthContributor} mapped by {@param id}.
+     * for a particular {@link HealthContributor} mapped by 'id'.
      *
      * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
      * @return The list of names (ids) that the {@link HealthContributor} relies on.

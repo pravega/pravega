@@ -27,6 +27,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Registers the component to the default {@link HealthContributor} registry.
      *
      * @param component The {@link HealthComponent} object to add to the registry.
+     * @return The {@link HealthContributor} registered.
      */
     HealthContributor register(HealthComponent component);
 
@@ -34,6 +35,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Registers the contributor to the default {@link HealthContributor} registry.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
+     * @return The {@link HealthContributor} registered.
      */
     @Override
     HealthContributor register(HealthContributor contributor);
@@ -44,6 +46,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * @param component The {@link HealthComponent} object to add to the registry.
      * @param parent      The {@link HealthComponent} the {@link HealthComponent} should map too. This means that the parent's
      *                    health will be predicated on this {@link HealthComponent}'s health.
+     * @return The {@link HealthContributor} registered.
      */
     HealthContributor register(HealthComponent component, HealthComponent parent);
 
@@ -53,6 +56,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * @param contributor The {@link HealthContributor} object to add to the registry.
      * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
      *                    health will be predicated on this {@link HealthContributor}'s health.
+     * @return The {@link HealthContributor} registered.
      */
     HealthContributor register(HealthContributor contributor, HealthComponent parent);
 
@@ -63,6 +67,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * @param parent      A {@link String} that maps to some {@link HealthContributor} which the {@link HealthContributor}
      *                    should it self map too. This means that the parent's health will be predicated on
      *                    this {@link HealthContributor}'s health.
+     * @return The {@link HealthContributor} registered.
      */
     HealthContributor register(HealthContributor contributor, String parent);
 
@@ -70,6 +75,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Removes the {@link HealthContributor} from the registry.
      *
      * @param contributor The {@link HealthContributor} object to remove.
+     * @return The {@link HealthContributor} removed.
      */
     @Override
     HealthContributor unregister(HealthContributor contributor);
@@ -78,12 +84,13 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Removes the {@link HealthContributor} associated by some {@link String} from the registry.
      *
      * @param contributor The {@link String} representing some {@link HealthContributor} object to remove.
+     * @return The {@link HealthContributor} removed.
      */
     HealthContributor unregister(String contributor);
 
     /**
      * Provides a {@link Collection} of all the {@link HealthContributor} objects belonging to this registry.
-     * @return
+     * @return A {@link Collection} of {@link HealthContributor} that some {@link HealthContributor} with id 'name' depends on.
      */
     Collection<HealthContributor> dependencies();
 
@@ -92,7 +99,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      *
      * @param name The {@link String} used to query which {@link HealthContributor} to gather the {@link HealthContributor}
      *             objects from.
-     * @return
+     * @return A {@link Collection} of {@link HealthContributor} that some {@link HealthContributor} with id 'name' depends on.
      */
     Collection<HealthContributor> dependencies(String name);
 
