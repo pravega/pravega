@@ -153,6 +153,40 @@ public class ClusterWrapper implements AutoCloseable {
         log.info("Started Controller");
     }
 
+    @Override
+    public void close() {
+        ExecutorServiceHelpers.shutdown(executor);
+        try {
+            controllerServerWrapper.close();
+            segmentStoreServer.close();
+            serviceBuilder.close();
+            zookeeperServer.close();
+            if (passwordInputFile.exists()) {
+                passwordInputFile.delete();
+            }
+        } catch (Exception e) {
+            log.warn(e.getMessage(), e);
+            // ignore
+        }
+    }
+
+    /**
+     * Returns the Zookeeper Server's connection string in the format: `ip-address:port`.
+     *
+     * @return Zookeeper connection string. Example: "127.0.0.1:33051".
+     */
+    public String zookeeperConnectString() {
+        return this.zookeeperServer != null ? this.zookeeperServer.getConnectString() : "";
+    }
+
+    public String controllerUri() {
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "tls" : "tcp", controllerPort);
+    }
+
+    public String controllerRestUri() {
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "https" : "http", controllerRestPort);
+    }
+
     private void startZookeeper() throws Exception {
         zookeeperServer = new TestingServerStarter().start();
     }
@@ -180,23 +214,6 @@ public class ClusterWrapper implements AutoCloseable {
             this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
 
         segmentStoreServer.startListening();
-    }
-
-    @Override
-    public void close() {
-        ExecutorServiceHelpers.shutdown(executor);
-        try {
-            controllerServerWrapper.close();
-            segmentStoreServer.close();
-            serviceBuilder.close();
-            zookeeperServer.close();
-            if (passwordInputFile.exists()) {
-                passwordInputFile.delete();
-            }
-        } catch (Exception e) {
-            log.warn(e.getMessage(), e);
-            // ignore
-        }
     }
 
     private ServiceBuilder createServiceBuilder() {
@@ -238,14 +255,6 @@ public class ClusterWrapper implements AutoCloseable {
                 .serverKeystorePath(tlsServerKeystorePath)
                 .serverKeystorePasswordPath(tlsServerKeystorePasswordPath)
                 .build();
-    }
-
-    public String controllerUri() {
-        return String.format("%s://localhost:%d", isTlsEnabled() ? "tls" : "tcp", controllerPort);
-    }
-
-    public String controllerRestUri() {
-        return String.format("%s://localhost:%d", isTlsEnabled() ? "https" : "http", controllerRestPort);
     }
 
     private Entry defaultAuthHandlerEntry() {
