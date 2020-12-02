@@ -95,8 +95,8 @@ public interface AuthorizationResource {
      * tables within the specified scope.
      *
      * @param scopeName the name of the scope
-     * @throws NullPointerException if {@code scopeName} or {@code kvtName} are null
-     * @throws IllegalArgumentException if {@code scopeName} or {@code kvtName} are empty
+     * @throws NullPointerException if {@code scopeName} is null
+     * @throws IllegalArgumentException if {@code scopeName} is empty
      */
     String ofKeyValueTablesInScope(String scopeName);
 
