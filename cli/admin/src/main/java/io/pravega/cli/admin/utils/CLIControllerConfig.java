@@ -24,14 +24,14 @@ public final class CLIControllerConfig {
         SEGMENTSTORE, ZOOKEEPER
     }
 
-    private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.rest.uri", "localhost:9091");
-    private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.grpc.uri", "localhost:9090");
-    private static final Property<Boolean> AUTH_ENABLED = Property.named("security.auth.enable", false);
-    private static final Property<String> CONTROLLER_USER_NAME = Property.named("security.auth.credentials.username", "");
-    private static final Property<String> CONTROLLER_PASSWORD = Property.named("security.auth.credentials.password", "");
-    private static final Property<String> CONTROLLER_SIGNING_KEY = Property.named("security.auth.token.signingKey", "");
-    private static final Property<Boolean> TLS_ENABLED = Property.named("security.tls.enable", false);
-    private static final Property<String> TRUSTSTORE_JKS = Property.named("security.tls.trustStore.location", "");
+    private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
+    private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
+    private static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.channel.auth", false);
+    private static final Property<String> CONTROLLER_USER_NAME = Property.named("controller.connect.credentials.username", "");
+    private static final Property<String> CONTROLLER_PASSWORD = Property.named("controller.connect.credentials.pwd", "");
+    private static final Property<String> CONTROLLER_SIGNING_KEY = Property.named("controller.connect.delegationToken.signingKey.basis", "");
+    private static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.channel.tls", false);
+    private static final Property<String> TRUSTSTORE_JKS = Property.named("controller.connect.trustStore.location", "");
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
 
     private static final String COMPONENT_CODE = "cli";

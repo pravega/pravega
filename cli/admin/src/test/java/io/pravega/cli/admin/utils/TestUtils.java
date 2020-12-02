@@ -75,16 +75,16 @@ public final class TestUtils {
                                              AtomicReference<AdminCommandState> state) throws IOException {
         state.set(new AdminCommandState());
         Properties pravegaProperties = new Properties();
-        pravegaProperties.setProperty("cli.controller.rest.uri", controllerRestUri);
-        pravegaProperties.setProperty("cli.controller.grpc.uri", controllerUri);
+        pravegaProperties.setProperty("cli.controller.connect.rest.uri", controllerRestUri);
+        pravegaProperties.setProperty("cli.controller.connect.grpc.uri", controllerUri);
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", zkConnectUri);
         pravegaProperties.setProperty("pravegaservice.container.count", Integer.toString(containerCount));
-        pravegaProperties.setProperty("cli.security.auth.enable", Boolean.toString(authEnabled));
-        pravegaProperties.setProperty("cli.security.auth.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
-        pravegaProperties.setProperty("cli.security.auth.credentials.password", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
-        pravegaProperties.setProperty("cli.security.auth.token.signingKey", tokenSigningKey);
-        pravegaProperties.setProperty("cli.security.tls.enable", Boolean.toString(tlsEnabled));
-        pravegaProperties.setProperty("cli.security.tls.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        pravegaProperties.setProperty("cli.controller.connect.channel.auth", Boolean.toString(authEnabled));
+        pravegaProperties.setProperty("cli.controller.connect.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+        pravegaProperties.setProperty("cli.controller.connect.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        pravegaProperties.setProperty("cli.controller.connect.delegationToken.signingKey.basis", tokenSigningKey);
+        pravegaProperties.setProperty("cli.controller.connect.channel.tls", Boolean.toString(tlsEnabled));
+        pravegaProperties.setProperty("cli.controller.connect.trustStore.location", pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
         state.get().getConfigBuilder().include(pravegaProperties);
     }
 }
