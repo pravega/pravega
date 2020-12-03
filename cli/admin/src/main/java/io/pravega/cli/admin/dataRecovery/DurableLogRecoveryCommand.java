@@ -149,10 +149,6 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
         // Flush new metadata segment to the storage
         flushToStorage(debugStreamSegmentContainerMap);
 
-        // match old and new attributes
-        outputInfo("Matching the attributes of segments in old and new metadata segments.");
-        assertTrue(ContainerRecoveryUtils.matchAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService, TIMEOUT));
-
         // Waits for metadata segments to be flushed to LTS and then stops the debug segment containers
         stopDebugSegmentContainers(debugStreamSegmentContainerMap);
 
