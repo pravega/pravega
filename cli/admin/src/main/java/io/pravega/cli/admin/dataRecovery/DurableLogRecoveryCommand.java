@@ -173,8 +173,8 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            MetadataCleanupContainer debugStreamSegmentContainer = new
-                    MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+            DebugStreamSegmentContainer debugStreamSegmentContainer = new
+                    DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
                     context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                     context.getDefaultExtensions(), executorService);
 
@@ -210,23 +210,10 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
         ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executorService);
     }
 
-    private static class MetadataCleanupContainer extends DebugStreamSegmentContainer {
-        private final ScheduledExecutorService executor;
-
-        public MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
-                                        ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
-                                        WriterFactory writerFactory, StorageFactory storageFactory,
-                                        SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
-            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory,
-                    storageFactory, createExtensions, executor);
-            this.executor = executor;
-        }
-    }
-
+    // Creates the environment for debug segment container
     private static Context createContext(ScheduledExecutorService scheduledExecutorService) {
         return new Context(scheduledExecutorService);
     }
-
 
     private static class Context implements AutoCloseable {
         public final ReadIndexFactory readIndexFactory;

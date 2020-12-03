@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Base for any data recovery related commands.
+ * Base class for data recovery related commands' classes.
  */
 @Slf4j
 public abstract class DataRecoveryCommand extends AdminCommand {
