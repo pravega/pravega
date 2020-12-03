@@ -209,15 +209,15 @@ public interface BufferView {
         int available();
 
         /**
-         * Reads a number of bytes into the given {@link ByteArraySegment} using the most efficient method for the
+         * Reads a number of bytes into the given {@link ByteBuffer} using the most efficient method for the
          * implementation of this {@link BufferView}.
          *
-         * @param segment The target {@link ByteArraySegment}.
-         * @return The number of bytes copied. This should be <pre><code>Math.min(available(), segment.getLength())</code></pre>.
-         * If this returns 0, then either the given {@link ByteArraySegment} has {@link ByteArraySegment#getLength()} equal
-         * to 0, or there are no more bytes to be read ({@link #available()} is 0).
+         * @param byteBuffer The target {@link ByteBuffer}.
+         * @return The number of bytes copied. This should be <pre><code>Math.min(available(), byteBuffer.remaining())</code></pre>.
+         * If this returns 0, then either the given {@link ByteBuffer} has {@link ByteBuffer#remaining()} equal to 0,
+         * or there are no more bytes to be read ({@link #available()} is 0).
          */
-        int readBytes(ByteArraySegment segment);
+        int readBytes(ByteBuffer byteBuffer);
 
         /**
          * Reads one byte and advances the reader position by 1.

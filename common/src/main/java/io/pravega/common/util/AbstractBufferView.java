@@ -140,7 +140,7 @@ public abstract class AbstractBufferView implements BufferView {
             int readOffset = 0;
             while (readOffset < readBuffer.getLength()) {
                 int readLength = Math.min(available(), readBuffer.getLength() - readOffset);
-                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)));
+                int readBytes = readBytes(readBuffer.slice(readOffset, Math.min(bufferSize, readLength)).asByteBuffer());
                 readOffset += readBytes;
             }
             assert available() == 0;
@@ -219,7 +219,7 @@ public abstract class AbstractBufferView implements BufferView {
             }
 
             @Override
-            public int readBytes(ByteArraySegment segment) {
+            public int readBytes(ByteBuffer byteBuffer) {
                 return 0;
             }
 

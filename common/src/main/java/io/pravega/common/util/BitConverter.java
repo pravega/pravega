@@ -9,7 +9,8 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.Exceptions;
+import io.pravega.common.io.ByteBufferOutputStream;
+import io.pravega.common.io.DirectDataOutput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,60 +19,28 @@ import java.util.UUID;
 
 /**
  * Helper methods for various Number to Bit conversions.
+ *
+ * IMPORTANT: This class is closed to new additions. While not deprecated (it's good to have similar methods in one place),
+ * consider using one of the following instead:
+ * - {@link StructuredWritableBuffer} or {@link StructuredReadableBuffer} implementations, such as
+ * {@link ByteArraySegment}). These provide the most efficient serialization implementations available.
+ * - {@link DirectDataOutput} implementations, such as {@link ByteBufferOutputStream}). This provides an efficient
+ * serialization implementation as well.
+ * - {@link java.io.DataOutputStream} if none of the above are useful (this is the classic Java serializer).
  */
 public final class BitConverter {
     /**
-     * Writes the given 16-bit Short to the given ArrayView at the given offset.
+     * Writes the given 16-bit Short to the given OutputStream.
      *
-     * @param target The ArrayView to write to.
-     * @param offset The offset within the ArrayView to write at.
+     * @param target The OutputStream to write to.
      * @param value  The value to write.
      * @return The number of bytes written.
+     * @throws IOException If an error occurred.
      */
-    public static int writeShort(ArrayView target, int offset, short value) {
-        return writeShort(target.array(), target.arrayOffset() + offset, value);
-    }
-
-    /**
-     * Writes the given 16-bit Short to the given byte array at the given offset.
-     *
-     * @param target The byte array to write to.
-     * @param offset The offset within the byte array to write at.
-     * @param value  The value to write.
-     * @return The number of bytes written.
-     */
-    public static int writeShort(byte[] target, int offset, short value) {
-        target[offset] = (byte) (value >>> 8 & 255);
-        target[offset + 1] = (byte) (value & 255);
+    public static int writeShort(OutputStream target, short value) throws IOException {
+        target.write((byte) (value >>> 8 & 255));
+        target.write((byte) (value & 255));
         return Short.BYTES;
-    }
-
-    /**
-     * Writes the given 32-bit Integer to the given {@link CompositeArrayView} at the given offset.
-     *
-     * @param target The {@link CompositeArrayView} to write to.
-     * @param offset The offset within the {@link CompositeArrayView} to write at.
-     * @param value  The value to write.
-     * @return The number of bytes written.
-     */
-    public static int writeInt(CompositeArrayView target, int offset, int value) {
-        target.set(offset, (byte) (value >>> 24));
-        target.set(offset + 1, (byte) (value >>> 16));
-        target.set(offset + 2, (byte) (value >>> 8));
-        target.set(offset + 3, (byte) value);
-        return Integer.BYTES;
-    }
-
-    /**
-     * Writes the given 32-bit Integer to the given ArrayView at the given offset.
-     *
-     * @param target The ArrayView to write to.
-     * @param offset The offset within the ArrayView to write at.
-     * @param value  The value to write.
-     * @return The number of bytes written.
-     */
-    public static int writeInt(ArrayView target, int offset, int value) {
-        return writeInt(target.array(), target.arrayOffset() + offset, value);
     }
 
     /**
@@ -107,30 +76,6 @@ public final class BitConverter {
     }
 
     /**
-     * Reads a 16-bit Short from the given byte array starting at the given position.
-     *
-     * @param source   The byte array to read from.
-     * @param position The position in the byte array to start reading at.
-     * @return The read number.
-     */
-    public static short readShort(byte[] source, int position) {
-        return (short) ((source[position] & 0xFF) << 8
-                | (source[position + 1] & 0xFF));
-    }
-
-    /**
-     * Reads a 16-bit Short from the given ArrayView starting at the given position.
-     *
-     * @param source   The ArrayView to read from.
-     * @param position The position in the ArrayView to start reading at.
-     * @return The read number.
-     */
-    public static short readShort(ArrayView source, int position) {
-        return (short) ((source.get(position) & 0xFF) << 8
-                | (source.get(position + 1) & 0xFF));
-    }
-
-    /**
      * Reads a 32-bit integer from the given byte array starting at the given position.
      *
      * @param source   The byte array to read from.
@@ -139,18 +84,6 @@ public final class BitConverter {
      */
     public static int readInt(byte[] source, int position) {
         return makeInt(source[position], source[position + 1], source[position + 2], source[position + 3]);
-    }
-
-    /**
-     * Reads a 32-bit integer from the given ArrayView starting at the given position.
-     *
-     * @param source   The ArrayView to read from.
-     * @param position The position in the ArrayView to start reading at.
-     * @return The read number.
-     */
-    public static int readInt(ArrayView source, int position) {
-        Exceptions.checkArrayRange(position, Integer.BYTES, source.getLength(), "position", "Integer.BYTES");
-        return readInt(source.array(), source.arrayOffset() + position);
     }
 
     /**
@@ -189,18 +122,6 @@ public final class BitConverter {
     }
 
     /**
-     * Writes the given 64-bit Long to the given ArrayView at the given offset.
-     *
-     * @param target The ArrayView to write to.
-     * @param offset The offset within the ArrayView to write at.
-     * @param value  The value to write.
-     * @return The number of bytes written.
-     */
-    public static int writeLong(ArrayView target, int offset, long value) {
-        return writeLong(target.array(), target.arrayOffset() + offset, value);
-    }
-
-    /**
      * Writes the given 64-bit Long to the given byte array at the given offset.
      *
      * @param target The byte array to write to.
@@ -221,30 +142,34 @@ public final class BitConverter {
     }
 
     /**
-     * Writes the given 128-bit UUID to the given byte array at the given offset.
+     * Writes the given 64-bit Long to the given OutputStream.
      *
-     * @param target The byte array to write to.
-     * @param offset The offset within the byte array to write at.
+     * @param target The OutputStream to write to.
      * @param value  The value to write.
      * @return The number of bytes written.
+     * @throws IOException If an exception got thrown.
      */
-    public static int writeUUID(byte[] target, int offset, UUID value) {
-        writeLong(target, offset, value.getMostSignificantBits());
-        writeLong(target, offset + Long.BYTES, value.getLeastSignificantBits());
-        return 2 * Long.BYTES;
+    public static int writeLong(OutputStream target, long value) throws IOException {
+        target.write((byte) (value >>> 56));
+        target.write((byte) (value >>> 48));
+        target.write((byte) (value >>> 40));
+        target.write((byte) (value >>> 32));
+        target.write((byte) (value >>> 24));
+        target.write((byte) (value >>> 16));
+        target.write((byte) (value >>> 8));
+        target.write((byte) value);
+        return Long.BYTES;
     }
 
     /**
-     * Reads a 128-bit UUID from the given ArrayView starting at the given position.
+     * Writes the given 128-bit UUID to the given {@link StructuredWritableBuffer}.
      *
-     * @param source   The ArrayView to read from.
-     * @param position The position in the ArrayView to start reading at.
-     * @return The read UUID.
+     * @param b     The {@link StructuredWritableBuffer} to write to.
+     * @param value The value to write.
      */
-    public static UUID readUUID(ArrayView source, int position) {
-        long msb = readLong(source, position);
-        long lsb = readLong(source, position + Long.BYTES);
-        return new UUID(msb, lsb);
+    public static void writeUUID(StructuredWritableBuffer b, UUID value) {
+        b.setLong(0, value.getMostSignificantBits());
+        b.setLong(Long.BYTES, value.getLeastSignificantBits());
     }
 
     /**
@@ -261,18 +186,6 @@ public final class BitConverter {
     }
 
     /**
-     * Reads a 64-bit long from the given ArrayView starting at the given position.
-     *
-     * @param source   The ArrayView to read from.
-     * @param position The position in the ArrayView to start reading at.
-     * @return The read number.
-     */
-    public static long readLong(ArrayView source, int position) {
-        Exceptions.checkArrayRange(position, Long.BYTES, source.getLength(), "position", "Long.BYTES");
-        return readLong(source.array(), source.arrayOffset() + position);
-    }
-
-    /**
      * Reads a 64-bit long from the given byte array starting at the given position.
      *
      * @param source   The byte array to read from.
@@ -282,29 +195,6 @@ public final class BitConverter {
     public static long readLong(byte[] source, int position) {
         return makeLong(source[position], source[position + 1], source[position + 2], source[position + 3],
                 source[position + 4], source[position + 5], source[position + 6], source[position + 7]);
-    }
-
-    /**
-     * Reads a 64-bit long from the given InputStream that was encoded using BitConverter.writeLong.
-     *
-     * @param source The InputStream to read from.
-     * @return The read number.
-     * @throws IOException If an exception got thrown.
-     */
-    public static long readLong(InputStream source) throws IOException {
-        int b1 = source.read();
-        int b2 = source.read();
-        int b3 = source.read();
-        int b4 = source.read();
-        int b5 = source.read();
-        int b6 = source.read();
-        int b7 = source.read();
-        int b8 = source.read();
-        if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
-            throw new EOFException();
-        } else {
-            return makeLong(b1, b2, b3, b4, b5, b6, b7, b8);
-        }
     }
 
     /**
@@ -329,36 +219,5 @@ public final class BitConverter {
                 (long) ((b6 & 255) << 16) +
                 (long) ((b7 & 255) << 8) +
                 (long) ((b8 & 255));
-    }
-
-    /**
-     * Writes the given 64-bit Unsigned Long to the given byte array at the given offset. This value can then be
-     * deserialized using {@link #readUnsignedLong}. This method is not interoperable with {@link #readLong}.
-     *
-     * The advantage of serializing as Unsigned Long (vs. a normal Signed Long) is that the serialization will have the
-     * same natural order as the input value type (i.e., if compared using a lexicographic bitwise comparator such as
-     * ByteArrayComparator, it will have the same ordering as the typical Long type).
-     *
-     * @param target The byte array to write to.
-     * @param offset The offset within the byte array to write at.
-     * @param value  The (signed) value to write. The value will be converted into the range [0, 2^64-1] before
-     *               serialization by flipping the high order bit (so positive values will begin with 1 and negative values
-     *               will begin with 0).
-     * @return The number of bytes written.
-     */
-    public static int writeUnsignedLong(byte[] target, int offset, long value) {
-        return writeLong(target, offset, value ^ Long.MIN_VALUE);
-    }
-
-    /**
-     * Reads a 64-bit Unsigned Long from the given byte array starting at the given position. This value must have been
-     * serialized using {@link #writeUnsignedLong} for proper results. This method is not interoperable with {@link #writeLong}.
-     *
-     * @param source   The byte array to read from.
-     * @param position The position in the byte array to start reading at.
-     * @return The read number.
-     */
-    public static long readUnsignedLong(ArrayView source, int position) {
-        return readLong(source, position) ^ Long.MIN_VALUE;
     }
 }
