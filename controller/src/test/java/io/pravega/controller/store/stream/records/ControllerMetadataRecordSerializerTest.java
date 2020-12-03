@@ -224,12 +224,10 @@ public class ControllerMetadataRecordSerializerTest {
                                                                     .retentionPolicy(RetentionPolicy.byTime(Duration.ofMinutes(1)))
                                                                     .build();
         StreamConfiguration cbrSize = StreamConfiguration.builder()
-                                                         .retentionPolicy(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.SIZE_BYTES,
-                                                                 1L, 10L))
+                                                         .retentionPolicy(RetentionPolicy.bySizeBytes(1L, 10L))
                                                          .build();
         StreamConfiguration cbrtime = StreamConfiguration.builder()
-                                                         .retentionPolicy(RetentionPolicy.byConsumption(RetentionPolicy.ConsumptionLimits.Type.TIME_MILLIS,
-                                                                 1L, 10L))
+                                                         .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(1L), Duration.ofMillis(10L)))
                                                          .build();
 
         StreamConfigurationRecord record = StreamConfigurationRecord.builder()

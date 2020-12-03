@@ -1001,6 +1001,7 @@ project('test:system') {
         environment "helmRepository",System.getProperty("helmRepository", "pravega")
         // To update config map with desired pravega version
         environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        environment "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
         commandLine './kubernetes/setupTestPod.sh'
@@ -1035,6 +1036,7 @@ project('test:system') {
         systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
         systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
         systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
         systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
 
