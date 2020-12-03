@@ -268,20 +268,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
     @Test
     @Override
-    public void addSubscriberTests() {
-        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
-        // Subscribers are not implemented in ZK Metadata.
-    }
-
-    @Test
-    @Override
-    public void deleteSubscriberTests() {
-        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
-        // Subscribers are not implemented in ZK Metadata.
-    }
-
-    @Test
-    @Override
     public void updateSubscriberStreamCutTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
         // Subscribers are not implemented in ZK Metadata.
