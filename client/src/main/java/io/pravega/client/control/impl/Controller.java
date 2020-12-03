@@ -11,13 +11,7 @@ package io.pravega.client.control.impl;
 
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -122,27 +116,14 @@ public interface Controller extends AutoCloseable {
 
     /**
      * API to add a Subscriber to the Stream.
-     * @param scope Scope name
-     * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
-     * @param generation Subscriber generation.
+     * @param scopeName Scope name for Reader Group.
+     * @param rgName Stream name.
+     * @param config ReaderGroup confguration.
      * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
-
-    /**
-     * API to remove a Subscriber from list of Subscribers for the Stream.
-     * @param scope Scope name
-     * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
-     * @param generation Subscriber generation.
-     * @throws IllegalArgumentException if Stream/Subscriber does not exist.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the subscriber was updated in Stream Metadata.
-     */
-    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
+    CompletableFuture<Boolean> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * Get list of Subscribers for the Stream.

@@ -14,11 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.*;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -60,8 +56,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
@@ -210,7 +205,19 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 });
     }
-    
+
+    /**
+     * Create stream.
+     *
+     * @param scope           Reader Group scope.
+     * @param rgName          Reader Group name.
+     * @param config          Reader Group config.
+     * @return creation status.
+     */
+    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(String scope, String rgName, ReaderGroupConfig config) {
+      return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+    }
+
     /**
      * Create stream.
      *
@@ -290,85 +297,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
-     * Add a subscriber to stream metadata.
-     * Needed only for Consumption based retention.
-     * @param scope      scope.
-     * @param stream     stream name.
-     * @param newSubscriber  Id of the ReaderGroup to be added as subscriber
-     * @param generation  subscriber generation
-     * @param contextOpt optional context
-     * @return update status.
-     */
-    public CompletableFuture<AddSubscriberStatus.Status> addSubscriber(String scope, String stream,
-                                                                     String newSubscriber, long generation,
-                                                                     OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("addSubscriber", scope, stream);
-
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
-        .thenCompose(exists -> {
-            // 1. check Stream exists
-            if (!exists) {
-                return CompletableFuture.completedFuture(AddSubscriberStatus.Status.STREAM_NOT_FOUND);
-            } else {
-                // 2. get subscribers data
-                return streamMetadataStore.createSubscriber(scope, stream, newSubscriber, generation, context, executor)
-                       .thenApply(v -> AddSubscriberStatus.Status.SUCCESS)
-                       .exceptionally(ex -> {
-                        log.warn(requestId, "Exception thrown in trying to add subscriber {}",
-                                    ex.getMessage());
-                        Throwable cause = Exceptions.unwrap(ex);
-                        if (cause instanceof TimeoutException) {
-                           throw new CompletionException(cause);
-                        } else {
-                           log.warn(requestId, "Add subscriber {} failed due to {}", newSubscriber, cause);
-                           return AddSubscriberStatus.Status.FAILURE;
-                        }
-                    });
-            }
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
-    }
-
-    /**
-     * Remove a subscriber from subscribers' metadata.
-     * Needed for Consumption based retention.
-     * @param scope      scope.
-     * @param stream     stream name.
-     * @param subscriber  Id of the ReaderGroup to be added as subscriber.
-     * @param generation  subscriber generation.
-     * @param contextOpt optional context
-     * @return update status.
-     */
-    public CompletableFuture<DeleteSubscriberStatus.Status> deleteSubscriber(String scope, String stream,
-                                                                             String subscriber, long generation,
-                                                                             OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("removeSubscriber", scope, stream);
-
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
-           .thenCompose(exists -> {
-               // 1. check Stream exists
-               if (!exists) {
-                   return CompletableFuture.completedFuture(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND);
-               }
-               // 2. remove subscriber
-               return streamMetadataStore.deleteSubscriber(scope, stream, subscriber, generation, context, executor)
-                       .thenApply(x -> DeleteSubscriberStatus.Status.SUCCESS)
-                       .exceptionally(ex -> {
-                           log.warn(requestId, "Exception thrown when trying to remove subscriber from stream {}", ex.getMessage());
-                           Throwable cause = Exceptions.unwrap(ex);
-                           if (cause instanceof TimeoutException) {
-                               throw new CompletionException(cause);
-                           } else {
-                               log.warn(requestId, "Remove subscriber from stream failed due to ", cause);
-                               return DeleteSubscriberStatus.Status.FAILURE;
-                           }
-                       });
-           }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
-    }
-
-
-    /**
      * Get list of  subscribers for Stream.
      * Needed only for Consumption based retention.
      * @param scope      scope.
@@ -376,7 +304,6 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-
     public CompletableFuture<SubscribersResponse> listSubscribers(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("listSubscribers", scope, stream);

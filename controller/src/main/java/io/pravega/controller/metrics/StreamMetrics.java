@@ -324,7 +324,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param streamName    Name of the Stream.
      * @param latency       Latency of the addSubscriber operation.
      */
-    public void addSubscriber(String scope, String streamName, Duration latency) {
+    public void addReaderGroup(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER), 1);
         DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER, 1, streamTags(scope, streamName));
         addSubscriberLatency.reportSuccessValue(latency.toMillis());
@@ -336,7 +336,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param scope         Scope Name.
      * @param streamName    Stream Name.
      */
-    public void addSubscriberFailed(String scope, String streamName) {
+    public void addReaderGroupFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
     }

@@ -52,10 +52,9 @@ service ControllerService {
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
-    rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
-    rpc deleteSubscriber(StreamSubscriberInfo) returns (DeleteSubscriberStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
+    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
 }
 
 message ServerRequest {
@@ -63,6 +62,33 @@ message ServerRequest {
 
 message ServerResponse {
     repeated NodeUri nodeURI = 1;
+}
+
+message ReaderGroupConfiguration {
+    enum RetentionType {
+        NONE = 0;
+        MANUAL = 1;
+        AUTOMATIC = 2;
+    }
+    string scope = 1;
+    string readerGroupName = 2;
+    int64 groupRefreshTimeMillis = 3;
+    int64 automaticCheckpointIntervalMillis = 4;
+    int32 maxOutstandingCheckpointRequest = 5;
+    int32 retentionType = 6;
+    int64 generation = 7;
+    repeated StreamCut startingStreamCuts = 8;
+    repeated StreamCut endingStreamCuts = 9;
+}
+
+message CreateReaderGroupStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+        INVALID_RG_NAME = 3;
+    }
+    Status status = 1;
 }
 
 message CreateKeyValueTableStatus {
@@ -129,24 +155,6 @@ message UpdateStreamStatus {
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SCOPE_NOT_FOUND = 3;
-    }
-    Status status = 1;
-}
-
-message AddSubscriberStatus {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        STREAM_NOT_FOUND = 2;
-    }
-    Status status = 1;
-}
-
-message DeleteSubscriberStatus {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        STREAM_NOT_FOUND = 2;
     }
     Status status = 1;
 }

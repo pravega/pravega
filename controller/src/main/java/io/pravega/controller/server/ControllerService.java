@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
@@ -48,11 +49,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -163,15 +163,23 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<AddSubscriberStatus> addSubscriber(String scope, String stream, final String subscriber, final long generation) {
-        Preconditions.checkNotNull(scope, "scopeName is null");
-        Preconditions.checkNotNull(stream, "streamName is null");
-        Preconditions.checkNotNull(subscriber, "subscriber is null");
+    public CompletableFuture<CreateReaderGroupStatus> createReaderGroup(String scope, String rgName,
+                                                                            final ReaderGroupConfig rgConfig) {
+        Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
+        Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
+        Preconditions.checkNotNull(rgConfig, "ReaderGroup config is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.addSubscriber(scope, stream, subscriber, generation, null)
+        try {
+            NameUtils.validateReaderGroupName(rgName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
+            return CompletableFuture.completedFuture(
+                    CreateReaderGroupStatus.newBuilder().setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME).build());
+        }
+        return streamMetadataTasks.createReaderGroup(scope, rgName, rgConfig)
                 .thenApplyAsync(status -> {
-                    reportAddSubscriberMetrics(scope, stream, status, timer.getElapsed());
-                    return AddSubscriberStatus.newBuilder().setStatus(status).build();
+                    reportCreateReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
+                    return CreateReaderGroupStatus.newBuilder().setStatus(status).build();
                 }, executor);
     }
 
@@ -180,18 +188,6 @@ public class ControllerService {
         Preconditions.checkNotNull(stream, "streamName is null");
         return streamMetadataTasks.listSubscribers(scope, stream, null);
 
-    }
-
-    public CompletableFuture<DeleteSubscriberStatus> deleteSubscriber(String scope, String stream, final String subscriber, final long generation) {
-        Preconditions.checkNotNull(scope, "scopeName is null");
-        Preconditions.checkNotNull(stream, "streamName is null");
-        Preconditions.checkNotNull(subscriber, "subscriber is null");
-        Timer timer = new Timer();
-        return streamMetadataTasks.deleteSubscriber(scope, stream, subscriber, generation, null)
-                .thenApplyAsync(status -> {
-                    reportDeleteSubscriberMetrics(scope, stream, status, timer.getElapsed());
-                    return DeleteSubscriberStatus.newBuilder().setStatus(status).build();
-                }, executor);
     }
 
     public CompletableFuture<UpdateSubscriberStatus> updateSubscriberStreamCut(String scope, String stream,
@@ -662,19 +658,11 @@ public class ControllerService {
         }
     }
 
-    private void reportAddSubscriberMetrics(String scope, String streamName, AddSubscriberStatus.Status status, Duration latency) {
-        if (status.equals(AddSubscriberStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().addSubscriber(scope, streamName, latency);
-        } else if (status.equals(AddSubscriberStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().addSubscriberFailed(scope, streamName);
-        }
-    }
-
-    private void reportDeleteSubscriberMetrics(String scope, String streamName, DeleteSubscriberStatus.Status status, Duration latency) {
-        if (status.equals(DeleteSubscriberStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().deleteSubscriber(scope, streamName, latency);
-        } else if (status.equals(DeleteSubscriberStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().deleteSubscriberFailed(scope, streamName);
+    private void reportCreateReaderGroupMetrics(String scope, String streamName, CreateReaderGroupStatus.Status status, Duration latency) {
+        if (status.equals(CreateReaderGroupStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().addReaderGroup(scope, streamName, latency);
+        } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().addReaderGroupFailed(scope, streamName);
         }
     }
 

@@ -13,11 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.*;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
@@ -184,38 +180,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
-        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
-                                                                              scope + "/" + streamName);
-                case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
-                case SUCCESS:
-                    return true;
-                default:
-                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber + "on stream " + scope + "/" + streamName
-                            + " " + x.getStatus());
-            }
-        });
-    }
-
-    @Override
-    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
-        return this.controller.deleteSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
-                case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUCCESS:
-                    return true;
-                default:
-                    throw new ControllerFailureException("Unknown return status deleting subscriber " + subscriber + "on stream " + scope + "/" + streamName
-                            + " " + x.getStatus());
-            }
-        });
+    public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        return null;
     }
 
     @Override
