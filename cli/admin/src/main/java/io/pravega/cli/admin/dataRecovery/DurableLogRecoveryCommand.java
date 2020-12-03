@@ -51,8 +51,6 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertTrue;
-
 /**
  * Loads the storage instance, recovers all segments from there.
  */
@@ -90,7 +88,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     private BookKeeperLogFactory dataLogFactory = null;
 
     /**
-     * Creates an instance of Tier1RecoveryCommand class.
+     * Creates an instance of DurableLogRecoveryCommand class.
      *
      * @param args The arguments for the command.
      */
