@@ -9,15 +9,17 @@
 #
 FROM openjdk:11.0.8-jre-slim
 
-RUN mkdir -p /usr/share/man/man1 && apt-get update && apt-get install -y -q \
+RUN apt-get update && apt-get install -y -q \
     rpcbind \
     nfs-common \
     python \
     jq \
     curl \
     net-tools \
-    iproute2  \
-    ca-certificates-java \
+    iproute2
+
+# Addidng ca-certificates to the base image
+RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
   && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
   && rm -rf /var/lib/apt/lists/*
 
