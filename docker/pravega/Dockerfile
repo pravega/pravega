@@ -19,9 +19,8 @@ RUN mkdir -p /usr/share/man/man1 && apt-get update && apt-get install -y -q \
     iproute2  \
     ca-certificates-java \
   && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
-  && ln -sf /etc/ssl/certs/java/cacerts /usr/lib/jvm/java-11-openjdk-amd64/lib/security/cacerts \
   && rm -rf /var/lib/apt/lists/*
-  
+
 EXPOSE 9090 9091 10000 12345
 
 WORKDIR /opt/pravega
