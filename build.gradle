@@ -537,6 +537,9 @@ project('test:integration') {
         jvmArgs = ["-server", "-Xmx2g", "-XX:+HeapDumpOnOutOfMemoryError",
                    "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                    "-Dlog.name=selftest"]
+        beforeTest { descriptor ->
+            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
+        }
     }
 
     dependencies {

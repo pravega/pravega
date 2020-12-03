@@ -208,6 +208,7 @@ public class EventProcessorTest {
         server.close();
         zkTestServer.stop();
         executor.shutdownNow();
+        serviceBuilder.close();
     }
     
     @Test(timeout = 60000)
