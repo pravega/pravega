@@ -16,6 +16,7 @@ import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
 
@@ -40,6 +41,7 @@ import static javax.ws.rs.core.Response.Status.UNAUTHORIZED;
 /**
  * Base for any Controller-related commands.
  */
+@Slf4j
 public abstract class ControllerCommand extends AdminCommand {
     static final String COMPONENT = "controller";
 
@@ -75,8 +77,8 @@ public abstract class ControllerCommand extends AdminCommand {
                 tlsContext = SSLContext.getInstance("TLS");
                 tlsContext.init(null, tmf.getTrustManagers(), null);
             } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException | KeyManagementException e) {
-                output("Encountered exception while trying to use the given truststore: %s", config.getTruststore());
-                output(e.getMessage());
+                String message = String.format("Encountered exception while trying to use the given truststore: %s", config.getTruststore());
+                log.error(message, e);
                 return null;
             }
             builder.sslContext(tlsContext);

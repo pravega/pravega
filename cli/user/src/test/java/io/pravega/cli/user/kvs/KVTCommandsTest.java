@@ -24,7 +24,7 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 10000)
     @SneakyThrows
-    public void testCreateKVT() {
+    public void testCreateKeyValueTable() {
         final String scope = "createKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG.get());
@@ -37,7 +37,7 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 20000)
     @SneakyThrows
-    public void testDeleteKVT() {
+    public void testDeleteKeyValueTable() {
         final String scope = "deleteKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -53,7 +53,7 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 10000)
     @SneakyThrows
-    public void testListKVT() {
+    public void testListKeyValueTables() {
         final String scope = "listKVTable";
         final String table = scope + "/kvt1";
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -69,7 +69,7 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
 
     @Test(timeout = 60000)
     @SneakyThrows
-    public void testPutAndGetKVT() {
+    public void testPutAndGetKeyValueTable() {
         final String scope = "putAndGetKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());

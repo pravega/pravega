@@ -153,7 +153,7 @@ public class SecureUserCommandsTest {
 
     @Test(timeout = 10000)
     @SneakyThrows
-    public void testCreateKVT() {
+    public void testCreateKeyValueTable() {
         final String table = NameUtils.getScopedStreamName(SCOPE, "kvt1");
 
         String commandResult = TestUtils.executeCommand("kvt create " + table, CONFIG.get());
@@ -163,7 +163,7 @@ public class SecureUserCommandsTest {
 
     @Test(timeout = 20000)
     @SneakyThrows
-    public void testDeleteKVT() {
+    public void testDeleteKeyValueTable() {
         final String table = NameUtils.getScopedStreamName(SCOPE, "kvt2");
 
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG.get());
@@ -176,7 +176,7 @@ public class SecureUserCommandsTest {
 
     @Test(timeout = 10000)
     @SneakyThrows
-    public void testListKVT() {
+    public void testListKeyValueTables() {
         final String table = NameUtils.getScopedStreamName(SCOPE, "kvt3");
 
         CommandArgs commandArgsCreate = new CommandArgs(Collections.singletonList(table), CONFIG.get());
@@ -207,7 +207,7 @@ public class SecureUserCommandsTest {
 
         @Test(timeout = 60000)
         @SneakyThrows
-        public void testPutAndGetKVT() {
+        public void testPutAndGetKeyValueTable() {
             final String table = NameUtils.getScopedStreamName(SCOPE, "kvt4");
             CommandArgs commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG.get());
             new KeyValueTableCommand.Create(commandArgs).execute();

@@ -181,9 +181,9 @@ public abstract class StreamCommand extends Command {
             }
 
             @Cleanup
-            val factory = EventStreamClientFactory.withScope(scopedStream.getScope(), getClientConfig());
+            val eventStreamClientFactory = EventStreamClientFactory.withScope(scopedStream.getScope(), getClientConfig());
             @Cleanup
-            val writer = factory.createEventWriter(scopedStream.getName(), new UTF8StringSerializer(), EventWriterConfig.builder().build());
+            val writer = eventStreamClientFactory.createEventWriter(scopedStream.getName(), new UTF8StringSerializer(), EventWriterConfig.builder().build());
 
             String eventPrefix = UUID.randomUUID().toString();
             output("Appending %s Event(s) with payload prefix '%s' having routing key '%s'.", eventCount, eventPrefix, routingKey);
