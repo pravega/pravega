@@ -9,7 +9,7 @@
  */
 package io.pravega.test.integration.selftest;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Random;
@@ -88,7 +88,7 @@ class TableUpdate implements ProducerUpdate {
 
     static BufferView generateKey(UUID keyId) {
         // We "serialize" the KeyId using English words for each digit.
-        val r = new EnhancedByteArrayOutputStream();
+        val r = new ByteBufferOutputStream();
         add(keyId.getMostSignificantBits(), r);
         add(keyId.getLeastSignificantBits(), r);
         return r.getData();
@@ -100,7 +100,7 @@ class TableUpdate implements ProducerUpdate {
         return new ByteArraySegment(r);
     }
 
-    private static void add(long number, EnhancedByteArrayOutputStream s) {
+    private static void add(long number, ByteBufferOutputStream s) {
         if (number < 0) {
             number = -number;
             s.write(NEGATIVE);

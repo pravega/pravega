@@ -37,7 +37,7 @@ public abstract class BufferViewComparatorTests {
      */
     @Test
     public void testCompareByteArray() {
-        val sortedData = generateSortedData();
+        val sortedData = generateSortedData().stream().map(ArrayView::array).collect(Collectors.toList());
         test(sortedData, getComparator()::compare);
     }
 
@@ -46,7 +46,7 @@ public abstract class BufferViewComparatorTests {
      */
     @Test
     public void testCompareArrayView() {
-        val sortedData = generateSortedData().stream().map(ByteArraySegment::new).collect(Collectors.toList());
+        val sortedData = generateSortedData();
         test(sortedData, getComparator()::compare);
     }
 
@@ -119,12 +119,12 @@ public abstract class BufferViewComparatorTests {
         }
     }
 
-    private ArrayList<byte[]> generateSortedData() {
-        val sortedData = new ArrayList<byte[]>();
+    private ArrayList<ByteArraySegment> generateSortedData() {
+        val sortedData = new ArrayList<ByteArraySegment>();
         int maxValue = COUNT / 2;
         for (int i = -maxValue; i < maxValue; i++) {
-            byte[] data = new byte[Long.BYTES];
-            BitConverter.writeUnsignedLong(data, 0, i);
+            val data = new ByteArraySegment(new byte[Long.BYTES]);
+            data.setUnsignedLong(0, i);
             sortedData.add(data);
         }
         return sortedData;

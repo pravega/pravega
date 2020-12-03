@@ -10,8 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import lombok.val;
 import org.junit.Assert;
@@ -20,7 +19,7 @@ import org.junit.Test;
 /**
  * Unit tests for ByteArraySegment class.
  */
-public class ByteArraySegmentTests extends BufferViewTestBase {
+public class ByteArraySegmentTests extends StructuredBufferTestBase {
 
     /**
      * Tests the basic functionality of get() and set() methods.
@@ -105,56 +104,10 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
         }
     }
 
-    /**
-     * Tests the functionality of getWriter (the ability to return an OutputStream that can be used to write to the main buffer).
-     */
-    @Test
-    public void testGetWriter() throws IOException {
-        final byte[] buffer = new byte[Byte.MAX_VALUE];
-        ByteArraySegment segment = new ByteArraySegment(buffer);
-        try (OutputStream writer = segment.getWriter()) {
-            for (int i = 0; i < buffer.length; i++) {
-                writer.write(i);
-            }
-        }
-        for (int i = 0; i < buffer.length; i++) {
-            Assert.assertEquals("Unexpected value in segment at index " + i, i, segment.get(i));
-            Assert.assertEquals("Unexpected value in source buffer at index " + i, i, buffer[i]);
-        }
-    }
-
-    /**
-     * Tests the behavior of the ByteArraySegment in read-only mode.
-     */
-    @Test
-    public void testReadOnly() {
-        final byte[] buffer = createFormattedBuffer();
-        ByteArraySegment segment = new ByteArraySegment(buffer, 0, buffer.length, true);
-
-        // Check the isReadonly flag
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only segment.", segment.isReadOnly());
-        Assert.assertFalse("Unexpected value for isReadOnly() for non-read-only segment.", new ByteArraySegment(buffer).isReadOnly());
-
-        // Verify that "mutator" methods do not work.
-        checkReadOnlyException("copyFrom", () -> segment.copyFrom(new ByteArraySegment(new byte[10], 0, 10), 0, 10));
-        checkReadOnlyException("getWriter", segment::getWriter);
-        checkReadOnlyException("set", () -> segment.set(0, (byte) 0));
-
-        // Check to see that, even though we did get an exception, the buffer was not modified.
-        for (int i = 0; i < buffer.length; i++) {
-            Assert.assertEquals("One of the 'mutator' methods modified the buffer at index " + i, i, buffer[i]);
-        }
-
-        // Check that a sub-segment is also read-only.
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.", segment.slice(0, 1).isReadOnly());
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment (when attempting to create a non-read-only segment).", segment.subSegment(0, 1, false).isReadOnly());
-        Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
-    }
-
     @Test
     public void testIterateBuffers() {
         final byte[] buffer = createFormattedBuffer();
-        val segment = new ByteArraySegment(buffer, 1, buffer.length - 3, true);
+        val segment = new ByteArraySegment(buffer, 1, buffer.length - 3);
         val i = segment.iterateBuffers();
         val b = i.next();
         Assert.assertFalse(i.hasNext());
@@ -163,8 +116,20 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
                 b.array(), b.arrayOffset() + b.position(), b.remaining());
     }
 
-    private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {
-        AssertExtensions.assertThrows(IllegalStateException.class, code);
+    @Test
+    public void testByteBufferConstructor() {
+        val data = createFormattedBuffer();
+        val b1 = ByteBuffer.wrap(data, 1, data.length - 1);
+        b1.position(2).limit(10);
+
+        val bas = new ByteArraySegment(b1);
+        Assert.assertSame(data, b1.array());
+        Assert.assertEquals(b1.position() + b1.arrayOffset(), bas.arrayOffset());
+        Assert.assertEquals(b1.remaining(), bas.getLength());
+        AssertExtensions.assertThrows(IndexOutOfBoundsException.class, () -> bas.set(10, (byte) 1));
+
+        val b2 = bas.asByteBuffer();
+        Assert.assertEquals(b1, b2);
     }
 
     @Override
@@ -179,5 +144,10 @@ public class ByteArraySegmentTests extends BufferViewTestBase {
         }
 
         return buffer;
+    }
+
+    @Override
+    protected StructuredWritableBuffer newWritableBuffer() {
+        return new ByteArraySegment(new byte[1023]);
     }
 }
