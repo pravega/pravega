@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y -q \
 # distribution installed by the base image and one of the storage bindings(ECS)
 # depends on its presence.
 #
-# Without `mkdir -p /usr/share/man/man1` we hit the issue mentioned in:
-# https://stackoverflow.com/questions/58160597/docker-fails-with-sub-process-usr-bin-dpkg-returned-an-error-code-1
+# For installing ca-certificates for jre requires the presence of man folder
+# otherwise it fails with the following error
+# `Sub-process /usr/bin/dpkg returned an error code (1)`
 RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
   && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
   && rm -rf /var/lib/apt/lists/*
