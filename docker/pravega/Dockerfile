@@ -18,7 +18,12 @@ RUN apt-get update && apt-get install -y -q \
     net-tools \
     iproute2
 
-# Addidng ca-certificates to the base image
+# Adding Java system truststore 'cacerts', as it is missing from the Java
+# distribution installed by the base image and one of the storage bindings(ECS)
+# depends on its presence.
+#
+# Without `mkdir -p /usr/share/man/man1` we hit the issue mentioned in:
+# https://stackoverflow.com/questions/58160597/docker-fails-with-sub-process-usr-bin-dpkg-returned-an-error-code-1
 RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
   && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
   && rm -rf /var/lib/apt/lists/*
