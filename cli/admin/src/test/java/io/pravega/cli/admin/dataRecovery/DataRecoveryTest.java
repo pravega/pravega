@@ -241,7 +241,7 @@ public class DataRecoveryTest {
         // Check if the file has segments listed in it
         Path path = Paths.get(this.logsDir.getAbsolutePath() + "/Container_0.csv");
         long lines = Files.lines(path).count();
-        AssertExtensions.assertGreaterThan("There should be at least one segment.", lines, 1);
+        AssertExtensions.assertGreaterThan("There should be at least one segment.", 1, lines);
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
 

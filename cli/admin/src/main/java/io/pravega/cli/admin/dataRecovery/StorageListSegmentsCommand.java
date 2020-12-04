@@ -99,7 +99,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
                 outputError("Failed to create file '%s'.", f.getAbsolutePath());
                 throw new Exception("Failed to create file " + f.getAbsolutePath());
             }
-            this.csvWriters[containerId] = new FileWriter(f.getName());
+            this.csvWriters[containerId] = new FileWriter(f.getAbsolutePath());
             outputInfo("Created file '%s'", f.getAbsolutePath());
             this.csvWriters[containerId].append(String.join(",", HEADER));
             this.csvWriters[containerId].append("\n");
