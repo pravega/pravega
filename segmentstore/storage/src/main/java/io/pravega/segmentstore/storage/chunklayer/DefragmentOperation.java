@@ -160,14 +160,13 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                         }
                                         throw new CompletionException(ex);
                                     }
-                                    return v;
+                                    return vv;
                                 }, chunkedSegmentStorage.getExecutor());
                             } else {
                                 f = CompletableFuture.completedFuture(null);
                             }
                             return f.thenRunAsync(() -> {
-                                if (skipFailed.get()) {
-                                    skipFailed.set(false);
+                                if (skipFailed.compareAndSet(true, false)) {
                                     return;
                                 }
                                 // Move on to next place in list where we can concat if we are done with append based concatenations.
