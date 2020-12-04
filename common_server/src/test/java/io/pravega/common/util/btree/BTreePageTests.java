@@ -9,7 +9,6 @@
  */
 package io.pravega.common.util.btree;
 
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
@@ -461,23 +460,23 @@ public class BTreePageTests {
     }
 
     private ByteArraySegment serializeInt(int value) {
-        byte[] r = new byte[Integer.BYTES];
-        BitConverter.writeInt(r, 0, value);
-        return new ByteArraySegment(r);
+        ByteArraySegment r = new ByteArraySegment(new byte[Integer.BYTES]);
+        r.setInt(0, value);
+        return r;
     }
 
     private ByteArraySegment serializeLong(long value) {
-        byte[] r = new byte[Long.BYTES];
-        BitConverter.writeLong(r, 0, value);
-        return new ByteArraySegment(r);
+        ByteArraySegment r = new ByteArraySegment(new byte[Long.BYTES]);
+        r.setLong(0, value);
+        return r;
     }
 
     private int deserializeInt(ByteArraySegment serialized) {
-        return BitConverter.readInt(serialized, 0);
+        return serialized.getInt(0);
     }
 
     private long deserializeLong(ByteArraySegment serialized) {
-        return BitConverter.readLong(serialized, 0);
+        return serialized.getLong(0);
     }
 
     private int pickUnusedKey(int maxValue, HashSet<Integer> pickedKeys) {

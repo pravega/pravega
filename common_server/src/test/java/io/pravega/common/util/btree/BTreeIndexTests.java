@@ -11,7 +11,7 @@ package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
@@ -301,7 +301,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val entries1 = generate(count);
         long version = index1.update(entries1, TIMEOUT).join();
 
-        // Create a second index using a cloned DataSource, but which share the exact storage (same EnhancedByteArrayOutputStream).
+        // Create a second index using a cloned DataSource, but which share the exact storage.
         val ds2 = new DataSource(ds1);
         ds2.setCheckOffsets(false);
         val index2 = defaultBuilder(ds2).build();
@@ -495,7 +495,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     @ThreadSafe
     private class DataSource {
         @GuardedBy("data")
-        private final EnhancedByteArrayOutputStream data;
+        private final ByteBufferOutputStream data;
         private final AtomicLong rootPointer;
         @GuardedBy("data")
         private final HashMap<Long, Boolean> offsets; // Key: Offset, Value: valid(true), obsolete(false).
@@ -503,7 +503,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         private final AtomicBoolean checkOffsets = new AtomicBoolean(true);
 
         DataSource() {
-            this.data = new EnhancedByteArrayOutputStream();
+            this.data = new ByteBufferOutputStream();
             this.rootPointer = new AtomicLong(BTreeIndex.IndexInfo.EMPTY.getRootPointer());
             this.offsets = new HashMap<>();
         }

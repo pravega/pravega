@@ -9,7 +9,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -90,7 +90,7 @@ public class AbstractBufferViewTests {
 
         val reader = e.getBufferViewReader();
         Assert.assertEquals(0, reader.available());
-        Assert.assertEquals(0, reader.readBytes(new ByteArraySegment(new byte[1])));
+        Assert.assertEquals(0, reader.readBytes(ByteBuffer.wrap(new byte[1])));
         AssertExtensions.assertThrows("", reader::readByte, ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
         Assert.assertSame(e, reader.readSlice(0));
         AssertExtensions.assertThrows("", () -> reader.readSlice(1), ex -> ex instanceof BufferView.Reader.OutOfBoundsException);
@@ -113,8 +113,8 @@ public class AbstractBufferViewTests {
 
         // Write some data. Fill with garbage, then put some readable values at the beginning.
         rnd.nextBytes(buffer.array());
-        BitConverter.writeInt(buffer, 0, intValue);
-        BitConverter.writeLong(buffer, Integer.BYTES, longValue);
+        buffer.setInt(0, intValue);
+        buffer.setLong(Integer.BYTES, longValue);
 
         // Now read them back.
         BufferView.Reader reader = buffer.getBufferViewReader();
@@ -167,14 +167,13 @@ public class AbstractBufferViewTests {
         Assert.assertEquals(expectedLength, builder.getLength());
         val finalBuffer = builder.build();
 
-        val expectedData = new byte[expectedLength];
-        val expectedDataWriter = new FixedByteArrayOutputStream(expectedData, 0, expectedLength);
+        val expectedDataWriter = new ByteBufferOutputStream(expectedLength);
         for (val c : components) {
             c.copyTo(expectedDataWriter);
         }
 
-        val actualData = finalBuffer.getCopy();
-        Assert.assertArrayEquals(expectedData, actualData);
+        val expectedData = expectedDataWriter.getData();
+        Assert.assertEquals(expectedData, finalBuffer);
     }
 
     private List<BufferView> copy(List<BufferView> source) {
