@@ -16,7 +16,6 @@ import io.netty.buffer.CompositeByteBuf;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -183,12 +182,14 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readBytes(ByteArraySegment segment) {
-            int len = Math.min(segment.getLength(), this.buf.readableBytes());
-            if (len > 0) {
-                this.buf.readBytes(segment.array(), segment.arrayOffset(), len);
-            }
-            return len;
+        public int readBytes(ByteBuffer byteBuffer) {
+            // We need to adjust its limit() to exactly what we need, otherwise ByteBuf.readBytes() won't copy what we need to.
+            int length = Math.min(byteBuffer.remaining(), this.buf.readableBytes());
+            int origLimit = byteBuffer.limit();
+            byteBuffer.limit(byteBuffer.position() + length);
+            this.buf.readBytes(byteBuffer);
+            byteBuffer.limit(origLimit); // Restore original ByteBuffer limit.
+            return length;
         }
 
         @Override
