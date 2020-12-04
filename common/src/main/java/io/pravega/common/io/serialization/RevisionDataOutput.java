@@ -9,7 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.io.BufferViewSink;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.util.BufferView;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -27,7 +27,7 @@ import java.util.function.ToIntFunction;
  *
  * This interface is designed to serialize data that can be consumed using {@link RevisionDataInput}.
  */
-public interface RevisionDataOutput extends DataOutput, BufferViewSink {
+public interface RevisionDataOutput extends DataOutput, DirectDataOutput {
     /**
      * Maximum value that can be encoded using {@link #writeCompactLong}.
      */

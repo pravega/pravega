@@ -16,7 +16,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -36,8 +35,8 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.NameUtils;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.shared.NameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -429,16 +428,16 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private ByteArraySegment serializeKey(UUID key) {
         // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
         // natural order (i.e., the same as the one done by UUID.compare()).
-        byte[] result = new byte[KEY_LENGTH];
-        BitConverter.writeUnsignedLong(result, 0, key.getMostSignificantBits());
-        BitConverter.writeUnsignedLong(result, Long.BYTES, key.getLeastSignificantBits());
-        return new ByteArraySegment(result);
+        ByteArraySegment result = new ByteArraySegment(new byte[KEY_LENGTH]);
+        result.setUnsignedLong(0, key.getMostSignificantBits());
+        result.setUnsignedLong(Long.BYTES, key.getLeastSignificantBits());
+        return result;
     }
 
     private UUID deserializeKey(ByteArraySegment key) {
         Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
-        long msb = BitConverter.readUnsignedLong(key, 0);
-        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        long msb = key.getUnsignedLong(0);
+        long lsb = key.getUnsignedLong(Long.BYTES);
         return new UUID(msb, lsb);
     }
 
@@ -448,14 +447,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             return null;
         }
 
-        byte[] result = new byte[VALUE_LENGTH];
-        BitConverter.writeLong(result, 0, value);
-        return new ByteArraySegment(result);
+        ByteArraySegment result = new ByteArraySegment(new byte[VALUE_LENGTH]);
+        result.setLong(0, value);
+        return result;
     }
 
     private long deserializeValue(ByteArraySegment value) {
         Preconditions.checkArgument(value.getLength() == VALUE_LENGTH, "Unexpected value length.");
-        return BitConverter.readLong(value, 0);
+        return value.getLong(0);
     }
 
     private CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {

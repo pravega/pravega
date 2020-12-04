@@ -10,7 +10,7 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
@@ -344,7 +344,7 @@ public class RevisionDataStreamCommonTests {
     private <T> void testLength(BiConsumerWithException<RevisionDataOutputStream, T> write,
                                 BiFunction<RevisionDataOutputStream, T, Integer> getLength, T value) throws Exception {
         @Cleanup
-        val os = new EnhancedByteArrayOutputStream();
+        val os = new ByteBufferOutputStream();
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(os);
         val initialLength = os.getData().getLength();
@@ -375,7 +375,7 @@ public class RevisionDataStreamCommonTests {
     private <T> void testEncodeDecode(BiConsumerWithException<RevisionDataOutputStream, T> write, FunctionWithException<RevisionDataInputStream, T> read,
                                       BiFunction<RevisionDataOutputStream, T, Integer> getLength, T value, BiPredicate<T, T> equalityTester) throws Exception {
         @Cleanup
-        val os = new EnhancedByteArrayOutputStream();
+        val os = new ByteBufferOutputStream();
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(os);
         write.accept(rdos, value);

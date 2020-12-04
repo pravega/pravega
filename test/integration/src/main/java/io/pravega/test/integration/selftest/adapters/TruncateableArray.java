@@ -78,6 +78,21 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public short getShort(int index) {
+        throw new UnsupportedOperationException("getShort() not supported.");
+    }
+
+    @Override
+    public int getInt(int index) {
+        throw new UnsupportedOperationException("getInt() not supported.");
+    }
+
+    @Override
+    public long getLong(int index) {
+        throw new UnsupportedOperationException("getLong() not supported.");
+    }
+
+    @Override
     public int getLength() {
         return this.length;
     }
@@ -139,6 +154,11 @@ public class TruncateableArray implements ArrayView {
     @Override
     public ArrayView slice(int offset, int length) {
         throw new UnsupportedOperationException("slice() not supported.");
+    }
+
+    @Override
+    public ByteBuffer asByteBuffer() {
+        throw new UnsupportedOperationException("asByteBuffer() not supported.");
     }
 
     @Override
@@ -239,6 +259,26 @@ public class TruncateableArray implements ArrayView {
             assert this.firstArrayOffset == 0 : "first entry offset not reset when no entries exist";
             assert this.length == 0 : "non-zero length when no entries exist";
         }
+    }
+
+    @Override
+    public void set(int index, byte value) {
+        throw new UnsupportedOperationException("set() not supported.");
+    }
+
+    @Override
+    public void setShort(int index, short value) {
+        throw new UnsupportedOperationException("setShort() not supported.");
+    }
+
+    @Override
+    public void setInt(int index, int value) {
+        throw new UnsupportedOperationException("setInt() not supported.");
+    }
+
+    @Override
+    public void setLong(int index, long value) {
+        throw new UnsupportedOperationException("setLong() not supported.");
     }
 
     //endregion
