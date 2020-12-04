@@ -25,7 +25,6 @@ import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -551,9 +550,9 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     private ByteBuf buf(long value) {
-        byte[] s = new byte[Long.BYTES];
-        BitConverter.writeLong(s, 0, value);
-        return Unpooled.wrappedBuffer(s);
+        ByteBuf b = Unpooled.wrappedBuffer(new byte[Long.BYTES]);
+        b.setLong(0, value);
+        return b;
     }
 
     private ByteBuf buf(String value) {
@@ -561,7 +560,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     private long keyFromBuf(ByteBuf buf) {
-        return BitConverter.readLong(buf.array(), buf.arrayOffset());
+        return buf.getLong(0);
     }
 
     private TableSegmentEntry versionedEntry(long key, String value, long version) {

@@ -10,7 +10,7 @@
 package io.pravega.storage.filesystem;
 
 import io.pravega.common.function.RunnableWithException;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -511,7 +511,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             s.initialize(1);
             val writeHandle = s.create(segmentName, rollingPolicy, TIMEOUT).join();
             val readHandle = s.openRead(segmentName).join(); // Open now, before writing, so we force a refresh.
-            val writeStream = new EnhancedByteArrayOutputStream();
+            val writeStream = new ByteBufferOutputStream();
             populate(writeHandle, writeCount, writeStream, s, rollingPolicy);
 
             // Test that truncate works in this scenario.
@@ -539,7 +539,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             checkWrittenData(readHandle, writtenData, truncateOffset, s);
         }
 
-        private void populate(SegmentHandle handle, int writeCount, EnhancedByteArrayOutputStream writeStream,
+        private void populate(SegmentHandle handle, int writeCount, ByteBufferOutputStream writeStream,
                               Storage s, SegmentRollingPolicy rollingPolicy) {
             int offset = (int) s.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join().getLength();
             for (int i = 0; i < writeCount; i++) {

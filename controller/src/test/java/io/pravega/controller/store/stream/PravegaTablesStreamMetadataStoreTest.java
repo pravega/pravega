@@ -17,6 +17,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -425,7 +426,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         String scopeName = "partial";
         byte[] idBytes = new byte[2 * Long.BYTES];
         UUID id = UUID.randomUUID();
-        BitConverter.writeUUID(idBytes, 0, id);
+        BitConverter.writeUUID(new ByteArraySegment(idBytes), id);
 
         // add entry for a scope in scopes table 
         storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, idBytes).join();

@@ -10,7 +10,7 @@
 package io.pravega.common.io.serialization;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
@@ -89,7 +89,7 @@ public class VersionedSerializerTests {
     //region Single Type Tests
 
     /**
-     * Tests Single Type serializer using a RandomAccessOutputStream OutputStream (i.e., EnhancedByteArrayOutputStream or FixedByteArrayOutputStream.
+     * Tests Single Type serializer using a RandomAccessOutputStream OutputStream (i.e., {@link ByteBufferOutputStream}).
      */
     @Test
     public void testSingleTypeRandomOutput() throws IOException {
@@ -226,7 +226,7 @@ public class VersionedSerializerTests {
      */
     @Test
     public void testMultiTypeRandomOutput() throws IOException {
-        testMultiType(new EnhancedByteArrayOutputStream(), EnhancedByteArrayOutputStream::getData);
+        testMultiType(new ByteBufferOutputStream(), ByteBufferOutputStream::getData);
     }
 
     /**
