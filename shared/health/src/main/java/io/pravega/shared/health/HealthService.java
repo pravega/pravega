@@ -40,11 +40,14 @@ public interface HealthService {
      */
     HealthEndpoint endpoint();
 
-    HealthDaemon daemon();
+    /**
+     * Provides the {@link HealthServiceUpdater} that currently performs the background {@link Health} requests (of the root).
+     * @return The  {@link HealthServiceUpdater}.
+     */
+    HealthServiceUpdater getHealthServiceUpdater();
 
     /**
-     * This method should remove all state from the {@link HealthService} object. Meaning the {@link HealthService} should
-     * act as if it was just constructed.
+     * Removes all state (contents of the {@link ContributorRegistry}) from this object.
      */
-    void clear();
+    void reset();
 }

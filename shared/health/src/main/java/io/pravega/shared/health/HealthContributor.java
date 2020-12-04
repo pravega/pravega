@@ -34,8 +34,8 @@ public interface HealthContributor {
      *
      * @return The {@link Health} object produced by this {@link HealthContributor}.
      */
-    default Health health() {
-        return health(false);
+    default Health getHealthSnapshot() {
+        return getHealthSnapshot(false);
     }
 
     /**
@@ -45,7 +45,7 @@ public interface HealthContributor {
      * @param details Flag to control inclusion of {@link DetailsProvider}.
      * @return The {@link Health} object produced by this {@link HealthContributor}.
      */
-    Health health(boolean details);
+    Health getHealthSnapshot(boolean details);
 
     /**
      * A human-readable identifier used for logging.

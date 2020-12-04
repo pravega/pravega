@@ -11,6 +11,10 @@ package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthComponent;
 
+/**
+ * The {@link HealthConfig} interface is the basis for being able to define a 'Health Hierarchy/Tree', that will represent
+ * the logical groupings of {@link HealthContributor} objects.
+ */
 public interface HealthConfig {
 
     /**
@@ -22,7 +26,7 @@ public interface HealthConfig {
 
     /**
      * A reconcile method makes it clear that a {@link HealthConfig} should provide a way for the {@link HealthComponent}
-     * objects defined to properly registered by the {@link ContributorRegistry}.
+     * objects defined to be properly registered by the {@link ContributorRegistry}.
      *
      * @param registry The {@link ContributorRegistry} to apply this reconciliation on.
      */

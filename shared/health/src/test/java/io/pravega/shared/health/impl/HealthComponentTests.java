@@ -14,6 +14,7 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 import io.pravega.shared.health.Status;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,10 +30,19 @@ public class HealthComponentTests {
         registry = new ContributorRegistryImpl();
     }
 
+    @After
+    public void after() {
+        registry.reset();
+    }
+
+    /**
+     * Tests health checking logic when *only* {@link HealthComponent} objects have been defined, with no {@link io.pravega.shared.health.HealthIndicator}
+     * objects to supply non-default {@link Health} results.
+     */
     @Test
     public void testOnlyComponents() {
         // Health after initialization.
-        Health health = registry.get().health();
+        Health health = registry.getRootContributor().getHealthSnapshot();
         Assert.assertEquals("A HealthComponent with no dependencies should provide an 'UNKNOWN' Status.",
                 Status.UNKNOWN,
                 health.getStatus());
@@ -40,18 +50,21 @@ public class HealthComponentTests {
         HealthComponent component = new HealthComponent("child", StatusAggregatorImpl.DEFAULT, registry);
         registry.register(component);
         // The HealthComponent itself should be in a 'UNKNOWN' state.
-        health = component.health();
+        health = component.getHealthSnapshot();
         Assert.assertEquals("A HealthComponent with no HealthIndicators should provide an 'UNKNOWN' Status.",
                 Status.UNKNOWN,
                 health.getStatus());
         // Now that we are querying at the root/service level, it has dependencies which don't return 'UP' indicating
         // things are not healthy are the service level.
-        health = registry.get().health();
+        health = registry.getRootContributor().getHealthSnapshot();
         Assert.assertEquals("A HealthComponent with UNKNOWN dependencies should provide a 'DOWN' Status.",
                 Status.DOWN,
                 health.getStatus());
     }
 
+    /**
+     * Tests health checking functionality with a {@link io.pravega.shared.health.HealthIndicator}.
+     */
     @Test
     public void testWithIndicator() {
         // Define HealthService layout.
@@ -66,17 +79,17 @@ public class HealthComponentTests {
         registry.register(parent);
         registry.register(child, parent);
         // Check Health *before* any HealthIndicators are added.
-        Health health = child.health();
+        Health health = child.getHealthSnapshot();
         Assert.assertEquals("HealthComponent should return an 'UNKNOWN' Status.", Status.UNKNOWN, health.getStatus());
         registry.register(indicator, child);
         // Should now provide a healthy result.
-        health = child.health(true);
+        health = child.getHealthSnapshot(true);
         Assert.assertEquals("The HealthComponent should now be healthy ('UP').", Status.UP, health.getStatus());
         // We asked for details, so check they are also returned. Parent -> Child -> Indicator.
         Assert.assertEquals("HealthIndicator should list its exported details.", true,
                 health.getChildren().stream().findFirst().get().getDetails().size() > 0);
         // Now check that they are not exported.
-        health = child.health(false);
+        health = child.getHealthSnapshot(false);
         Assert.assertEquals("HealthIndicator should not list its exported details.", true,
                 health.getChildren().stream().findFirst().get().getDetails().isEmpty());
         // Verify that the only (direct) dependency on the 'root' component is 'parent'.

@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.health.impl.CompositeHealthContributor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +18,7 @@ import lombok.Getter;
 import java.util.Collection;
 import java.util.Collections;
 /**
- * The {@link Health} interface represents the data gathered by a {@link HealthIndicator} after performing a health check.
+ * The {@link Health} class represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
 @Builder
 @AllArgsConstructor
@@ -65,14 +66,10 @@ public class Health {
      */
     public boolean isReady() {
         if (ready == null) {
-            ready = Status.alive(status);
+            ready = Status.isAlive(status);
         }
-        if (ready && status.getCode() <= 0) {
-            throw new RuntimeException("A Health object should not logically be in an UNKNOWN/DOWN (Status) and a ready state.");
-        }
-        if (ready && !isAlive()) {
-            throw new RuntimeException("A Health object can not be ready and not alive.");
-        }
+        Preconditions.checkState(!(ready && status.getCode() <= 0), "A Health object should not have a DOWN Status and a ready state.");
+        Preconditions.checkState(!(ready && !isAlive()), "A Health object can not be ready and not alive.");
         return ready;
     }
 
@@ -95,19 +92,11 @@ public class Health {
      */
     public boolean isAlive() {
         if (alive == null) {
-            alive = Status.alive(status);
+            alive = Status.isAlive(status);
         }
-        // Can't (logically) be marked both in an 'Alive' state and in a 'DOWN/UNKNOWN' state.
-        if (alive && status.getCode() <= 0) {
-            throw new RuntimeException("A Health object should not logically be in an UNKNOWN/DOWN (Status) and an alive state.");
-        }
-        // Can't (logically) be marked both in a non-alive state and in a 'UP/WARNING' state.
-        if (!alive && status.getCode() > 0) {
-            throw new RuntimeException("A Health object should not logically be in an UP/WARNING(Status) and a non-alive state.");
-        }
-        if (!alive && isReady()) {
-            throw new RuntimeException("A Health object can not be ready but not alive.");
-        }
+        Preconditions.checkState(!(alive && status.getCode() <= 0), "A Health object should not have a DOWN Status and be marked alive.");
+        Preconditions.checkState(!(!alive && status.getCode() > 0), "A Health object should not have an UP Status and be marked non-alive.");
+        Preconditions.checkState(!(!alive && isReady()), "A Health object can not be ready but not alive.");
         return alive;
     }
 }

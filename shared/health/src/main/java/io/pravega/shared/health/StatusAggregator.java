@@ -21,5 +21,5 @@ public interface StatusAggregator {
      * @param statuses The {@link Collection} of {@link Status}.
      * @return
      */
-    public Status aggregate(Collection<Status> statuses);
+    Status aggregate(Collection<Status> statuses);
 }

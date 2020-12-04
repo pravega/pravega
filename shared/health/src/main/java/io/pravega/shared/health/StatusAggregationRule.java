@@ -34,11 +34,12 @@ public class StatusAggregationRule {
         if (statuses.isEmpty()) {
             return Status.UNKNOWN;
         }
+        int isAliveStatus = 0;
         // Should be a strict majority.
-        if (statuses.stream().filter(Status::alive).count() > Math.floor(statuses.size() / 2.0)) {
-            return Status.UP;
+        for (Status status : statuses) {
+            isAliveStatus = Status.isAlive(status) ? isAliveStatus + 1 : isAliveStatus - 1;
         }
-        return Status.DOWN;
+        return isAliveStatus > 0 ? Status.UP : Status.DOWN;
     }
 
     /**
@@ -51,7 +52,7 @@ public class StatusAggregationRule {
         if (statuses.isEmpty()) {
             return Status.UNKNOWN;
         }
-        if (statuses.stream().allMatch(Status::alive)) {
+        if (statuses.stream().allMatch(Status::isAlive)) {
             return Status.UP;
         }
         return Status.DOWN;
@@ -67,7 +68,7 @@ public class StatusAggregationRule {
         if (statuses.isEmpty()) {
             return Status.UNKNOWN;
         }
-        if (statuses.stream().anyMatch(Status::alive)) {
+        if (statuses.stream().anyMatch(Status::isAlive)) {
             return Status.UP;
         }
         return Status.DOWN;

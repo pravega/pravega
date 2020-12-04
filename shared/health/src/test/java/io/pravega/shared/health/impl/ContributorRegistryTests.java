@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -26,7 +27,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
@@ -35,7 +35,13 @@ public class ContributorRegistryTests {
 
     private static final int BOUND = 100;
 
-    ContributorRegistry registry = new ContributorRegistryImpl();
+    ContributorRegistry registry;
+
+    @Before
+    public void before() {
+        registry = new ContributorRegistryImpl();
+    }
+
 
     @After
     public void after() {
@@ -44,8 +50,10 @@ public class ContributorRegistryTests {
         Assert.assertTrue(registry.contributors().size() == 1);
     }
 
-    // HealthContributors must be explicitly registered before any children can be added to it, i.e the  parent cotributor
-    // is not created on the fly if it does not exist.
+    /**
+     * Ensures that a {@link HealthContributor} must be explicitly registered before any children can be added to it, i.e.
+     * the parent contributor is not created on the fly.
+     */
     @Test
     public void registerUnderNonExistingParent() {
         int before = registry.contributors().size();
@@ -55,17 +63,26 @@ public class ContributorRegistryTests {
                 registry.contributors().size());
     }
 
+    /**
+     * Validates that a basic register works as expected.
+     */
     @Test
     public void register() {
         simpleRegister();
     }
 
+    /**
+     * Validates that a basic register followed by an unregister works as expected.
+     */
     @Test
     public void unregister() {
         simpleRegister();
         simpleUnregister();
     }
 
+    /**
+     * Ensurses that a {@link HealthComponent} will not be able to be unregistered.
+     */
     @Test
     public void unregisterComponent() {
         // Sanity check.
@@ -83,44 +100,47 @@ public class ContributorRegistryTests {
                 registry.components().size());
     }
 
-    // Validate that removing a HealthContributor (HealthComponent) with dependencies properly updates its references.
-    // Meaning that if this internal node causes any children node to become unreachable via traversal from the root,
-    // these unreachable nodes are properly removed.
-    //
-    // Note: HealthComponent objects registered are considered immutable, but by registering a HealthComponent as a HealthContributor,
-    // we can create a HealthContributor that aggregates multiple HealthContributors, yet can still be removed dynamically.
-    //
-    // Let us create the follow 'Health Hierarchy':
-    // -----------------------------------------------
-    //    ROOT (HealthComponent - Immutable)/ ────────────────────────\
-    //        ├─ CONTAINER (HealthComponent/Contributor - Mutable)/   │
-    //        │  ├─ ONE - HealthIndicator                             │
-    //        │  ├─ TWO - HealthIndicator <───────────────────────────\
-    //        ├─ THREE - HealthIndicator
-    //
-    //  And hope to achieve the following by removing the 'CONTAINER' HealthComponent (registered as a HealthContributor).
-    //-------------------------------------------------
-    //    ROOT (HealthComponent - Immutable)/
-    //        ├─ TWO - HealthIndicator
-    //        ├─ THREE - HealthIndicator
-    //
-    // NOTE: This was constructed to ensure validity, but this should not be done in practice. This loop hole allows one to
-    // introduce cycles into this graph, which should be *strictly* forbidden.
+    /**
+     * Validates that removing a {@link HealthContributor} with dependencies properly updates its references.
+     * Meaning that if this internal node causes any children node to become unreachable via traversal from the
+     * {@link ContributorRegistry#getRootContributor()}, these unreachable nodes are properly removed.
+     *
+     * Note: HealthComponent objects registered are considered immutable, but by registering a HealthComponent as a HealthContributor,
+     * we can create a HealthContributor that aggregates multiple HealthContributors, yet can still be removed dynamically.
+     *
+     * Let us create the follow 'Health Hierarchy':
+     *
+     *    ROOT (HealthComponent - Immutable)/ ────────────────────────\
+     *        ├─ CONTAINER (HealthComponent/Contributor - Mutable)/   │
+     *        │  ├─ ONE - HealthIndicator                             │
+     *        │  ├─ TWO - HealthIndicator <───────────────────────────\
+     *        ├─ THREE - HealthIndicator
+     *
+     *  And hope to achieve the following by removing the 'CONTAINER' HealthComponent (registered as a HealthContributor).
+     *
+     *    ROOT (HealthComponent - Immutable)/
+     *        ├─ TWO - HealthIndicator
+     *        ├─ THREE - HealthIndicator
+     *
+     * NOTE: This was constructed to ensure validity, but this should not be done in practice. This loop hole allows one to
+     * introduce cycles into this graph, which should be *strictly* forbidden.
+     */
     @Test
     public void unregisterInternalContributor() {
         // ContributorRegistry does not expose the API that would allow us to test potentially dangerous inserts.
         ContributorRegistryImpl registry = new ContributorRegistryImpl();
         // Create the contributors to register.
         ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
-                new HealthComponent("container", StatusAggregatorImpl.DEFAULT, registry),
-                new SampleHealthyIndicator("one"),
-                new SampleHealthyIndicator("two"),
-                new SampleFailingIndicator("three")
+                new HealthComponent("CONTAINER", StatusAggregatorImpl.DEFAULT, registry),
+                new SampleHealthyIndicator("ONE"),
+                new SampleHealthyIndicator("TWO"),
+                new SampleFailingIndicator("THREE")
         ));
 
         HealthContributor container = contributors.get(0);
         // Register said contributors.
         registry.register(container);
+        registry.register(contributors.get(2));
         registry.register(contributors.get(1), container.getName());
         registry.register(contributors.get(2), container.getName());
         registry.register(contributors.get(3));
@@ -136,20 +156,23 @@ public class ContributorRegistryTests {
         registry.unregister(container);
         // This should removes three contributors: the internal node (container) and the leaf nodes (one, two), leaving
         // the root and 'three'.
-        Assert.assertEquals("Three HealthContributors should be remaining.", 2, registry.contributors().size());
+        Assert.assertEquals("Three HealthContributors should be remaining.", 3, registry.contributors().size());
         Assert.assertEquals("One HealthComponent should remain.", 1, registry.components().size());
         // The component should be the 'root'.
         Assert.assertEquals("The HealthComponent should be the root.",
                 registry.components().stream().findFirst().get(),
                 ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME);
-        // The contributors should be the 'root' and '
-        Assert.assertArrayEquals("The HealthContributors should be the 'root' and 'three'.",
-                registry.contributors().toArray(),
-                new String[]{ ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME, contributors.get(2).getName(), contributors.get(3).getName() });
+        // The contributors should be the 'root' and 'three'.
+        Assert.assertArrayEquals("The HealthContributors should be the 'root' and 'THREE'.",
+                new String[]{ ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME, contributors.get(2).getName(), contributors.get(3).getName() },
+                registry.contributors().toArray());
     }
 
+
+    /**
+     * Tests the case where only {@link io.pravega.shared.health.HealthIndicator} are removed from a {@link HealthContributor}.
+     */
     @Test
-    // A subset of the above, but valuable to ensure all cases are handled.
     public void unregisterLeafContributor() {
         // Create the contributors to register.
         ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
@@ -176,7 +199,10 @@ public class ContributorRegistryTests {
                 registry.contributors().size());
     }
 
-    // Should not be able to overwrite existing HealthContributors.
+    /**
+     * Ensures that we are unable to overwrite any {@link HealthContributor} objects by registering another contributor
+     * with the same name.
+     */
     @Test
     public void registerOverwrite() {
         // Register SampleHealthyIndicator.
@@ -188,58 +214,65 @@ public class ContributorRegistryTests {
         int after = registry.contributors().size();
         Assert.assertEquals("The number of contributors should remain the same.", after, before);
         // The indicator should not have been replaced.
-        Optional<HealthContributor> contributor = registry.get(failing.getName());
+        HealthContributor contributor = registry.get(failing.getName());
         // References should be different.
-        Assert.assertNotEquals("The HealthContributors should not refer to the same object.", contributor.get(), failing);
+        Assert.assertNotEquals("The HealthContributors should not refer to the same object.", contributor, failing);
         // Can also validate that the 'Status' results are different.
         Assert.assertNotEquals("The HealthContributors should have different 'Status' results.",
-                contributor.get().health().getStatus(),
-                failing.health().getStatus());
+                contributor.getHealthSnapshot().getStatus(),
+                failing.getHealthSnapshot().getStatus());
     }
 
     // Ensure that there are guards against trying to remove a contributor that does not exist.
+
+    /**
+     * Ensures that attempting to unregister a non-existing {@link HealthContributor} will return a NULL value.
+     */
     @Test
     public void unregisterNonExisting() {
        simpleRegister();
        int before = registry.contributors().size();
-       registry.unregister("non-existing-contributor");
+       HealthContributor result = registry.unregister("non-existing-contributor");
        int after = registry.contributors().size();
        Assert.assertEquals("No changes to the contributor list should have happened.", before, after);
+       Assert.assertNull(result);
     }
 
-    // Define this following HealthComponent Hierarchy (H entries).
-    // ----------------------------------------------------------
-    // A/
-    // ├─ B/
-    // │  ├─ C/
-    // D/
-    // ├─ E/
-    // F/
-    // G/
-    //
-    // Unlike 'unregisterInternalContributor', this test follows the assumption that no children contributors will be added
-    // to non-component contributors.
+    /**
+     * Define this following HealthComponent Hierarchy.
+     *
+     *         +---> A +-----> B  +-----> C
+     *         |
+     *         +---->D +-----> E
+     *    * +--+
+     *         +---->F
+     *         |
+     *         +---->G
+     *
+     * Unlike 'unregisterInternalContributor', this test follows the assumption that no child contributors will be added
+     * to non-component contributors.
+     */
     @Test
     public void unregisterNoInvalidReferences() {
         int numComponents = 7;
         // Create the components.
         Map<Character, HealthComponent> components = new HashMap<>();
         for (int i = 0; i < numComponents; i++) {
-            char key = (char) ('a' + i);
+            char key = (char) ('A' + i);
             components.put(key, new HealthComponent(Character.toString(key), StatusAggregatorImpl.DEFAULT, registry));
         }
         // Registry with the extra 'validation' functionality.
         TestContributorRegistry registry = new TestContributorRegistry();
         // Define the relationships -- Depth 1 relations.
-        registry.register(components.get('a'));
-        registry.register(components.get('d'));
-        registry.register(components.get('f'));
-        registry.register(components.get('g'));
+        registry.register(components.get('A'));
+        registry.register(components.get('D'));
+        registry.register(components.get('F'));
+        registry.register(components.get('G'));
         // Depth 2 relations.
-        registry.register(components.get('b'), components.get('a'));
-        registry.register(components.get('e'), components.get('d'));
+        registry.register(components.get('B'), components.get('A'));
+        registry.register(components.get('E'), components.get('D'));
         // Depth 3 relations.
-        registry.register(components.get('c'), components.get('b'));
+        registry.register(components.get('C'), components.get('B'));
 
        // 1. Create a random number of health indicators *N*.
        int n = new Random().nextInt(BOUND);
@@ -253,7 +286,7 @@ public class ContributorRegistryTests {
            int m = new Random().nextInt(numComponents) + 1;
            Set<Character> parents = new HashSet<>();
            for (int j = 0; j < m; j++) {
-               parents.add((char) ('a' + new Random().nextInt(numComponents)));
+               parents.add((char) ('A' + new Random().nextInt(numComponents)));
            }
            for (Character parent : parents) {
                registry.register(contributors.get(i), Character.toString(parent));
@@ -266,7 +299,6 @@ public class ContributorRegistryTests {
            registry.unregister(contributor);
            registry.validate();
        }
-       // 4. Validate (call 'validate') after each register/unregister call.
     }
 
     private void simpleRegister() {

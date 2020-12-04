@@ -19,11 +19,13 @@ import java.util.List;
 
 public class StatusAggregatorTests {
 
-    List<Status> statuses = new ArrayList<>(Arrays.asList(Status.UP, Status.UP, Status.DOWN));
+    List<Status> statuses = Arrays.asList(Status.UP, Status.UP, Status.DOWN);
 
-    // Ensures that only a *majority* of Status results need indicate 'UP' (success) to reduce into a UP status.
-    // The rule does not necessarily check for a 'UP' status majority, but rather if the majority of Status'
-    // represent an 'alive' Status.
+    /**
+     * Ensures that only a *majority* of Status results need indicate 'UP' (success) to reduce into a UP status.
+     * The rule does not necessarily check for a 'UP' status majority, but rather if the majority of Status'
+     * represent an 'alive' Status.
+     */
     @Test
     public void majorityRuleTest() {
         StatusAggregator aggregator = StatusAggregatorImpl.MAJORITY;
@@ -38,7 +40,9 @@ public class StatusAggregatorTests {
                 aggregator.aggregate(list));
     }
 
-    // Makes sure that *all* Status results must be in agreement to reduce into a UP result.
+    /**
+     * Makes sure that *all* Status results must be in agreement to reduce into a UP result.
+     */
     @Test
     public void unanimousRuleTest() {
         StatusAggregator aggregator = StatusAggregatorImpl.UNANIMOUS;
@@ -47,7 +51,9 @@ public class StatusAggregatorTests {
                 Status.DOWN);
     }
 
-    // Will return an UP status as long as *any* of the individual Status results notes an UP status.
+    /**
+     * Will return an UP status as long as *any* of the individual Status results notes an UP status.
+     */
     @Test
     public void anyRuleTest() {
         StatusAggregator aggregator = StatusAggregatorImpl.ANY;

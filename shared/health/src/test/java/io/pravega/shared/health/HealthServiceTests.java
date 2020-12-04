@@ -18,7 +18,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -27,28 +26,33 @@ import org.junit.rules.Timeout;
 
 import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 
+/**
+ * The {@link HealthServiceTests} encapsulates much of the same processes that {@link HealthEndpoint} performs, so
+ * an explicit test class for the former is skipped.
+ */
 @Slf4j
-// Hosts much of the same tests that would go into a HealthEndpointTests class, making HealthEndpointTests redundant.
 public class HealthServiceTests {
 
     @Rule
-    public final Timeout timeout = new Timeout(600, TimeUnit.SECONDS);
+    public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
     HealthService service;
 
     HealthServiceFactory factory;
 
-    public void start() throws IOException {
+    private void start() {
         factory = new HealthServiceFactory();
         service = factory.createHealthService(true);
     }
 
-    public void stop() {
-        service.clear();
+    private void stop() {
+        service.reset();
         factory.close();
+        // Except its root.
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
                 1,
                 service.components().size());
+        // Except its root.
         Assert.assertEquals("The ContributorRegistry should not maintain any references to HealthContributors",
                 1,
                 service.registry().contributors().size());
@@ -66,8 +70,11 @@ public class HealthServiceTests {
 
     }
 
+    /**
+     * Test that the {@link HealthService} is able to be stopped and restarted.
+     */
     @Test
-    public void testLifecycle() throws IOException {
+    public void testLifecycle() {
         // Perform a start-up and shutdown sequence (implicit start() with @Before).
         stop();
         // Verify that it is repeatable.
@@ -75,31 +82,40 @@ public class HealthServiceTests {
         stop();
     }
 
+    /**
+     * Tests that the {@link HealthService} is able to provide {@link Health} results for both a specific {@link HealthIndicator}
+     * and the service itself ({@link ContributorRegistry#getRootContributor()}.
+     */
     @Test
-    public void testHealth() throws IOException {
+    public void testHealth() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
-        try {
-            Health health = service.endpoint().health(indicator.getName());
-            Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
 
-            health = service.endpoint().health(true);
-            Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
-        } catch (ContributorNotFoundException e) {
-            Assert.fail("HealthContributor not found.");
-        }
+        Health health = service.endpoint().getHealth(indicator.getName());
+        Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
+
+        health = service.endpoint().getHealth(true);
+        Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
     }
 
+    /**
+     * Tests that an appropriate exception is thrown when an invalid {@link HealthContributor} id/name is provided.
+     */
     @Test
     public void testHealthInvalidName() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
         AssertExtensions.assertThrows("Health endpoint should throw upon non-existent contributor.",
-                () -> service.endpoint().health("unknown-indicator-name"),
+                () -> service.endpoint().getHealth("unknown-indicator-name"),
                 ex -> ex instanceof ContributorNotFoundException);
     }
 
-    // Components are strictly HealthComponent objects, where as 'Dependencies' are *any* subclass of HealthContributor.
+
+    /**
+     * Tests that the {@link HealthService} is properly able to distinguish between those {@link HealthContributor}
+     * which are {@link io.pravega.shared.health.impl.HealthComponent} and those that are {@link HealthIndicator}.
+     *
+     */
     @Test
     public void testComponents() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
@@ -114,26 +130,39 @@ public class HealthServiceTests {
                 components.stream().findFirst().get());
     }
 
+    /**
+     * Tests that all the {@link HealthContributor} objects that are used to arrive at a {@link Health} decision for another
+     * {@link HealthContributor} are provided.
+     *
+     * Note: A 'dependency' is any sub-class of {@link HealthContributor}.
+     */
     @Test
     public void testDependencies() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
         // Test 'service level' endpoint.
-        List<String> dependencies = service.endpoint().dependencies();
+        List<String> dependencies = service.endpoint().getDependencies();
         Assert.assertEquals("There should be exactly one dependency.", 1, dependencies.size());
         Assert.assertEquals("That dependency should be named 'sample-healthy-indicator'.", indicator.getName(), dependencies.stream().findFirst().get());
         // Test Contributor level endpoint.
-        dependencies = service.endpoint().dependencies(indicator.getName());
+        dependencies = service.endpoint().getDependencies(indicator.getName());
         Assert.assertEquals("The HealthIndicator should not have any dependencies.", 0, dependencies.size());
     }
 
+    /**
+     * Tests that when specified a {@link Health} result will return any {@link Details} information belonging to that
+     * {@link HealthContributor} or it's dependencies.
+     *
+     * A {@link io.pravega.shared.health.impl.HealthComponent} does not directly supply any {@link Details} information,
+     * but any dependency that it has should supply them.
+     */
     @Test
     public void testDetailsEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
-        Health health = service.endpoint().health(true);
+        Health health = service.endpoint().getHealth(true);
         Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
 
         // Tests that the Details object(s) are reachable via the 'service level' endpoint.
@@ -147,7 +176,7 @@ public class HealthServiceTests {
                 sample.getDetails().entrySet().stream().findFirst().get().getValue());
 
         // Directly query the HealthContributor endpoint.
-        health = service.endpoint().health(indicator.getName(), true);
+        health = service.endpoint().getHealth(indicator.getName(), true);
         Assert.assertEquals(String.format("Key should equal \"%s\"", SampleHealthyIndicator.DETAILS_KEY),
                 SampleHealthyIndicator.DETAILS_KEY,
                 health.getDetails().keySet().stream().findFirst().get());
@@ -156,38 +185,48 @@ public class HealthServiceTests {
                 health.getDetails().get(SampleHealthyIndicator.DETAILS_KEY));
     }
 
+    /**
+     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its {@link Status}
+     * information.
+     */
     @Test
     public void testStatusEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
-        Status status = service.endpoint().status();
+        Status status = service.endpoint().getStatus();
         // Test the 'service level' endpoint.
         Assert.assertEquals("Status should be UP.", Status.UP, status);
         // Test the Contributor level endpoint.
-        status = service.endpoint().status(indicator.getName());
+        status = service.endpoint().getStatus(indicator.getName());
         Assert.assertEquals("Status should be UP.", Status.UP, status);
     }
 
+    /**
+     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its liveness information.
+     */
     @Test
     public void testLivenessEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
-        boolean alive = service.endpoint().liveness();
+        boolean alive = service.endpoint().isAlive();
         Assert.assertEquals("The HealthService should produce an 'alive' result.", true, alive);
-        alive = service.endpoint().liveness(indicator.getName());
+        alive = service.endpoint().isAlive(indicator.getName());
         Assert.assertEquals("The HealthIndicator should produce an 'alive' result.", true, alive);
     }
 
+    /**
+     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its readiness information.
+     */
     @Test
     public void testReadinessEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         service.registry().register(indicator);
 
-        boolean ready = service.endpoint().readiness();
+        boolean ready = service.endpoint().isReady();
         Assert.assertEquals("The HealthService should produce a 'ready' result.", true, ready);
-        ready = service.endpoint().readiness(indicator.getName());
+        ready = service.endpoint().isReady(indicator.getName());
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
     }
 }

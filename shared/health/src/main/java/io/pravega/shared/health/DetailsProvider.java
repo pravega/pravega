@@ -24,7 +24,7 @@ public class DetailsProvider {
      * The underlying {@link java.util.Collection} used to hold the detailed information.
      */
     @Getter
-    private Map<String, Supplier<Object>> suppliers = new HashMap<String, Supplier<Object>>();
+    private final Map<String, Supplier<Object>> suppliers = new HashMap<String, Supplier<Object>>();
 
     /**
      * Add some piece of information to be retrieved everytime a health check (by some {@link HealthIndicator} occurs.

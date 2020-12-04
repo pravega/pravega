@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -86,7 +85,7 @@ public class HealthTests {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        healthServiceFactory = new HealthServiceFactory(Optional.ofNullable(getHealthConfig()));
+        healthServiceFactory = new HealthServiceFactory(getHealthConfig());
         service = healthServiceFactory.createHealthService(true);
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
                 connectionFactory, service);
@@ -98,15 +97,19 @@ public class HealthTests {
     }
 
     @After
-    public void teardown() {
-        service.clear();
+    public void tearDown() {
+        service.reset();
+        client.close();
+        restServer.stopAsync();
+        restServer.awaitTerminated();
+        connectionFactory.close();
         // The ROOT component + the component supplied by our HealthConfig (getHealthConfig).
         Assert.assertEquals(2, service.registry().contributors().size());
         Assert.assertEquals(2, service.registry().components().size());
         // Assert that the component does not contain children.
         Assert.assertEquals("The HealthService should report only one component.",
                 1,
-                service.registry().get().contributors().size());
+                service.registry().getRootContributor().contributors().size());
     }
 
     protected Client createJerseyClient() throws Exception {
@@ -126,14 +129,6 @@ public class HealthTests {
 
     String getURLScheme() {
         return "http";
-    }
-
-        @After
-    public void tearDown() {
-        client.close();
-        restServer.stopAsync();
-        restServer.awaitTerminated();
-        connectionFactory.close();
     }
 
     protected URI getURI(String path) {
@@ -392,7 +387,12 @@ public class HealthTests {
 
     @Test
     public void testContributorNotExists() {
-
+        String unknown = "unknown-indicator";
+        // Register the HealthIndicator.
+        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", unknown)))
+                .scheme(getURLScheme()).build();
+        Response response = client.target(streamResourceURI).request().buildGet().invoke();
+        Assert.assertEquals(404, response.getStatus());
     }
 
     private void assertDetails(URI uri, HealthDetails expected) {

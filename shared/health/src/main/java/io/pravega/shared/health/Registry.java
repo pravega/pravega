@@ -9,11 +9,16 @@
  */
 package io.pravega.shared.health;
 
-import java.util.Optional;
-
+/**
+ * The {@link Registry} interface defines the necessary operations required to store and retrieve objects that are
+ * uniquely identified by some id. While conceptually similar to a {@link java.util.Map}, the interface allows us to
+ * implement pre/post processing logic of entries.
+ *
+ * @param <T> The type of objects held.
+ */
 public interface Registry<T> {
     /**
-     * Register some object of arbitrary type to the registry.
+     * Register some object of type 'T' to the registry.
      *
      * @param object The object to register.
      * @return The object registered.
@@ -29,7 +34,7 @@ public interface Registry<T> {
     T unregister(T object);
 
     /**
-     * Provides some mechanism to clear all registered entries from the underlying store.
+     * Clears all registered entries from the underlying store.
      */
     void reset();
 
@@ -39,5 +44,5 @@ public interface Registry<T> {
      * @param id The identifier used to query the underlying store.
      * @return The object of type *T* associated with  'id'.
      */
-    Optional<T> get(String id);
+    T get(String id);
 }

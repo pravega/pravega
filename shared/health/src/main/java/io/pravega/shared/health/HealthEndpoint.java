@@ -23,8 +23,8 @@ public interface HealthEndpoint {
         return ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME;
     }
 
-    default Status status() {
-        return status(getDefaultContributorName());
+    default Status getStatus() {
+        return getStatus(getDefaultContributorName());
     }
 
     /**
@@ -33,10 +33,15 @@ public interface HealthEndpoint {
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The current {@link Status} of the {@link HealthContributor}.
      */
-    Status status(String id);
+    Status getStatus(String id);
 
-    default boolean readiness() {
-        return readiness(getDefaultContributorName());
+    /**
+     * Fetches the {@link Status} of the 'root' {@link HealthContributor}.
+     *
+     * @return The current {@link Status} of the 'root' {@link HealthContributor}.
+     */
+    default boolean isReady() {
+        return isReady(getDefaultContributorName());
     }
 
     /**
@@ -45,10 +50,15 @@ public interface HealthEndpoint {
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The 'readiness' result.
      */
-    boolean readiness(String id);
+    boolean isReady(String id);
 
-    default boolean liveness() {
-        return liveness(getDefaultContributorName());
+    /**
+     * Determine if the root {@link HealthContributor} object is currently in an 'alive' state.
+     *
+     * @return The 'liveness' result.
+     */
+    default boolean isAlive() {
+        return isAlive(getDefaultContributorName());
     }
 
     /**
@@ -57,27 +67,39 @@ public interface HealthEndpoint {
      *
      * @return The 'liveness' result.
      */
-    boolean liveness(String id);
+    boolean isAlive(String id);
 
-    default Details details() {
-        return details(getDefaultContributorName());
+    /**
+     * Fetches the {@link Details} from the root {@link HealthContributor}. This will always return a {@link Details}
+     * object with no entries.
+     *
+     * @return The {@link Map} of details results.
+     */
+    default Details getDetails() {
+        return getDetails(getDefaultContributorName());
     }
 
     /**
      * Fetches the results from the list of {@link java.util.function.Supplier} provided during {@link HealthContributor}
-     * construction.
+     * construction. This operation is essentially a NOP on {@link HealthComponent} objects -- a {@link Details} object
+     * with no entries will always be returned.
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The {@link Map} of details results.
      */
-    Details details(String id);
+    Details getDetails(String id);
 
-    default Health health(String id) {
-        return health(id, false);
+    /**
+     * Calls {@link HealthEndpoint#getHealth(String, boolean)} with a false value and forwards the 'id' {@link String}.
+     * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.
+     * @return The {@link Health} object of the {@link HealthContributor}.
+     */
+    default Health getHealth(String id) {
+        return getHealth(id, false);
     }
 
-    default Health health(boolean includeDetails) {
-        return health(getDefaultContributorName(), includeDetails);
+    default Health getHealth(boolean includeDetails) {
+        return getHealth(getDefaultContributorName(), includeDetails);
     }
 
     /**
@@ -85,14 +107,20 @@ public interface HealthEndpoint {
      * of the service. The difference is a {@link HealthService} is concerned with one or many {@link HealthComponent},
      * where as a {@link HealthContributor} should just be concerned with it's own {@link Health}.
      *
-     * @param name  The name of the {@link HealthComponent} to check the {@link Health} of.
+     * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.
      * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
-     * @return The {@link Health} object of the component.
+     * @return The {@link Health} object of the {@link HealthContributor}.
      */
-    Health health(String name, boolean includeDetails);
+    Health getHealth(String id, boolean includeDetails);
 
-    default List<String> dependencies() {
-        return dependencies(getDefaultContributorName());
+    /**
+     * Retrieve the list of {@link HealthContributor} names that are used to determine the {@link Health} result
+     * for the root {@link HealthContributor}.
+     *
+     * @return The list of names (ids) that the root {@link HealthContributor} relies on.
+     */
+    default List<String> getDependencies() {
+        return getDependencies(getDefaultContributorName());
     }
 
     /**
@@ -102,5 +130,5 @@ public interface HealthEndpoint {
      * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
      * @return The list of names (ids) that the {@link HealthContributor} relies on.
      */
-    List<String> dependencies(String id);
+    List<String> getDependencies(String id);
 }

@@ -11,6 +11,5 @@ package io.pravega.shared.health;
 
 import java.util.HashMap;
 
-
 public class Details extends HashMap<String, String> {
 }

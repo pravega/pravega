@@ -12,29 +12,29 @@ package io.pravega.shared.health;
 import io.pravega.shared.health.impl.HealthConfigImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
 
-import java.util.Optional;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Provides instances of a {@link HealthService} and optionally starts the {@link HealthDaemon}.
+ * Provides instances of a {@link HealthService} and optionally starts the {@link HealthServiceUpdater}.
  */
 public class HealthServiceFactory implements AutoCloseable {
     private final HealthConfig config;
     private final AtomicBoolean closed;
 
     public HealthServiceFactory() {
-        this(Optional.of(HealthConfigImpl.builder().empty()));
+        this(HealthConfigImpl.builder().empty());
     }
 
-    public HealthServiceFactory(Optional<HealthConfig> config) {
-        this.config = config.orElse(HealthConfigImpl.builder().empty());
+    public HealthServiceFactory(HealthConfig config) {
+        this.config = Objects.isNull(config) ? HealthConfigImpl.builder().empty() : config;
         this.closed = new AtomicBoolean();
     }
 
     public HealthService createHealthService(boolean start) {
         HealthService service = new HealthServiceImpl(config);
         if (start) {
-            service.daemon().start();
+            service.getHealthServiceUpdater().startAsync();
         }
         return service;
     }

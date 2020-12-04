@@ -17,8 +17,11 @@ import org.junit.Test;
 
 public class HealthTests {
 
-    // Test that a Health object cannot be used when it is in a logically invalid state, i.e. it reports 'ready'
-    // but has an 'UNKNOWN' or 'DOWN' Status. It *is* valid for it to *not* be ready, but report an 'UP' Status.
+    /**
+     * Test that a {@link Health} object cannot be used when it is in a logically invalid state, i.e. it reports 'ready'
+     * but has an {@link Status#UNKNOWN} or {@link Status#DOWN}. See {@link Health#isAlive} or {@link Health#isReady()}
+     * for further explanation on these incompatible states.
+     */
     @Test
     public void testInvalidReadyState() {
         Health readyAndDown = Health.builder().ready(true).status(Status.DOWN).build();
@@ -31,6 +34,9 @@ public class HealthTests {
                 ex -> ex instanceof RuntimeException);
     }
 
+    /**
+     * Tests that the default/empty {@link Health} reports the expected readiness result.
+     */
     @Test
     public void testDefaultReadyLogic() {
         Health health = Health.builder().build();
@@ -39,8 +45,11 @@ public class HealthTests {
         Assert.assertEquals("isReady() should be true by default if an UP Status is supplied.", true, health.isReady());
     }
 
-    // Test that a Health object cannot be used when it is in a logically invalid state, i.e. it reports 'alive'
-    // but has an 'UNKNOWN' or 'DOWN' Status. It *is* valid for it to *not* be ready, but report an 'UP' Status.
+    /**
+     * Test that a {@link Health} object cannot be used when it is in a logically invalid state, i.e. it reports 'alive'
+     * but has an {@link Status#UNKNOWN} or {@link Status#DOWN}. See {@link Health#isAlive} or {@link Health#isReady()}
+     * for further explanation on these incompatible states.
+     */
     @Test
     public void testInvalidAliveState() {
         Health aliveAndDown = Health.builder().alive(true).status(Status.DOWN).build();
@@ -57,6 +66,9 @@ public class HealthTests {
                 ex -> ex instanceof RuntimeException);
     }
 
+    /**
+     * Tests that the default/empty {@link Health} reports the expected liveness result.
+     */
     @Test
     public void testDefaultAliveLogic() {
         Health health = Health.builder().build();

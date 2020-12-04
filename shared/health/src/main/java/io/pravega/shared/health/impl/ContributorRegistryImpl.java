@@ -16,11 +16,10 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Slf4j
 public class ContributorRegistryImpl implements ContributorRegistry {
@@ -85,7 +84,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     @Override
     public HealthContributor register(HealthComponent component) {
-        components.add(component.getName());
         return register(component, root);
     }
 
@@ -111,8 +109,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     @Override
     public HealthContributor register(HealthComponent component, HealthComponent parent) {
-        // Use the default (root) component if parent is undefined.
-        parent = parent == null ? root : parent;
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
         if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
             log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);
@@ -138,33 +134,33 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * Registers a {@link HealthContributor} under the specified parent {@link HealthComponent}.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry as a child of 'parent'.
-     * @param component The {@link String} id of a {@link HealthComponent} to add 'contributor' as a child/dependency.
+     * @param componentName The {@link String} id of a {@link HealthComponent} to add 'contributor' as a child/dependency.
      * @return The {@link HealthContributor} registered under the {@link ContributorRegistry}. Null return values are permitted.
      */
     @NonNull
     @Override
-    public HealthContributor register(HealthContributor contributor, String component) {
-        String name = contributor.getName();
+    public HealthContributor register(HealthContributor contributor, String componentName) {
         // HealthContributor mapped by 'parent' should exist at time of some child registration.
-        if (!contributors.containsKey(component)) {
-            log.debug("Unrecognized HealthContributor::{} -- aborting registration.", component);
+        if (!contributors.containsKey(componentName)) {
+            log.debug("Unrecognized HealthContributor::{} -- aborting registration.", componentName);
             return null;
         }
-        if (contributors.containsKey(contributor.getName())) {
-            log.warn("{} has already been registered -- aborting.", contributors.get(contributor.getName()));
-            return null;
+        String contributorName = contributor.getName();
+        if (contributors.containsKey(contributorName)) {
+            log.warn("{} has already been registered.", contributors.get(contributorName));
+            return contributors.get(contributorName);
         }
-        log.debug("Registering {} to {}.", contributor, contributors.get(component));
-        contributors.putIfAbsent(name, contributor);
+        log.debug("Registering {} to {}.", contributor, contributors.get(componentName));
+        contributors.put(contributorName, contributor);
         // A new contributor should have no child relations to overwrite.
         // Realistically, this should be restricted because it implies non HealthComponent contributors can have children.
-        children.put(name, new HashSet<>());
+        children.put(contributorName, new HashSet<>());
         // Add the child relation.
-        children.get(component).add(contributor);
+        children.get(componentName).add(contributor);
         // 'contributor' should not have any existing parents when registered.
-        parents.put(name, new HashSet<>());
+        parents.put(contributorName, new HashSet<>());
         // Add the parent relation.
-        parents.get(name).add(contributors.get(component));
+        parents.get(contributorName).add(contributors.get(componentName));
 
         return contributor;
     }
@@ -213,9 +209,10 @@ public class ContributorRegistryImpl implements ContributorRegistry {
         }
         // Remove all child -> {name} relations.
         for (HealthContributor child : children.get(name)) {
-            parents.get(child.getName()).remove(contributor);
+            Collection<HealthContributor> from = parents.get(child.getName());
+            from.remove(contributor);
             // Validate that this contributor is still reachable.
-            if (parents.get(child.getName()).isEmpty()) {
+            if (from.isEmpty()) {
                 log.debug("> {} removal caused {} to become unreachable.", contributor, child);
                 unregister(child);
             }
@@ -229,16 +226,15 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     }
 
     /**
-     * This method returns an {@link Optional} because it signifies that one should account for the case that
-     * there may be no {@link String} to {@link HealthContributor} mapping.
+     * Get the {@link HealthContributor} with id 'name'. A NULL value may be returned.
      *
      * @param name The name of some {@link HealthContributor} to request from this {@link ContributorRegistry}.
      * @return The {@link HealthContributor} mapped to by 'name'.
      */
     @Override
     @NonNull
-    public Optional<HealthContributor> get(String name) {
-        return Optional.ofNullable(contributors.get(name));
+    public HealthContributor get(String name) {
+        return contributors.get(name);
     }
 
     /**
@@ -246,7 +242,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The root {@link HealthContributor}.
      */
     @Override
-    public HealthContributor get() {
+    public HealthContributor getRootContributor() {
         return contributors.get(DEFAULT_CONTRIBUTOR_NAME);
     }
 
@@ -282,10 +278,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @Override
     public Collection<String> contributors() {
-        return contributors.entrySet()
-                .stream()
-                .map(entry -> entry.getKey())
-                .collect(Collectors.toList());
+        return new ArrayList<>(contributors.keySet());
     }
 
     /**
@@ -296,7 +289,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link Collection} of {@link HealthComponent} names.
      */
     public Collection<String> components() {
-        return this.components;
+        return new ArrayList<>(this.components);
     }
 
     /**

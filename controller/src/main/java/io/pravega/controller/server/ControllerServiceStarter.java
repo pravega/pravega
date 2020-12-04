@@ -154,7 +154,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
-        this.healthServiceFactory = new HealthServiceFactory(serviceConfig.getHealthConfig());
+        this.healthServiceFactory = new HealthServiceFactory(serviceConfig.getHealthConfig().get());
     }
 
     @Override
@@ -387,6 +387,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
         log.info("Initiating controller service shutDown");
 
         try {
+            if (healthService != null) {
+
+            }
             if (restServer != null) {
                 restServer.stopAsync();
             }

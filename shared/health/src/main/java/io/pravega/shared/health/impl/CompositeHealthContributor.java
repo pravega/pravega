@@ -20,6 +20,7 @@ import lombok.val;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,7 +32,7 @@ public abstract class CompositeHealthContributor implements HealthContributor {
     @Getter
     private final StatusAggregator aggregator;
 
-    private ContributorRegistry registry = null;
+    private final ContributorRegistry registry;
 
     private Collection<HealthContributor> contributors = new HashSet<>();
 
@@ -40,17 +41,17 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         this.registry = registry;
     }
 
-    public Health health() {
-        return health(false);
+    public Health getHealthSnapshot() {
+        return getHealthSnapshot(false);
     }
 
-    public Health health(boolean includeDetails) {
+    public Health getHealthSnapshot(boolean includeDetails) {
         Health.HealthBuilder builder = Health.builder().name(getName());
         // Fetch the Health Status of all dependencies.
         val children =  contributors().stream()
-                .filter(contributor -> contributor != null)
+                .filter(Objects::nonNull)
                 .map(contributor -> {
-                    Health health = contributor.health(includeDetails);
+                    Health health = contributor.getHealthSnapshot(includeDetails);
                     if (health.getStatus() == Status.UNKNOWN) {
                         log.warn("{} has a Status of 'UNKNOWN'. This indicates `doHealthCheck` does not set a status" +
                                 " or is an empty HealthComponent.", health.getName());
@@ -61,7 +62,7 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         // Get the aggregate health status.
         Status status = aggregator.aggregate(children
                 .stream()
-                .map(contributor -> contributor.getStatus())
+                .map(Health::getStatus)
                 .collect(Collectors.toList()));
         builder.status(status);
         // Even if includeDetails if false, iterating over the dependencies is necessary for Status aggregation.
@@ -77,7 +78,7 @@ public abstract class CompositeHealthContributor implements HealthContributor {
     }
 
     /**
-     * A method which supplies the {@link CompositeHealthContributor#health(boolean)} method with the collection of
+     * A method which supplies the {@link CompositeHealthContributor#getHealthSnapshot(boolean)} method with the collection of
      * {@link HealthContributor} objects to perform the aggregate health check on. This is helpful because it gives us
      * flexibility in defining where the contributors may be but also avoids the requirement of being bound to a
      * {@link ContributorRegistry} instance.

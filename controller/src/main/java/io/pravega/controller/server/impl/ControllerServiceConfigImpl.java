@@ -76,18 +76,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                             storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
-        if (eventProcessorConfig.isPresent()) {
-            Preconditions.checkNotNull(eventProcessorConfig.get());
-        }
-        if (grpcServerConfig.isPresent()) {
-            Preconditions.checkNotNull(grpcServerConfig.get());
-        }
-        if (restServerConfig.isPresent()) {
-            Preconditions.checkNotNull(restServerConfig.get());
-        }
-        if (healthConfig.isPresent()) {
-            Preconditions.checkNotNull(healthConfig.get());
-        }
 
         this.threadPoolSize = threadPoolSize;
         this.storeClientConfig = storeClientConfig;

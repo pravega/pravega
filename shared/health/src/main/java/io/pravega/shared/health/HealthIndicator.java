@@ -42,12 +42,12 @@ public abstract class HealthIndicator implements HealthContributor {
             this.provider = provider;
       }
 
-      public Health health(boolean includeDetails) {
+      public Health getHealthSnapshot(boolean includeDetails) {
             Health.HealthBuilder builder = new Health.HealthBuilder();
             try {
                   doHealthCheck(builder);
             } catch (Exception ex) {
-                  log.warn(this.healthCheckFailedMessage());
+                  log.warn(this.healthCheckFailedMessage(), ex);
                   builder.alive(false);
                   builder.ready(false);
                   builder.status(Status.DOWN);
@@ -59,7 +59,7 @@ public abstract class HealthIndicator implements HealthContributor {
       }
 
       String healthCheckFailedMessage() {
-            return String.format("A Health Check on the {} has failed.", this.name);
+            return String.format("A Health Check on the %s has failed.", this.name);
       }
 
       // Allow an indicator to set a detail dynamically, without exposing the underlying object.
@@ -78,7 +78,7 @@ public abstract class HealthIndicator implements HealthContributor {
        *
        * This method *must* define logic to assign the {@link Status} that best reflects the current state of the component.
        * - It *should* also determine if the component is considered both {@link Health#isAlive()} and {@link Health#isReady()}.
-       *   If ready/alive logic is not defined, {@link Status#alive(Status)} defines the default logic for *both*.
+       *   If ready/alive logic is not defined, {@link Status#isAlive(Status)} defines the default logic for *both*.
        *
        * Optionally, {@link DetailsProvider} may be provided to gain further insight to the status of the component. The end result
        * should be a key, value pair of type {@link String}. {@link DetailsProvider} accepts a {@link java.util.function.Supplier}

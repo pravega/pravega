@@ -20,7 +20,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -34,39 +34,39 @@ public class HealthEndpointImpl implements HealthEndpoint {
 
     @NonNull
     @Override
-    public Health health(String name, boolean includeDetails) {
-        Optional<HealthContributor> result = registry.get(name);
-        if (result.isEmpty()) {
+    public Health getHealth(String id, boolean includeDetails) {
+        HealthContributor result = registry.get(id);
+        if (Objects.isNull(result)) {
             throw new ContributorNotFoundException();
         }
-        return result.get().health(includeDetails);
+        return result.getHealthSnapshot(includeDetails);
     }
 
     @Override
-    public List<String> dependencies(String id) {
-        return health(id, false).getChildren().stream()
+    public List<String> getDependencies(String id) {
+        return getHealth(id, false).getChildren().stream()
                 .map(child -> child.getName())
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Status status(String id) {
-        return health(id).getStatus();
+    public Status getStatus(String id) {
+        return getHealth(id).getStatus();
     }
 
     @Override
-    public boolean readiness(String id) {
-        return health(id).isReady();
+    public boolean isReady(String id) {
+        return getHealth(id).isReady();
     }
 
     @Override
-    public boolean liveness(String id) {
-        return health(id).isAlive();
+    public boolean isAlive(String id) {
+        return getHealth(id).isAlive();
     }
 
     @Override
-    public Details details(String id) {
-        return health(id, true).getDetails();
+    public Details getDetails(String id) {
+        return getHealth(id, true).getDetails();
     }
 
 }

@@ -21,10 +21,16 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
 
     static final String DEFAULT_CONTRIBUTOR_NAME = "health-service";
 
-    HealthContributor get();
+    /**
+     * Supplies the top most {@link HealthContributor} (root). For all other {@link HealthContributor} instances registered,
+     * there exists a path between the root and it.
+     * @return The root {@link HealthContributor}.
+     */
+    HealthContributor getRootContributor();
 
     /**
-     * Registers the component to the default {@link HealthContributor} registry.
+     * Registers the component to the default {@link HealthContributor} registry. If a {@link HealthComponent} with
+     * the same name exists, the existing object mapped to by said name will be returned.
      *
      * @param component The {@link HealthComponent} object to add to the registry.
      * @return The {@link HealthContributor} registered.
@@ -32,7 +38,8 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
     HealthContributor register(HealthComponent component);
 
     /**
-     * Registers the contributor to the default {@link HealthContributor} registry.
+     * Registers the contributor to the default {@link HealthContributor} registry. If a {@link HealthContributor} with
+     * the same name exists, the existing object will be returned.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
      * @return The {@link HealthContributor} registered.
@@ -41,7 +48,8 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
     HealthContributor register(HealthContributor contributor);
 
     /**
-     * Registers the component to the registry.
+     * Registers the contributor to the default {@link HealthContributor} registry. If a {@link HealthContributor} with
+     * the same name exists, the existing object will be returned, with the relation applied.
      *
      * @param component The {@link HealthComponent} object to add to the registry.
      * @param parent      The {@link HealthComponent} the {@link HealthComponent} should map too. This means that the parent's
@@ -51,7 +59,8 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
     HealthContributor register(HealthComponent component, HealthComponent parent);
 
     /**
-     * Registers the contributor to the registry.
+     * Registers the contributor to the default {@link HealthContributor} registry. If a {@link HealthContributor} with
+     * the same name exists, the existing object will be returned, with the relation applied.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
      * @param parent      The {@link HealthComponent} the {@link HealthContributor} should map too. This means that the parent's
@@ -61,7 +70,8 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
     HealthContributor register(HealthContributor contributor, HealthComponent parent);
 
     /**
-     * Registers the contributor to the registry.
+     * Registers the contributor to the default {@link HealthContributor} registry. If a {@link HealthContributor} with
+     * the same name exists, the existing object will be returned, with the relation applied.
      *
      * @param contributor The {@link HealthContributor} object to add to the registry.
      * @param parent      A {@link String} that maps to some {@link HealthContributor} which the {@link HealthContributor}

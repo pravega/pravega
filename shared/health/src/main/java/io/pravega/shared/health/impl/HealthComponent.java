@@ -39,6 +39,7 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
+    @NonNull
     protected HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
         super(aggregator, registry);
         this.name = name;

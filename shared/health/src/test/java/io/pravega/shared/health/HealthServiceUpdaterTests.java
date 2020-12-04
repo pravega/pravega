@@ -10,6 +10,7 @@
 package io.pravega.shared.health;
 
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,39 +20,42 @@ import io.pravega.shared.health.TestHealthIndicators.SampleFailingIndicator;
 
 import io.pravega.test.common.AssertExtensions;
 
+import java.time.Duration;
+
 @Slf4j
-public class HealthDaemonTests {
+public class HealthServiceUpdaterTests {
+
+    public static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     HealthService service;
 
-    HealthDaemon daemon;
+    HealthServiceUpdater healthServiceUpdater;
 
+    HealthServiceFactory factory;
     @Before
     public void before() {
-        HealthServiceFactory factory = new HealthServiceFactory();
+        factory = new HealthServiceFactory();
         service = factory.createHealthService(true);
-        daemon = service.daemon();
+        healthServiceUpdater = service.getHealthServiceUpdater();
+        healthServiceUpdater.awaitRunning();
+    }
+
+    @After
+    public void after() {
+        factory.close();
+        service.reset();
+        healthServiceUpdater.stopAsync();
+        healthServiceUpdater.awaitTerminated();
     }
 
     @Test
     public void isRunningAfterServiceInitialization() {
-        Assert.assertTrue(daemon.isRunning());
+        Assert.assertTrue(healthServiceUpdater.isRunning());
     }
 
     @Test
-    public void daemonCanBeRestarted() {
-        // By default, if requested, the daemon should start by default.
-        Assert.assertTrue(daemon.isRunning());
-        daemon.reset();
-        Assert.assertTrue(!daemon.isRunning());
-        daemon.start();
-        Assert.assertTrue(daemon.isRunning());
-    }
-
-    @Test
-    public void daemonProperlyUpdates() throws Exception {
+    public void serviceUpdaterProperlyUpdates() throws Exception {
         service.registry().register(new SampleHealthyIndicator());
-        daemon.start();
         // First Update.
         assertHealthServiceStatus(Status.UP);
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
@@ -62,8 +66,8 @@ public class HealthDaemonTests {
     private void assertHealthServiceStatus(Status expected) {
         try {
             AssertExtensions.assertEventuallyEquals(expected,
-                    () -> daemon.getLatestHealth().getStatus(),
-                    (daemon.getInterval() + 1) * 1000);
+                    () -> healthServiceUpdater.getLatestHealth().getStatus(),
+                    (healthServiceUpdater.getInterval() + 1) * 1000);
         } catch (Exception e) {
             Assert.fail(e.getMessage());
         }

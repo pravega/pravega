@@ -9,5 +9,9 @@
  */
 package io.pravega.shared.health;
 
+/**
+ * Exception thrown when the {@link HealthEndpoint} is called given some {@link HealthContributor} name and
+ * the {@link ContributorRegistry} contains no entry with a key of said name.
+ */
 public class ContributorNotFoundException extends RuntimeException {
 }

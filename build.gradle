@@ -103,7 +103,7 @@ allprojects {
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
-            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonDatabindVersion
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "io.netty:netty-common:" + nettyVersion
@@ -293,9 +293,6 @@ project('shared:protocol') {
 
 project ('shared:health') {
 
-    def jacksonMatcher = jacksonVersion =~ /\d+\.\d+\.\d+/
-    def jacksonAnnotationVersion = jacksonMatcher[0]
-
     dependencies {
         compile project(':common')
         testCompile project(':test:testcommon')
@@ -303,7 +300,7 @@ project ('shared:health') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
-        compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonAnnotationVersion
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonVersion
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
     }
 
@@ -352,7 +349,7 @@ project('test:testcommon') {
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-common', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
-        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
+        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonDatabindVersion
     }
 
     tasks.withType(JavaCompile) {
@@ -747,8 +744,8 @@ project('controller') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
-        compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: '2.9.10'
-        compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-joda', version: '2.9.10'
+        compile group: 'com.fasterxml.jackson.jaxrs', name: 'jackson-jaxrs-json-provider', version: jacksonVersion
+        compile group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-joda', version: jacksonVersion
         testCompile project(':test:testcommon')
         testCompile project(':shared:basic-authplugin')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion

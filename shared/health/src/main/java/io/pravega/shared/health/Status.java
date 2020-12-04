@@ -11,6 +11,7 @@ package io.pravega.shared.health;
 
 
 import lombok.Getter;
+import lombok.NonNull;
 
 /**
  * Enumerates the list of potential states that a service or component may be in.
@@ -19,13 +20,18 @@ public enum Status {
     /**
      * Describes a {@link Status} that is considered in a healthy and operational state.
      */
-    UP(2),
+    UP(3),
 
     /**
-     * Describes a {@link Status} that is considered to be in a (potentially) deteriorating state, but still
-     * remains operational.
+     * Describes a {@link Status} that is considered to be in the process of starting, but not yet 'RUNNING'.
      */
-    WARNING(1),
+    STARTING(2),
+
+    /**
+     * Describes the scenario where a {@link HealthContributor} has very recently been created, but not entered
+     * a 'STARTING' phase.
+     */
+    NEW(1),
 
     /**
      * Describes a {@link Status} that is in an unknown state.
@@ -49,8 +55,9 @@ public enum Status {
      * @param status The reference {@link Status} object.
      * @return Whether this {@link Status} can be considered 'alive' or not.
      */
-    static boolean alive(Status status) {
-        return status != null && status != DOWN && status != UNKNOWN;
+    @NonNull
+    static boolean isAlive(Status status) {
+        return status != DOWN && status != UNKNOWN;
     }
 
 }

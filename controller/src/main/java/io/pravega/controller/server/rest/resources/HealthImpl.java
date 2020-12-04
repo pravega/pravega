@@ -59,7 +59,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Health health = id == null ? service.endpoint().health(details) : service.endpoint().health(id, details);
+            Health health = id == null ? service.endpoint().getHealth(details) : service.endpoint().getHealth(id, details);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
                     .build();
@@ -69,7 +69,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     @Override
@@ -85,7 +84,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            boolean alive = id == null ? service.endpoint().liveness() : service.endpoint().liveness(id);
+            boolean alive = id == null ? service.endpoint().isAlive() : service.endpoint().isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
                     .build());
@@ -96,7 +95,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     @Override
@@ -112,7 +110,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDependencies(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            List<String> dependencies = id == null ? service.endpoint().dependencies() : service.endpoint().dependencies(id);
+            List<String> dependencies = id == null ? service.endpoint().getDependencies() : service.endpoint().getDependencies(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(dependencies))
                     .build());
@@ -121,7 +119,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     @Override
@@ -137,7 +134,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Details details = id == null ? service.endpoint().details() : service.endpoint().details(id);
+            Details details = id == null ? service.endpoint().getDetails() : service.endpoint().getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
                     .build());
@@ -146,7 +143,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     @Override
@@ -162,7 +158,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            boolean ready = id == null ? service.endpoint().readiness() : service.endpoint().readiness(id);
+            boolean ready = id == null ? service.endpoint().isReady() : service.endpoint().isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
                     .build());
@@ -173,7 +169,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     @Override
@@ -189,7 +184,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Status status = id == null ? service.endpoint().status() : service.endpoint().status(id);
+            Status status = id == null ? service.endpoint().getStatus() : service.endpoint().getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
                     .build());
@@ -198,7 +193,6 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
-        return;
     }
 
     // The follow methods provide a means to cast the HealthService framework models, to the generated models.

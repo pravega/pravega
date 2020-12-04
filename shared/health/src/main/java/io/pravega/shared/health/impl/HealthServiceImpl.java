@@ -11,7 +11,7 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthConfig;
-import io.pravega.shared.health.HealthDaemon;
+import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.extern.slf4j.Slf4j;
@@ -26,12 +26,12 @@ public class HealthServiceImpl implements HealthService {
     /**
      * The {@link HealthConfig} object used to setup the {@link HealthComponent} hierarchy.
      */
-    private HealthConfig config;
+    private final HealthConfig config;
 
     /**
-     * The {@link HealthDaemon} which provides passive health updates.
+     * The {@link HealthServiceUpdater} which provides passive health updates.
      */
-    private final HealthDaemon daemon;
+    private final HealthServiceUpdater updater;
 
     private final HealthEndpoint endpoint;
 
@@ -41,7 +41,7 @@ public class HealthServiceImpl implements HealthService {
         this.endpoint = new HealthEndpointImpl(this.registry);
         // Initializes the ContributorRegistry into the expected starting state.
         this.config.reconcile(this.registry);
-        this.daemon = new HealthDaemonImpl(this);
+        this.updater = new HealthServiceUpdaterImpl(this);
     }
 
     @Override
@@ -60,8 +60,8 @@ public class HealthServiceImpl implements HealthService {
     }
 
     @Override
-    public HealthDaemon daemon() {
-        return daemon;
+    public HealthServiceUpdater getHealthServiceUpdater() {
+        return updater;
     }
 
     /**
@@ -69,7 +69,7 @@ public class HealthServiceImpl implements HealthService {
      * {@link  HealthConfig}.
      */
     @Override
-    public void clear() {
+    public void reset() {
         this.registry.reset();
         // The ContributorRegistry clears all it's internal state, so the reconcile process must be repeated.
         this.config.reconcile(this.registry);

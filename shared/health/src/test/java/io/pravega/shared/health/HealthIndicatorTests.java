@@ -19,30 +19,38 @@ import io.pravega.shared.health.TestHealthIndicators.ThrowingIndicator;
 public class HealthIndicatorTests {
 
     // A HealthIndicator should be have any contributors (dependencies).
+
+    /**
+     * Tests that by default no {@link Details} will be provided.
+     */
     @Test
     public void testHealthWithoutDetails() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        Health health = indicator.health(false);
+        Health health = indicator.getHealthSnapshot();
         Assert.assertEquals("A HealthIndicator should not have any child contributors.", indicator.contributors().size(), 0);
         Assert.assertEquals("Should exactly one detail entry.", 0, health.getDetails().size());
         Assert.assertEquals("HealthIndicator should report an 'UP' Status.", Status.UP, health.getStatus());
     }
 
-    // Provide details information in constructor.
+    /**
+     * Test a {@link Health} check, but request its {@link Details}.
+     */
     @Test
     public void testHealthWithDetails() {
         // Details implicitly added during class construction.
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        Health health = indicator.health(true);
+        Health health = indicator.getHealthSnapshot(true);
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
         Assert.assertEquals("HealthIndicator should report an 'UP' Status.", Status.UP, health.getStatus());
     }
 
+    /**
+     * Tests that {@link Details} which are test after construction are correctly returned.
+     */
     @Test
-    // Set details during the `doHealthCheck`.
     public void testHealthDynamicDetails() {
         DynamicHealthyIndicator indicator = new DynamicHealthyIndicator();
-        Health health = indicator.health(true);
+        Health health = indicator.getHealthSnapshot(true);
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
         Assert.assertEquals("HealthIndicator should report an 'UP' Status.", Status.UP, health.getStatus());
         Assert.assertEquals("Detail with key 'DETAILS_KEY' should have an updated value.",
@@ -50,18 +58,26 @@ public class HealthIndicatorTests {
                 health.getDetails().get(SampleHealthyIndicator.DETAILS_KEY));
     }
 
+    /**
+     * Tests that a {@link HealthIndicator} which does not implement {@link HealthIndicator#doHealthCheck(Health.HealthBuilder)}
+     * will return a default {@link Health} result.
+     */
     @Test
     public void testEmptyDoHealthCheckBody() {
         BodylessIndicator indicator = new BodylessIndicator();
-        Health health = indicator.health();
+        Health health = indicator.getHealthSnapshot();
         Assert.assertEquals("HealthIndicator should have an 'UNKNOWN' Status.", Status.UNKNOWN, health.getStatus());
     }
 
+    /**
+     * If the {@link HealthIndicator#doHealthCheck(Health.HealthBuilder)} throws an error, test that it is caught and
+     * a {@link Health} result that reflects an 'unhealthy' state is returned.
+     */
     @Test
     public void testIndicatorThrows() {
         ThrowingIndicator indicator = new ThrowingIndicator();
-        Health health = indicator.health();
-        Assert.assertEquals("HealthIndicator should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
+        Health health = indicator.getHealthSnapshot();
+        Assert.assertEquals("HealthIndicator should have a 'TERMINATED' Status.", Status.DOWN, health.getStatus());
         Assert.assertTrue("HealthIndicator should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
     }
 

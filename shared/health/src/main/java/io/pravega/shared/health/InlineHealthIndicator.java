@@ -23,12 +23,12 @@ public class InlineHealthIndicator extends HealthIndicator {
     private final BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck;
 
     @NonNull
-    InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck) {
+    public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck) {
         this(name, doHealthCheck, new DetailsProvider());
     }
 
     @NonNull
-    InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck, DetailsProvider provider) {
+    public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck, DetailsProvider provider) {
         super(name, provider);
         this.doHealthCheck = doHealthCheck;
     }

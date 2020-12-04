@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.StatusAggregator;
@@ -61,12 +62,12 @@ public class HealthConfigImpl implements HealthConfig {
         public Builder define(String name, StatusAggregator aggregator) {
             if (components.containsKey(name)) {
                 log.warn("Overwriting a pre-existing component definition -- aborting.");
-                return this;
+            } else {
+                HealthComponent component = new HealthComponent(name, aggregator, null);
+                roots.add(component);
+                components.put(name, component);
+                relations.put(name, new HashSet<>());
             }
-            HealthComponent component = new HealthComponent(name, aggregator, null);
-            roots.add(component);
-            components.put(name, component);
-            relations.put(name, new HashSet<>());
             return this;
         }
 
@@ -79,10 +80,6 @@ public class HealthConfigImpl implements HealthConfig {
          * @return A reference to the *same* object, with updates to its internal data-structures made.
          */
         public Builder relation(String child, String parent) {
-            if (child.equals(parent)) {
-                log.warn("Attempting to add a reference to itself -- aborting.");
-                return this;
-            }
             if (!components.containsKey(child) || !components.containsKey(parent)) {
                 log.warn("At least one of the components in this relation has not been defined -- aborting.");
                 return this;
@@ -98,10 +95,15 @@ public class HealthConfigImpl implements HealthConfig {
          * @return Whether or not the specification is cycle-free.
          * @throws Exception
          */
-        private boolean validate() {
+        private boolean isValid() {
             boolean cycle = false;
+            HashMap<String, Boolean> visited = new HashMap<>();
             for (val component : relations.entrySet()) {
-                cycle |= validate(component.getKey(), new HashMap<>());
+                cycle |= validate(component.getKey(), visited);
+                if (cycle) {
+                    break;
+                }
+                visited.clear();
             }
             return !cycle;
         }
@@ -112,7 +114,7 @@ public class HealthConfigImpl implements HealthConfig {
          * @param name The name of the {@link HealthComponent} currently being checked.
          * @param visited The list of {@link HealthComponent} visited so far.
          *
-         * @return Whether or not this component has been searched previously.
+         * @return Whether or not this component has been searched previously and is cycle-free.
          */
         private boolean validate(String name, Map<String, Boolean> visited) {
             if (visited.containsKey(name) && visited.get(name)) {
@@ -122,6 +124,9 @@ public class HealthConfigImpl implements HealthConfig {
             visited.put(name, true);
             for (String child : relations.get(name)) {
                 cycle |= validate(child, visited);
+                if (cycle) {
+                    break;
+                }
             }
             return cycle;
         }
@@ -131,7 +136,7 @@ public class HealthConfigImpl implements HealthConfig {
             try {
                 config = build();
             } catch (Exception e) {
-                log.error("Error building empty HealthConfig.");
+                log.error("Error building empty HealthConfig.", e);
             }
             return config;
         }
@@ -141,14 +146,11 @@ public class HealthConfigImpl implements HealthConfig {
          * that there are no cyclic relations.
          *
          * @return The resulting {@link HealthConfig}.
-         * @throws Exception Thrown {@link Exception} in the case the validation fails.
+         * @throws IllegalStateException Thrown {@link Exception} in the case the validation fails.
          */
-        public HealthConfig build() throws Exception {
-            if (validate()) {
-                return new HealthConfigImpl(components, roots, relations);
-            } else {
-                throw new RuntimeException("Invalid HealthComponentConfig definition: Cyclic reference(s) detected.");
-            }
+        public HealthConfig build() {
+            Preconditions.checkState(isValid(), "Invalid HealthConfig definition: Cyclic reference(s) detected.");
+            return new HealthConfigImpl(components, roots, relations);
         }
     }
 

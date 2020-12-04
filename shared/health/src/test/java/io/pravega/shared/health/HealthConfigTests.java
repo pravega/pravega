@@ -17,7 +17,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * The goal of the {@link HealthConfig }is to ensure that the provided {@link io.pravega.shared.health.impl.HealthComponent}
+ * The goal of the {@link HealthConfig} is to ensure that the provided {@link io.pravega.shared.health.impl.HealthComponent}
  * hierarchy is not cyclic. No graphs that contain any cycle should be permitted to exist. Not only does it not logically
  * make sense for some {@link io.pravega.shared.health.impl.HealthComponent} to depend on itself, but by ensuring that
  * only {@link HealthContributor} objects can be registered to a component, we can maintain this cycle-free invariant.
@@ -30,123 +30,125 @@ import org.junit.Test;
 @Slf4j
 public class HealthConfigTests {
 
+    /**
+     * Tests that a {@link HealthConfig} definition cannot have a cycle. The following construction is a 'Complete Graph':
+     *
+     *    A <--------+
+     *    +          |
+     *    |          |
+     *    |          |
+     *    v          +
+     *    B +------> C
+     */
     @Test
-    // Cyclic Graph.
     public void cyclicComponentRejected() {
         AssertExtensions.assertThrows("A cycle should have been noticed and the HealthConfig rejected.",
-                () -> {
-                    HealthConfigImpl.builder()
-                            .define("a", StatusAggregatorImpl.DEFAULT)
-                            .define("b", StatusAggregatorImpl.DEFAULT)
-                            .define("c", StatusAggregatorImpl.DEFAULT)
-                            .relation("a", "b")
-                            .relation("b", "c")
-                            .relation("c", "a")
-                            .build();
-                },
-                ex -> ex instanceof RuntimeException);
+                () -> HealthConfigImpl.builder()
+                            .define("A", StatusAggregatorImpl.DEFAULT)
+                            .define("B", StatusAggregatorImpl.DEFAULT)
+                            .define("C", StatusAggregatorImpl.DEFAULT)
+                            .relation("A", "B")
+                            .relation("B", "C")
+                            .relation("C", "A")
+                            .build(),
+                ex -> ex instanceof IllegalStateException);
     }
 
+    /**
+     * Tests that a {@link HealthConfig} of a single component is valid, i.e. the 'Trivial Graph':
+     *
+     *     A
+     */
     @Test
-    // Trivial Graph.
     public void singleComponent() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                    .define("a", StatusAggregatorImpl.DEFAULT);
-        configExceptionHandler(builder, false);
+        HealthConfigImpl.builder()
+                    .define("A", StatusAggregatorImpl.DEFAULT)
+                    .build();
     }
 
+    /**
+     * Tests that a {@link HealthConfig} that defines only components and *not* relations is valid, i.e. the 'Null Graph'.
+     *
+     *    A    B    C    D
+     */
     @Test
-    // A Null Graph.
     public void componentsWithNoRelations() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .define("b", StatusAggregatorImpl.DEFAULT)
-                .define("c", StatusAggregatorImpl.DEFAULT)
-                .define("d", StatusAggregatorImpl.DEFAULT);
-        configExceptionHandler(builder, false);
+        HealthConfigImpl.builder()
+                .define("A", StatusAggregatorImpl.DEFAULT)
+                .define("B", StatusAggregatorImpl.DEFAULT)
+                .define("C", StatusAggregatorImpl.DEFAULT)
+                .define("D", StatusAggregatorImpl.DEFAULT)
+                .build();
     }
 
+    /**
+     * Tests a {@link HealthConfig} definition such that one parent (a) has many children (b,c,d). Structurally equivalent
+     * to a 'Star Graph':
+     *
+     *           C
+     *           |
+     *     D --- A --- B
+     */
     @Test
-    // Disconnected Graph (Forest)
-    public void disjointComponentHierarchy() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .define("b", StatusAggregatorImpl.DEFAULT)
-                .define("c", StatusAggregatorImpl.DEFAULT)
-                .define("d", StatusAggregatorImpl.DEFAULT)
-                .define("e", StatusAggregatorImpl.DEFAULT)
-                .define("f", StatusAggregatorImpl.DEFAULT)
-                .relation("c", "a")
-                .relation("b", "a")
-                .relation("e", "d")
-                .relation("f", "d");
-        configExceptionHandler(builder, false);
-    }
-
-    @Test
-    // 'Spine' of a 'Caterpillar tree' -- Vertical line.
-    public void verticalComponentHierarchy() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .define("b", StatusAggregatorImpl.DEFAULT)
-                .define("c", StatusAggregatorImpl.DEFAULT)
-                .relation("b", "a")
-                .relation("c", "b");
-        configExceptionHandler(builder, false);
-    }
-
-    @Test
-    // Star Graph.
     public void componentManyChildren() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .define("b", StatusAggregatorImpl.DEFAULT)
-                .define("c", StatusAggregatorImpl.DEFAULT)
-                .define("d", StatusAggregatorImpl.DEFAULT)
-                .relation("b", "a")
-                .relation("c", "a")
-                .relation("d", "a");
-        configExceptionHandler(builder, false);
+        HealthConfigImpl.builder()
+                .define("A", StatusAggregatorImpl.DEFAULT)
+                .define("B", StatusAggregatorImpl.DEFAULT)
+                .define("C", StatusAggregatorImpl.DEFAULT)
+                .define("D", StatusAggregatorImpl.DEFAULT)
+                .relation("B", "A")
+                .relation("C", "A")
+                .relation("D", "A")
+                .build();
     }
 
+    /**
+     * Tests that a {@link HealthConfig} definition which is structurally 'Bipartite' is valid:
+     *
+     *    A +----> C
+     *       \ /
+     *        X
+     *       / \
+     *    B +----> D
+     */
     @Test
-    // Empty Graph.
+    public void testComponentSharedDependency() {
+        HealthConfigImpl.builder()
+                .define("A", StatusAggregatorImpl.DEFAULT)
+                .define("B", StatusAggregatorImpl.DEFAULT)
+                .define("D", StatusAggregatorImpl.DEFAULT)
+                .define("D", StatusAggregatorImpl.DEFAULT)
+                .relation("C", "A")
+                .relation("D", "A")
+                .relation("D", "B")
+                .relation("C", "B")
+                .build();
+    }
+
+    /**
+     * Tests an *empty* {@link HealthConfig} definition. This equates to an empty graph, i.e. one with no nodes.
+     */
+    @Test
     public void emptyConfig() {
         Assert.assertTrue("Config should be listed as 'empty'.", HealthConfigImpl.builder().empty().isEmpty());
     }
 
+    /** Tests that a {@link HealthConfig} restricts definitions with any component that has a self-reference:
+     *
+     *     +-----+
+     *     |     |
+     *     |     |
+     *     A <---+
+     */
     @Test
-    // Single node with a loop.
     public void selfReferenceRejected() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .relation("a", "a");
-        configExceptionHandler(builder, true);
+        AssertExtensions.assertThrows("A self-reference was not detected.",
+                () -> HealthConfigImpl.builder()
+                        .define("A", StatusAggregatorImpl.DEFAULT)
+                        .relation("A", "A")
+                        .build(),
+                ex -> ex instanceof IllegalStateException);
     }
 
-    @Test
-    // Cycle added at end of graph.
-    public void simpleCycle() {
-        HealthConfigImpl.Builder builder = HealthConfigImpl.builder()
-                .define("a", StatusAggregatorImpl.DEFAULT)
-                .define("b", StatusAggregatorImpl.DEFAULT)
-                .relation("a", "b")
-                .relation("b", "a");
-        configExceptionHandler(builder, true);
-    }
-
-    private void configExceptionHandler(HealthConfigImpl.Builder builder, boolean shouldThrow)  {
-        String message = new StringBuilder()
-                .append("An exception was ")
-                .append(!shouldThrow ? "not " : "")
-                .append("expected to be thrown.")
-                .toString();
-        try {
-            builder.build();
-        } catch (Exception e) {
-            log.error("{}", e);
-            Assert.assertTrue(message, shouldThrow);
-        }
-    }
 }
 
