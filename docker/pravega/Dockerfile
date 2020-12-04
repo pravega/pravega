@@ -16,7 +16,17 @@ RUN apt-get update && apt-get install -y -q \
     jq \
     curl \
     net-tools \
-    iproute2  \
+    iproute2
+
+# Adding Java system truststore 'cacerts', as it is missing from the Java
+# distribution installed by the base image and one of the storage bindings(ECS)
+# depends on its presence.
+#
+# For installing ca-certificates for jre requires the presence of man folder
+# otherwise it fails with the following error
+# `Sub-process /usr/bin/dpkg returned an error code (1)`
+RUN mkdir -p /usr/share/man/man1 && apt-get install -y -q ca-certificates-java \
+  && /var/lib/dpkg/info/ca-certificates-java.postinst configure \
   && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 9090 9091 10000 12345
