@@ -12,7 +12,7 @@ package io.pravega.common.io.serialization;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
@@ -22,8 +22,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,8 +72,8 @@ import java.util.Map;
  * ** RevisionDataOutput has a requiresExplicitLength() to aid in determining which kind of OutputStream is being used.
  * ** RevisionDataOutput has a number of methods that can be used in calculating the length of Strings and other complex
  * structures.
- * ** Consider serializing to a FixedByteArrayOutputStream or EnhancedByteArrayOutputStream if you want to make use
- * of the RandomOutput features (automatic length measurement).
+ * ** Consider serializing to a {@link ByteBufferOutputStream} if you want to make use of the RandomOutput features
+ * (such as automatic length measurement).
  * *** Consider using {@code ByteArraySegment serialize(T object)} if you want the VersionedSerializer to do this for you.
  * Be mindful that this will create a new buffer for the serialization, which might affect performance.
  *
@@ -127,7 +125,7 @@ public abstract class VersionedSerializer<T> {
      * @throws IOException If an IO Exception occurred.
      */
     public ByteArraySegment serialize(T object) throws IOException {
-        val result = new EnhancedByteArrayOutputStream();
+        val result = new ByteBufferOutputStream();
         serialize(result, object);
         return result.getData();
     }
@@ -324,15 +322,13 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void serializeContents(OutputStream stream, TargetType o) throws IOException {
-            DataOutputStream dataOutput = stream instanceof DataOutputStream ? (DataOutputStream) stream : new DataOutputStream(stream);
-
             val writeVersion = this.versions[getWriteVersion()];
-            dataOutput.writeByte(writeVersion.getVersion());
-            dataOutput.writeByte(writeVersion.getRevisions().size());
+            stream.write(writeVersion.getVersion());
+            stream.write(writeVersion.getRevisions().size());
 
             // Write each Revision for this Version, in turn.
             for (val r : writeVersion.getRevisions()) {
-                dataOutput.writeByte(r.getRevision());
+                stream.write(r.getRevision());
                 try (val revisionOutput = RevisionDataOutputStream.wrap(stream)) {
                     r.getWriter().accept(o, revisionOutput);
                 }
@@ -383,17 +379,16 @@ public abstract class VersionedSerializer<T> {
          * @throws IOException If an IO Exception occurred.
          */
         void deserializeContents(InputStream stream, ReaderType target) throws IOException {
-            DataInputStream dataInput = stream instanceof DataInputStream ? (DataInputStream) stream : new DataInputStream(stream);
-            byte version = dataInput.readByte();
+            byte version = readByte(stream);
             val readVersion = this.versions[version];
             ensureCondition(readVersion != null, "Unsupported version %d.", version);
 
-            byte revisionCount = dataInput.readByte();
+            byte revisionCount = readByte(stream);
             ensureCondition(revisionCount >= 0, "Data corruption: negative revision count.");
 
             int revisionIndex = 0;
             for (int i = 0; i < revisionCount; i++) {
-                byte revision = dataInput.readByte();
+                byte revision = readByte(stream);
                 val rd = readVersion.get(revisionIndex++);
                 try (RevisionDataInputStream revisionInput = RevisionDataInputStream.wrap(stream)) {
                     if (rd != null) {
@@ -403,6 +398,15 @@ public abstract class VersionedSerializer<T> {
                         rd.getReader().accept(revisionInput, target);
                     }
                 }
+            }
+        }
+
+        private byte readByte(InputStream in) throws IOException {
+            int ch = in.read();
+            if (ch < 0) {
+                throw new EOFException();
+            } else {
+                return (byte) ch;
             }
         }
     }
