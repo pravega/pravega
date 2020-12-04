@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.test.common.TestingServerStarter;
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -50,7 +51,9 @@ public class ServiceStarterTest {
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1)
                         .with(ServiceConfig.ZK_URL, zkUrl));
+        @Cleanup("shutdown")
         ServiceStarter serviceStarter = new ServiceStarter(configBuilder.build());
+        @Cleanup
         CuratorFramework zkClient = serviceStarter.createZKClient();
         zkClient.blockUntilConnected();
         Assert.assertTrue(zkClient.getZookeeperClient().isConnected());

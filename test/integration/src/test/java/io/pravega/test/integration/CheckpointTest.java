@@ -85,6 +85,7 @@ public class CheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
@@ -97,6 +98,7 @@ public class CheckpointTest {
         @Cleanup
         ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
         producer.writeEvent(testString);
@@ -174,6 +176,7 @@ public class CheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
@@ -184,6 +187,7 @@ public class CheckpointTest {
         @Cleanup
         ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
         producer.writeEvent(testString);
@@ -243,6 +247,7 @@ public class CheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         int maxOutstandingCheckpointRequest = 1;
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
@@ -258,6 +263,7 @@ public class CheckpointTest {
         @Cleanup
         ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                 EventWriterConfig.builder().build());
         producer.writeEvent(testString);
@@ -330,6 +336,7 @@ public class CheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
@@ -342,6 +349,7 @@ public class CheckpointTest {
         @Cleanup
         ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
         producer.writeEvent(testString);

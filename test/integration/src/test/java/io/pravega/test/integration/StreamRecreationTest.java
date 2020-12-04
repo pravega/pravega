@@ -124,6 +124,7 @@ public class StreamRecreationTest {
             // Write a single event.
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
+            @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                                                                                eventWriterConfig);
             TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(myStream,

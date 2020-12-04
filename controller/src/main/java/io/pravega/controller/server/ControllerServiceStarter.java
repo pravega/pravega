@@ -53,12 +53,12 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
+import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
 import java.net.InetAddress;
 import java.net.URI;
@@ -101,6 +101,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private TableMetadataTasks kvtMetadataTasks;
     private BucketManager retentionService;
     private BucketManager watermarkingService;
+    private PeriodicWatermarking watermarkingWork;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
@@ -228,16 +229,16 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             
             ClientConfig clientConfig = clientConfigBuilder.build();
-            connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
+            connectionFactory = connectionFactoryRef.orElseGet(() -> new SocketConnectionFactoryImpl(clientConfig));
             connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore, controllerExecutor));
+            segmentHelper = segmentHelperRef.orElseGet(() -> new SegmentHelper(connectionPool, hostStore, controllerExecutor));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),
                                                            grpcServerConfig.getAccessTokenTTLInSeconds());
 
             log.info("Creating the stream store");
-            streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
@@ -256,7 +257,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             retentionService.awaitRunning();
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
-            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+            watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
                     clientConfig, watermarkingExecutor);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
@@ -283,7 +284,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElse(KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
+            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
             kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
@@ -445,6 +446,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of watermarking service");
                 watermarkingService.awaitTerminated();
             }
+
+            if (watermarkingWork != null) {
+                watermarkingWork.close();
+            }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;
@@ -465,17 +470,30 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("closing segment helper");
                 segmentHelper.close();
             }
+
+            if (kvtMetadataStore != null) {
+                kvtMetadataStore.close();
+            }
+
+            if (kvtMetadataTasks != null) {
+                kvtMetadataTasks.close();
+            }
+
             log.info("Closing connection pool");
             connectionPool.close();
-            
+
             log.info("Closing connection factory");
             connectionFactory.close();
 
             log.info("Closing storeClient");
             storeClient.close();
-            
+
             log.info("Closing store");
             streamStore.close();
+
+            if (controllerEventProcessors != null) {
+                controllerEventProcessors.close();
+            }
 
             // Close metrics.
             StreamMetrics.reset();

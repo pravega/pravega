@@ -37,6 +37,7 @@ public class ClusterWrapperTest {
 
     @Test
     public void setsDefaultValuesWhenBuilderSpecifiesNoValues() {
+        @Cleanup
         ClusterWrapper objectUnderTest = ClusterWrapper.builder().build();
 
         assertFalse(objectUnderTest.isAuthEnabled());

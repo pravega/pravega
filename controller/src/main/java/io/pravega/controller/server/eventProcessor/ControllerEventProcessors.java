@@ -81,7 +81,7 @@ import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper {
+public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
 
     public static final EventSerializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new EventSerializer<>();
     public static final EventSerializer<AbortEvent> ABORT_EVENT_SERIALIZER = new EventSerializer<>();
@@ -188,6 +188,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             log.info("Stopping controller event processors");
             stopEventProcessors();
             rebalanceExecutor.shutdownNow();
+            this.clientFactory.close();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
@@ -576,5 +577,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @VisibleForTesting
     void setTruncationInterval(long interval) {
         truncationInterval.set(interval);
+    }
+
+    @Override
+    public void close() {
+        this.stopAsync().awaitTerminated();
+        this.clientFactory.close();
     }
 }
