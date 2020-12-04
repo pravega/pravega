@@ -13,25 +13,18 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.function.RunnableWithException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -41,26 +34,7 @@ import lombok.val;
  */
 @Slf4j
 public final class ExecutorServiceHelpers {
-    private static final ThreadLeakDetectionLevel DETECTION_LEVEL = ThreadLeakDetectionLevel.valueOf(
-            System.getProperty("ThreadLeakDetectionLevel", ThreadLeakDetectionLevel.Aggressive.toString()));
-
-    @Data
-    private static class CallerRuns implements RejectedExecutionHandler {
-        private final String poolName;
-
-        @Override
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            log.debug("Caller to executor: " + poolName + " rejected and run in the caller.");
-            r.run();
-        }
-    }
-
-    private static final class LogUncaughtExceptions implements UncaughtExceptionHandler {
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            log.error("Exception thrown out of root of thread: " + t.getName(), e);
-        }
-    }
+    private static final ExecutorServiceFactory FACTORY = new ExecutorServiceFactory();
 
     /**
      * Creates and returns a thread factory that will create threads with the given name prefix.
@@ -69,7 +43,7 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName) {
-        return getThreadFactory(groupName, Thread.NORM_PRIORITY);
+        return FACTORY.getThreadFactory(groupName);
     }
 
     /**
@@ -80,23 +54,7 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName, int priority) {
-        return new ThreadFactory() {
-            final AtomicInteger threadCount = new AtomicInteger();
-
-            @Override
-            public String toString() {
-                return groupName;
-            }
-
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
-                thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
-                thread.setDaemon(true);
-                thread.setPriority(priority);
-                return thread;
-            }
-        };
+        return FACTORY.getThreadFactory(groupName, priority);
     }
 
     /**
@@ -118,28 +76,7 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
-
-        ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
-
-        // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result;
-        if (DETECTION_LEVEL == ThreadLeakDetectionLevel.None) {
-            result = new ScheduledThreadPoolExecutor(size, threadFactory, new CallerRuns(poolName));
-        } else {
-            result = new LeakDetectorScheduledExecutorService(size, threadFactory, new CallerRuns(poolName));
-            logNewThreadPoolCreated(poolName);
-        }
-
-        // Do not execute any periodic tasks after shutdown.
-        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-
-        // Do not execute any delayed tasks after shutdown.
-        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-
-        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
-        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
-        result.setRemoveOnCancelPolicy(true);
-        return result;
+        return FACTORY.newScheduledThreadPool(size, poolName, threadPriority);
     }
 
     /**
@@ -169,15 +106,7 @@ public final class ExecutorServiceHelpers {
      * @param poolName The name of the threadpool.
      */
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
-        // Caller runs only occurs after shutdown, as queue size is unbounded.
-        if (DETECTION_LEVEL == ThreadLeakDetectionLevel.None) {
-            return new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-                    getThreadFactory(poolName), new CallerRuns(poolName));
-        } else {
-            logNewThreadPoolCreated(poolName);
-            return new LeakDetectorThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS,
-                    new LinkedBlockingQueue<>(), getThreadFactory(poolName), new CallerRuns(poolName));
-        }
+        return FACTORY.newShrinkingExecutor(maxThreadCount, threadTimeout, poolName);
     }
 
     /**
@@ -271,74 +200,6 @@ public final class ExecutorServiceHelpers {
                 Thread.currentThread().interrupt();
             }
         }
-    }
-
-    private static class LeakDetectorScheduledExecutorService extends ScheduledThreadPoolExecutor {
-        private final Exception stackTraceEx;
-
-        LeakDetectorScheduledExecutorService(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-            super(corePoolSize, threadFactory, handler);
-            this.stackTraceEx = new Exception();
-        }
-
-        protected void finalize() {
-            checkThreadPoolLeak(this, this.stackTraceEx);
-            super.finalize();
-        }
-    }
-
-    private static class LeakDetectorThreadPoolExecutor extends ThreadPoolExecutor {
-        private final Exception stackTraceEx;
-
-        LeakDetectorThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue,
-                                       ThreadFactory threadFactory, RejectedExecutionHandler handler) {
-            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
-            this.stackTraceEx = new Exception();
-        }
-
-        protected void finalize() {
-            checkThreadPoolLeak(this, this.stackTraceEx);
-            super.finalize();
-        }
-    }
-
-    private static void logNewThreadPoolCreated(String poolName) {
-        if (DETECTION_LEVEL == ThreadLeakDetectionLevel.Light) {
-            log.debug("Created Thread Pool '{}' with leak detection level set to '{}'.", poolName, DETECTION_LEVEL);
-        } else if (DETECTION_LEVEL == ThreadLeakDetectionLevel.Aggressive) {
-            log.warn("Created Thread Pool '{}' with leak detection level set to '{}'. THE VM WILL BE HALTED IF A LEAK IS DETECTED. DO NOT USE IN PRODUCTION.", poolName, DETECTION_LEVEL);
-        }
-    }
-
-    private static void checkThreadPoolLeak(ThreadPoolExecutor e, Exception stackTraceEx) {
-        if (!e.isShutdown() || !e.isTerminated()) {
-            log.warn("THREAD POOL LEAK: {} (ShutDown={}, Terminated={}) finalized without being properly shut down.",
-                    e.getThreadFactory(), e.isShutdown(), e.isTerminated(), stackTraceEx);
-            if (DETECTION_LEVEL == ThreadLeakDetectionLevel.Aggressive) {
-                log.error("THREAD POOL LEAK DETECTED WITH LEVEL SET TO {}. SHUTTING DOWN.", ThreadLeakDetectionLevel.Aggressive);
-                System.exit(1);
-            }
-        }
-    }
-
-    public enum ThreadLeakDetectionLevel {
-        /**
-         * No detection. All Executors created are from the JDK.
-         */
-        None,
-
-        /**
-         * Lightweight detection. All Executors are decorated with non-invasive wrapper that collects the stack trace
-         * at (Executor) construction time and overrides the {@link #finalize()} method to detect leaks.
-         * <p>
-         * Logs an ERROR log message, along with a stack trace indicating the place where the thread pool was created.
-         */
-        Light,
-        /**
-         * Same as {@link #Light}, but additionally halts the VM if a JUnit testing environment is detected.
-         * DO NOT RUN IN A PRODUCTION ENVIRONMENT.
-         */
-        Aggressive
     }
 
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
