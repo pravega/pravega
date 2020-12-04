@@ -39,6 +39,6 @@ add_certs_into_truststore() {
     CERTS=/etc/secret-volume/ca-bundle/*
     for cert in $CERTS
     do
-      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore /etc/ssl/certs/java/cacerts || true
+      yes | keytool -importcert -storepass changeit -file "${cert}" -alias "${cert}" -keystore /usr/local/openjdk-11/lib/security/cacerts || true
     done
 }
