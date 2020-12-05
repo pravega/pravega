@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -101,7 +102,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private int currentCacheGeneration;
     @GuardedBy("cacheEntries")
     private final Map<Long, CacheEntry> cacheEntries;
-
+    @GuardedBy("pendingReads")
+    private final Map<Long, PendingRead> pendingReads;
     private final BTreeIndex index;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
@@ -141,6 +143,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .build();
 
         this.cacheEntries = new HashMap<>();
+        this.pendingReads = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -503,14 +506,50 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                         length, offset)));
             }
         } else {
-            byte[] buffer = new byte[length];
-            return this.storage.read(handle, offset, buffer, 0, length, timeout)
-                               .thenApplyAsync(bytesRead -> {
-                                   Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
-                                   storeInCache(offset, buffer);
-                                   return new ByteArraySegment(buffer);
-                               }, this.executor);
+            PendingRead pr;
+            synchronized (this.pendingReads) {
+                pr = this.pendingReads.get(offset);
+                if (pr == null) {
+                    // Nobody else waiting for this offset. Register ourselves.
+                    pr = new PendingRead(offset, length);
+                    this.pendingReads.put(offset, pr);
+                } else if (pr.length < length) {
+                    // Somehow the previous request wanted to read less than us. This shouldn't be the case, yet it is
+                    // a situation we should handle.
+                    pr = null;
+                } else {
+                    // Piggyback on the existing read.
+                    return pr.completion;
+                }
+            }
+
+            // TODO: this is busting the unit test because it issues a concurrent update, which is also blocked on the read.
+
+            // Issue the read request.
+            if (pr == null) {
+                return readPageFromStorage(handle, offset, length, timeout);
+            } else {
+                pr.completion.whenComplete((r, ex) -> {
+                    // Cleanup.
+                    synchronized (this.pendingReads) {
+                        this.pendingReads.remove(offset);
+                    }
+                });
+
+                Futures.completeAfter(() -> readPageFromStorage(handle, offset, length, timeout), pr.completion);
+                return pr.completion;
+            }
         }
+    }
+
+    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+        byte[] buffer = new byte[length];
+        return this.storage.read(handle, offset, buffer, 0, length, timeout)
+                .thenApplyAsync(bytesRead -> {
+                    Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
+                    storeInCache(offset, buffer);
+                    return new ByteArraySegment(buffer);
+                }, this.executor);
     }
 
     private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
@@ -785,6 +824,13 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @FunctionalInterface
     private interface CreatePageEntryIterator {
         AsyncIterator<List<PageEntry>> apply(UUID firstId, boolean firstIdInclusive);
+    }
+
+    @RequiredArgsConstructor
+    private static class PendingRead {
+        final long offset;
+        final int length;
+        final CompletableFuture<ByteArraySegment> completion = new CompletableFuture<>();
     }
 
     //endregion
