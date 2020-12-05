@@ -11,7 +11,7 @@ package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
@@ -809,7 +809,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Test that we are able to read fields from an older version.
         cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, Unpooled.EMPTY_BUFFER);
-        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
@@ -825,7 +825,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Test that we are able to read fields from an older version.
         cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, Unpooled.EMPTY_BUFFER);
-        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
