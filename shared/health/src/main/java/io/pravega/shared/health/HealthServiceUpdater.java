@@ -18,9 +18,9 @@ import com.google.common.util.concurrent.Service;
  * (should we want to provide this information) it allows us to place an upper bound on how stale this {@link Health}
  * information may be.
  */
-public interface HealthServiceUpdater extends Service {
+public interface HealthServiceUpdater extends Service, AutoCloseable {
 
-    public static final int DEFAULT_INTERVAL_SECONDS = 10;
+    static final int DEFAULT_INTERVAL_SECONDS = 10;
     /**
      * Supplies the most recent {@link Health} check result.
      *

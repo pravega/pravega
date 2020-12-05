@@ -388,8 +388,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
         try {
             if (healthService != null) {
-
+                healthService.reset();
             }
+
             if (restServer != null) {
                 restServer.stopAsync();
             }

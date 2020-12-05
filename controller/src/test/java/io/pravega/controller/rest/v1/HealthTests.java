@@ -103,6 +103,7 @@ public class HealthTests {
         restServer.stopAsync();
         restServer.awaitTerminated();
         connectionFactory.close();
+        healthServiceFactory.close();
         // The ROOT component + the component supplied by our HealthConfig (getHealthConfig).
         Assert.assertEquals(2, service.registry().contributors().size());
         Assert.assertEquals(2, service.registry().components().size());

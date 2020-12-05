@@ -93,4 +93,9 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
         log.info("Shutting down the HealthServiceUpdater.");
         latest.set(INITIAL_HEALTH);
     }
+
+    @Override
+    public void close() throws Exception {
+
+    }
 }
