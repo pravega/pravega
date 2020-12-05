@@ -250,6 +250,7 @@ final class ExecutorServiceFactory {
             log.warn("THREAD POOL LEAK: {} (ShutDown={}, Terminated={}) finalized without being properly shut down.",
                     e.getThreadFactory(), e.isShutdown(), e.isTerminated(), stackTraceEx);
             if (this.detectionLevel == ThreadLeakDetectionLevel.Aggressive) {
+                stackTraceEx.printStackTrace(System.err); // TODO
                 log.error("THREAD POOL LEAK DETECTED WITH LEVEL SET TO {}. SHUTTING DOWN.", ThreadLeakDetectionLevel.Aggressive);
                 this.onLeakDetected.run();
             }
