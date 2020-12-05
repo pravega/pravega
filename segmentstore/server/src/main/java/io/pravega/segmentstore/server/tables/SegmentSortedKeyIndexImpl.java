@@ -15,7 +15,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
@@ -246,9 +245,9 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
     }
 
     private ArrayView pageIdToKey(long pageId) {
-        byte[] b = new byte[Long.BYTES];
-        BitConverter.writeLong(b, 0, pageId);
-        return new ByteArraySegment(b);
+        ByteArraySegment b = new ByteArraySegment(new byte[Long.BYTES]);
+        b.setLong(0, pageId);
+        return b;
     }
 
     /**
