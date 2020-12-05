@@ -91,7 +91,7 @@ public class HealthComponentTests {
         // Now check that they are not exported.
         health = child.getHealthSnapshot(false);
         Assert.assertEquals("HealthIndicator should not list its exported details.", true,
-                health.getChildren().stream().findFirst().get().getDetails().isEmpty());
+                health.getChildren().isEmpty());
         // Verify that the only (direct) dependency on the 'root' component is 'parent'.
         Collection<HealthContributor> dependencies = registry.dependencies();
         Assert.assertEquals("Dependency size should be 1.", 1, dependencies.size());

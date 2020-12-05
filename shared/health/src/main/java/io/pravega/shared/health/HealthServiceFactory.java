@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.health;
 
+import com.google.common.base.Preconditions;
 import io.pravega.shared.health.impl.HealthConfigImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
 
@@ -32,6 +33,7 @@ public class HealthServiceFactory implements AutoCloseable {
     }
 
     public HealthService createHealthService(boolean start) {
+        Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has been closed.");
         HealthService service = new HealthServiceImpl(config);
         if (start) {
             service.getHealthServiceUpdater().startAsync();

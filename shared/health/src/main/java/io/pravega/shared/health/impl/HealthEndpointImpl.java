@@ -44,7 +44,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
 
     @Override
     public List<String> getDependencies(String id) {
-        return getHealth(id, false).getChildren().stream()
+        return getHealth(id, true).getChildren().stream()
                 .map(child -> child.getName())
                 .collect(Collectors.toList());
     }

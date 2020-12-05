@@ -18,7 +18,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -34,7 +36,7 @@ public abstract class CompositeHealthContributor implements HealthContributor {
 
     private final ContributorRegistry registry;
 
-    private Collection<HealthContributor> contributors = new HashSet<>();
+    private final Collection<HealthContributor> contributors = new HashSet<>();
 
     CompositeHealthContributor(StatusAggregator aggregator, ContributorRegistry registry) {
         this.aggregator = aggregator;
@@ -45,13 +47,25 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         return getHealthSnapshot(false);
     }
 
+    /**
+     * Performs a {link Health} check on *all* descendant {@link HealthContributor}. The 'includeDetails' flag
+     * has different semantics depending on the type of sub-class.
+     *
+     * {@link io.pravega.shared.health.HealthIndicator} object will be requested to fetch their {@link io.pravega.shared.health.Details},
+     * while {@link HealthComponent} will provide the {@link Health} results for all it's descendants.
+     *
+     * @param includeDetails Whether or not to request {@link io.pravega.shared.health.Details} from each of the {@link HealthContributor}.
+     * @return The {@link Health} result of the {@link CompositeHealthContributor}.
+     */
     public Health getHealthSnapshot(boolean includeDetails) {
         Health.HealthBuilder builder = Health.builder().name(getName());
+        Collection<Status> statuses = new ArrayList<>();
         // Fetch the Health Status of all dependencies.
         val children =  contributors().stream()
                 .filter(Objects::nonNull)
                 .map(contributor -> {
                     Health health = contributor.getHealthSnapshot(includeDetails);
+                    statuses.add(health.getStatus());
                     if (health.getStatus() == Status.UNKNOWN) {
                         log.warn("{} has a Status of 'UNKNOWN'. This indicates `doHealthCheck` does not set a status" +
                                 " or is an empty HealthComponent.", health.getName());
@@ -60,21 +74,9 @@ public abstract class CompositeHealthContributor implements HealthContributor {
                 })
                 .collect(Collectors.toList());
         // Get the aggregate health status.
-        Status status = aggregator.aggregate(children
-                .stream()
-                .map(Health::getStatus)
-                .collect(Collectors.toList()));
-        builder.status(status);
-        // Even if includeDetails if false, iterating over the dependencies is necessary for Status aggregation.
-        if (includeDetails) {
-            builder.children(children);
-        } else {
-            // Creates a Health object with the minimal set of information (just the Name and Status).
-            builder.children(children.stream()
-                    .map(child -> Health.builder().name(child.getName()).status(child.getStatus()).build())
-                    .collect(Collectors.toList()));
-        }
-        return builder.build();
+        Status status = aggregator.aggregate(statuses);
+
+        return builder.status(status).children(includeDetails ? children : Collections.emptyList()).build();
     }
 
     /**
