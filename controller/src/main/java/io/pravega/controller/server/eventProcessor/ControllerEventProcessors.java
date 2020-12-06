@@ -21,7 +21,6 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -186,10 +185,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     protected void shutDown() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
-            this.clientFactory.close();
             log.info("Stopping controller event processors");
             stopEventProcessors();
-            ExecutorServiceHelpers.shutdown(rebalanceExecutor);
+            rebalanceExecutor.shutdownNow();
+            this.clientFactory.close();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
