@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -2006,10 +2006,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             // Add another operation and record its length.
             StorageOperation appendOp = generateAppendAndUpdateMetadata(i, SEGMENT_ID, context);
             appendOperations.add(appendOp);
-            byte[] ad = new byte[(int) appendOp.getLength()];
-            getAppendData(appendOp, new FixedByteArrayOutputStream(ad, 0, ad.length), context);
-            appendData.add(new ByteArrayInputStream(ad));
-            writtenData.write(ad);
+            val adStream = new ByteBufferOutputStream((int) appendOp.getLength());
+            getAppendData(appendOp, adStream, context);
+            appendData.add(adStream.getData().getReader());
+            writtenData.write(adStream.getData().getCopy());
         }
 
         // Add each operation at at time, and every X appends, write ahead to storage (X-1 appends). This will force a
