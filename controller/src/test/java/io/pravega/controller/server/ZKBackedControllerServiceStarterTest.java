@@ -17,6 +17,7 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
+import io.pravega.common.function.Callbacks;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -274,7 +275,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
             latch.join();
             throw new RuntimeException();
         }).when(store).createScope(anyString());
-        
+
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
                 SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, kvtStore);
         starter.startAsync();
@@ -287,5 +288,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         AssertExtensions.assertThrows(IllegalStateException.class, starter::awaitRunning);
         assertTrue(Exceptions.unwrap(starter.failureCause()) instanceof ZkSessionExpirationException);
         assertEquals(starter.state(), Service.State.FAILED);
+        Callbacks.invokeSafely(starter::shutDown, null);
     }
 }

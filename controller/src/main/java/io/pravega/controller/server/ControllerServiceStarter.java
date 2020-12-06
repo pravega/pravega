@@ -22,6 +22,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.BooleanUtils;
 import io.pravega.controller.fault.ControllerClusterListener;
@@ -82,7 +83,7 @@ import org.apache.curator.framework.CuratorFramework;
  * Creates the controller service, given the service configuration.
  */
 @Slf4j
-public class ControllerServiceStarter extends AbstractIdleService {
+public class ControllerServiceStarter extends AbstractIdleService implements AutoCloseable {
     private final ControllerServiceConfig serviceConfig;
     private final StoreClient storeClient;
     private final String objectId;
@@ -405,11 +406,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 watermarkingService.stopAsync();
             }
 
-            log.info("Closing stream metadata tasks");
-            streamMetadataTasks.close();
+            if (watermarkingWork != null) {
+                watermarkingWork.close();
+            }
 
-            log.info("Closing stream transaction metadata tasks");
-            streamTransactionMetadataTasks.close();
+            if (streamMetadataTasks != null) {
+                log.info("Closing stream metadata tasks");
+                streamMetadataTasks.close();
+            }
+
+            if (streamTransactionMetadataTasks != null) {
+                log.info("Closing stream transaction metadata tasks");
+                streamTransactionMetadataTasks.close();
+            }
 
             // Await termination of all services
             if (restServer != null) {
@@ -445,10 +454,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (watermarkingService != null) {
                 log.info("Awaiting termination of watermarking service");
                 watermarkingService.awaitTerminated();
-            }
-
-            if (watermarkingWork != null) {
-                watermarkingWork.close();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -556,5 +561,58 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     serviceConfig.getGRPCServerConfig().get().getPort());
         }
         return port;
+    }
+
+    @Override
+    public void close() {
+        try {
+            stopAsync().awaitTerminated(10, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            log.error("Exception while forcefully shutting down.", ex);
+        }
+
+        if (watermarkingWork != null) {
+            Callbacks.invokeSafely(watermarkingWork::close, null);
+        }
+
+        if (streamMetadataTasks != null) {
+            Callbacks.invokeSafely(streamMetadataTasks::close, null);
+        }
+
+        if (streamTransactionMetadataTasks != null) {
+            Callbacks.invokeSafely(streamTransactionMetadataTasks::close, null);
+        }
+        if (controllerEventProcessors != null) {
+            Callbacks.invokeSafely(controllerEventProcessors::close, null);
+        }
+
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
+
+        if (cluster != null) {
+            Callbacks.invokeSafely(cluster::close, null);
+        }
+
+        if (segmentHelper != null) {
+            segmentHelper.close();
+        }
+
+        if (kvtMetadataStore != null) {
+            Callbacks.invokeSafely(kvtMetadataStore::close, null);
+        }
+        if (kvtMetadataTasks != null) {
+            Callbacks.invokeSafely(kvtMetadataTasks::close, null);
+        }
+        if (connectionPool != null) {
+            Callbacks.invokeSafely(connectionPool::close, null);
+        }
+        if (connectionFactory != null) {
+            Callbacks.invokeSafely(connectionFactory::close, null);
+        }
+        if (storeClient != null) {
+            Callbacks.invokeSafely(storeClient::close, null);
+        }
+        if (streamStore != null) {
+            Callbacks.invokeSafely(streamStore::close, null);
+        }
     }
 }

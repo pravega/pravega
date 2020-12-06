@@ -9,27 +9,27 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.google.common.util.concurrent.Monitor;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.controller.metrics.ZookeeperMetrics;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.client.StoreType;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import com.google.common.util.concurrent.Monitor;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.state.ConnectionState;
-
-import java.util.concurrent.CompletableFuture;
-import java.util.function.BiFunction;
 
 /**
  * ControllerServiceMonitor, entry point into the controller service.
  */
 @Slf4j
-public class ControllerServiceMain extends AbstractExecutionThreadService {
+public class ControllerServiceMain extends AbstractExecutionThreadService implements AutoCloseable {
 
     enum ServiceState {
         NEW,
@@ -236,6 +236,21 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 triggerShutdown();
                 starter.awaitTerminated();
             }
+        }
+        if (storeClient != null) {
+            storeClient.close();
+        }
+    }
+
+    @Override
+    public void close() {
+        if (starter != null) {
+            triggerShutdown();
+            Callbacks.invokeSafely(starter::close, ex -> log.error("Closing starter.", ex));
+        }
+
+        if (storeClient != null) {
+            Callbacks.invokeSafely(storeClient::close, ex -> log.error("Closing storeClient.", ex));
         }
     }
 }
