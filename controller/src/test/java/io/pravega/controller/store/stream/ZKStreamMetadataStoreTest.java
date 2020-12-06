@@ -21,9 +21,11 @@ import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -34,12 +36,14 @@ import org.junit.Test;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -64,7 +68,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
+        store = new TestZkStore(cli, executor, Duration.ofSeconds(1));
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
                 BucketStore.ServiceType.WatermarkingService, 1);
 
@@ -455,5 +459,37 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 null, executor).join();
         store.completeScale(scope, stream, versioned, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
+    }
+
+    static class TestZkStore extends ZKStreamMetadataStore implements TestStore {
+        HashMap<String, ZKStream> map = new HashMap<>();
+
+        @Override
+        public void close() {
+            map.clear();
+            super.close();
+        }
+
+        TestZkStore(CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
+            super(curatorClient, executor, gcPeriod);
+        }
+
+        @Override
+        @Synchronized
+        ZKStream newStream(String scope, String name, OperationContext context) {
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, name);
+            if (map.containsKey(scopedStreamName)) {
+                return map.get(scopedStreamName);
+            } else {
+                return super.newStream(scope, name, context);
+            }
+        }
+
+        @Override
+        @Synchronized
+        public void setStream(Stream stream) {
+            String scopedStreamName = NameUtils.getScopedStreamName(stream.getScope(), stream.getName());
+            map.put(scopedStreamName, (ZKStream) stream);
+        }
     }
 }
