@@ -93,12 +93,15 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        // TODO controller.createReaderGroup(groupName, segmentNum, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
+        // TODO val result = controller.deleteReaderGroup(groupName, segmentNum);
+        // TODO if (result) {
         getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
                                          .thenCompose(b -> controller.deleteStream(scope,
                                                                                    getStreamForReaderGroup(groupName)))
@@ -111,7 +114,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                              throw Exceptions.sneakyThrow(e);
                                          }),
                                RuntimeException::new);
-        
+        // TODO } else {
+        // TODO throw new RuntimeException();
+        // TODO }
     }
 
     @Override

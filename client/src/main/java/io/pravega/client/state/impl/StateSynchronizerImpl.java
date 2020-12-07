@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -17,6 +18,7 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.common.util.Retry;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +44,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @GuardedBy("$lock")
     private StateT currentState;
     private Segment segment;
+    private Controller controller;
 
     /**
      * Creates a new instance of StateSynchronizer class.
@@ -91,6 +94,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
+            }
+            if (this.getState() instanceof ReaderGroupState) {
+                // TODO Controller calls
+                this.updateState((state, updates) -> {
+                    updates.add(new ReaderGroupState.ReaderGroupStateInit());
+                });
             }
         } catch (TruncatedDataException e) {
             log.info("{} encountered truncation on segment {}", this, segment);
