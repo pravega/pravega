@@ -58,6 +58,15 @@ public class ClusterWrapperTest {
         // interface is disabled.
         @Cleanup
         ClusterWrapper cluster = ClusterWrapper.builder().build();
+
+        // Checking that the cluster has default settings.
+        assertFalse(cluster.isAuthEnabled());
+        assertTrue(cluster.isRgWritesWithReadPermEnabled());
+        assertEquals(600, cluster.getTokenTtlInSeconds());
+        assertEquals(4, cluster.getContainerCount());
+        assertTrue(cluster.getTokenSigningKeyBasis().length() > 0);
+        assertEquals(-1, cluster.getControllerRestPort());
+
         cluster.start();
 
         // Write an event to the stream
@@ -189,19 +198,4 @@ public class ClusterWrapperTest {
         assertEquals("Response to /ping was not OK", OK.getStatusCode(), response.getStatus());
         log.info("Ping successful.");
     }
-
-    //region Unit test
-    @Test
-    public void setsDefaultValuesWhenBuilderSpecifiesNoValues() {
-        ClusterWrapper objectUnderTest = ClusterWrapper.builder().build();
-
-        assertFalse(objectUnderTest.isAuthEnabled());
-        assertTrue(objectUnderTest.isRgWritesWithReadPermEnabled());
-        assertEquals(600, objectUnderTest.getTokenTtlInSeconds());
-        assertEquals(4, objectUnderTest.getContainerCount());
-        assertTrue(objectUnderTest.getTokenSigningKeyBasis().length() > 0);
-        assertEquals(-1, objectUnderTest.getControllerRestPort());
-    }
-
-    // endregion
 }
