@@ -147,7 +147,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createReaderGroup(scope, rgName,
-                        ModelHelper.encode(request)),
+                        ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver, requestTag);
     }
 

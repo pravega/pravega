@@ -190,7 +190,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-    
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(String scopeName, String readerGroupName) {
+        return null;
+    }
+
     @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {

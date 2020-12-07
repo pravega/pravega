@@ -9,6 +9,8 @@
  */
 package io.pravega.shared.controller.event;
 
+import io.pravega.shared.controller.event.readergroup.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.readergroup.DeleteReaderGroupEvent;
 import java.util.concurrent.CompletableFuture;
 
 public interface StreamRequestProcessor extends RequestProcessor {
@@ -76,4 +78,20 @@ public interface StreamRequestProcessor extends RequestProcessor {
      * @return CompletableFuture that caller can use to synchronize.
      */
     CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent);
+
+    /**
+     * Method to process delete stream event.
+     *
+     * @param createRGEvent delete stream event.
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent);
+
+    /**
+     * Method to process delete stream event.
+     *
+     * @param deleteRGEvent delete stream event.
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent);
 }

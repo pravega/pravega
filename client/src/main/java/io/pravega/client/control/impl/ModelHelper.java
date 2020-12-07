@@ -10,7 +10,6 @@
 package io.pravega.client.control.impl;
 
 import com.google.common.base.Preconditions;
-import com.google.protobuf.MapEntry;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.segment.impl.Segment;

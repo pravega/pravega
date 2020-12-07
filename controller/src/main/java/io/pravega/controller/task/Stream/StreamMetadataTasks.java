@@ -14,12 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.*;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -27,6 +22,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
@@ -54,6 +50,10 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
+
+import io.pravega.controller.store.stream.ReaderGroupState;
+
+
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
@@ -76,6 +76,7 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.readergroup.CreateReaderGroupEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -89,10 +90,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -116,6 +114,7 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
 public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
+    private static final int READER_GROUP_OPERATION_RETRIES = 10;
 
     private final AtomicLong retentionFrequencyMillis;
     
@@ -212,15 +211,54 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
-     * Create stream.
+     * Create Reader Group.
      *
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
      * @param config          Reader Group config.
      * @return creation status.
      */
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(String scope, String rgName, ReaderGroupConfig config) {
-      return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(final String scope, final String rgName,
+                                                                               final ReaderGroupConfig config, long createTimestamp) {
+
+        final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
+        return RetryHelper.withRetriesAsync(() -> {
+            // 1. check if scope with this name exists...
+            return streamMetadataStore.checkScopeExists(scope)
+               .thenCompose(exists -> {
+                  if (!exists) {
+                            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
+                  }
+                  //2. check state of the ReaderGroup, if found
+                  return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, executor),
+                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
+                                .thenCompose(state -> {
+                                    if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
+                                        //3. get a new ID for the ReaderGroup we will be creating.
+
+                                        byte[] newUUID = streamMetadataStore.newReaderGroupId();
+                                        CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName,
+                                                createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
+                                        //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
+                                        return eventHelper.addIndexAndSubmitTask(event,
+                                                () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, newUUID, executor))
+                                                .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor)));
+
+                                    }
+                                return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+                             });
+                    });
+        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_RETRIES, executor);
+
+    }
+
+    private CompletableFuture<Boolean> isRGCreated(String scope, String rgName, Executor executor) {
+        return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
+                .thenApply(state -> {
+                    log.debug("KVTable State is {}", state.toString());
+                    return !(state.equals(ReaderGroupState.UNKNOWN) || (state.equals(ReaderGroupState.CREATING)));
+                });
     }
 
     /**

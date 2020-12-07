@@ -164,10 +164,12 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateReaderGroupStatus> createReaderGroup(String scope, String rgName,
-                                                                            final ReaderGroupConfig rgConfig) {
+                                                                            final ReaderGroupConfig rgConfig,
+                                                                            final long createTimestamp) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(rgConfig, "ReaderGroup config is null");
+        Preconditions.checkArgument(createTimestamp >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateReaderGroupName(rgName);
@@ -176,7 +178,7 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateReaderGroupStatus.newBuilder().setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME).build());
         }
-        return streamMetadataTasks.createReaderGroup(scope, rgName, rgConfig)
+        return streamMetadataTasks.createReaderGroup(scope, rgName, rgConfig, createTimestamp)
                 .thenApplyAsync(status -> {
                     reportCreateReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
                     return CreateReaderGroupStatus.newBuilder().setStatus(status).build();

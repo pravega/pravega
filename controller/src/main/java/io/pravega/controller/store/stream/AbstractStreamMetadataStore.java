@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -80,6 +81,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
+    private final LoadingCache<Pair<String, String>, ReaderGroup> rgCache;
     private final HostIndex hostTxnIndex;
     @Getter
     private final HostIndex hostTaskIndex;
@@ -97,6 +99,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             public Stream load(Pair<String, String> input) {
                                 try {
                                     return newStream(input.getKey(), input.getValue());
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
+
+        rgCache = CacheBuilder.newBuilder()
+                .maximumSize(10000)
+                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .build(
+                        new CacheLoader<Pair<String, String>, Stream>() {
+                            @Override
+                            @ParametersAreNonnullByDefault
+                            public Stream load(Pair<String, String> input) {
+                                try {
+                                    return newReaderGroup(input.getKey(), input.getValue());
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
@@ -919,6 +938,40 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
+    // region ReaderGroup
+    protected ReaderGroup getReaderGroup(String scope, final String name, RGOperationContext context) {
+        ReaderGroup readerGroup;
+        if (context != null) {
+            readerGroup = context.getReaderGroup();
+            assert readerGroup.getScope().equals(scope);
+            assert readerGroup.getName().equals(name);
+        } else {
+            readerGroup = rgCache.getUnchecked(new ImmutablePair<>(scope, name));
+            readerGroup.refresh();
+        }
+        return readerGroup;
+    }
+
+    @Override
+    public CompletableFuture<CreateRGResponse> createReaderGroup(final String scope,
+                                                                 final String rgName,
+                                                                 final ReaderGroupConfig configuration,
+                                                                 final long createTimestamp,
+                                                                 final RGOperationContext context,
+                                                                 final byte []id,
+                                                                 final Executor executor) {
+        return Futures.completeOn(checkScopeExists(scope)
+                   .thenCompose(exists -> {
+                   if (exists) {
+                     // Create reader group may fail, if scope is deleted as we attempt to create the reader group under scope.
+                     return getReaderGroup(scope, rgName, context)
+                                    .create(configuration, createTimestamp);
+                   } else {
+                     return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                   }
+                   }), executor);
+    }
+    //endregion
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
         return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
             AtomicLong totalNumSplits = new AtomicLong(0L);
@@ -963,8 +1016,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     abstract CompletableFuture<Int96> getNextCounter();
 
-    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
-
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);
     }
@@ -980,5 +1031,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Version getEmptyVersion();
 
     abstract Version parseVersionData(byte[] data);
+
+    // region reader group
+    abstract ReaderGroup newReaderGroup(final String scope, final String name);
+
+    //endregion
 }
 

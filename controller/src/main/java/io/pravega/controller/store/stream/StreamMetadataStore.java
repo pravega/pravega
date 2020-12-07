@@ -10,7 +10,9 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -87,6 +89,12 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                  final String streamName);
 
+    /**
+     * Api to check if a stream exists in the store or not.
+     * @param scopeName scope name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkScopeExists(final String scopeName);
 
     /**
      * Api to get creation time for the stream. 
@@ -289,21 +297,49 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final OperationContext context,
                                                                                            final Executor executor);
 
+    /**
+     * Api to get the Reader Group from metadata.
+     *
+     * @param scope scope name
+     * @param name reader group name
+     * @param ignoreCached ignore cached value and fetch from store.
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of boolean if state update succeeded.
+     */
+    CompletableFuture<ReaderGroup> getReaderGroup(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
 
     /**
-     * Creates a new subscribers record in metadata for an existing stream.
+     * Api to get the state for stream from metadata.
      *
-     * @param scopeName         stream scope name.
-     * @param streamName        stream name.
-     * @param subscriber        new stream subscriber.
-     * @param generation        subscriber generation.
-     * @param context           operation context
-     * @param executor          callers executor
-     * @return Future of operation
+     * @param scope scope name
+     * @param name stream name
+     * @param ignoreCached ignore cached value and fetch from store.
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
-                                              final long generation, final OperationContext context, final Executor executor);
+    CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
 
+    /**
+     * Creates a new stream with the given name and configuration.
+     *
+     * @param scopeName       scope name
+     * @param rgName          Reader Group name
+     * @param configuration   Reader Group configuration
+     * @param createTimestamp Reader Group creation timestamp
+     * @param context         Reader Group operation context
+     * @param id              Reader Group unique Id - UUID
+     * @param executor        callers executor
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<CreateRGResponse> createReaderGroup(final String scopeName,
+                                                            final String rgName,
+                                                            final ReaderGroupConfig configuration,
+                                                            final long createTimestamp,
+                                                            final RGOperationContext context,
+                                                            final byte []id,
+                                                            final Executor executor);
     /**
      * Updates the subscribers metadata for an existing stream.
      *
@@ -323,24 +359,6 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final VersionedMetadata<StreamSubscriber> previousRecord,
                                                      final OperationContext context,
                                                      final Executor executor);
-
-    /**
-     * Updates the subscribers metadata for an existing stream.
-     *
-     * @param scope         stream scope
-     * @param name          stream name.
-     * @param subscriber    subscriber to be removed.
-     * @param generation    subscriber generation.
-     * @param context       operation context
-     * @param executor      callers executor
-     * @return Future of operation
-     */
-    CompletableFuture<Void> deleteSubscriber(final String scope,
-                                             final String name,
-                                             final String subscriber,
-                                             final long generation,
-                                             final OperationContext context,
-                                             final Executor executor);
 
     /**
      * Fetches the current stream subscribers record.
@@ -1315,4 +1333,22 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(final String scope, final String streamName,
                                                                                    Map<Long, Long> streamCut, final RetentionSet retentionSet,
                                                                                    final OperationContext context, final Executor executor);
+
+    /**
+     * Api to check if a ReaderGroup exists in the store or not.
+     * @param scopeName Scope name
+     * @param readerGroupName Reader Group name
+     * @return true if reader group exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName, final String readerGroupName);
+
+    /**
+     * Api to generate a new unique ID for a ReaderGroup
+     * @return ReaderGroupId - UUID
+     */
+     default byte[] newReaderGroupId() {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(b, 0, UUID.randomUUID());
+        return b;
+    }
 }
