@@ -44,6 +44,7 @@ import java.util.Map;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -93,16 +94,16 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        // TODO controller.createReaderGroup(groupName, segmentNum, config);
+        controller.createReaderGroup(groupName, segmentNum, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        // TODO val result = controller.deleteReaderGroup(groupName, segmentNum);
-        // TODO if (result) {
-        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
+        val result = controller.deleteReaderGroup(groupName, segmentNum);
+        if (result) {
+            getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
                                          .thenCompose(b -> controller.deleteStream(scope,
                                                                                    getStreamForReaderGroup(groupName)))
                                          .exceptionally(e -> {
@@ -114,9 +115,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                              throw Exceptions.sneakyThrow(e);
                                          }),
                                RuntimeException::new);
-        // TODO } else {
-        // TODO throw new RuntimeException();
-        // TODO }
+        } else {
+            throw new RuntimeException();
+        }
     }
 
     @Override

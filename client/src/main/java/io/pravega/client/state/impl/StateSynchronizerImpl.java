@@ -96,7 +96,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 }
             }
             if (this.getState() instanceof ReaderGroupState) {
-                // TODO Controller calls
+                // Controller calls
                 this.updateState((state, updates) -> {
                     updates.add(new ReaderGroupState.ReaderGroupStateInit());
                 });

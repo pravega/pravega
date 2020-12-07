@@ -200,11 +200,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        // TODO synchronizer.fetchUpdates();
-        // TODO val result = controller.updateReaderGroup(config);
-        // TODO if (result) {
-        // TODO     synchronizer.fetchUpdates();
-        // TODO }
+        synchronizer.fetchUpdates();
+        val result = controller.updateReaderGroup(config);
+        if (result) {
+            synchronizer.fetchUpdates();
+        }
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
     }
