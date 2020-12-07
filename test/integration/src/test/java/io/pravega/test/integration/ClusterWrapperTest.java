@@ -197,5 +197,8 @@ public class ClusterWrapperTest {
         Response response = builder.get();
         assertEquals("Response to /ping was not OK", OK.getStatusCode(), response.getStatus());
         log.info("Ping successful.");
+
+        response.close();
+        client.close();
     }
 }
