@@ -36,7 +36,7 @@ BOOKKEEPER=${BINDIR}/bookkeeper
 SCRIPTS_DIR=${BK_HOME}/scripts
 
 export PATH=$PATH:/opt/bookkeeper/bin
-export JAVA_HOME=/usr/lib/jvm/jre-1.8.0
+export JAVA_HOME=/usr/lib/jvm/java-11
 export BK_zkLedgersRootPath=${BK_LEDGERS_PATH}
 export BOOKIE_PORT=${BOOKIE_PORT}
 export SERVICE_PORT=${BOOKIE_PORT}
@@ -87,22 +87,6 @@ configure_bk() {
     if [ ! -z "$BK_useHostNameAsBookieID" ]; then
       sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
     fi
-}
-
-fix_bk_ipv6_check() {
-
-   # `${SCRIPTS_DIR}/common.sh` - a shell script in Bookeeper, runs this command: `/sbin/sysctl -n net.ipv6.bindv6only`.
-   # This command can return an error exit code `255` and error message:
-   #    `sysctl: cannot stat /proc/sys/net/ipv6/bindv6only: No such file or directory`
-   #
-   # If the `common.sh` file is sourced in a script that sets "exit on error" as true (set -e), the script shall return
-   # an error code `255`. Since, the `bookkeeper/bin/bookeeper` shell script sources the `common.sh` file, and it sets
-   # "exit on error" as true, we encounter this error when it is invoked. To avoid that error, here we modify the
-   # `common.sh` file to execute `/sbin/sysctl -n net.ipv6.bindv6only` only if file `/proc/sys/net/ipv6/bindv6only`
-   # is available.
-
-   # Replace the 22nd line with "if [ -f /sbin/sysctl ] && [ -f /proc/sys/net/ipv6/bindv6only ]; then".
-   sed -i "22s|.*|if [ -f /sbin/sysctl ] \&\& [ -f /proc/sys/net/ipv6/bindv6only ]; then|" ${BK_HOME}/bin/common.sh
 }
 
 initialize_cluster() {
@@ -180,9 +164,6 @@ format_bookie_data_and_metadata() {
 echo "Creating directories for Bookkeeper journal and ledgers"
 create_bookie_dirs "${BK_journalDirectories}"
 create_bookie_dirs "${BK_ledgerDirectories}"
-
-echo "Updating Bookkeeper common.sh file to fix IPV6 check"
-fix_bk_ipv6_check
 
 echo "Sourcing ${SCRIPTS_DIR}/common.sh"
 source ${SCRIPTS_DIR}/common.sh
