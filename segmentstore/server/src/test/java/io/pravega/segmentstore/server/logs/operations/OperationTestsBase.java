@@ -11,9 +11,8 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,12 +46,11 @@ public abstract class OperationTestsBase<T extends Operation> {
         }
 
         // Serialize.
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ByteBufferOutputStream outputStream = new ByteBufferOutputStream();
         OPERATION_SERIALIZER.serialize(outputStream, baseOp);
 
-        //Deserialize.
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        Operation newOp = OPERATION_SERIALIZER.deserialize(inputStream);
+        // Deserialize.
+        Operation newOp = OPERATION_SERIALIZER.deserialize(outputStream.getData().getReader());
 
         // Verify operations are the same.
         OperationComparer.DEFAULT.assertEquals(baseOp, newOp);
@@ -94,7 +92,7 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     private void trySerialize(T op, String message) {
         AssertExtensions.assertThrows(message,
-                () -> OPERATION_SERIALIZER.serialize(new ByteArrayOutputStream(), op),
+                () -> OPERATION_SERIALIZER.serialize(new ByteBufferOutputStream(), op),
                 ex -> ex instanceof IllegalStateException);
     }
 }
