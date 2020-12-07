@@ -406,9 +406,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 watermarkingService.stopAsync();
             }
 
-            if (watermarkingWork != null) {
-                watermarkingWork.close();
-            }
+            close(watermarkingWork);
 
             if (streamMetadataTasks != null) {
                 log.info("Closing stream metadata tasks");
@@ -476,29 +474,22 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 segmentHelper.close();
             }
 
-            if (kvtMetadataStore != null) {
-                kvtMetadataStore.close();
-            }
-
-            if (kvtMetadataTasks != null) {
-                kvtMetadataTasks.close();
-            }
+            close(kvtMetadataStore);
+            close(kvtMetadataTasks);
 
             log.info("Closing connection pool");
-            connectionPool.close();
+            close(connectionPool);
 
             log.info("Closing connection factory");
-            connectionFactory.close();
+            close(connectionFactory);
 
             log.info("Closing storeClient");
-            storeClient.close();
+            close(storeClient);
 
             log.info("Closing store");
-            streamStore.close();
+            close(streamStore);
 
-            if (controllerEventProcessors != null) {
-                controllerEventProcessors.close();
-            }
+            close(controllerEventProcessors);
 
             // Close metrics.
             StreamMetrics.reset();
@@ -565,54 +556,25 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        try {
-            stopAsync().awaitTerminated(10, TimeUnit.SECONDS);
-        } catch (Exception ex) {
-            log.error("Exception while forcefully shutting down.", ex);
-        }
-
-        if (watermarkingWork != null) {
-            Callbacks.invokeSafely(watermarkingWork::close, null);
-        }
-
-        if (streamMetadataTasks != null) {
-            Callbacks.invokeSafely(streamMetadataTasks::close, null);
-        }
-
-        if (streamTransactionMetadataTasks != null) {
-            Callbacks.invokeSafely(streamTransactionMetadataTasks::close, null);
-        }
-        if (controllerEventProcessors != null) {
-            Callbacks.invokeSafely(controllerEventProcessors::close, null);
-        }
-
+        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(10, TimeUnit.SECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
+        close(watermarkingWork);
+        close(streamMetadataTasks);
+        close(streamTransactionMetadataTasks);
+        close(controllerEventProcessors);
         ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
+        close(cluster);
+        close(segmentHelper);
+        close(kvtMetadataStore);
+        close(kvtMetadataTasks);
+        close(connectionPool);
+        close(connectionFactory);
+        close(storeClient);
+        close(streamStore);
+    }
 
-        if (cluster != null) {
-            Callbacks.invokeSafely(cluster::close, null);
-        }
-
-        if (segmentHelper != null) {
-            segmentHelper.close();
-        }
-
-        if (kvtMetadataStore != null) {
-            Callbacks.invokeSafely(kvtMetadataStore::close, null);
-        }
-        if (kvtMetadataTasks != null) {
-            Callbacks.invokeSafely(kvtMetadataTasks::close, null);
-        }
-        if (connectionPool != null) {
-            Callbacks.invokeSafely(connectionPool::close, null);
-        }
-        if (connectionFactory != null) {
-            Callbacks.invokeSafely(connectionFactory::close, null);
-        }
-        if (storeClient != null) {
-            Callbacks.invokeSafely(storeClient::close, null);
-        }
-        if (streamStore != null) {
-            Callbacks.invokeSafely(streamStore::close, null);
+    private void close(AutoCloseable closeable) {
+        if (closeable != null) {
+            Callbacks.invokeSafely(closeable::close, null);
         }
     }
 }

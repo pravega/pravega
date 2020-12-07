@@ -49,6 +49,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
@@ -390,6 +391,7 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
+        @Cleanup
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
                 system.createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
@@ -436,6 +438,7 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
+        @Cleanup
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
                 system.createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
@@ -471,6 +474,7 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
+        @Cleanup
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system
                 .createEventProcessorGroup(eventProcessorConfig, checkpointStore, executor);
 
@@ -503,6 +507,7 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
+        @Cleanup
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
                     checkpointStore, executor);
         group.awaitRunning();
@@ -560,6 +565,7 @@ public class EventProcessorTest {
                 .build();
 
         // Create EventProcessorGroup.
+        @Cleanup
         EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>) system.createEventProcessorGroup(eventProcessorConfig,
                     checkpointStore, executor);
         group.awaitRunning();
