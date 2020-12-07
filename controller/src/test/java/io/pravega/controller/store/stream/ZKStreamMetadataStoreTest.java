@@ -464,12 +464,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     static class TestZkStore extends ZKStreamMetadataStore implements TestStore {
         HashMap<String, ZKStream> map = new HashMap<>();
 
-        @Override
-        public void close() {
-            map.clear();
-            super.close();
-        }
-
         TestZkStore(CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
             super(curatorClient, executor, gcPeriod);
         }
@@ -490,6 +484,12 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         public void setStream(Stream stream) {
             String scopedStreamName = NameUtils.getScopedStreamName(stream.getScope(), stream.getName());
             map.put(scopedStreamName, (ZKStream) stream);
+        }
+
+        @Override
+        public void close() {
+            map.clear();
+            super.close();
         }
     }
 }
