@@ -12,10 +12,10 @@ package io.pravega.common.util.btree.sets;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
+import io.pravega.common.util.StructuredWritableBuffer;
 import io.pravega.common.util.btree.SearchResult;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -142,7 +142,7 @@ abstract class BTreeSetPage {
                     pagePointer.getPageId(), CURRENT_VERSION, version);
         }
 
-        int size = BitConverter.readInt(contents, TOTAL_SIZE_OFFSET);
+        int size = contents.getInt(TOTAL_SIZE_OFFSET);
         if (size < HEADER_FOOTER_LENGTH || size > contents.getLength()) {
             throw new IllegalDataFormatException("Invalid size. PageId=%s, Expected in range [%s, %s], actual=%s.",
                     pagePointer.getPageId(), TOTAL_SIZE_OFFSET, contents.getLength(), size);
@@ -152,7 +152,7 @@ abstract class BTreeSetPage {
             contents = contents.slice(0, size);
         }
 
-        long serializedPageId = BitConverter.readLong(contents, contents.getLength() - PAGE_ID_LENGTH);
+        long serializedPageId = contents.getLong(contents.getLength() - PAGE_ID_LENGTH);
         if (pagePointer.getPageId() != serializedPageId) {
             throw new IllegalDataFormatException("Invalid serialized Page Id. Expected=%s, Actual=%s.",
                     pagePointer.getPageId(), serializedPageId);
@@ -195,11 +195,10 @@ abstract class BTreeSetPage {
      */
     private ArrayView newContents(int itemCount, int contentsSize, long pageId) {
         val contents = new ByteArraySegment(new byte[HEADER_FOOTER_LENGTH + itemCount * ITEM_OFFSET_LENGTH + contentsSize]);
-        contents.set(0, CURRENT_VERSION);
-        contents.set(1, getFlags());
+        contents.setShort(0, (short) ((CURRENT_VERSION << 8) | getFlags()));
         setSize(contents, contents.getLength());
-        BitConverter.writeInt(contents, COUNT_OFFSET, itemCount);
-        BitConverter.writeLong(contents, contents.getLength() - PAGE_ID_LENGTH, pageId);
+        contents.setInt(COUNT_OFFSET, itemCount);
+        contents.setLong(contents.getLength() - PAGE_ID_LENGTH, pageId);
         return contents;
     }
 
@@ -210,7 +209,7 @@ abstract class BTreeSetPage {
      */
     private void loadContents(ArrayView contents) {
         // Version, Flags and PageId are already validated in parse(Long, Long, ArrayView).
-        int itemCount = BitConverter.readInt(contents, COUNT_OFFSET);
+        int itemCount = contents.getInt(COUNT_OFFSET);
         if (itemCount < 0) {
             throw new IllegalDataFormatException("Invalid ItemCount. PageId=%s, Actual=%s.", this.pagePointer.getPageId(), itemCount);
         }
@@ -547,8 +546,7 @@ abstract class BTreeSetPage {
 
         // Insert value (if any).
         if (insert.value != null) {
-            serializeValue.accept(
-                    dataBuffer.slice(targetOffset + insert.item.getLength(), getValueLength()), 0, insert.value);
+            serializeValue.accept(dataBuffer, targetOffset + insert.item.getLength(), insert.value);
         }
     }
 
@@ -694,16 +692,16 @@ abstract class BTreeSetPage {
         if (position == this.itemCount) {
             return this.data.getLength() - PAGE_ID_LENGTH;
         } else {
-            return BitConverter.readInt(this.data, ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH);
+            return this.data.getInt(ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH);
         }
     }
 
     private void setOffset(ArrayView contents, int position, int offset) {
-        BitConverter.writeInt(contents, ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH, offset);
+        contents.setInt(ITEM_OFFSETS_OFFSET + position * ITEM_OFFSET_LENGTH, offset);
     }
 
     private void setSize(ArrayView contents, int size) {
-        BitConverter.writeInt(contents, TOTAL_SIZE_OFFSET, size);
+        contents.setInt(TOTAL_SIZE_OFFSET, size);
     }
 
     private void copyData(ArrayView from, ArrayView to) {
@@ -758,7 +756,7 @@ abstract class BTreeSetPage {
                 values.add(p.getPageId());
             });
 
-            super.update(updates, values, BitConverter::writeLong);
+            super.update(updates, values, StructuredWritableBuffer::setLong);
         }
 
         /**
@@ -795,7 +793,7 @@ abstract class BTreeSetPage {
             if (position >= 0) {
                 // Found something.
                 val serializedValue = super.getValueAt(position);
-                val pageId = BitConverter.readLong(serializedValue, 0);
+                val pageId = serializedValue.getLong(0);
                 return new PagePointer(getItemAt(position), pageId, getPagePointer().getPageId());
             }
 

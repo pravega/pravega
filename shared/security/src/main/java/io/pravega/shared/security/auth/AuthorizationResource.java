@@ -91,6 +91,16 @@ public interface AuthorizationResource {
     String ofReaderGroupInScope(String scopeName, String readerGroupName);
 
     /**
+     * Creates a resource representation for use in authorization of actions pertaining to the collection of Key-Value
+     * tables within the specified scope.
+     *
+     * @param scopeName the name of the scope
+     * @throws NullPointerException if {@code scopeName} is null
+     * @throws IllegalArgumentException if {@code scopeName} is empty
+     */
+    String ofKeyValueTablesInScope(String scopeName);
+
+    /**
      * Creates a resource representation for use in authorization of actions pertaining to the specified KeyValueTable
      * within the specified scope.
      *

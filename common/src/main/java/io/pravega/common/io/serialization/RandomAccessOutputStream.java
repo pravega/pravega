@@ -9,13 +9,24 @@
  */
 package io.pravega.common.io.serialization;
 
+import io.pravega.common.io.DirectDataOutput;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
-import java.io.OutputStream;
 
 /**
  * Defines an extension to OutputStream that allows writing to an arbitrary position.
  */
-public interface RandomAccessOutputStream {
+public interface RandomAccessOutputStream extends DirectDataOutput {
+    /**
+     * Writes the given Int value at the given position.
+     *
+     * @param intValue The value to write.
+     * @param position The position to write at.
+     * @throws IOException               If an IO Exception occurred.
+     * @throws IndexOutOfBoundsException If position is outside of the current bounds of this object.
+     */
+    void writeInt(int intValue, int position) throws IOException;
+
     /**
      * Writes the given byte value at the given position.
      *
@@ -44,19 +55,19 @@ public interface RandomAccessOutputStream {
     void write(byte[] buffer, int bufferOffset, int length, int position) throws IOException;
 
     /**
-     * Creates a new fixed-size OutputStream starting at the given position in this OutputStream and of the given length.
-     *
-     * @param position The position to start at.
-     * @param length   The length of the OutputStream.
-     * @return A new OutputStream.
-     * @throws IndexOutOfBoundsException If position or position + length are outside of the current bounds of this object.
-     */
-    OutputStream subStream(int position, int length);
-
-    /**
      * Gets a value indicating the size of this OutputStream.
      *
      * @return size of stream
      */
     int size();
+
+    /**
+     * Returns a {@link ByteArraySegment} wrapping the current contents of the {@link RandomAccessOutputStream}.
+     *
+     * Further changes to the {@link RandomAccessOutputStream} may or may not be reflected in the returned object
+     * (depending on methods invoked and whether the underlying buffers need to be resized).
+     *
+     * @return A {@link ByteArraySegment} from the current contents of the {@link RandomAccessOutputStream}.
+     */
+    ByteArraySegment getData();
 }

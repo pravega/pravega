@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.SequencedElement;
 import java.io.DataInputStream;
@@ -18,9 +18,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.junit.Assert;
 
 /**
  * Test LogItem implementation that allows injecting serialization errors.
@@ -61,8 +63,12 @@ class TestLogItem implements SequencedElement {
 
     @SneakyThrows(IOException.class)
     byte[] getFullSerialization() {
-        byte[] result = new byte[Long.BYTES + Integer.BYTES + this.data.length];
-        serialize(new FixedByteArrayOutputStream(result, 0, result.length));
+        int expectedSize = Long.BYTES + Integer.BYTES + this.data.length;
+        @Cleanup
+        val resultStream = new ByteBufferOutputStream(expectedSize);
+        serialize(resultStream);
+        val result = resultStream.getData().getCopy();
+        Assert.assertEquals(expectedSize, result.length);
         return result;
     }
 

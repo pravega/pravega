@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
@@ -1733,15 +1732,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         };
 
         // Begin a read process.
-        byte[] readData = new byte[rr.getMaxResultLength()];
-
         // First read must be a storage read.
         val storageRead = rr.next();
         Assert.assertEquals(ReadResultEntryType.Storage, storageRead.getType());
         storageRead.requestContent(TIMEOUT);
 
         // Copy contents out; this is not affected by our cache insert block.
-        storageRead.getContent().join().copyTo(new FixedByteArrayOutputStream(readData, 0, appendLength));
+        byte[] readData1 = storageRead.getContent().join().slice(0, appendLength).getCopy();
 
         // Wait for the insert callback to be blocked on our latch.
         insertingInCache.await();
@@ -1755,10 +1752,14 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Wait for the async read to finish and grab its contents.
         val cacheRead = cacheReadFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals(ReadResultEntryType.Cache, cacheRead.getType());
-        cacheRead.getContent().join().copyTo(new FixedByteArrayOutputStream(readData, appendLength, appendLength));
+        byte[] readData2 = cacheRead.getContent().join().slice(0, appendLength).getCopy();
 
         // Validate data was read correctly.
-        Assert.assertEquals("Unexpected data written.", allData, new ByteArraySegment(readData));
+        val readData = BufferView.builder()
+                .add(new ByteArraySegment(readData1))
+                .add(new ByteArraySegment(readData2))
+                .build();
+        Assert.assertEquals("Unexpected data written.", allData, readData);
     }
 
     /**
