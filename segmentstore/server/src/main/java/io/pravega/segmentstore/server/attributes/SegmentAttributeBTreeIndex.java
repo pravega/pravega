@@ -69,7 +69,7 @@ import lombok.val;
  * Attribute Index for a single Segment, backed by a B+Tree Index implementation.
  */
 @Slf4j
-public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
+class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
     //region Members
 
     /**
@@ -199,9 +199,19 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             // Close storage reader (and thus cancel those reads).
             this.executor.execute(() -> {
                 removeAllCacheEntries();
+                cancelPendingReads();
                 log.info("{}: Closed.", this.traceObjectId);
             });
         }
+    }
+
+    private void cancelPendingReads() {
+        List<PendingRead> toCancel;
+        synchronized (this.pendingReads) {
+            toCancel = new ArrayList<>(this.pendingReads.values());
+            this.pendingReads.clear();
+        }
+        toCancel.forEach(f -> f.completion.cancel(true));
     }
 
     /**
@@ -505,51 +515,63 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                         "Attribute Index Segment has not been created yet. Cannot read %d byte(s) from offset (%d).",
                         length, offset)));
             }
-        } else {
-            PendingRead pr;
-            synchronized (this.pendingReads) {
-                pr = this.pendingReads.get(offset);
-                if (pr == null) {
-                    // Nobody else waiting for this offset. Register ourselves.
-                    pr = new PendingRead(offset, length);
-                    this.pendingReads.put(offset, pr);
-                } else if (pr.length < length) {
-                    // Somehow the previous request wanted to read less than us. This shouldn't be the case, yet it is
-                    // a situation we should handle.
-                    pr = null;
-                } else {
-                    // Piggyback on the existing read.
-                    return pr.completion;
-                }
-            }
+        }
 
-            // TODO: this is busting the unit test because it issues a concurrent update, which is also blocked on the read.
+        return readPageFromStorage(handle, offset, length, timeout);
+    }
 
-            // Issue the read request.
+    /**
+     * Reads a BTreeIndex page from Storage and inserts its into the cache (no cache lookups are performed).
+     * Handles read concurrency on the same page by piggybacking on existing running reads on that page (identified by
+     * page offset). If more than one concurrent request is issued for the same page, only one will be sent to Storage,
+     * and subsequent ones will be attached to the original one.
+     *
+     * @param handle  {@link SegmentHandle} to read from.
+     * @param offset  Page offset.
+     * @param length  Page length.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that will contain the result.
+     */
+    @VisibleForTesting
+    CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+        PendingRead pr;
+        synchronized (this.pendingReads) {
+            pr = this.pendingReads.get(offset);
             if (pr == null) {
-                return readPageFromStorage(handle, offset, length, timeout);
-            } else {
+                // Nobody else waiting for this offset. Register ourselves.
+                pr = new PendingRead(offset, length);
                 pr.completion.whenComplete((r, ex) -> {
                     // Cleanup.
                     synchronized (this.pendingReads) {
                         this.pendingReads.remove(offset);
                     }
                 });
-
-                Futures.completeAfter(() -> readPageFromStorage(handle, offset, length, timeout), pr.completion);
+                this.pendingReads.put(offset, pr);
+            } else if (pr.length < length) {
+                // Somehow the previous request wanted to read less than us. This shouldn't be the case, yet it is
+                // a situation we should handle. In his case, we will not be recording the PendingRead.
+                pr = new PendingRead(offset, length);
+            } else {
+                // Piggyback on the existing read.
                 return pr.completion;
             }
         }
+
+        // Issue the read request.
+        return readPageFromStorage(handle, pr, timeout);
     }
 
-    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
-        byte[] buffer = new byte[length];
-        return this.storage.read(handle, offset, buffer, 0, length, timeout)
-                .thenApplyAsync(bytesRead -> {
-                    Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
-                    storeInCache(offset, buffer);
-                    return new ByteArraySegment(buffer);
-                }, this.executor);
+    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, PendingRead pr, Duration timeout) {
+        byte[] buffer = new byte[pr.length];
+        Futures.completeAfter(
+                () -> this.storage.read(handle, pr.offset, buffer, 0, pr.length, timeout)
+                        .thenApplyAsync(bytesRead -> {
+                            Preconditions.checkArgument(pr.length == bytesRead, "Unexpected number of bytes read.");
+                            storeInCache(pr.offset, buffer);
+                            return new ByteArraySegment(buffer);
+                        }, this.executor),
+                pr.completion);
+        return pr.completion;
     }
 
     private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
