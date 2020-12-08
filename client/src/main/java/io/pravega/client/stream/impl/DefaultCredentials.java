@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import io.pravega.auth.AuthConstants;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+
+import io.pravega.shared.security.auth.Credentials;
 import lombok.EqualsAndHashCode;
 
 /**

@@ -10,23 +10,26 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.base.Charsets;
-import io.pravega.common.io.BufferViewSink;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,42 +38,83 @@ import org.junit.Test;
  * RevisionDataStreamCommonTests, in combination with RevisionDataInputStream).
  */
 public class RevisionDataOutputStreamTests {
-    
     /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream.
+     * Tests all the primitive data types that had to be implemented because of {@link DataOutput} which are not otherwise
+     * tested by other means.
+     */
+    @Test
+    public void testWritePrimitives() throws IOException {
+        // We write to 2 streams in parallel. We verify our RevisionDataOutputStream vs Java's DataOutputStream - if the
+        // outputs match, then a DataInputStream (and implicitly RevisionDataInputStream) should be able to read them back.
+        @Cleanup
+        val expectedStream = new ByteArrayOutputStream();
+        @Cleanup
+        val expectedDataStream = new DataOutputStream(expectedStream);
+        @Cleanup
+        val actualStream = new ByteArrayOutputStream();
+        @Cleanup
+        val actualDataStream = RevisionDataOutputStream.wrap(actualStream);
+
+        // Generate a random set of strings using all available characters.
+        val strings = IntStream.range(0, 20).mapToObj(RandomStringUtils::random).collect(Collectors.toList());
+        // .. and another set using ASCII alphanumeric characters.
+        IntStream.range(1, 20).mapToObj(i -> RandomStringUtils.random(i, true, true)).forEach(strings::add);
+
+        // Calculate the total length expected.
+        int stringLengths = strings.stream().mapToInt(s -> s.length() + 2 * s.length() + actualDataStream.getUTFLength(s)).sum();
+        actualDataStream.length(1 + 1 + 1 + Short.BYTES + Short.BYTES + Integer.BYTES + Long.BYTES + Float.BYTES + Double.BYTES + stringLengths);
+
+        // Write some data.
+        WritePrimitive.apply(true, actualDataStream::writeBoolean, expectedDataStream::writeBoolean);
+        WritePrimitive.apply(false, actualDataStream::writeBoolean, expectedDataStream::writeBoolean);
+        WritePrimitive.apply(1, actualDataStream::writeByte, expectedDataStream::writeByte);
+        WritePrimitive.apply(Short.MAX_VALUE - 2, actualDataStream::writeShort, expectedDataStream::writeShort);
+        WritePrimitive.apply((int) 'a', actualDataStream::writeChar, expectedDataStream::writeChar);
+        WritePrimitive.apply(Integer.MAX_VALUE - 4, actualDataStream::writeInt, expectedDataStream::writeInt);
+        WritePrimitive.apply(Long.MAX_VALUE - 7, actualDataStream::writeLong, expectedDataStream::writeLong);
+        WritePrimitive.apply(4.0f, actualDataStream::writeFloat, expectedDataStream::writeFloat);
+        WritePrimitive.apply(8.0d, actualDataStream::writeDouble, expectedDataStream::writeDouble);
+
+        for (val s : strings) {
+            WritePrimitive.apply(s, actualDataStream::writeBytes, expectedDataStream::writeBytes);
+            WritePrimitive.apply(s, actualDataStream::writeChars, expectedDataStream::writeChars);
+            WritePrimitive.apply(s, actualDataStream::writeUTF, expectedDataStream::writeUTF);
+        }
+
+        actualDataStream.flush();
+        expectedDataStream.flush();
+
+        val expected = expectedStream.toByteArray();
+        val actual = actualStream.toByteArray();
+        Assert.assertEquals(expected.length, actualDataStream.getSize());
+        Assert.assertEquals(expected.length + Integer.BYTES, actual.length);
+        AssertExtensions.assertArrayEquals("", expected, 0, actual, Integer.BYTES, expected.length);
+    }
+
+    /**
+     * Tests the RandomRevisionDataOutput class with an {@link ByteBufferOutputStream}.
      */
     @Test
     public void testRandomOutputExpandable() throws Exception {
         @Cleanup
-        val s = new EnhancedByteArrayOutputStream();
+        val s = new ByteBufferOutputStream();
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
     }
 
     /**
-     * Tests the RandomRevisionDataOutput class with an fixed-length RandomAccessOutputStream.
+     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link DirectDataOutput}.
      */
     @Test
-    public void testRandomOutputFixed() throws Exception {
-        final int bufferSize = 1024 * 1024;
+    public void testDirectDataOutputStream() throws Exception {
         @Cleanup
-        val s = new FixedByteArrayOutputStream(new byte[bufferSize], 0, bufferSize);
+        val s = new DirectDataOutputStream();
         @Cleanup
         val impl = RevisionDataOutputStream.wrap(s);
         testImpl(impl, s::getData);
-    }
-
-    /**
-     * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream that implements {@link BufferViewSink}.
-     */
-    @Test
-    public void testBufferViewSink() throws Exception {
-        @Cleanup
-        val s = new BufferViewSinkOutputStream();
-        @Cleanup
-        val impl = RevisionDataOutputStream.wrap(s);
-        testImpl(impl, s::getData);
+        Assert.assertNotEquals("Expected invocations for all direct methods.",
+                0, s.writeIntCount * s.writeShortCount * s.writeLongCount);
     }
 
     /**
@@ -167,7 +211,7 @@ public class RevisionDataOutputStreamTests {
      */
     @Test
     public void testZeroLengthRandomOutput() throws Exception {
-        testZeroLength(EnhancedByteArrayOutputStream::new, EnhancedByteArrayOutputStream::getData);
+        testZeroLength(ByteBufferOutputStream::new, ByteBufferOutputStream::getData);
     }
 
     /**
@@ -266,11 +310,39 @@ public class RevisionDataOutputStreamTests {
         return sb.toString();
     }
 
+    private static class DirectDataOutputStream extends ByteBufferOutputStream implements DirectDataOutput {
+        private int writeShortCount = 0;
+        private int writeIntCount = 0;
+        private int writeLongCount = 0;
 
-    private static class BufferViewSinkOutputStream extends EnhancedByteArrayOutputStream implements BufferViewSink {
         @Override
-        public void writeBuffer(BufferView buffer) throws IOException {
-            buffer.copyTo(this);
+        public void writeShort(int shortValue) {
+            super.writeShort(shortValue);
+            this.writeShortCount++;
+        }
+
+        @Override
+        public void writeInt(int intValue) {
+            super.writeInt(intValue);
+            this.writeIntCount++;
+        }
+
+        @Override
+        public void writeLong(long longValue) {
+            super.writeLong(longValue);
+            this.writeLongCount++;
+        }
+    }
+
+    @FunctionalInterface
+    private interface WritePrimitive<T> {
+        void accept(T value) throws IOException;
+
+        @SafeVarargs
+        static <T> void apply(T value, WritePrimitive<T>... wps) throws IOException {
+            for (val wp : wps) {
+                wp.accept(value);
+            }
         }
     }
 }

@@ -36,10 +36,9 @@ public class StreamSegments extends SegmentCollection {
      *
      * @param segments Segments of a stream, keyed by the largest key in their key range.
      *                 i.e. If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
-     * @param delegationToken Delegation token to access the segments in the segmentstore
      */
-    public StreamSegments(NavigableMap<Double, SegmentWithRange> segments, String delegationToken) {
-        super(segments, delegationToken);
+    public StreamSegments(NavigableMap<Double, SegmentWithRange> segments) {
+        super(segments);
     }
 
     @Override
@@ -77,7 +76,7 @@ public class StreamSegments extends SegmentCollection {
             }
         }
         removeDuplicates(result);
-        return new StreamSegments(result, getDelegationToken());
+        return new StreamSegments(result);
     }
     
     /**

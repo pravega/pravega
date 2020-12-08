@@ -44,6 +44,7 @@ import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,6 +70,7 @@ import lombok.extern.slf4j.Slf4j;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 
 @Slf4j
 @Data
@@ -97,6 +99,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                                                   updateSerializer, initSerializer, synchronizerConfig);
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
+    }
+
+    @Override
+    public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
+        if (synchronizer.getState().getConfig().getRetentionType()
+                .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
+            streamCuts.forEach((stream, cut) ->
+                    getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, cut)));
+
+            return;
+        }
+       throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
+               synchronizer.getState().getConfig().getRetentionType().toString());
     }
 
     @Override
@@ -322,8 +337,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     totalLength += endPositions.get(s);
                 } else {
                     if (tokenProvider == null) {
-                        tokenProvider = DelegationTokenProviderFactory.create(
-                                unreadVal.getDelegationToken(), controller, s);
+                        tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.READ);
                     }
                     @Cleanup
                     SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);

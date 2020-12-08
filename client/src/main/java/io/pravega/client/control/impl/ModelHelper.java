@@ -38,6 +38,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +102,7 @@ public final class ModelHelper {
             return RetentionPolicy.builder()
                     .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
                     .retentionParam(policy.getRetentionParam())
+                    .retentionMax(policy.getRetentionMax())
                     .build();
         } else {
             return null;
@@ -298,10 +301,12 @@ public final class ModelHelper {
      */
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
-            return Controller.RetentionPolicy.newBuilder()
-                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                    .setRetentionParam(policyModel.getRetentionParam())
-                    .build();
+            Controller.RetentionPolicy.Builder builder = Controller.RetentionPolicy.newBuilder()
+                                              .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                                              .setRetentionParam(policyModel.getRetentionParam())
+                                              .setRetentionMax(policyModel.getRetentionMax());
+                
+            return builder.build();
         } else {
             return null;
         }
@@ -332,14 +337,15 @@ public final class ModelHelper {
      * @param scope the stream's scope
      * @param streamName The Stream Name
      * @param subscriber Id of the subscriber for this stream.
+     * @param generation generation of the subscriber operation.
      * @return StreamSubscriberInfo instance.
      */
-    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber) {
+    public static final StreamSubscriberInfo decode(String scope, String streamName, final String subscriber, final long generation) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
         final StreamSubscriberInfo.Builder builder = StreamSubscriberInfo.newBuilder()
-                .setScope(scope).setStream(streamName).setSubscriber(subscriber);
+                .setScope(scope).setStream(streamName).setSubscriber(subscriber).setOperationGeneration(generation);
         return builder.build();
     }
 
@@ -416,10 +422,18 @@ public final class ModelHelper {
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
     }
 
-    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+    public static final StreamInfo createStreamInfo(final String scope, final String stream, AccessOperation accessOperation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
+        StreamInfo.Builder builder = StreamInfo.newBuilder().setScope(scope).setStream(stream);
+        if (accessOperation != null) {
+            builder.setAccessOperation(StreamInfo.AccessOperation.valueOf(accessOperation.name()));
+        }
+        return builder.build();
+    }
+
+    public static final StreamInfo createStreamInfo(final String scope, final String stream) {
+        return createStreamInfo(scope, stream, null);
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

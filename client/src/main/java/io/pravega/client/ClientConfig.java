@@ -11,7 +11,7 @@ package io.pravega.client;
 
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
@@ -285,14 +285,26 @@ public class ClientConfig implements Serializable {
             }
         }
 
+        // We are using the deprecated legacy interface below: `io.pravega.client.stream.impl.Credentials`.
+        @SuppressWarnings("deprecation")
         private Credentials credentialFromMap(Map<String, String> credsMap) {
 
             String expectedMethod = credsMap.get(AUTH_METHOD);
 
             // Load the class dynamically if the user wants it to.
             if (credsMap.containsKey(AUTH_METHOD_LOAD_DYNAMIC) && Boolean.parseBoolean(credsMap.get(AUTH_METHOD_LOAD_DYNAMIC))) {
+                // Check implementations of the new interface
                 ServiceLoader<Credentials> loader = ServiceLoader.load(Credentials.class);
                 for (Credentials creds : loader) {
+                    if (creds.getAuthenticationType().equals(expectedMethod)) {
+                        return creds;
+                    }
+                }
+
+                // Check implementations of the old interface
+                ServiceLoader<io.pravega.client.stream.impl.Credentials> legacyCredentialsLoader =
+                        ServiceLoader.load(io.pravega.client.stream.impl.Credentials.class);
+                for (Credentials creds : legacyCredentialsLoader) {
                     if (creds.getAuthenticationType().equals(expectedMethod)) {
                         return creds;
                     }

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
@@ -18,33 +18,28 @@ import java.time.Duration;
 import lombok.AccessLevel;
 import lombok.Getter;
 
-import static io.pravega.shared.MetricsTags.segmentTags;
-
 /**
  * Implementation for {@link TableSegmentStatsRecorder}.
  */
-public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
+@Getter(AccessLevel.PACKAGE)
+class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger createSegment = createLogger(MetricsNames.SEGMENT_CREATE_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger deleteSegment = createLogger(MetricsNames.SEGMENT_DELETE_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger updateConditional = createLogger(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger updateUnconditional = createLogger(MetricsNames.TABLE_SEGMENT_UPDATE_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger removeConditional = createLogger(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger removeUnconditional = createLogger(MetricsNames.TABLE_SEGMENT_REMOVE_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger getKeys = createLogger(MetricsNames.TABLE_SEGMENT_GET_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger iterateKeys = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger iterateEntries = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY);
-    @Getter(AccessLevel.PACKAGE)
-    private final DynamicLogger dynamicLogger = createDynamicLogger();
+    private final OpStatsLogger updateConditionalLatency = createLogger(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL_LATENCY);
+    private final Counter updateConditional = createCounter(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL);
+    private final OpStatsLogger updateUnconditionalLatency = createLogger(MetricsNames.TABLE_SEGMENT_UPDATE_LATENCY);
+    private final Counter updateUnconditional = createCounter(MetricsNames.TABLE_SEGMENT_UPDATE);
+    private final OpStatsLogger removeConditionalLatency = createLogger(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL_LATENCY);
+    private final Counter removeConditional = createCounter(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL);
+    private final OpStatsLogger removeUnconditionalLatency = createLogger(MetricsNames.TABLE_SEGMENT_REMOVE_LATENCY);
+    private final Counter removeUnconditional = createCounter(MetricsNames.TABLE_SEGMENT_REMOVE);
+    private final OpStatsLogger getKeysLatency = createLogger(MetricsNames.TABLE_SEGMENT_GET_LATENCY);
+    private final Counter getKeys = createCounter(MetricsNames.TABLE_SEGMENT_GET);
+    private final OpStatsLogger iterateKeysLatency = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS_LATENCY);
+    private final Counter iterateKeys = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS);
+    private final OpStatsLogger iterateEntriesLatency = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY);
+    private final Counter iterateEntries = createCounter(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES);
 
     //region AutoCloseable Implementation
 
@@ -52,12 +47,19 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
     public void close() {
         this.createSegment.close();
         this.deleteSegment.close();
+        this.updateConditionalLatency.close();
         this.updateConditional.close();
+        this.updateUnconditionalLatency.close();
         this.updateUnconditional.close();
+        this.removeConditionalLatency.close();
         this.removeConditional.close();
+        this.removeUnconditionalLatency.close();
         this.removeUnconditional.close();
+        this.getKeysLatency.close();
         this.getKeys.close();
+        this.iterateKeysLatency.close();
         this.iterateKeys.close();
+        this.iterateEntriesLatency.close();
         this.iterateEntries.close();
     }
 
@@ -67,57 +69,42 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
 
     @Override
     public void createTableSegment(String tableSegmentName, Duration elapsed) {
-        getCreateSegment().reportSuccessEvent(elapsed);
+        this.createSegment.reportSuccessEvent(elapsed);
     }
 
     @Override
     public void deleteTableSegment(String tableSegmentName, Duration elapsed) {
-        getDeleteSegment().reportSuccessEvent(elapsed);
-        String[] segmentTags = segmentTags(tableSegmentName);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_UPDATE, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_REMOVE, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_GET, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, segmentTags);
-        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, segmentTags);
+        this.deleteSegment.reportSuccessEvent(elapsed);
     }
 
     @Override
     public void updateEntries(String tableSegmentName, int entryCount, boolean conditional, Duration elapsed) {
-        choose(conditional, getUpdateConditional(), getUpdateUnconditional()).reportSuccessEvent(elapsed);
-        String countMetric = choose(conditional, MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL, MetricsNames.TABLE_SEGMENT_UPDATE);
-        getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(countMetric), entryCount);
-        getDynamicLogger().incCounterValue(countMetric, entryCount, segmentTags(tableSegmentName));
+        choose(conditional, this.updateConditionalLatency, this.updateUnconditionalLatency).reportSuccessEvent(elapsed);
+        choose(conditional, this.updateConditional, this.updateUnconditional).add(entryCount);
     }
 
     @Override
     public void removeKeys(String tableSegmentName, int keyCount, boolean conditional, Duration elapsed) {
-        choose(conditional, getRemoveConditional(), getRemoveUnconditional()).reportSuccessEvent(elapsed);
-        String countMetric = choose(conditional, MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL, MetricsNames.TABLE_SEGMENT_REMOVE);
-        getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(countMetric), keyCount);
-        getDynamicLogger().incCounterValue(countMetric, keyCount, segmentTags(tableSegmentName));
+        choose(conditional, this.removeConditionalLatency, this.removeUnconditionalLatency).reportSuccessEvent(elapsed);
+        choose(conditional, this.removeConditional, this.removeUnconditional).add(keyCount);
     }
 
     @Override
     public void getKeys(String tableSegmentName, int keyCount, Duration elapsed) {
-        getGetKeys().reportSuccessEvent(elapsed);
-        getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_GET), keyCount);
-        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_GET, keyCount, segmentTags(tableSegmentName));
+        this.getKeysLatency.reportSuccessEvent(elapsed);
+        this.getKeys.add(keyCount);
     }
 
     @Override
     public void iterateKeys(String tableSegmentName, int resultCount, Duration elapsed) {
-        getIterateKeys().reportSuccessEvent(elapsed);
-        getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS), resultCount);
-        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, resultCount, segmentTags(tableSegmentName));
+        this.iterateKeysLatency.reportSuccessEvent(elapsed);
+        this.iterateKeys.add(resultCount);
     }
 
     @Override
     public void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed) {
-        getIterateEntries().reportSuccessEvent(elapsed);
-        getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES), resultCount);
-        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, resultCount, segmentTags(tableSegmentName));
+        this.iterateEntriesLatency.reportSuccessEvent(elapsed);
+        this.iterateEntries.add(resultCount);
     }
 
     //endregion
@@ -126,8 +113,8 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
         return STATS_LOGGER.createStats(name);
     }
 
-    protected DynamicLogger createDynamicLogger() {
-        return MetricsProvider.getDynamicLogger();
+    protected Counter createCounter(String name) {
+        return STATS_LOGGER.createCounter(name);
     }
 
     private <T> T choose(boolean conditional, T whenConditional, T whenUnconditional) {

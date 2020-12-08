@@ -183,10 +183,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readBytes(ByteArraySegment segment) {
+        public int readBytes(ByteBuffer byteBuffer) {
             BufferView.Reader current = getCurrent();
             if (current != null) {
-                int len = current.readBytes(segment);
+                int len = current.readBytes(byteBuffer);
                 this.available -= len;
                 assert this.available >= 0;
                 return len;

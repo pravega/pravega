@@ -20,7 +20,7 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
-import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
@@ -42,10 +42,10 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.server.security.auth.handler.impl.PasswordAuthHandler;
+import io.pravega.authplugin.basic.PasswordAuthHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
@@ -194,10 +194,7 @@ public class ControllerGrpcAuthFocusedTest {
                                       segmentHelper,
                                       EXECUTOR,
                                       mockCluster),
-                authHelper,
-                requestTracker,
-                true,
-                2);
+                authHelper, requestTracker, true, true, 2);
 
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
         authHandler.initialize(AUTH_FILE.getAbsolutePath());

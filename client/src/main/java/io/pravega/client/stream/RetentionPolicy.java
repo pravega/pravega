@@ -37,16 +37,30 @@ public class RetentionPolicy implements Serializable {
 
     private final RetentionType retentionType;
     private final long retentionParam;
+    private final long retentionMax;
 
     /**
-     * Create a retention policy to configure a stream to periodically truncated
-     * according to the specified duration.
+     * Create a retention policy to configure a stream to be periodically truncated according to the specified duration.
      *
      * @param duration Period to retain data in a stream.
      * @return Retention policy object.
      */
     public static RetentionPolicy byTime(Duration duration) {
-        return new RetentionPolicy(RetentionType.TIME, duration.toMillis());
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME)
+                .retentionParam(duration.toMillis()).retentionMax(duration.toMillis()).build();
+    }
+
+    /**
+     * Create a retention policy to configure a stream to periodically truncated
+     * according to the specified duration.
+     *
+     * @param durationMin Minimum period for which data would be retained in the stream.
+     * @param durationMax Maximum period for which data would be retained in the stream.
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy byTime(Duration durationMin, Duration durationMax) {
+        return RetentionPolicy.builder().retentionType(RetentionType.TIME)
+                .retentionParam(durationMin.toMillis()).retentionMax(durationMax.toMillis()).build();
     }
 
     /**
@@ -57,6 +71,20 @@ public class RetentionPolicy implements Serializable {
      * @return Retention policy object.
      */
     public static RetentionPolicy bySizeBytes(long size) {
-        return new RetentionPolicy(RetentionType.SIZE, size);
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
+                .retentionParam(size).retentionMax(size).build();
+    }
+
+    /**
+     * Create a retention policy to configure a stream to truncate a stream
+     * according to the amount of data currently stored.
+     *
+     * @param sizeMin Minimum amount of data to retain in a Stream.
+     * @param sizeMax Maximum amount of data to retain in a Stream.
+     * @return Retention policy object.
+     */
+    public static RetentionPolicy bySizeBytes(long sizeMin, long sizeMax) {
+        return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
+                .retentionParam(sizeMin).retentionMax(sizeMax).build();
     }
 }

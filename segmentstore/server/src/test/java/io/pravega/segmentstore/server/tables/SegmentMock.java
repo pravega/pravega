@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -58,7 +58,7 @@ class SegmentMock implements DirectSegmentAccess {
     @Getter
     private final UpdateableSegmentMetadata metadata;
     @GuardedBy("this")
-    private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
+    private final ByteBufferOutputStream contents = new ByteBufferOutputStream();
     private final ScheduledExecutorService executor;
     @GuardedBy("this")
     private BiConsumer<Long, Integer> appendCallback;

@@ -71,5 +71,7 @@ public interface AuthHandler {
      *
      * @param serverConfig The server configuration.
      */
-    void initialize(ServerConfig serverConfig);
+    default void initialize(ServerConfig serverConfig) {
+        // Do nothing if the handler does not need any configuration being injected.
+    }
 }
