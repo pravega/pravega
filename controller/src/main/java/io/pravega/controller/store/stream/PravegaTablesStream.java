@@ -361,7 +361,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     public CompletableFuture<List<String>> listSubscribers() {
         return getMetadataTable()
                 .thenCompose(table -> getSubscriberSetRecord(true)
-                        .thenApply(subscribersSet -> subscribersSet.getObject().getSubscribers().keySet().asList()));
+                        .thenApply(subscribersSet -> subscribersSet.getObject().getSubscribers().asList()));
     }
 
     @Override
@@ -399,13 +399,11 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Version> updateRetentionSetData(VersionedMetadata<RetentionSet> retention) {
         return getMetadataTable()
-                .thenCompose(metadataTable -> {
-                    return storeHelper.updateEntry(metadataTable, RETENTION_SET_KEY, retention.getObject().toBytes(), retention.getVersion())
-                                      .thenApply(v -> {
-                                          storeHelper.invalidateCache(metadataTable, RETENTION_SET_KEY);
-                                          return v;
-                                      });
-                });
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, RETENTION_SET_KEY, retention.getObject().toBytes(), retention.getVersion())
+                                  .thenApply(v -> {
+                                      storeHelper.invalidateCache(metadataTable, RETENTION_SET_KEY);
+                                      return v;
+                                  }));
     }
 
     @Override

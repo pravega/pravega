@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -244,7 +245,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber) {
         throw new UnsupportedOperationException();
     }
 
@@ -259,12 +260,12 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
+    public CompletableFuture<Void> deleteSubscriber(String subscriber) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
         throw new UnsupportedOperationException();
     }
 
@@ -446,7 +447,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersRecordIfAbsent() {
-        Subscribers subscribersSetRecord = new Subscribers(ImmutableMap.of());
+        Subscribers subscribersSetRecord = new Subscribers(ImmutableSet.of());
         return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersSetRecord.toBytes()));
     }
 

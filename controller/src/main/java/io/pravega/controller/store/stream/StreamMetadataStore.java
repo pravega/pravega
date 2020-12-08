@@ -1387,4 +1387,12 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(final String scope, final String streamName,
                                                                                    Map<Long, Long> streamCut, final RetentionSet retentionSet,
                                                                                    final OperationContext context, final Executor executor);
+
+    /**
+     * Api to check if a ReaderGroup exists in the store or not.
+     * @param scope scope name
+     * @param rgName Name ReaderGroup name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName);
 }

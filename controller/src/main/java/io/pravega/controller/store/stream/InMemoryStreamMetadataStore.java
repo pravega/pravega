@@ -110,6 +110,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    ReaderGroup newReaderGroup(String scope, String name) {
+        return null;
+    }
+
+    @Override
     @Synchronized
     Scope newScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {

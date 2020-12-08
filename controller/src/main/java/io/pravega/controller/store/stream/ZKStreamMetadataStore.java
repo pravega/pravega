@@ -120,7 +120,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
@@ -133,6 +133,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
+    }
+
+    @Override
+    ReaderGroup newReaderGroup(String scope, String name) {
+        return null;
     }
 
     @Override
@@ -162,6 +167,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
         // Pagination not supported for zk based store. 
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName) {
+        return null;
     }
 
     @Override
