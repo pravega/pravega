@@ -540,19 +540,17 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
             if (pr == null) {
                 // Nobody else waiting for this offset. Register ourselves.
                 pr = new PendingRead(offset, length);
-                pr.completion.whenComplete((r, ex) -> {
-                    // Cleanup.
-                    synchronized (this.pendingReads) {
-                        this.pendingReads.remove(offset);
-                    }
-                });
+                pr.completion.whenComplete((r, ex) -> unregisterPendingRead(offset));
                 this.pendingReads.put(offset, pr);
             } else if (pr.length < length) {
                 // Somehow the previous request wanted to read less than us. This shouldn't be the case, yet it is
                 // a situation we should handle. In his case, we will not be recording the PendingRead.
+                log.warn("{}: Concurrent read at (Offset={}, OldLength={}), but with different length ({}). Not piggybacking.", this.traceObjectId, offset, pr.length, length);
                 pr = new PendingRead(offset, length);
             } else {
                 // Piggyback on the existing read.
+                log.debug("{}: Concurrent read (Offset={}, Length={}, NewCount={}). Piggybacking.", this.traceObjectId, offset, pr.length, pr.count);
+                pr.count.incrementAndGet();
                 return pr.completion;
             }
         }
@@ -572,6 +570,17 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
                         }, this.executor),
                 pr.completion);
         return pr.completion;
+    }
+
+    private void unregisterPendingRead(long offset) {
+        PendingRead pr;
+        synchronized (this.pendingReads) {
+            pr = this.pendingReads.remove(offset);
+        }
+        if (pr != null && pr.count.get() > 1) {
+            // Only do it for the interesting cases (don't spam the logs if there's no concurrency).
+            log.debug("{}: Concurrent reads unregistered (Offset={}, Length={}, Count={}).", this.traceObjectId, pr.offset, pr.length, pr.count);
+        }
     }
 
     private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
@@ -852,6 +861,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     private static class PendingRead {
         final long offset;
         final int length;
+        final AtomicInteger count = new AtomicInteger(1);
         final CompletableFuture<ByteArraySegment> completion = new CompletableFuture<>();
     }
 
