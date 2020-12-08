@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.SerializationException;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -160,12 +159,12 @@ class EntrySerializer {
     }
 
     private BufferView serializeHeader(int keyLength, int valueLength, long entryVersion) {
-        byte[] data = new byte[HEADER_LENGTH];
-        data[VERSION_POSITION] = CURRENT_SERIALIZATION_VERSION;
-        BitConverter.writeInt(data, KEY_POSITION, keyLength);
-        BitConverter.writeInt(data, VALUE_POSITION, valueLength);
-        BitConverter.writeLong(data, ENTRY_VERSION_POSITION, entryVersion);
-        return new ByteArraySegment(data);
+        ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
+        data.set(VERSION_POSITION, CURRENT_SERIALIZATION_VERSION);
+        data.setInt(KEY_POSITION, keyLength);
+        data.setInt(VALUE_POSITION, valueLength);
+        data.setLong(ENTRY_VERSION_POSITION, entryVersion);
+        return data;
     }
 
     private void validateHeader(int keyLength, int valueLength) throws SerializationException {

@@ -7,16 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth;
+package io.pravega.shared.security.auth;
 
-import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.test.common.AssertExtensions;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
 public class AuthorizationResourceImplTest {
-    private final AuthorizationResourceImpl objectUnderTest = new AuthorizationResourceImpl();
+    private AuthorizationResourceImpl objectUnderTest;
+
+    @Before
+    public void init() {
+        objectUnderTest = new AuthorizationResourceImpl();
+    }
 
     @Test
     public void testOfScopesReturnsValidResourceStr() {
@@ -68,6 +73,11 @@ public class AuthorizationResourceImplTest {
     public void testOfAReaderGroupInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("prn::/scope:testScopeName/reader-group:readerGroupName",
                 objectUnderTest.ofReaderGroupInScope("testScopeName", "readerGroupName"));
+    }
+
+    @Test
+    public void testOfAKvtablesInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("prn::/scope:testScopeName", objectUnderTest.ofKeyValueTablesInScope("testScopeName"));
     }
 
     @Test

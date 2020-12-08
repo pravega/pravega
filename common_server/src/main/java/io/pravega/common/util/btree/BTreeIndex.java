@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -703,21 +702,21 @@ public class BTreeIndex {
     private ByteArraySegment serializePointer(PagePointer pointer) {
         assert pointer.getLength() <= Short.MAX_VALUE : "PagePointer.length too large";
         ByteArraySegment result = new ByteArraySegment(new byte[this.indexPageConfig.getValueLength()]);
-        BitConverter.writeLong(result, 0, pointer.getOffset());
-        BitConverter.writeShort(result, Long.BYTES, (short) pointer.getLength());
-        BitConverter.writeLong(result, Long.BYTES + Short.BYTES, pointer.getMinOffset());
+        result.setLong(0, pointer.getOffset());
+        result.setShort(Long.BYTES, (short) pointer.getLength());
+        result.setLong(Long.BYTES + Short.BYTES, pointer.getMinOffset());
         return result;
     }
 
     private PagePointer deserializePointer(ByteArraySegment serialization, ByteArraySegment pageKey) {
-        long pageOffset = BitConverter.readLong(serialization, 0);
-        int pageLength = BitConverter.readShort(serialization, Long.BYTES);
+        long pageOffset = serialization.getLong(0);
+        int pageLength = serialization.getShort(Long.BYTES);
         long minOffset = deserializePointerMinOffset(serialization);
         return new PagePointer(pageKey, pageOffset, pageLength, minOffset);
     }
 
     private long deserializePointerMinOffset(ByteArraySegment serialization) {
-        return BitConverter.readLong(serialization, Long.BYTES + Short.BYTES);
+        return serialization.getLong(Long.BYTES + Short.BYTES);
     }
 
     private ByteArraySegment generateMinKey() {
@@ -815,18 +814,18 @@ public class BTreeIndex {
     }
 
     private ByteArraySegment getFooter(long rootPageOffset, int rootPageLength) {
-        byte[] result = new byte[FOOTER_LENGTH];
-        BitConverter.writeLong(result, 0, rootPageOffset);
-        BitConverter.writeInt(result, Long.BYTES, rootPageLength);
-        return new ByteArraySegment(result);
+        ByteArraySegment result = new ByteArraySegment(new byte[FOOTER_LENGTH]);
+        result.setLong(0, rootPageOffset);
+        result.setInt(Long.BYTES, rootPageLength);
+        return result;
     }
 
     private long getRootPageOffset(ByteArraySegment footer) {
-        return BitConverter.readLong(footer, 0);
+        return footer.getLong(0);
     }
 
     private int getRootPageLength(ByteArraySegment footer) {
-        return BitConverter.readInt(footer, Long.BYTES);
+        return footer.getInt(Long.BYTES);
     }
 
     private void ensureInitialized() {

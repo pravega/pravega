@@ -10,7 +10,6 @@
 package io.pravega.common.util.btree;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -175,7 +174,6 @@ class BTreePage {
      * @throws IllegalDataFormatException If the given contents is not a valid BTreePage format and validate == true.
      */
     private BTreePage(@NonNull Config config, @NonNull ByteArraySegment contents, boolean validate) {
-        Preconditions.checkArgument(!contents.isReadOnly(), "Cannot wrap a read-only ByteArraySegment.");
         this.config = config;
         this.contents = contents;
         this.header = contents.slice(0, DATA_OFFSET);
@@ -190,7 +188,7 @@ class BTreePage {
         }
 
         // Cache the count value. It's used a lot.
-        this.count = BitConverter.readInt(this.header, COUNT_OFFSET);
+        this.count = this.header.getInt(COUNT_OFFSET);
     }
 
     /**
@@ -223,8 +221,8 @@ class BTreePage {
      */
     static boolean isIndexPage(@NonNull ByteArraySegment pageContents) {
         // Check ID match.
-        int headerId = BitConverter.readInt(pageContents, ID_OFFSET);
-        int footerId = BitConverter.readInt(pageContents, pageContents.getLength() - FOOTER_LENGTH);
+        int headerId = pageContents.getInt(ID_OFFSET);
+        int footerId = pageContents.getInt(pageContents.getLength() - FOOTER_LENGTH);
         if (headerId != footerId) {
             throw new IllegalDataFormatException("Invalid Page Format (id mismatch). HeaderId=%s, FooterId=%s.", headerId, footerId);
         }
@@ -560,7 +558,7 @@ class BTreePage {
      * @param itemCount The count to set.
      */
     private void setCount(int itemCount) {
-        BitConverter.writeInt(this.header, COUNT_OFFSET, itemCount);
+        this.header.setInt(COUNT_OFFSET, itemCount);
         this.count = itemCount;
     }
 
@@ -597,28 +595,28 @@ class BTreePage {
      * Gets this BTreePage's Id from its header.
      */
     int getHeaderId() {
-        return BitConverter.readInt(this.header, ID_OFFSET);
+        return this.header.getInt(ID_OFFSET);
     }
 
     /**
      * Gets this BTreePage's Id from its footer.
      */
     private int getFooterId() {
-        return BitConverter.readInt(this.footer, 0);
+        return this.footer.getInt(0);
     }
 
     /**
      * Updates the Header to contain the given id.
      */
     private void setHeaderId(int id) {
-        BitConverter.writeInt(this.header, ID_OFFSET, id);
+        this.header.setInt(ID_OFFSET, id);
     }
 
     /**
      * Updates the Footer to contain the given id.
      */
     private void setFooterId(int id) {
-        BitConverter.writeInt(this.footer, 0, id);
+        this.footer.setInt(0, id);
     }
 
     //endregion
