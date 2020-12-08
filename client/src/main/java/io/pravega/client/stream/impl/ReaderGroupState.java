@@ -90,9 +90,11 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<SegmentWithRange, Long> lastReadPosition;
     private final Map<Segment, Long> endSegments;
+    @Getter
+    private final long generation;
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
-                     Map<Segment, Long> endSegments) {
+                     Map<Segment, Long> endSegments, long generation) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
@@ -107,6 +109,7 @@ public class ReaderGroupState implements Revisioned {
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
         this.lastReadPosition = new HashMap<>(segmentsToOffsets);
         this.endSegments = ImmutableMap.copyOf(endSegments);
+        this.generation = generation;
     }
     
     /**
@@ -333,10 +336,11 @@ public class ReaderGroupState implements Revisioned {
         private final ReaderGroupConfig config;
         private final Map<SegmentWithRange, Long> startingSegments;
         private final Map<Segment, Long> endSegments;
+        private final long generation;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, config, startingSegments, endSegments);
+            return new ReaderGroupState(scopedStreamName, revision, config, startingSegments, endSegments, generation);
         }
         
         @VisibleForTesting
@@ -357,7 +361,8 @@ public class ReaderGroupState implements Revisioned {
             @Override
             protected void declareVersions() {
                 version(0).revision(0, this::write00, this::read00)
-                          .revision(1, this::write01, this::read01);
+                          .revision(1, this::write01, this::read01)
+                          .revision(2, this::write02, this::read02);
             }
 
             @VisibleForTesting
@@ -379,6 +384,10 @@ public class ReaderGroupState implements Revisioned {
                                                                    RevisionDataInput::readLong));
             }
 
+            private void read02(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
+                builder.generation(revisionDataInput.readLong());
+            }
+
             @VisibleForTesting
             void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeBuffer(new ByteArraySegment(state.config.toBytes()));
@@ -394,6 +403,10 @@ public class ReaderGroupState implements Revisioned {
                     writeRange(out, s.getRange());
                 };
                 revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
+            }
+
+            private void write02(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeLong(state.generation);
             }
         }
         
@@ -418,6 +431,7 @@ public class ReaderGroupState implements Revisioned {
         private final Map<SegmentWithRange, Long> lastReadPosition;
         @NonNull
         private final Map<Segment, Long> endSegments;
+        private final long generation;
         
         CompactReaderGroupState(ReaderGroupState state) {
             synchronized (state.$lock) {
@@ -435,13 +449,14 @@ public class ReaderGroupState implements Revisioned {
                 unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
                 lastReadPosition = new HashMap<>(state.lastReadPosition);
                 endSegments = state.endSegments;
+                generation = state.generation;
             }
         }
 
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
-                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments);
+                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments, generation);
         }
 
         @VisibleForTesting

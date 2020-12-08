@@ -187,7 +187,8 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                 NameUtils.getStreamForReaderGroup(readerGroup),
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
-                synchronizerConfig);
+                synchronizerConfig,
+                readerGroup);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
@@ -226,11 +227,12 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         createStateSynchronizer(String streamName,
                                 Serializer<UpdateT> updateSerializer,
                                 Serializer<InitT> initialSerializer,
-                                SynchronizerConfig config) {
+                                SynchronizerConfig config,
+                                String readerGroup) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config), controller, readerGroup);
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {
