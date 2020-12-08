@@ -10,7 +10,12 @@
 
 package io.pravega.controller.store.index;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -18,12 +23,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -33,7 +32,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class ZkHostIndexTest {
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework cli;
     private TestingServer zkServer;
 
@@ -51,7 +50,7 @@ public class ZkHostIndexTest {
         cli.close();
         zkServer.stop();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
     
     @Test

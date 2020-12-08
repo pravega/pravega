@@ -13,6 +13,14 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
@@ -20,31 +28,24 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-
 import static org.junit.Assert.assertEquals;
 
-public class StoreClientFactoryTest {
+public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     TestingServer zkServer;
-    ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
     @Before
     public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
-        executor = Executors.newSingleThreadScheduledExecutor();
     }
-    
+
     @After
     public void tearDown() throws IOException {
         zkServer.stop();
-        executor.shutdown();
     }
     
     @Test(timeout = 60000)
@@ -76,9 +77,9 @@ public class StoreClientFactoryTest {
                 throw new CompletionException(e);
             }
         };
-        
-        Futures.loop(isAliveSupplier, 
-                () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        Futures.loop(isAliveSupplier,
+                () -> Futures.delayedFuture(Duration.ofMillis(100), executorService()), executorService()).join();
         
         // verify that we fail with session expiry and we fail without retrying.
         AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));

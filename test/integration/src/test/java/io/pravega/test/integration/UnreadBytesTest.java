@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -26,10 +27,8 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -37,13 +36,12 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -54,7 +52,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public class UnreadBytesTest {
+public class UnreadBytesTest extends ThreadPooledTestSuite {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
@@ -65,11 +63,14 @@ public class UnreadBytesTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -91,7 +92,6 @@ public class UnreadBytesTest {
 
     @After
     public void tearDown() throws Exception {
-        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -137,7 +137,7 @@ public class UnreadBytesTest {
         assertEquals("data of size 30", secondEvent.getEvent());
 
         // trigger a checkpoint.
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executorService());
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
         
@@ -194,7 +194,7 @@ public class UnreadBytesTest {
         assertEquals("data of size 30", secondEvent.getEvent());
 
         // trigger a checkpoint.
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executorService());
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
         
@@ -252,7 +252,7 @@ public class UnreadBytesTest {
         assertEquals("data of size 30", secondEvent.getEvent());
 
         // trigger a checkpoint.
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executorService());
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
 
@@ -270,7 +270,7 @@ public class UnreadBytesTest {
         assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 30);
 
         // trigger a stream-cut
-        CompletableFuture<Map<Stream, StreamCut>> scResult = readerGroup.generateStreamCuts(executor);
+        CompletableFuture<Map<Stream, StreamCut>> scResult = readerGroup.generateStreamCuts(executorService());
         EventRead<String> scEvent = reader.readNextEvent(15000);
 
         reader.readNextEvent(100);

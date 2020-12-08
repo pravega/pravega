@@ -13,60 +13,37 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.function.RunnableWithException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Helper methods for ExecutorService.
  */
 @Slf4j
 public final class ExecutorServiceHelpers {
-    
-    @Data
-    private static class CallerRuns implements RejectedExecutionHandler {
-        private final String poolName;
+    private static final ExecutorServiceFactory FACTORY = new ExecutorServiceFactory();
 
-        @Override
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            log.debug("Caller to executor: " + poolName + " rejected and run in the caller.");
-            r.run();
-        }
-    }
-
-    private static final class LogUncaughtExceptions implements UncaughtExceptionHandler {
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            log.error("Exception thrown out of root of thread: " + t.getName(), e);
-        }
-    }
-    
     /**
      * Creates and returns a thread factory that will create threads with the given name prefix.
-     * 
+     *
      * @param groupName the name of the threads
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName) {
-        return getThreadFactory(groupName, Thread.NORM_PRIORITY);
+        return FACTORY.getThreadFactory(groupName);
     }
 
     /**
@@ -77,20 +54,9 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName, int priority) {
-        return new ThreadFactory() {
-            final AtomicInteger threadCount = new AtomicInteger();
-
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
-                thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
-                thread.setDaemon(true);
-                thread.setPriority(priority);
-                return thread;
-            }
-        };
+        return FACTORY.getThreadFactory(groupName, priority);
     }
-    
+
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names the threads.
      * @param size The number of threads in the threadpool
@@ -110,24 +76,9 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName, int threadPriority) {
-
-        ThreadFactory threadFactory = getThreadFactory(poolName, threadPriority);
-
-        // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, threadFactory, new CallerRuns(poolName));
-
-        // Do not execute any periodic tasks after shutdown.
-        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-
-        // Do not execute any delayed tasks after shutdown.
-        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-
-        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
-        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
-        result.setRemoveOnCancelPolicy(true);
-        return result;
+        return FACTORY.newScheduledThreadPool(size, poolName, threadPriority);
     }
-    
+
     /**
      * Gets a snapshot of the given ExecutorService.
      *
@@ -146,7 +97,7 @@ public final class ExecutorServiceHelpers {
             return null;
         }
     }
-    
+
     /**
      * Operates like Executors.cachedThreadPool but with a custom thread timeout and pool name.
      * @return A new threadPool
@@ -155,8 +106,7 @@ public final class ExecutorServiceHelpers {
      * @param poolName The name of the threadpool.
      */
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
-        return new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-                getThreadFactory(poolName), new CallerRuns(poolName)); // Caller runs only occurs after shutdown, as queue size is unbounded.
+        return FACTORY.newShrinkingExecutor(maxThreadCount, threadTimeout, poolName);
     }
 
     /**
