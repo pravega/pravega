@@ -16,7 +16,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -36,8 +35,8 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.shared.NameUtils;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.shared.NameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -61,6 +60,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -69,7 +69,7 @@ import lombok.val;
  * Attribute Index for a single Segment, backed by a B+Tree Index implementation.
  */
 @Slf4j
-public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
+class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
     //region Members
 
     /**
@@ -102,7 +102,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private int currentCacheGeneration;
     @GuardedBy("cacheEntries")
     private final Map<Long, CacheEntry> cacheEntries;
-
+    @GuardedBy("pendingReads")
+    private final Map<Long, PendingRead> pendingReads;
     private final BTreeIndex index;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
@@ -142,6 +143,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .build();
 
         this.cacheEntries = new HashMap<>();
+        this.pendingReads = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -197,9 +199,19 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             // Close storage reader (and thus cancel those reads).
             this.executor.execute(() -> {
                 removeAllCacheEntries();
+                cancelPendingReads();
                 log.info("{}: Closed.", this.traceObjectId);
             });
         }
+    }
+
+    private void cancelPendingReads() {
+        List<PendingRead> toCancel;
+        synchronized (this.pendingReads) {
+            toCancel = new ArrayList<>(this.pendingReads.values());
+            this.pendingReads.clear();
+        }
+        toCancel.forEach(f -> f.completion.cancel(true));
     }
 
     /**
@@ -429,16 +441,16 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private ByteArraySegment serializeKey(UUID key) {
         // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
         // natural order (i.e., the same as the one done by UUID.compare()).
-        byte[] result = new byte[KEY_LENGTH];
-        BitConverter.writeUnsignedLong(result, 0, key.getMostSignificantBits());
-        BitConverter.writeUnsignedLong(result, Long.BYTES, key.getLeastSignificantBits());
-        return new ByteArraySegment(result);
+        ByteArraySegment result = new ByteArraySegment(new byte[KEY_LENGTH]);
+        result.setUnsignedLong(0, key.getMostSignificantBits());
+        result.setUnsignedLong(Long.BYTES, key.getLeastSignificantBits());
+        return result;
     }
 
     private UUID deserializeKey(ByteArraySegment key) {
         Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
-        long msb = BitConverter.readUnsignedLong(key, 0);
-        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        long msb = key.getUnsignedLong(0);
+        long lsb = key.getUnsignedLong(Long.BYTES);
         return new UUID(msb, lsb);
     }
 
@@ -448,14 +460,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             return null;
         }
 
-        byte[] result = new byte[VALUE_LENGTH];
-        BitConverter.writeLong(result, 0, value);
-        return new ByteArraySegment(result);
+        ByteArraySegment result = new ByteArraySegment(new byte[VALUE_LENGTH]);
+        result.setLong(0, value);
+        return result;
     }
 
     private long deserializeValue(ByteArraySegment value) {
         Preconditions.checkArgument(value.getLength() == VALUE_LENGTH, "Unexpected value length.");
-        return BitConverter.readLong(value, 0);
+        return value.getLong(0);
     }
 
     private CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {
@@ -503,14 +515,71 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                         "Attribute Index Segment has not been created yet. Cannot read %d byte(s) from offset (%d).",
                         length, offset)));
             }
-        } else {
-            byte[] buffer = new byte[length];
-            return this.storage.read(handle, offset, buffer, 0, length, timeout)
-                               .thenApplyAsync(bytesRead -> {
-                                   Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
-                                   storeInCache(offset, buffer);
-                                   return new ByteArraySegment(buffer);
-                               }, this.executor);
+        }
+
+        return readPageFromStorage(handle, offset, length, timeout);
+    }
+
+    /**
+     * Reads a BTreeIndex page from Storage and inserts its into the cache (no cache lookups are performed).
+     * Handles read concurrency on the same page by piggybacking on existing running reads on that page (identified by
+     * page offset). If more than one concurrent request is issued for the same page, only one will be sent to Storage,
+     * and subsequent ones will be attached to the original one.
+     *
+     * @param handle  {@link SegmentHandle} to read from.
+     * @param offset  Page offset.
+     * @param length  Page length.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that will contain the result.
+     */
+    @VisibleForTesting
+    CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+        PendingRead pr;
+        synchronized (this.pendingReads) {
+            pr = this.pendingReads.get(offset);
+            if (pr == null) {
+                // Nobody else waiting for this offset. Register ourselves.
+                pr = new PendingRead(offset, length);
+                pr.completion.whenComplete((r, ex) -> unregisterPendingRead(offset));
+                this.pendingReads.put(offset, pr);
+            } else if (pr.length < length) {
+                // Somehow the previous request wanted to read less than us. This shouldn't be the case, yet it is
+                // a situation we should handle. In his case, we will not be recording the PendingRead.
+                log.warn("{}: Concurrent read at (Offset={}, OldLength={}), but with different length ({}). Not piggybacking.", this.traceObjectId, offset, pr.length, length);
+                pr = new PendingRead(offset, length);
+            } else {
+                // Piggyback on the existing read.
+                log.debug("{}: Concurrent read (Offset={}, Length={}, NewCount={}). Piggybacking.", this.traceObjectId, offset, pr.length, pr.count);
+                pr.count.incrementAndGet();
+                return pr.completion;
+            }
+        }
+
+        // Issue the read request.
+        return readPageFromStorage(handle, pr, timeout);
+    }
+
+    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, PendingRead pr, Duration timeout) {
+        byte[] buffer = new byte[pr.length];
+        Futures.completeAfter(
+                () -> this.storage.read(handle, pr.offset, buffer, 0, pr.length, timeout)
+                        .thenApplyAsync(bytesRead -> {
+                            Preconditions.checkArgument(pr.length == bytesRead, "Unexpected number of bytes read.");
+                            storeInCache(pr.offset, buffer);
+                            return new ByteArraySegment(buffer);
+                        }, this.executor),
+                pr.completion);
+        return pr.completion;
+    }
+
+    private void unregisterPendingRead(long offset) {
+        PendingRead pr;
+        synchronized (this.pendingReads) {
+            pr = this.pendingReads.remove(offset);
+        }
+        if (pr != null && pr.count.get() > 1) {
+            // Only do it for the interesting cases (don't spam the logs if there's no concurrency).
+            log.debug("{}: Concurrent reads unregistered (Offset={}, Length={}, Count={}).", this.traceObjectId, pr.offset, pr.length, pr.count);
         }
     }
 
@@ -786,6 +855,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @FunctionalInterface
     private interface CreatePageEntryIterator {
         AsyncIterator<List<PageEntry>> apply(UUID firstId, boolean firstIdInclusive);
+    }
+
+    @RequiredArgsConstructor
+    private static class PendingRead {
+        final long offset;
+        final int length;
+        final AtomicInteger count = new AtomicInteger(1);
+        final CompletableFuture<ByteArraySegment> completion = new CompletableFuture<>();
     }
 
     //endregion
