@@ -170,7 +170,7 @@ public class HealthConfigImpl implements HealthConfig {
         }
     }
 
-    // The validation should prevent any unintended StackOverflow errors.
+    // This validation should prevent any unintended StackOverflow errors.
     private void recurse(ContributorRegistry registry, HealthComponent component, HealthComponent parent) {
         // Must supply a valid registry reference.
         registry.register(new HealthComponent(component.getName(), component.getAggregator(), registry), parent);

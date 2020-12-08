@@ -19,10 +19,21 @@ import java.util.Map;
  */
 public interface HealthEndpoint {
 
+    /**
+     * Provides the name of the default {@link HealthContributor} that all other {@link HealthContributor} objects are
+     * reachable from.
+     *
+     * @return The name/id of the default {@link HealthContributor}.
+     */
     default String getDefaultContributorName() {
         return ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME;
     }
 
+    /**
+     * Provides the {@link Status} of the {@link HealthContributor} with name {@link #getDefaultContributorName()}.
+     *
+     * @return The {@link Status} of the default {@link HealthContributor}.
+     */
     default Status getStatus() {
         return getStatus(getDefaultContributorName());
     }

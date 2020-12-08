@@ -22,19 +22,34 @@ public class InlineHealthIndicator extends HealthIndicator {
 
     private final BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck;
 
+    /**
+     * Creates an instance of the {@link InlineHealthIndicator} class.
+     * @param name The name to assign to the indicator.
+     * @param doHealthCheck The consumer used define the health checking logic.
+     */
     @NonNull
     public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck) {
         this(name, doHealthCheck, new DetailsProvider());
     }
 
+    /**
+     * Creates an instance of the {@link InlineHealthIndicator} class.
+     * @param name The name to assign to the indicator.
+     * @param doHealthCheck The consumer used define the health checking logic.
+     * @param provider The {@link DetailsProvider} used to fetch its details from.
+     */
     @NonNull
     public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck, DetailsProvider provider) {
         super(name, provider);
         this.doHealthCheck = doHealthCheck;
     }
 
+    /**
+     * The method which executes the health checking {@link BiConsumer} provided during instantiation.
+     * @param builder The {@link Health.HealthBuilder} object.
+     */
     @Override
-    public void doHealthCheck(Health.HealthBuilder builder) throws Exception {
+    final public void doHealthCheck(Health.HealthBuilder builder) {
         doHealthCheck.accept(builder, this.provider);
     }
 }

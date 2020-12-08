@@ -39,6 +39,12 @@ public class HealthComponent extends CompositeHealthContributor {
     @NonNull
     private final String name;
 
+    /**
+     * Creates a new instance of the {@link HealthComponent} class.
+     * @param name The name which this object is addressable by.
+     * @param aggregator The {@link StatusAggregator} which defines the aggregation logic.
+     * @param registry The {@link ContributorRegistry} which to register this component under.
+     */
     @NonNull
     protected HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
         super(aggregator, registry);

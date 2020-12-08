@@ -27,7 +27,7 @@ public class StatusAggregatorTests {
      * represent an 'alive' Status.
      */
     @Test
-    public void majorityRuleTest() {
+    public void testMajorityRule() {
         StatusAggregator aggregator = StatusAggregatorImpl.MAJORITY;
         Assert.assertEquals("The aggregator should return an UP status.",
                 Status.UP,
@@ -44,7 +44,7 @@ public class StatusAggregatorTests {
      * Makes sure that *all* Status results must be in agreement to reduce into a UP result.
      */
     @Test
-    public void unanimousRuleTest() {
+    public void testUnanimousRule() {
         StatusAggregator aggregator = StatusAggregatorImpl.UNANIMOUS;
         Assert.assertEquals("The aggregator should return a DOWN status.",
                 aggregator.aggregate(statuses),
@@ -55,7 +55,7 @@ public class StatusAggregatorTests {
      * Will return an UP status as long as *any* of the individual Status results notes an UP status.
      */
     @Test
-    public void anyRuleTest() {
+    public void testAnyRule() {
         StatusAggregator aggregator = StatusAggregatorImpl.ANY;
         Assert.assertEquals("The aggregator should return an UP status.",
                 aggregator.aggregate(statuses),

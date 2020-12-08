@@ -55,7 +55,7 @@ public class ContributorRegistryTests {
      * the parent contributor is not created on the fly.
      */
     @Test
-    public void registerUnderNonExistingParent() {
+    public void testRegisterUnderNonExistingParent() {
         int before = registry.contributors().size();
         registry.register(new SampleHealthyIndicator(), "NULL");
         Assert.assertEquals("Expected the registration to fail, contributor count should not increase.",
@@ -67,7 +67,7 @@ public class ContributorRegistryTests {
      * Validates that a basic register works as expected.
      */
     @Test
-    public void register() {
+    public void testRegister() {
         simpleRegister();
     }
 
@@ -75,16 +75,16 @@ public class ContributorRegistryTests {
      * Validates that a basic register followed by an unregister works as expected.
      */
     @Test
-    public void unregister() {
+    public void testUnregister() {
         simpleRegister();
         simpleUnregister();
     }
 
     /**
-     * Ensurses that a {@link HealthComponent} will not be able to be unregistered.
+     * Ensures that a {@link HealthComponent} will not be able to be unregistered.
      */
     @Test
-    public void unregisterComponent() {
+    public void testUnregisterComponent() {
         // Sanity check.
         int beforeContributors = registry.contributors().size();
         int beforeComponents = registry.components().size();
@@ -126,7 +126,7 @@ public class ContributorRegistryTests {
      * introduce cycles into this graph, which should be *strictly* forbidden.
      */
     @Test
-    public void unregisterInternalContributor() {
+    public void testUnregisterInternalContributor() {
         // ContributorRegistry does not expose the API that would allow us to test potentially dangerous inserts.
         ContributorRegistryImpl registry = new ContributorRegistryImpl();
         // Create the contributors to register.
@@ -173,7 +173,7 @@ public class ContributorRegistryTests {
      * Tests the case where only {@link io.pravega.shared.health.HealthIndicator} are removed from a {@link HealthContributor}.
      */
     @Test
-    public void unregisterLeafContributor() {
+    public void testUnregisterLeafContributor() {
         // Create the contributors to register.
         ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
                 new SampleHealthyIndicator("one"),
@@ -204,7 +204,7 @@ public class ContributorRegistryTests {
      * with the same name.
      */
     @Test
-    public void registerOverwrite() {
+    public void testRegisterOverwrite() {
         // Register SampleHealthyIndicator.
         simpleRegister();
         int before = registry.contributors().size();
@@ -223,13 +223,11 @@ public class ContributorRegistryTests {
                 failing.getHealthSnapshot().getStatus());
     }
 
-    // Ensure that there are guards against trying to remove a contributor that does not exist.
-
     /**
      * Ensures that attempting to unregister a non-existing {@link HealthContributor} will return a NULL value.
      */
     @Test
-    public void unregisterNonExisting() {
+    public void testUnregisterNonExisting() {
        simpleRegister();
        int before = registry.contributors().size();
        HealthContributor result = registry.unregister("non-existing-contributor");
@@ -253,7 +251,7 @@ public class ContributorRegistryTests {
      * to non-component contributors.
      */
     @Test
-    public void unregisterNoInvalidReferences() {
+    public void testUnregisterNoInvalidReferences() {
         int numComponents = 7;
         // Create the components.
         Map<Character, HealthComponent> components = new HashMap<>();

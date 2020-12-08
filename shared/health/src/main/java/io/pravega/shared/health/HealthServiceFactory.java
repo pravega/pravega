@@ -23,15 +23,28 @@ public class HealthServiceFactory implements AutoCloseable {
     private final HealthConfig config;
     private final AtomicBoolean closed;
 
+    /**
+     * Creates a new instances of the {@link HealthServiceFactory} with an empty {@link HealthConfig}.
+     */
     public HealthServiceFactory() {
         this(HealthConfigImpl.builder().empty());
     }
 
+    /**
+     * Creates a new instance of the {@link HealthServiceFactory} using a specified {@link HealthConfig}.
+     * @param config The {@link HealthConfig} definition.
+     */
     public HealthServiceFactory(HealthConfig config) {
         this.config = Objects.isNull(config) ? HealthConfigImpl.builder().empty() : config;
         this.closed = new AtomicBoolean();
     }
 
+    /**
+     * Provides an instance of the {@link HealthService} and may optionally start its {@link HealthServiceUpdater}.
+     * @param start Defines whether or not to start its {@link  HealthServiceUpdater}.
+     *
+     * @return The created {@link HealthService} instance.
+     */
     public HealthService createHealthService(boolean start) {
         Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has already been closed.");
         HealthService service = new HealthServiceImpl(config);
@@ -41,6 +54,9 @@ public class HealthServiceFactory implements AutoCloseable {
         return service;
     }
 
+    /**
+     * Closes the {@link HealthServiceFactory} instance, making it unable to create further {@link HealthService} instances.
+     */
     @Override
     public void close() {
         this.closed.set(true);

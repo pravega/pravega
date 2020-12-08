@@ -41,7 +41,7 @@ public class HealthConfigTests {
      *    B +------> C
      */
     @Test
-    public void cyclicComponentRejected() {
+    public void testCyclicComponentRejected() {
         AssertExtensions.assertThrows("A cycle should have been noticed and the HealthConfig rejected.",
                 () -> HealthConfigImpl.builder()
                             .define("A", StatusAggregatorImpl.DEFAULT)
@@ -60,7 +60,7 @@ public class HealthConfigTests {
      *     A
      */
     @Test
-    public void singleComponent() {
+    public void testSingleComponent() {
         HealthConfigImpl.builder()
                     .define("A", StatusAggregatorImpl.DEFAULT)
                     .build();
@@ -72,7 +72,7 @@ public class HealthConfigTests {
      *    A    B    C    D
      */
     @Test
-    public void componentsWithNoRelations() {
+    public void testComponentsWithNoRelations() {
         HealthConfigImpl.builder()
                 .define("A", StatusAggregatorImpl.DEFAULT)
                 .define("B", StatusAggregatorImpl.DEFAULT)
@@ -90,7 +90,7 @@ public class HealthConfigTests {
      *     D --- A --- B
      */
     @Test
-    public void componentManyChildren() {
+    public void testComponentManyChildren() {
         HealthConfigImpl.builder()
                 .define("A", StatusAggregatorImpl.DEFAULT)
                 .define("B", StatusAggregatorImpl.DEFAULT)
@@ -129,7 +129,7 @@ public class HealthConfigTests {
      * Tests an *empty* {@link HealthConfig} definition. This equates to an empty graph, i.e. one with no nodes.
      */
     @Test
-    public void emptyConfig() {
+    public void testEmptyConfigBuilds() {
         Assert.assertTrue("Config should be listed as 'empty'.", HealthConfigImpl.builder().empty().isEmpty());
     }
 
@@ -141,7 +141,7 @@ public class HealthConfigTests {
      *     A <---+
      */
     @Test
-    public void selfReferenceRejected() {
+    public void testSelfReferenceRejected() {
         AssertExtensions.assertThrows("A self-reference was not detected.",
                 () -> HealthConfigImpl.builder()
                         .define("A", StatusAggregatorImpl.DEFAULT)

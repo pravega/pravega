@@ -25,6 +25,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 
+/**
+ * The {@link CompositeHealthContributor} class defines the base logic required to build {@link HealthContributor} objects
+ * that depend on (or are composed of) other {@link HealthContributor} objects. To do this we need to due two things:
+ * reducing/reconciling the (potentially) many different {@link Status} states and a way to persist these relationships.
+ *
+ * {@link CompositeHealthContributor} objects are used *strictly* for grouping, meaning that they do not define their own
+ * health checking logic and therefore does not export any details ({@link Health#getDetails}).
+ */
 @Slf4j
 @ThreadSafe
 public abstract class CompositeHealthContributor implements HealthContributor {
@@ -44,6 +52,10 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         this.registry = registry;
     }
 
+    /**
+     * Requests the {@link Health} without fetching any details from it's dependencies.
+     * @return The {@link Health} result.
+     */
     public Health getHealthSnapshot() {
         return getHealthSnapshot(false);
     }

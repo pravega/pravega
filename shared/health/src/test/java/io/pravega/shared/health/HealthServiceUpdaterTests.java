@@ -49,12 +49,12 @@ public class HealthServiceUpdaterTests {
     }
 
     @Test
-    public void isRunningAfterServiceInitialization() {
+    public void testIsRunningAfterServiceInitialization() {
         Assert.assertTrue(healthServiceUpdater.isRunning());
     }
 
     @Test
-    public void serviceUpdaterProperlyUpdates() throws Exception {
+    public void testServiceUpdaterProperlyUpdates() throws Exception {
         service.registry().register(new SampleHealthyIndicator());
         // First Update.
         assertHealthServiceStatus(Status.UP);

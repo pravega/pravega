@@ -198,8 +198,8 @@ public class HealthTests {
         Assert.assertTrue("The HealthIndicator should not provide details.", healthResult.getDetails().isEmpty());
     }
 
-    @Test
     // Be mindful that the results will be dependent on the StatusAggregatorRule used.
+    @Test
     public void testStatus()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
