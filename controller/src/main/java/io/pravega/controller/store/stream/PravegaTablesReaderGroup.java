@@ -2,20 +2,23 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
-import io.pravega.controller.store.stream.records.readergroup.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.RGStreamCutRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
@@ -23,13 +26,14 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 /**
  * PravegaTables ReaderGroup.
  * This creates a top level metadata table for each readergroup.
- * All metadata records are stored in metadata table.
+ * All metadata records are stored in this metadata table.
  *
- * Each kvTable is protected against recreation of another readergroup with same name by attaching a UUID to the name.
+ * Each Reader Group is protected against recreation of another Reader Group with same name by attaching a UUID to the name.
  */
 @Slf4j
 class PravegaTablesReaderGroup extends AbstractReaderGroup {
     public static final String SEPARATOR = ".#.";
+    private static final String READER_GROUPS_TABLE_IDENTIFIER = "_readergroups";
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     // metadata keys
     private static final String CREATION_TIME_KEY = "creationTime";
@@ -49,7 +53,6 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
         this.readerGroupsInScopeTableNameSupplier = rgInScopeTableNameSupplier;
         this.idRef = new AtomicReference<>(null);
         this.executor = executor;
-
     }
 
     private CompletableFuture<String> getId() {
@@ -73,32 +76,68 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
     }
 
     private String getMetadataTableName(String id) {
-        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(METADATA_TABLE, id));
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), READER_GROUPS_TABLE_IDENTIFIER, getName(), String.format(METADATA_TABLE, id));
     }
 
     @Override
     CompletableFuture<Void> createMetadataTables() {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
-
             return storeHelper.createTable(metadataTable)
                     .thenAccept(v -> log.debug("reader group {}/{} metadata table {} created", getScope(), getName(), metadataTable);
         });
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfAbsent(long creationTime) {
-        return null;
+    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
+        byte[] b = new byte[Long.BYTES];
+        BitConverter.writeLong(b, 0, creationTime);
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CREATION_TIME_KEY, b)
+                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CREATION_TIME_KEY)));
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(ReaderGroupConfigRecord data) {
-        return null;
+    public CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig configuration) {
+        Map<String, RGStreamCutRecord> startStreamCuts = configuration.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+
+        Map<String, RGStreamCutRecord> endStreamCuts = configuration.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+
+        ReaderGroupConfigRecord configRecord = ReaderGroupConfigRecord.builder()
+                                        .groupRefreshTimeMillis(configuration.getGroupRefreshTimeMillis())
+                                        .automaticCheckpointIntervalMillis(configuration.getAutomaticCheckpointIntervalMillis())
+                                        .maxOutstandingCheckpointRequest(configuration.getMaxOutstandingCheckpointRequest())
+                                        .retentionTypeOrdinal(configuration.getRetentionType().ordinal())
+                                        .generation(0L)
+                                        .startingStreamCuts(startStreamCuts)
+                                        .endingStreamCuts(endStreamCuts)
+                                        .build();
+
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configRecord.toBytes())
+                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));
     }
 
+    @Override
+    CompletableFuture<Void> createStateIfAbsent() {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY,
+                        ReaderGroupStateRecord.builder().state(ReaderGroupState.CREATING).build().toBytes())));
+
+    }
 
     @Override
     public void refresh() {
 
+    }
+
+    private ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {
+        ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
+        return mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue))).build();
     }
 }

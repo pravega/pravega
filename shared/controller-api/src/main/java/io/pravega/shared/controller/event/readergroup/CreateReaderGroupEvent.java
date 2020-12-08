@@ -35,9 +35,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scopeName;
     private final String rgName;
-    private final long timestamp;
     private final long requestId;
-    private final UUID readerGroupId;
 
     @Override
     public String getKey() {
@@ -72,19 +70,13 @@ public class CreateReaderGroupEvent implements ControllerEvent {
         private void write00(CreateReaderGroupEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scopeName);
             target.writeUTF(e.rgName);
-            target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
-
-
         }
 
-        private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
+        private void read00(RevisionDataInput source, CreateReaderGroupEventBuilder eb) throws IOException {
             eb.scopeName(source.readUTF());
-            eb.kvtName(source.readUTF());
-            eb.partitionCount(source.readInt());
-            eb.timestamp(source.readLong());
+            eb.rgName(source.readUTF());
             eb.requestId(source.readLong());
-            eb.tableId(source.readUUID());
         }
     }
     //endregion

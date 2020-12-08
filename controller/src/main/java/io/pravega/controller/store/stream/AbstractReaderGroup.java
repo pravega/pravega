@@ -2,7 +2,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.readergroup.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -24,8 +24,11 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<CreateRGResponse> create(ReaderGroupConfig configuration, long createTimestamp, int startingSegmentNumber) {
-        return null;
+    public CompletableFuture<Void> create(ReaderGroupConfig configuration, long createTimestamp) {
+        return createMetadataTables()
+                  .thenCompose((Void v) -> storeCreationTimeIfAbsent(createTimestamp))
+                  .thenCompose((Void v) -> createStateIfAbsent())
+                  .thenCompose((Void v) -> createConfigurationIfAbsent(configuration));
     }
 
     @Override
@@ -82,6 +85,7 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
-    abstract CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfigRecord data);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig data);
+    abstract CompletableFuture<Void> createStateIfAbsent();
 
 }

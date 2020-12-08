@@ -329,16 +329,14 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param configuration   Reader Group configuration
      * @param createTimestamp Reader Group creation timestamp
      * @param context         Reader Group operation context
-     * @param id              Reader Group unique Id - UUID
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<CreateRGResponse> createReaderGroup(final String scopeName,
+    CompletableFuture<Void> createReaderGroup(final String scopeName,
                                                             final String rgName,
                                                             final ReaderGroupConfig configuration,
                                                             final long createTimestamp,
                                                             final RGOperationContext context,
-                                                            final byte []id,
                                                             final Executor executor);
     /**
      * Updates the subscribers metadata for an existing stream.

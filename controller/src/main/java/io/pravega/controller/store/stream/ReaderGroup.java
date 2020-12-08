@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.readergroup.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -43,7 +43,7 @@ interface ReaderGroup {
      * @param createTimestamp creation timestamp.
      * @return boolean indicating success.
      */
-    CompletableFuture<CreateRGResponse> create(final ReaderGroupConfig configuration, final long createTimestamp);
+    CompletableFuture<Void> create(final ReaderGroupConfig configuration, final long createTimestamp);
 
     /**
      * Deletes a Reader Group.

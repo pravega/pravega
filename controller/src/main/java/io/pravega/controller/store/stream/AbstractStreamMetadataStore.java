@@ -60,10 +60,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -110,10 +107,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
-                        new CacheLoader<Pair<String, String>, Stream>() {
+                        new CacheLoader<Pair<String, String>, ReaderGroup>() {
                             @Override
                             @ParametersAreNonnullByDefault
-                            public Stream load(Pair<String, String> input) {
+                            public ReaderGroup load(Pair<String, String> input) {
                                 try {
                                     return newReaderGroup(input.getKey(), input.getValue());
                                 } catch (Exception e) {
@@ -541,13 +538,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
-                                                    final long generation, final OperationContext context, final Executor executor) {
-        Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createSubscriber(subscriber, generation), executor);
-    }
-
-    @Override
     public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
                                                             final String name,
                                                             final String subscriber,
@@ -557,17 +547,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                             final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context)
                 .updateSubscriberStreamCut(previousRecord, new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
-    }
-
-
-    @Override
-    public CompletableFuture<Void> deleteSubscriber(final String scope,
-                                                    final String name,
-                                                    final String subscriber,
-                                                    final long generation,
-                                                    final OperationContext context,
-                                                    final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).removeSubscriber(subscriber, generation), executor);
     }
 
     @Override
@@ -953,12 +932,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<CreateRGResponse> createReaderGroup(final String scope,
+    public CompletableFuture<Void> createReaderGroup(final String scope,
                                                                  final String rgName,
                                                                  final ReaderGroupConfig configuration,
                                                                  final long createTimestamp,
                                                                  final RGOperationContext context,
-                                                                 final byte []id,
                                                                  final Executor executor) {
         return Futures.completeOn(checkScopeExists(scope)
                    .thenCompose(exists -> {
@@ -967,11 +945,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                      return getReaderGroup(scope, rgName, context)
                                     .create(configuration, createTimestamp);
                    } else {
-                     return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                     return Futures.toVoid(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist")));
                    }
-                   }), executor);
+                 }), executor);
     }
     //endregion
+
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
         return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
             AtomicLong totalNumSplits = new AtomicLong(0L);

@@ -114,7 +114,7 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
 public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
-    private static final int READER_GROUP_OPERATION_RETRIES = 10;
+    private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
 
     private final AtomicLong retentionFrequencyMillis;
     
@@ -234,22 +234,18 @@ public class StreamMetadataTasks extends TaskBase {
                              e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
                                 .thenCompose(state -> {
                                     if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
-                                        //3. get a new ID for the ReaderGroup we will be creating.
-
-                                        byte[] newUUID = streamMetadataStore.newReaderGroupId();
-                                        CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName,
-                                                createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
-                                        //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
+                                        CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, requestId);
+                                        //4. Create Reader Group Metadata
                                         return eventHelper.addIndexAndSubmitTask(event,
-                                                () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, newUUID, executor))
-                                                .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor)));
-
+                                                () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, null, executor))
+                                                .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
+                                                .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
                                     }
+                                // idempotent call
                                 return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
                              });
                     });
-        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_RETRIES, executor);
-
+        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<Boolean> isRGCreated(String scope, String rgName, Executor executor) {
