@@ -158,7 +158,6 @@ public class ChunkedSegmentStorage implements Storage {
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
-                config.getMaxIndexedChunksPerSegment(),
                 config.getMaxIndexedChunks());
         this.systemJournal = new SystemJournal(containerId,
                 chunkStorage,
