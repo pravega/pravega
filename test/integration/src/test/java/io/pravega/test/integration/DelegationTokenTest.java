@@ -84,7 +84,7 @@ public class DelegationTokenTest {
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
 
-            //@Cleanup
+            @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                     new JavaSerializer<String>(),
                     EventWriterConfig.builder().build());
@@ -141,6 +141,7 @@ public class DelegationTokenTest {
                     log.debug("Done writing message '{}' to stream '{} / {}'", msg, scope, streamName);
                 }
             };
+            @Cleanup("interrupt")
             Thread writerThread = new Thread(runnable);
             writerThread.start();
 
@@ -202,7 +203,6 @@ public class DelegationTokenTest {
 
         final String scope = "testscope";
         final String streamName = "teststream";
-        final int numSegments = 1;
 
         final ClientConfig clientConfig = ClientConfig.builder()
                                                       .controllerURI(URI.create(pravegaCluster.controllerUri()))

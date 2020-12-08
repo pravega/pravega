@@ -9,12 +9,12 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -30,7 +30,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +61,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
-    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
+    private final ScheduledExecutorService scaleExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "autoscaletest");
 
     @Environment
     public static void initialize() {
