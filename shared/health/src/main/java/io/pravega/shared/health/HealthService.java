@@ -16,7 +16,7 @@ import java.util.Collection;
  * of Pravega. It holds the {@link ContributorRegistry} and provides the {@link HealthEndpoint} used to make health
  * information accessible to clients.
  */
-public interface HealthService {
+public interface HealthService extends AutoCloseable {
 
     /**
      * Returns a {@link Collection} of all the components the {@link HealthService} is responsible for and observes.
@@ -49,5 +49,5 @@ public interface HealthService {
     /**
      * Removes all state (contents of the {@link ContributorRegistry}) from this object.
      */
-    void reset();
+    void clear();
 }

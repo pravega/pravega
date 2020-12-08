@@ -14,9 +14,11 @@ import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class HealthServiceImpl implements HealthService {
@@ -33,6 +35,11 @@ public class HealthServiceImpl implements HealthService {
      */
     private final HealthServiceUpdater updater;
 
+    /**
+     * The flag used to protect against concurrent {@link #close()} calls.
+     */
+    private final AtomicBoolean closed;
+
     private final HealthEndpoint endpoint;
 
     public HealthServiceImpl(HealthConfig config) {
@@ -41,6 +48,7 @@ public class HealthServiceImpl implements HealthService {
         this.endpoint = new HealthEndpointImpl(this.registry);
         // Initializes the ContributorRegistry into the expected starting state.
         this.config.reconcile(this.registry);
+        this.closed = new AtomicBoolean();
         this.updater = new HealthServiceUpdaterImpl(this);
     }
 
@@ -69,9 +77,18 @@ public class HealthServiceImpl implements HealthService {
      * {@link  HealthConfig}.
      */
     @Override
-    public void reset() {
-        this.registry.reset();
+    public void clear() {
+        this.registry.clear();
         // The ContributorRegistry clears all it's internal state, so the reconcile process must be repeated.
         this.config.reconcile(this.registry);
+    }
+
+    @Override
+    @SneakyThrows
+    public void close() {
+        if (!this.closed.getAndSet(true)) {
+            this.updater.close();
+            this.clear();
+        }
     }
 }

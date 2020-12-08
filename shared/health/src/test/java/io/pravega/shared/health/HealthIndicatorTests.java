@@ -21,7 +21,7 @@ public class HealthIndicatorTests {
     // A HealthIndicator should be have any contributors (dependencies).
 
     /**
-     * Tests that by default no {@link Details} will be provided.
+     * Tests that by default no details will be provided.
      */
     @Test
     public void testHealthWithoutDetails() {
@@ -33,7 +33,7 @@ public class HealthIndicatorTests {
     }
 
     /**
-     * Test a {@link Health} check, but request its {@link Details}.
+     * Test a {@link Health} check, but request its details.
      */
     @Test
     public void testHealthWithDetails() {
@@ -45,7 +45,7 @@ public class HealthIndicatorTests {
     }
 
     /**
-     * Tests that {@link Details} which are test after construction are correctly returned.
+     * Tests that details which are created after construction are correctly returned.
      */
     @Test
     public void testHealthDynamicDetails() {

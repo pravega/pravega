@@ -70,24 +70,24 @@ public interface HealthEndpoint {
     boolean isAlive(String id);
 
     /**
-     * Fetches the {@link Details} from the root {@link HealthContributor}. This will always return a {@link Details}
+     * Fetches the details from the root {@link HealthContributor}. This will always return a {@link Map}
      * object with no entries.
      *
      * @return The {@link Map} of details results.
      */
-    default Details getDetails() {
+    default Map<String, Object> getDetails() {
         return getDetails(getDefaultContributorName());
     }
 
     /**
      * Fetches the results from the list of {@link java.util.function.Supplier} provided during {@link HealthContributor}
-     * construction. This operation is essentially a NOP on {@link HealthComponent} objects -- a {@link Details} object
+     * construction. This operation is essentially a NOP on {@link HealthComponent} objects -- a map with
      * with no entries will always be returned.
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The {@link Map} of details results.
      */
-    Details getDetails(String id);
+    Map<String, Object> getDetails(String id);
 
     /**
      * Calls {@link HealthEndpoint#getHealth(String, boolean)} with a false value and forwards the 'id' {@link String}.

@@ -15,13 +15,17 @@ import io.pravega.shared.health.StatusAggregator;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.ArrayList;
 
+// Modifications to the 'contributors', 'children', and 'parents' must happen atomically to ensure valid state is always
+// perceived. The 'components' set is not used for program logic so synchronization is not strictly required.
 @Slf4j
+@ThreadSafe
 public class ContributorRegistryImpl implements ContributorRegistry {
 
     /**
@@ -83,7 +87,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor register(HealthComponent component) {
+    synchronized public HealthContributor register(HealthComponent component) {
         return register(component, root);
     }
 
@@ -95,7 +99,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor register(HealthContributor contributor) {
+    synchronized public HealthContributor register(HealthContributor contributor) {
         return register(contributor, root);
     }
 
@@ -108,7 +112,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor register(HealthComponent component, HealthComponent parent) {
+    synchronized public HealthContributor register(HealthComponent component, HealthComponent parent) {
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
         if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
             log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);
@@ -126,7 +130,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link HealthContributor} registered under the {@link ContributorRegistry}.
      */
     @NonNull
-    public HealthContributor register(HealthContributor contributor, HealthComponent parent) {
+    synchronized public HealthContributor register(HealthContributor contributor, HealthComponent parent) {
         return register(contributor, parent.getName());
     }
 
@@ -139,7 +143,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor register(HealthContributor contributor, String componentName) {
+    synchronized public HealthContributor register(HealthContributor contributor, String componentName) {
         // HealthContributor mapped by 'parent' should exist at time of some child registration.
         if (!contributors.containsKey(componentName)) {
             log.debug("Unrecognized HealthContributor::{} -- aborting registration.", componentName);
@@ -176,7 +180,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor unregister(HealthContributor contributor) {
+    synchronized public HealthContributor unregister(HealthContributor contributor) {
         return unregister(contributor.getName());
     }
 
@@ -191,7 +195,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     @Override
-    public HealthContributor unregister(String name) {
+    synchronized public HealthContributor unregister(String name) {
         HealthContributor contributor = contributors.get(name);
         // Acts as a guard from removing HealthComponents.
         if (components.contains(name)) {
@@ -233,7 +237,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @Override
     @NonNull
-    public HealthContributor get(String name) {
+    synchronized public HealthContributor get(String name) {
         return contributors.get(name);
     }
 
@@ -242,7 +246,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The root {@link HealthContributor}.
      */
     @Override
-    public HealthContributor getRootContributor() {
+    synchronized public HealthContributor getRootContributor() {
         return contributors.get(DEFAULT_CONTRIBUTOR_NAME);
     }
 
@@ -255,7 +259,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      *         of the {@link HealthContributor} mapped to by 'name'.
      */
     @Override
-    public Collection<HealthContributor> dependencies(String name) {
+    synchronized public Collection<HealthContributor> dependencies(String name) {
         return this.children.get(name);
     }
 
@@ -266,7 +270,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link Collection} of {@link HealthContributor} used by the root.
      */
     @Override
-    public Collection<HealthContributor> dependencies() {
+    synchronized public Collection<HealthContributor> dependencies() {
         return dependencies(DEFAULT_CONTRIBUTOR_NAME);
     }
 
@@ -277,7 +281,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link Collection} of {@link HealthContributor} names.
      */
     @Override
-    public Collection<String> contributors() {
+    synchronized public Collection<String> contributors() {
         return new ArrayList<>(contributors.keySet());
     }
 
@@ -288,14 +292,14 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      *
      * @return The {@link Collection} of {@link HealthComponent} names.
      */
-    public Collection<String> components() {
+    synchronized public Collection<String> components() {
         return new ArrayList<>(this.components);
     }
 
     /**
      * Resets the {@link ContributorRegistry} to the state as if it was just instantiated.
      */
-    public void reset() {
+    synchronized public void clear() {
         components.clear();
         contributors.clear();
         children.clear();

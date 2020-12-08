@@ -32,7 +32,7 @@ public class InlineHealthIndicatorTests {
     }
 
     /**
-     * Tests that the expected {@link Health} result is returned, but also ensures {@link Details} may be set inline.
+     * Tests that the expected {@link Health} result is returned, but also ensures detail may be provided inline.
      */
     @Test
     public void testHealthWithDetails() {

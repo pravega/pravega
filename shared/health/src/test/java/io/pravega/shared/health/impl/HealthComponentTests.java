@@ -32,7 +32,7 @@ public class HealthComponentTests {
 
     @After
     public void after() {
-        registry.reset();
+        registry.clear();
     }
 
     /**

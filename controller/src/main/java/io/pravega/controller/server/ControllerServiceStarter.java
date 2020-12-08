@@ -388,7 +388,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
         try {
             if (healthService != null) {
-                healthService.reset();
+                log.info("Stopping the HealthService.");
+                healthService.clear();
+            }
+
+            if (healthServiceFactory != null) {
+                healthServiceFactory.close();
             }
 
             if (restServer != null) {

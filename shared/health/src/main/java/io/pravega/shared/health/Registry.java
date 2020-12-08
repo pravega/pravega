@@ -36,7 +36,7 @@ public interface Registry<T> {
     /**
      * Clears all registered entries from the underlying store.
      */
-    void reset();
+    void clear();
 
     /**
      * Returns the object associated with the identifier. A key of type {@link String} is used, therefore we should

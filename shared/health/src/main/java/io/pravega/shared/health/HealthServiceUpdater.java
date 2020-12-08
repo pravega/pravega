@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.health;
 
-
 import com.google.common.util.concurrent.Service;
 
 /**
@@ -20,7 +19,7 @@ import com.google.common.util.concurrent.Service;
  */
 public interface HealthServiceUpdater extends Service, AutoCloseable {
 
-    static final int DEFAULT_INTERVAL_SECONDS = 10;
+    int DEFAULT_INTERVAL_SECONDS = 10;
     /**
      * Supplies the most recent {@link Health} check result.
      *
@@ -30,8 +29,7 @@ public interface HealthServiceUpdater extends Service, AutoCloseable {
 
     /**
      * The interval (in seconds) at which the {@link HealthServiceUpdater} performs the health checks in.
-     * @return
+     * @return The interval in which the executor will call {@link HealthEndpoint#getHealth(boolean)}.
      */
     int getInterval();
-
 }

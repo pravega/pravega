@@ -45,7 +45,7 @@ public class ContributorRegistryTests {
 
     @After
     public void after() {
-        registry.reset();
+        registry.clear();
         Assert.assertTrue(registry.components().size() == 1);
         Assert.assertTrue(registry.contributors().size() == 1);
     }

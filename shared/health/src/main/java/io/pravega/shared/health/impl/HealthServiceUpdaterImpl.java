@@ -10,7 +10,10 @@
 package io.pravega.shared.health.impl;
 
 import com.google.common.util.concurrent.AbstractScheduledService;
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthService;
@@ -45,7 +48,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     /**
      * The underlying {@link ScheduledExecutorService} used to executor the recurring service-level {@link Health} check.
      */
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-service-updater");
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-service-updater", Thread.MIN_PRIORITY);
 
     /**
      * The interval at which to run the health check.
@@ -87,6 +90,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
 
     /**
      * Permanently shuts down the {@link HealthServiceUpdater}'s {@link ScheduledExecutorService}. It will not be able to be restarted.
+     *
      */
     @Override
     protected void shutDown() {
@@ -94,8 +98,16 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
         latest.set(INITIAL_HEALTH);
     }
 
+    /**
+     * A {@link HealthServiceUpdater} is only reachable though a {@link HealthService}.
+     */
     @Override
-    public void close() throws Exception {
-
+    public void close() {
+        if (isRunning()) {
+            shutDown();
+        }
+        if (state() == Service.State.RUNNING) {
+            Futures.await(Services.stopAsync(this, this.executorService));
+        }
     }
 }

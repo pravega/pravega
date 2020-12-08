@@ -46,7 +46,7 @@ public class HealthServiceTests {
     }
 
     private void stop() {
-        service.reset();
+        service.clear();
         factory.close();
         // Except its root.
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
@@ -151,11 +151,11 @@ public class HealthServiceTests {
     }
 
     /**
-     * Tests that when specified a {@link Health} result will return any {@link Details} information belonging to that
+     * Tests that when specified a {@link Health} result will return any details information belonging to that
      * {@link HealthContributor} or it's dependencies.
      *
-     * A {@link io.pravega.shared.health.impl.HealthComponent} does not directly supply any {@link Details} information,
-     * but any dependency that it has should supply them.
+     * A {@link io.pravega.shared.health.impl.HealthComponent} does not directly supply any details information,
+     * but any dependency (that is of type {@link HealthIndicator}) that it has should supply them.
      */
     @Test
     public void testDetailsEndpoints() {

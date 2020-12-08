@@ -33,7 +33,7 @@ public class HealthServiceFactory implements AutoCloseable {
     }
 
     public HealthService createHealthService(boolean start) {
-        Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has been closed.");
+        Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has already been closed.");
         HealthService service = new HealthServiceImpl(config);
         if (start) {
             service.getHealthServiceUpdater().startAsync();

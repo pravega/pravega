@@ -10,17 +10,24 @@
 package io.pravega.shared.health;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.shared.health.impl.CompositeHealthContributor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.util.Collection;
-import java.util.Collections;
+import com.google.common.collect.ImmutableList;
+
+import javax.annotation.concurrent.ThreadSafe;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 /**
  * The {@link Health} class represents the data gathered by a {@link HealthIndicator} after performing a health check.
  */
 @Builder
+@ThreadSafe
 @AllArgsConstructor
 public class Health {
 
@@ -29,48 +36,48 @@ public class Health {
      * was taken from.
      */
     @Getter
-    public final String name;
+    @Builder.Default
+    private final String name = "unknown";
 
     @Getter
     @Builder.Default
-    private Status status = Status.UNKNOWN;
+    private final Status status = Status.UNKNOWN;
 
     /**
-     * {@link Health#ready} and {@link Health#alive} should not (for the moment) take a default value, as the distinction
+     * {@link #ready} and {@link #alive} should not (for the moment) take a default value, as the distinction
      * between unset and false (not ready/alive) is important.
      */
-    private Boolean ready;
+    private final Boolean ready;
 
-    private Boolean alive;
+    private final Boolean alive;
 
     @Getter
     @Builder.Default
-    private Details details = new Details();
+    private final Map<String, Object> details = ImmutableMap.of();
 
     /**
      * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
      */
     @Getter
     @Builder.Default
-    private Collection<Health> children = Collections.emptyList();
+    private final List<Health> children = ImmutableList.of();
 
     /**
      * Used to perform readiness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'ready'.
      * A component is considered 'ready' if it has completed it's initialization step(s) and is ready to execute.
      *
-     * Checks should be made to make sure {@link Health#isReady()} will not report a result if it is in a logically invalid state. Those include:
+     * Checks should be made to make sure {@link #isReady()} will not report a result if it is in a logically invalid state. Those include:
      * - ready is *true* if {@link Health#isAlive()} returns false.
      * - ready is *true* with a {@link Status} representing a 'weaker' {@link Status} than {@link Status#UNKNOWN}.
 
-     * @return
+     * @return The readiness result.
      */
     public boolean isReady() {
-        if (ready == null) {
-            ready = Status.isAlive(status);
-        }
-        Preconditions.checkState(!(ready && status.getCode() <= 0), "A Health object should not have a DOWN Status and a ready state.");
-        Preconditions.checkState(!(ready && !isAlive()), "A Health object can not be ready and not alive.");
-        return ready;
+        boolean isReady = Objects.isNull(ready) ? Status.isAlive(status) : ready;
+        Preconditions.checkState(!(isReady && status.getCode() <= 0), "A Health object should not have a DOWN Status and a ready state.");
+        Preconditions.checkState(!(isReady && !isAlive()), "A Health object can not be ready and not alive.");
+
+        return isReady;
     }
 
     /**
@@ -83,20 +90,19 @@ public class Health {
      *
      * A component that is 'ready' implies that it is 'alive', but not vice versa.
      *
-     * Checks should be made to make sure {@link Health#isAlive} will not report a result if it is in a logically invalid state. Those include:
+     * Checks should be made to make sure {@link #isAlive} will not report a result if it is in a logically invalid state. Those include:
      * - alive is *false* if {@link Health#isReady()} returns *true*.
      * - alive is *true* with a {@link Status} representing a 'weaker/equivalent' {@link Status} than {@link Status#UNKNOWN}.
      * - alive is *false* with a {@link Status} representing a 'strictly stronger' {@link Status} than {@link Status#UNKNOWN}.
      *
-     * @return
+     * @return The liveness result.
      */
     public boolean isAlive() {
-        if (alive == null) {
-            alive = Status.isAlive(status);
-        }
-        Preconditions.checkState(!(alive && status.getCode() <= 0), "A Health object should not have a DOWN Status and be marked alive.");
-        Preconditions.checkState(!(!alive && status.getCode() > 0), "A Health object should not have an UP Status and be marked non-alive.");
-        Preconditions.checkState(!(!alive && isReady()), "A Health object can not be ready but not alive.");
+        boolean isAlive = Objects.isNull(alive) ? Status.isAlive(status) : alive;
+        Preconditions.checkState(!(isAlive && status.getCode() <= 0), "A Health object should not have a DOWN Status and be marked alive.");
+        Preconditions.checkState(!(!isAlive && status.getCode() > 0), "A Health object should not have an UP Status and be marked non-alive.");
+        Preconditions.checkState(!(!isAlive && isReady()), "A Health object can not be ready but not alive.");
+
         return alive;
     }
 }

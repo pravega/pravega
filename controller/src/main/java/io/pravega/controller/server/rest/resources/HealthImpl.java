@@ -18,7 +18,6 @@ import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.security.auth.RESTAuthHelper;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.shared.health.ContributorNotFoundException;
-import io.pravega.shared.health.Details;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthService;
 import io.pravega.shared.health.Status;
@@ -31,6 +30,7 @@ import javax.ws.rs.core.SecurityContext;
 import io.pravega.common.LoggerHelpers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -134,7 +134,7 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
-            Details details = id == null ? service.endpoint().getDetails() : service.endpoint().getDetails(id);
+            Map<String, Object> details = id == null ? service.endpoint().getDetails() : service.endpoint().getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
                     .build());
@@ -208,9 +208,11 @@ public class HealthImpl implements ApiV1.HealthApi {
                             .collect(Collectors.toList()));
     }
 
-    private static HealthDetails adapter(Details details) {
+    private static HealthDetails adapter(Map<String, Object> details) {
         HealthDetails result = new HealthDetails();
-        result.putAll(details);
+        details.forEach((key, val) -> {
+            result.put(key, val.toString());
+        });
         return result;
     }
 

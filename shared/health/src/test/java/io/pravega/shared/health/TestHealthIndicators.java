@@ -13,7 +13,7 @@ public class TestHealthIndicators {
 
     /**
      * Implements an {@link HealthIndicator} that *always* supplies a 'healthy' result. This class also sets one
-     * {@link Details} entry.
+     * details entry.
      */
     public static class SampleHealthyIndicator extends HealthIndicator {
         public static final String DETAILS_KEY = "indicator-details-key";

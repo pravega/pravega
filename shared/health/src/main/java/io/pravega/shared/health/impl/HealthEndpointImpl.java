@@ -11,7 +11,6 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorNotFoundException;
 import io.pravega.shared.health.ContributorRegistry;
-import io.pravega.shared.health.Details;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
@@ -20,6 +19,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -65,7 +65,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
     }
 
     @Override
-    public Details getDetails(String id) {
+    public Map<String, Object> getDetails(String id) {
         return getHealth(id, true).getDetails();
     }
 

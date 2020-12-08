@@ -98,7 +98,7 @@ public class HealthTests {
 
     @After
     public void tearDown() {
-        service.reset();
+        service.clear();
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
