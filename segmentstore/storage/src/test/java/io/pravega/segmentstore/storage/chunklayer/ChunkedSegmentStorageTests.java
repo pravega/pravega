@@ -2254,6 +2254,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                             .length(chunkLengths[i])
                             .nextChunk(i == chunkLengths.length - 1 ? null : testSegmentName + "_chunk_" + Integer.toString(i + 1))
                             .build();
+                    chunkMetadata.setActive(true);
                     length += chunkLengths[i];
                     txn.create(chunkMetadata);
 

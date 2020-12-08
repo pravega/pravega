@@ -307,6 +307,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         ChunkMetadata newChunkMetadata = ChunkMetadata.builder()
                 .name(newChunkName)
                 .build();
+        newChunkMetadata.setActive(true);
         segmentMetadata.setLastChunk(newChunkName);
         if (lastChunkMetadata == null) {
             segmentMetadata.setFirstChunk(newChunkName);

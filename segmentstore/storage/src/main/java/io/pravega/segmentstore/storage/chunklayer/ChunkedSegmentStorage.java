@@ -514,7 +514,8 @@ public class ChunkedSegmentStorage implements Storage {
                         val chunksToDelete = new ArrayList<String>();
                         return new ChunkIterator(this, txn, segmentMetadata)
                                 .forEach((metadata, name) -> {
-                                    txn.delete(name);
+                                    metadata.setActive(false);
+                                    txn.update(metadata);
                                     chunksToDelete.add(name);
                                 })
                                 .thenRunAsync(() -> txn.delete(streamSegmentName), executor)

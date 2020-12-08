@@ -428,6 +428,7 @@ public class SystemJournal {
         val newChunkMetadata = ChunkMetadata.builder()
                 .name(newChunkName)
                 .build();
+        newChunkMetadata.setActive(true);
         txn.create(newChunkMetadata);
         txn.markPinned(newChunkMetadata);
 
