@@ -1,7 +1,15 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -77,11 +85,11 @@ public class ReaderGroupConfigRecord {
             configurationRecordBuilder.generation(revisionDataInput.readLong());
 
             ImmutableMap.Builder<String, RGStreamCutRecord> startStreamCutBuilder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize , startStreamCutBuilder);
+            revisionDataInput.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, startStreamCutBuilder);
             configurationRecordBuilder.startingStreamCuts(startStreamCutBuilder.build());
 
             ImmutableMap.Builder<String, RGStreamCutRecord> endStreamCutBuilder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize , endStreamCutBuilder);
+            revisionDataInput.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, endStreamCutBuilder);
             configurationRecordBuilder.endingStreamCuts(endStreamCutBuilder.build());
 
             configurationRecordBuilder.updating(revisionDataInput.readBoolean());

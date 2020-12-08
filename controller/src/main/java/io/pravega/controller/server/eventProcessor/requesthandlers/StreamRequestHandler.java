@@ -11,7 +11,16 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.*;
+import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;

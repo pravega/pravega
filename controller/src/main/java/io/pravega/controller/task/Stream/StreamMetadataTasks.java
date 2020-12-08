@@ -14,7 +14,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -89,10 +94,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -215,6 +224,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
      * @param config          Reader Group config.
+     * @param createTimestamp Reader Group creation timestamp.
      * @return creation status.
      */
     public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(final String scope, final String rgName,

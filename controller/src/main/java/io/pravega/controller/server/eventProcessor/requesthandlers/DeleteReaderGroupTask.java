@@ -10,20 +10,10 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableTask;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.controller.store.kvtable.KeyValueTable;
-import io.pravega.controller.store.stream.StoreException;
+
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
-import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;

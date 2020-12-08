@@ -1064,6 +1064,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         }
     }
     // endregion
+
     private String getKeyForSubscriber(final String subscriber) {
             return SUBSCRIBER_KEY_PREFIX + subscriber;
     }
