@@ -69,8 +69,7 @@ public interface SynchronizerClientFactory extends AutoCloseable {
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
-                                                      SynchronizerConfig config,
-                                                      String readerGroup);
+                                                      SynchronizerConfig config);
 
     /**
      * Closes the client factory. This will close any connections created through it.

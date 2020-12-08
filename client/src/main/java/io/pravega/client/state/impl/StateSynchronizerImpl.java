@@ -39,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
+import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 import static java.lang.String.format;
 
 @Slf4j
@@ -52,7 +53,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     private StateT currentState;
     private Segment segment;
     private Controller controller;
-    private String groupName;
 
     /**
      * Creates a new instance of StateSynchronizer class.
@@ -60,11 +60,10 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
      * @param segment The segment.
      * @param client  The revisioned stream client this state synchronizer builds upon."
      */
-    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client, Controller controller, String groupName) {
+    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client, Controller controller) {
         this.segment = segment;
         this.client = client;
         this.controller = controller;
-        this.groupName = groupName;
     }
 
     @Override
@@ -105,9 +104,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
             }
-            val state = (ReaderGroupState) this.getState();
-            val gen = controller.getReaderGroup(groupName).generation;
-            if (state.getGeneration() < gen) {
+            val groupName = segment.getStreamName().replace(READER_GROUP_STREAM_PREFIX, "");
+            val clientState = (ReaderGroupState) this.getState();
+            val controllerState = controller.getReaderGroup(groupName);
+            val config = controllerState.config;
+            val gen = controllerState.generation;
+            if (clientState.getGeneration() < gen) {
                 Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
                 this.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), gen));
             }
