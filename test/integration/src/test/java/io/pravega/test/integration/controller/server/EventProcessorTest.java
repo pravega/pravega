@@ -206,6 +206,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
 
     @After
     public void tearDown() throws Exception {
+        serviceBuilder.close();
         controllerWrapper.close();
         server.close();
         zkTestServer.stop();
