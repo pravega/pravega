@@ -326,13 +326,16 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testFileNotFoundExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionFrequencyInSeconds(0)
+                .build();
 
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -345,6 +348,8 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
 
         chunkedSegmentStorage.delete(h1, null).get();
+        Assert.assertEquals(5, chunkedSegmentStorage.getGarbageCollector().getGarbageChunks().size());
+        chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         verify(spyChunkStorage, times(5)).doDelete(any());
     }
 
@@ -352,13 +357,17 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
     public void testExceptionDuringGarbageCollection() throws Exception {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .defaultRollingPolicy(policy)
+                .garbageCollectionFrequencyInSeconds(0)
+                .build();
 
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
         chunkedSegmentStorage.initialize(1);
+        chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
 
         // Step 1: Create segment and write some data.
         val h1 = chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -371,6 +380,8 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         doThrow(exceptionToThrow).when(spyChunkStorage).doDelete(any());
 
         chunkedSegmentStorage.delete(h1, null).get();
+        Assert.assertEquals(5, chunkedSegmentStorage.getGarbageCollector().getGarbageChunks().size());
+        chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         verify(spyChunkStorage, times(5)).doDelete(any());
     }
 }

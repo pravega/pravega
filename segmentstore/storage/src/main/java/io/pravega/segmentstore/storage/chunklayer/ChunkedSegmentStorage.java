@@ -39,11 +39,9 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -123,12 +121,6 @@ public class ChunkedSegmentStorage implements Storage {
     private final ReadIndexCache readIndexCache;
 
     /**
-     * List of garbage chunks.
-     */
-    @Getter
-    private final List<String> garbageChunks = new ArrayList<>();
-
-    /**
      * Prefix string to use for logging.
      */
     @Getter
@@ -141,6 +133,9 @@ public class ChunkedSegmentStorage implements Storage {
 
     @GuardedBy("activeSegments")
     private final HashSet<String> activeRequests = new HashSet<>();
+
+    @Getter
+    private final GarbageCollector garbageCollector;
 
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
@@ -164,6 +159,7 @@ public class ChunkedSegmentStorage implements Storage {
                 metadataStore,
                 config);
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
+        this.garbageCollector = new GarbageCollector(this, config);
         this.closed = new AtomicBoolean(false);
     }
 
@@ -178,7 +174,9 @@ public class ChunkedSegmentStorage implements Storage {
 
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch).thenRunAsync(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix), executor);
+        return this.systemJournal.bootstrap(epoch)
+                .thenRunAsync(() -> garbageCollector.initialize())
+                .thenRunAsync(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix), executor);
     }
 
     @Override
@@ -254,6 +252,8 @@ public class ChunkedSegmentStorage implements Storage {
                                 .thenComposeAsync(chunkInfo -> {
                                     Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
                                     Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
+                                    // Mark chunk as "not garbage" if present.
+                                    garbageCollector.removeFromGarbage(lastChunkName);
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
@@ -381,35 +381,6 @@ public class ChunkedSegmentStorage implements Storage {
         return null != systemJournal && segmentMetadata.isStorageSystemSegment();
     }
 
-    /**
-     * Delete the garbage chunks.
-     *
-     * @param chunksToDelete List of chunks to delete.
-     */
-    CompletableFuture<Void> collectGarbage(Collection<String> chunksToDelete) {
-        CompletableFuture[] futures = new CompletableFuture[chunksToDelete.size()];
-        int i = 0;
-        for (val chunkToDelete : chunksToDelete) {
-            futures[i++] = chunkStorage.openWrite(chunkToDelete)
-                    .thenComposeAsync(chunkStorage::delete, executor)
-                    .thenRunAsync(() -> log.debug("{} collectGarbage - deleted chunk={}.", logPrefix, chunkToDelete), executor)
-                    .exceptionally(e -> {
-                        val ex = Exceptions.unwrap(e);
-                        if (ex instanceof ChunkNotFoundException) {
-                            log.debug("{} collectGarbage - Could not delete garbage chunk {}.", logPrefix, chunkToDelete);
-                        } else {
-                            log.warn("{} collectGarbage - Could not delete garbage chunk {}.", logPrefix, chunkToDelete);
-                            // Add it to garbage chunks.
-                            synchronized (garbageChunks) {
-                                garbageChunks.add(chunkToDelete);
-                            }
-                        }
-                        return null;
-                    });
-        }
-        return CompletableFuture.allOf(futures);
-    }
-
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         checkInitialized();
@@ -523,7 +494,7 @@ public class ChunkedSegmentStorage implements Storage {
                                         txn.commit()
                                                 .thenComposeAsync(vv -> {
                                                     // Collect garbage.
-                                                    return collectGarbage(chunksToDelete);
+                                                    return garbageCollector.addToGarbage(chunksToDelete);
                                                 }, executor)
                                                 .thenRunAsync(() -> {
                                                     // Update the read index.
@@ -663,14 +634,21 @@ public class ChunkedSegmentStorage implements Storage {
 
     @Override
     public void close() {
-        try {
-            if (null != this.metadataStore) {
-                this.metadataStore.close();
-            }
-        } catch (Exception e) {
-            log.warn("Error during close", e);
-        }
+        close("metadataStore", this.metadataStore);
+        close("garbageCollector", this.garbageCollector);
         this.closed.set(true);
+    }
+
+    private void close(String message, AutoCloseable toClose) {
+        try {
+            log.info("{} Closing {}", logPrefix, message);
+            if (null != toClose) {
+                toClose.close();
+            }
+            log.info("{} Closed {}", logPrefix, message);
+        } catch (Exception e) {
+            log.warn("{} Error while closing {}", logPrefix, message);
+        }
     }
 
     /**

@@ -1758,7 +1758,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testTruncateWithFailover() throws Exception {
         String testSegmentName = "foo";
-        TestContext testContext = getTestContext();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionFrequencyInSeconds(0)
+                .build();
+        TestContext testContext = getTestContext(config);
 
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
@@ -1785,15 +1788,20 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Make sure to open segment with new instance before writing garbage to old instance.
         hWrite = newTestContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
         newTestContext.chunkedSegmentStorage.truncate(hWrite, offset, null).get();
+        newTestContext.chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
+        newTestContext.chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         //checkDataRead(testSegmentName, testContext, offset, 0);
         TestUtils.checkSegmentBounds(newTestContext.metadataStore, testSegmentName, offset, offset);
 
         AssertExtensions.assertFutureThrows("openWrite() allowed after fencing",
                 oldTestCotext.chunkedSegmentStorage.openWrite(testSegmentName),
                 ex -> ex instanceof StorageNotPrimaryException);
+        /*
         AssertExtensions.assertFutureThrows("openRead() allowed after fencing",
                 oldTestCotext.chunkedSegmentStorage.openRead(testSegmentName),
                 ex -> ex instanceof StorageNotPrimaryException);
+
+         */
     }
 
     // Very useful test, but takes couple seconds.

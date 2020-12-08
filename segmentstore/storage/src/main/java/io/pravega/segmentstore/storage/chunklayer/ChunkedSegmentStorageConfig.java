@@ -36,6 +36,8 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
+    public static final Property<Integer> GARBAGE_COLLECTION_CONCURRENCY = Property.named("garbage.collection.concurrency", 10);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -52,6 +54,8 @@ public class ChunkedSegmentStorageConfig {
             .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
+            .garbageCollectionFrequencyInSeconds(60)
+            .garbageCollectionConcurrency(10)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -125,6 +129,19 @@ public class ChunkedSegmentStorageConfig {
     final private int lateWarningThresholdInMillis;
 
     /**
+     * Minimum delay in seconds between when garbage chunks are marked for deletion and actually deleted.
+     */
+    @Getter
+    final private int garbageCollectionFrequencyInSeconds;
+
+    /**
+     * Number of chunks deleted concurrently.
+     * This number should be small enough so that it does interfere foreground requests.
+     */
+    @Getter
+    final private int garbageCollectionConcurrency;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -142,6 +159,8 @@ public class ChunkedSegmentStorageConfig {
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.garbageCollectionFrequencyInSeconds = properties.getInt(GARBAGE_COLLECTION_DELAY);
+        this.garbageCollectionConcurrency = properties.getInt(GARBAGE_COLLECTION_CONCURRENCY);
     }
 
     /**

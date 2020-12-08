@@ -33,6 +33,7 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.MAX_INDEXED_CHUNKS_PER_SEGMENTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "6");
         props.setProperty(ChunkedSegmentStorageConfig.DEFAULT_ROLLOVER_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "7");
         props.setProperty(ChunkedSegmentStorageConfig.SELF_CHECK_LATE_WARNING_THRESHOLD.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "8");
+        props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_DELAY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "9");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -47,6 +48,8 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxIndexedChunksPerSegment(), 6);
         Assert.assertEquals(config.getDefaultRollingPolicy().getMaxLength(), 7);
         Assert.assertEquals(config.getLateWarningThresholdInMillis(), 8);
+        Assert.assertEquals(config.getGarbageCollectionFrequencyInSeconds(), 9);
+        Assert.assertEquals(config.getGarbageCollectionConcurrency(), 10);
     }
 
     @Test
@@ -66,5 +69,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxIndexedChunksPerSegment(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxIndexedChunksPerSegment());
         Assert.assertEquals(config.getDefaultRollingPolicy().getMaxLength(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getDefaultRollingPolicy().getMaxLength());
         Assert.assertEquals(config.getLateWarningThresholdInMillis(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getLateWarningThresholdInMillis());
+        Assert.assertEquals(config.getGarbageCollectionFrequencyInSeconds(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionFrequencyInSeconds());
+        Assert.assertEquals(config.getGarbageCollectionConcurrency(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionConcurrency());
     }
 }

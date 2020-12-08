@@ -90,7 +90,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 return commit(txn)
                                                         .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
                                                         .thenComposeAsync(vv ->
-                                                                        chunkedSegmentStorage.collectGarbage(chunksToDelete)
+                                                                        chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete)
                                                                                 .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor()),
                                                                 chunkedSegmentStorage.getExecutor());
                                             }, chunkedSegmentStorage.getExecutor()),

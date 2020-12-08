@@ -112,7 +112,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
     private CompletableFuture<Void> postCommit() {
         // Collect garbage.
-        return chunkedSegmentStorage.collectGarbage(chunksToDelete)
+        return chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete)
                 .thenAcceptAsync(v4 -> {
                     // Update the read index.
                     chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
