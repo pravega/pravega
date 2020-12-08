@@ -10,11 +10,13 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
 import org.junit.Test;
@@ -24,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +63,8 @@ public class ConcurrentEPSerializedRHTest {
         writer.write(request3).join();
 
         // process throwing retryable exception. Verify that event is written back and checkpoint has moved forward
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
         TestRequestHandler2 requestHandler = new TestRequestHandler2(executor);
         ConcurrentEventProcessor<TestBase, TestRequestHandler2> processor = new ConcurrentEventProcessor<>(
                 requestHandler, 1, executor, null, writer, 1, TimeUnit.SECONDS);

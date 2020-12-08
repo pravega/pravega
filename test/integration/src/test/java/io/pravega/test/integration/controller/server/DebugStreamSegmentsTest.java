@@ -40,7 +40,6 @@ import java.net.URI;
 import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
@@ -79,7 +78,7 @@ public class DebugStreamSegmentsTest {
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         writerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(NUMBER_OF_WRITERS, "writer-pool");
         readExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "reader-pool");
         scaleExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "scale-pool");
@@ -100,7 +99,7 @@ public class DebugStreamSegmentsTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
+        executor.shutdownNow();
         writerExecutor.shutdownNow();
         readExecutor.shutdownNow();
         scaleExecutor.shutdownNow();

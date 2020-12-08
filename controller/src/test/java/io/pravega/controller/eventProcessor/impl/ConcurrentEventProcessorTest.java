@@ -12,28 +12,28 @@ package io.pravega.controller.eventProcessor.impl;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionInternal;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -126,7 +126,7 @@ public class ConcurrentEventProcessorTest {
         latch = new CompletableFuture<>();
         result = new CompletableFuture<>();
         runningcount = new AtomicInteger(0);
-        executor = Executors.newScheduledThreadPool(2);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
     }
 
     @After

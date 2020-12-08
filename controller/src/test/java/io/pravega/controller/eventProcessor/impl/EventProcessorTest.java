@@ -24,6 +24,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.EventReadImpl;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -229,7 +229,7 @@ public class EventProcessorTest {
     
     @Before
     public void setUp() {
-        executor = Executors.newSingleThreadScheduledExecutor();    
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
     }
     
     @After

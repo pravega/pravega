@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -67,7 +68,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -173,7 +173,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting controller event processors");
-            rebalanceExecutor = Executors.newSingleThreadScheduledExecutor();
+            rebalanceExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "event-processor");
             initialize();
             log.info("Controller event processors startUp complete");
         } finally {
