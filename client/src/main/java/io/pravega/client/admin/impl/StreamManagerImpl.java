@@ -30,13 +30,12 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
-
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -208,7 +207,7 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public void close() {
         if (this.controller != null) {
-            this.controller.close();
+            Callbacks.invokeSafely(this.controller::close, ex -> log.error("Unable to close Controller client.", ex));
         }
         if (this.executor != null) {
             ExecutorServiceHelpers.shutdown(this.executor);

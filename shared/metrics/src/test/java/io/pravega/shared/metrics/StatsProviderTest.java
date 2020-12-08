@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
@@ -25,12 +26,10 @@ import static org.junit.Assert.assertFalse;
  */
 @Slf4j
 public class StatsProviderTest {
-
-    private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("testStatsLogger");
-
     @Test
     public void testStatsProviderStartAndClose() {
         //To improve test case isolation, create a new registry instead of using the global one.
+        @Cleanup
         CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
         MetricsConfig appConfig = MetricsConfig.builder()
@@ -39,6 +38,7 @@ public class StatsProviderTest {
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
 
+        @Cleanup
         StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.start();
 
@@ -58,8 +58,10 @@ public class StatsProviderTest {
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, true)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, true)
                 .build();
+        @Cleanup
         CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
+        @Cleanup
         StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.startWithoutExporting();
 
@@ -80,8 +82,10 @@ public class StatsProviderTest {
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
+        @Cleanup
         CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
+        @Cleanup
         StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.start();
     }

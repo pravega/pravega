@@ -10,19 +10,18 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,7 +35,7 @@ public abstract class BucketStoreTest {
     
     @Before
     public void setUp() throws Exception {
-        executorService = Executors.newScheduledThreadPool(5);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
         ImmutableMap<BucketStore.ServiceType, Integer> map =
                 ImmutableMap.of(BucketStore.ServiceType.RetentionService, 2, BucketStore.ServiceType.WatermarkingService, 3);
@@ -45,7 +44,7 @@ public abstract class BucketStoreTest {
     
     @After
     public void tearDown() throws Exception {
-        executorService.shutdown();
+        ExecutorServiceHelpers.shutdown(executorService);
     }
     
     @Test(timeout = 10000L)

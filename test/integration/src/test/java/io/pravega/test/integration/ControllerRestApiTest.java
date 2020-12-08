@@ -16,15 +16,15 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
-import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -56,6 +56,7 @@ import javax.ws.rs.core.Response;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.RandomStringUtils;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -91,13 +92,20 @@ public class ControllerRestApiTest {
     }
 
     @BeforeClass
-    public static void setup() throws Exception {
+    public static void setupClass() throws Exception {
         SETUP_UTILS.startAllServices();
     }
 
     @AfterClass
-    public static void tearDown() throws Exception {
+    public static void tearDownClass() throws Exception {
         SETUP_UTILS.stopAllServices();
+    }
+
+    @After
+    public void tearDown() {
+        if (client != null) {
+            client.close();
+        }
     }
 
     @Test

@@ -103,7 +103,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -1214,7 +1213,7 @@ public class ControllerImplTest {
         testGRPCServer = serverBuilder
                 .build()
                 .start();
-        executor = Executors.newSingleThreadScheduledExecutor();
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         controllerClient = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(
                         ClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))

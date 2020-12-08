@@ -13,7 +13,6 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -27,6 +26,16 @@ import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -35,62 +44,53 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.BiFunction;
-import java.util.stream.Collectors;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
-public class StreamTest {
+public class StreamTest extends ThreadPooledTestSuite {
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private ZkOrderedStore orderer;
 
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    @Override
+    protected int getThreadPoolSize() {
+        return 10;
+    }
 
     @Before
     public void setUp() throws Exception {
         zkTestServer = new TestingServerStarter().start();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executor), executor);
+        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executorService()), executorService());
     }
 
     @After
     public void tearDown() throws Exception {
         cli.close();
         zkTestServer.close();
-        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), GrpcAuthHelper.getDisabledAuthHelper(), executor);
+                SegmentHelperMock.getSegmentHelperMockForTables(executorService()), GrpcAuthHelper.getDisabledAuthHelper(), executorService());
         PravegaTablesScope scope = new PravegaTablesScope("test", storeHelper);
         scope.createScope().join();
         scope.addStreamToScope("test").join();
-        
+
         PravegaTablesStream stream = new PravegaTablesStream("test", "test",
-                storeHelper, orderer, () -> 0, 
-                scope::getStreamsInScopeTableName, executor);
+                storeHelper, orderer, () -> 0,
+                scope::getStreamsInScopeTableName, executorService());
         testStream(stream);
     }
     
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-        ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executor);
-        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executor, orderer);
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
+        ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executorService());
+        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executorService(), orderer);
         testStream(zkStream);
     }
 
@@ -169,25 +169,26 @@ public class StreamTest {
 
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScaleZk() throws Exception {
-        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor)) {
-            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-            testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper, executor, orderer));
+        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executorService())) {
+            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
+            testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper, executorService(), orderer));
         }
     }
 
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScalePravegaTables() throws Exception {
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        @Cleanup
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService());
         GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
-                segmentHelper, cli, executor, authHelper)) {
+                segmentHelper, cli, executorService(), authHelper)) {
 
             testConcurrentGetSuccessorScale(store, (x, y) -> {
-                PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
+                PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
                 PravegaTablesScope scope = new PravegaTablesScope(x, storeHelper);
                 Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();
-                return new PravegaTablesStream(x, y, storeHelper, orderer, () -> 0, scope::getStreamsInScopeTableName, executor);
+                return new PravegaTablesStream(x, y, storeHelper, orderer, () -> 0, scope::getStreamsInScopeTableName, executorService());
             });
         }
     }
@@ -202,11 +203,11 @@ public class StreamTest {
         Stream stream = spy(createStream.apply(scopeName, streamName));
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                              .scalingPolicy(policy)
-                                                              .build();
+                .scalingPolicy(policy)
+                .build();
 
-        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executorService()).get();
+        store.setState(scopeName, streamName, State.ACTIVE, null, executorService()).get();
 
         List<Map.Entry<Double, Double>> newRanges;
 

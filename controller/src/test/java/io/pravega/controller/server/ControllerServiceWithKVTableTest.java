@@ -14,7 +14,6 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
@@ -40,8 +39,9 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-
 import io.pravega.test.common.TestingServerStarter;
+import java.net.URI;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -51,12 +51,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.net.URI;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.spy;
 
 /**
  * Tests for KeyValueTables API in ControllerService
@@ -64,7 +60,7 @@ import static org.mockito.Mockito.*;
 @Slf4j
 public abstract class ControllerServiceWithKVTableTest {
     private static final String SCOPE = "scope";
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
     protected SegmentHelper segmentHelperMock;
 
