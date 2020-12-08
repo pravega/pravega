@@ -7,15 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.controller.event.readergroup;
+package io.pravega.shared.controller.event;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
-import io.pravega.shared.controller.event.StreamRequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,13 +27,12 @@ import java.util.concurrent.CompletableFuture;
 public class DeleteReaderGroupEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
-    private final String kvtName;
+    private final String rgName;
     private final long requestId;
-    private final UUID tableId;
 
     @Override
     public String getKey() {
-        return String.format("%s/%s", scope, kvtName);
+        return String.format("%s/%s", scope, rgName);
     }
 
     @Override
@@ -66,16 +62,14 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
 
         private void write00(DeleteReaderGroupEvent e, RevisionDataOutput target) throws IOException {
             target.writeUTF(e.scope);
-            target.writeUTF(e.kvtName);
+            target.writeUTF(e.rgName);
             target.writeLong(e.requestId);
-            target.writeUUID(e.tableId);
         }
 
         private void read00(RevisionDataInput source, DeleteReaderGroupEventBuilder b) throws IOException {
             b.scope(source.readUTF());
-            b.kvtName(source.readUTF());
+            b.rgName(source.readUTF());
             b.requestId(source.readLong());
-            b.tableId(source.readUUID());
         }
     }
 

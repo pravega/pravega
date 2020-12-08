@@ -30,11 +30,11 @@ interface ReaderGroup {
     String getName();
 
     /**
-     * Get Scope Name.
+     * Gets the scoped name of this ReaderGroup.
      *
-     * @return Name of scope.
+     * @return String a fully scoped ReaderGroup name
      */
-    String getScopeName();
+    String getScopedName();
 
     /**
      * Create the stream, by creating/modifying underlying data structures.
@@ -83,13 +83,11 @@ interface ReaderGroup {
     CompletableFuture<ReaderGroupConfig> getConfiguration();
 
     /**
-     * Fetches the current stream configuration.
+     * Fetches the current ReaderGroup configuration.
      *
-     * @return current stream configuration.
+     * @return current ReaderGroup configuration.
      */
     CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getVersionedConfigurationRecord();
-
-
 
     /**
      * Api to get the current state with its current version.

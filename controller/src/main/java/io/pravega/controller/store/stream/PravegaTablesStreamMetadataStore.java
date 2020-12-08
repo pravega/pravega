@@ -318,7 +318,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         return Futures.completeOn(
                 ((PravegaTablesScope) getScope(scope))
                    .addReaderGroupToScope(name)
-                   .thenCompose(v -> super.createReaderGroup(scope, name, configuration, createTimestamp, context, id, executor)),
+                   .thenCompose(v -> super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor)),
                 executor);
     }
     //endregion

@@ -8,6 +8,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.RGStreamCutRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
@@ -49,6 +50,7 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
     PravegaTablesReaderGroup(final String scopeName, final String rgName, PravegaTablesStoreHelper storeHelper,
                         Supplier<CompletableFuture<String>> rgInScopeTableNameSupplier,
                         ScheduledExecutorService executor) {
+        super(scopeName, rgName);
         this.storeHelper = storeHelper;
         this.readerGroupsInScopeTableNameSupplier = rgInScopeTableNameSupplier;
         this.idRef = new AtomicReference<>(null);
@@ -84,7 +86,7 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
         return getId().thenCompose(id -> {
             String metadataTable = getMetadataTableName(id);
             return storeHelper.createTable(metadataTable)
-                    .thenAccept(v -> log.debug("reader group {}/{} metadata table {} created", getScope(), getName(), metadataTable);
+                    .thenAccept(v -> log.debug("reader group {}/{} metadata table {} created", getScope(), getName(), metadataTable));
         });
     }
 
@@ -128,6 +130,17 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY,
                         ReaderGroupStateRecord.builder().state(ReaderGroupState.CREATING).build().toBytes())));
 
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    if (ignoreCached) {
+                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, ReaderGroupConfigRecord::fromBytes);
+                    }
+                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, ReaderGroupConfigRecord::fromBytes);
+                });
     }
 
     @Override

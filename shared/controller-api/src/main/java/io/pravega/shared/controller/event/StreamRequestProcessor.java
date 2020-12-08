@@ -9,8 +9,6 @@
  */
 package io.pravega.shared.controller.event;
 
-import io.pravega.shared.controller.event.readergroup.CreateReaderGroupEvent;
-import io.pravega.shared.controller.event.readergroup.DeleteReaderGroupEvent;
 import java.util.concurrent.CompletableFuture;
 
 public interface StreamRequestProcessor extends RequestProcessor {

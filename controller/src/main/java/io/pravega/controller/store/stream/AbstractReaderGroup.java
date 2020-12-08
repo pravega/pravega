@@ -3,32 +3,40 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.shared.NameUtils;
 
 import java.util.concurrent.CompletableFuture;
 
 public abstract class AbstractReaderGroup implements ReaderGroup {
 
+    private final String scope;
+    private final String name;
+
+    AbstractReaderGroup(String scopeName, String rgName) {
+        this.scope = scopeName;
+        this.name = rgName;
+    }
     @Override
     public String getScope() {
-        return null;
+        return scope;
     }
 
     @Override
     public String getName() {
-        return null;
+        return name;
     }
 
     @Override
-    public String getScopeName() {
-        return null;
+    public String getScopedName() {
+        return NameUtils.getScopedReaderGroupName(this.scope, this.name);
     }
 
     @Override
     public CompletableFuture<Void> create(ReaderGroupConfig configuration, long createTimestamp) {
         return createMetadataTables()
                   .thenCompose((Void v) -> storeCreationTimeIfAbsent(createTimestamp))
-                  .thenCompose((Void v) -> createStateIfAbsent())
-                  .thenCompose((Void v) -> createConfigurationIfAbsent(configuration));
+                  .thenCompose((Void v) -> createConfigurationIfAbsent(configuration))
+                  .thenCompose((Void v) -> createStateIfAbsent());
     }
 
     @Override
@@ -58,7 +66,7 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getVersionedConfigurationRecord() {
-        return null;
+        return getConfigurationData(true);
     }
 
     @Override
@@ -86,6 +94,10 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
     abstract CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig data);
+
     abstract CompletableFuture<Void> createStateIfAbsent();
+
+    abstract CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached);
+
 
 }

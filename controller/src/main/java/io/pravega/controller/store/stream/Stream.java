@@ -113,10 +113,9 @@ interface Stream {
      * Create subscribers record for storing metadata about Stream Subscribers.
      * Also add this new Subscriber to the Record.
      * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
-     * @param generation generation of subscriber in Stream Metadata.
      * @return future of operation.
      */
-    CompletableFuture<Void> createSubscriber(String subscriber, long generation);
+    CompletableFuture<Void> addSubscriber(String subscriber);
 
     /**
      * Fetches the record corresponding to the subscriber
@@ -143,7 +142,7 @@ interface Stream {
      * @param subscriber  subscriber to be removed.
      * @return future of operation.
      */
-    CompletableFuture<Void> removeSubscriber(final String subscriber, final long generation);
+    CompletableFuture<Void> deleteSubscriber(final String subscriber);
 
     /**
      * Starts truncating an existing stream.

@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -538,6 +539,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber,
+                                                    final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scopeName, streamName, context);
+        return Futures.completeOn(stream.addSubscriber(subscriber), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteSubscriber(final String scope,
+                                                    final String name,
+                                                    final String subscriber,
+                                                    final OperationContext context,
+                                                    final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).deleteSubscriber(subscriber), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
                                                             final String name,
                                                             final String subscriber,
@@ -918,6 +935,18 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     // region ReaderGroup
+    @Override
+    public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getReaderGroupConfigRecord(final String scope,
+                                                                   final String name,
+                                                                   final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).getVersionedConfigurationRecord(), executor);
+    }
+
+    @Override
+    public RGOperationContext createRGContext(String scope, String name) {
+        return new RGOperationContext(getReaderGroup(scope, name, null));
+    }
+
     protected ReaderGroup getReaderGroup(String scope, final String name, RGOperationContext context) {
         ReaderGroup readerGroup;
         if (context != null) {
