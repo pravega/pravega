@@ -10,8 +10,10 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -41,7 +43,17 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
     }
 
     @Override
+    CompletableFuture<Version> setStateData(VersionedMetadata<ReaderGroupStateRecord> state) {
+        return null;
+    }
+
+    @Override
     CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached) {
+        return null;
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached) {
         return null;
     }
 

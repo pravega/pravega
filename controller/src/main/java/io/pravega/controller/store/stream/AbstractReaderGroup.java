@@ -10,8 +10,11 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
 import io.pravega.shared.NameUtils;
 
 import java.util.concurrent.CompletableFuture;
@@ -81,7 +84,8 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedState() {
-        return null;
+        return getStateData(true)
+                .thenApply(x -> new VersionedMetadata<>(x.getObject().getState(), x.getVersion()));
     }
 
     @Override
@@ -90,13 +94,22 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateVersionedState(VersionedMetadata<ReaderGroupState> state, ReaderGroupState newState) {
-        return null;
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateVersionedState(VersionedMetadata<ReaderGroupState> previousState, ReaderGroupState newState) {
+        if (ReaderGroupState.isTransitionAllowed(previousState.getObject(), newState)) {
+            return setStateData(new VersionedMetadata<>(ReaderGroupStateRecord.builder().state(newState).build(), previousState.getVersion()))
+                    .thenApply(updatedVersion -> new VersionedMetadata<>(newState, updatedVersion));
+        } else {
+            return Futures.failedFuture(StoreException.create(
+                    StoreException.Type.OPERATION_NOT_ALLOWED,
+                    "ReaderGroup: " + getName() + " State: " + newState.name() + " current state = " +
+                            previousState.getObject()));
+        }
     }
 
     @Override
     public CompletableFuture<ReaderGroupState> getState(boolean ignoreCached) {
-        return null;
+        return getStateData(ignoreCached)
+                .thenApply(x -> x.getObject().getState());
     }
 
     abstract CompletableFuture<Void> createMetadataTables();
@@ -107,7 +120,11 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     abstract CompletableFuture<Void> createStateIfAbsent();
 
+    abstract CompletableFuture<Version> setStateData(final VersionedMetadata<ReaderGroupStateRecord> state);
+
     abstract CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getConfigurationData(boolean ignoreCached);
+
+    abstract CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached);
 
 
 }

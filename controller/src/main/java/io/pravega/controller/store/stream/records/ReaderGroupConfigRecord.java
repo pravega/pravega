@@ -35,7 +35,7 @@ public class ReaderGroupConfigRecord {
 
     private final long groupRefreshTimeMillis;
     private final long automaticCheckpointIntervalMillis;
-    private final long maxOutstandingCheckpointRequest;
+    private final int maxOutstandingCheckpointRequest;
     private final int retentionTypeOrdinal;
     private final long generation;
     private final Map<String, RGStreamCutRecord> startingStreamCuts;
@@ -80,7 +80,7 @@ public class ReaderGroupConfigRecord {
                 throws IOException {
             configurationRecordBuilder.groupRefreshTimeMillis(revisionDataInput.readLong());
             configurationRecordBuilder.automaticCheckpointIntervalMillis(revisionDataInput.readLong());
-            configurationRecordBuilder.maxOutstandingCheckpointRequest(revisionDataInput.readLong());
+            configurationRecordBuilder.maxOutstandingCheckpointRequest(revisionDataInput.readInt());
             configurationRecordBuilder.retentionTypeOrdinal(revisionDataInput.readCompactInt());
             configurationRecordBuilder.generation(revisionDataInput.readLong());
 
@@ -99,7 +99,7 @@ public class ReaderGroupConfigRecord {
                 throws IOException {
             revisionDataOutput.writeLong(rgConfigurationRecord.groupRefreshTimeMillis);
             revisionDataOutput.writeLong(rgConfigurationRecord.automaticCheckpointIntervalMillis);
-            revisionDataOutput.writeLong(rgConfigurationRecord.maxOutstandingCheckpointRequest);
+            revisionDataOutput.writeInt(rgConfigurationRecord.maxOutstandingCheckpointRequest);
             revisionDataOutput.writeCompactInt(rgConfigurationRecord.retentionTypeOrdinal);
             revisionDataOutput.writeLong(rgConfigurationRecord.generation);
             revisionDataOutput.writeMap(rgConfigurationRecord.startingStreamCuts, DataOutput::writeUTF,

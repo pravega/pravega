@@ -352,6 +352,21 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                             final Executor executor);
 
     /**
+     * Api to update versioned state of ReaderGroup as a CAS operation.
+     *
+     * @param scope scope name.
+     * @param name ReaderGroup name.
+     * @param state desired state
+     * @param previous current state with version
+     * @param context operation context
+     * @param executor executor
+     * @return Future which when completed contains the updated state and version if successful or exception otherwise.
+     */
+    CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
+                                                                     final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
+                                                                     final RGOperationContext context, final Executor executor);
+
+    /**
      * Fetches the current ReaderGroup configuration.
      *
      * @param scope    ReaderGroup scope

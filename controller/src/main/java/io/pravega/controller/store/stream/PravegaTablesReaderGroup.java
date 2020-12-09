@@ -17,6 +17,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.RGStreamCutRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
@@ -139,6 +140,28 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY,
                         ReaderGroupStateRecord.builder().state(ReaderGroupState.CREATING).build().toBytes())));
 
+    }
+
+    @Override
+    CompletableFuture<Version> setStateData(final VersionedMetadata<ReaderGroupStateRecord> state) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
+                        state.getObject().toBytes(), state.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, STATE_KEY);
+                            return r;
+                        }));
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> {
+                    if (ignoreCached) {
+                        return storeHelper.getEntry(metadataTable, STATE_KEY, ReaderGroupStateRecord::fromBytes);
+                    }
+                    return storeHelper.getCachedData(metadataTable, STATE_KEY, ReaderGroupStateRecord::fromBytes);
+                });
     }
 
     @Override

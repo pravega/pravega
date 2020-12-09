@@ -17,6 +17,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.ReaderGroupState;
@@ -59,34 +60,33 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         long requestId = request.getRequestId();
 
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup,
                 true, context, executor)
                 .thenCompose(state -> {
                     if (state.getObject().equals(ReaderGroupState.CREATING)) {
                         String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
-
                         return streamMetadataStore.createStream(scope,
                                 NameUtils.getStreamForReaderGroup(readerGroup), StreamConfiguration.builder()
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build(), System.currentTimeMillis(), null, executor)
-                                .thenAccept(v ->
-                                streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
-                                .thenApply(configRecord -> {
-                                    if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
-                                            .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
-                                            // update Stream metadata tables, if RG is a Subscriber
-                                            configRecord.getObject().getStartingStreamCuts().keySet().stream()
-                                            .forEach(rgStream -> {
-                                               Stream stream = Stream.of(rgStream);
-                                               streamMetadataStore.addSubscriber(stream.getScope(),
-                                                            stream.getStreamName(), scopedRGName, null, executor);
-                                        });
-                                    }
+                                .thenCompose(v ->
+                                    streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
+                                    .thenApply(configRecord -> {
+                                       if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
+                                          .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
+                                          // update Stream metadata tables, if RG is a Subscriber
+                                          configRecord.getObject().getStartingStreamCuts().keySet().stream()
+                                          .forEach(rgStream -> {
+                                                  Stream stream = Stream.of(rgStream);
+                                                  streamMetadataStore.addSubscriber(stream.getScope(), stream.getStreamName(), scopedRGName, null, executor);
+                                          });
+                                       }
                                     return null;
-                                }));
+                                })).thenCompose(v ->
+                                        Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
+                                                ReaderGroupState.ACTIVE, state, context, executor)));
                     }
-                    return null;
-                }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                return CompletableFuture.completedFuture(null);
+             }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 }

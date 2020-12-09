@@ -14,11 +14,16 @@ import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -54,11 +59,7 @@ import io.pravega.controller.store.stream.StreamMetadataStoreTestHelper;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.*;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -66,6 +67,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
@@ -139,9 +141,7 @@ public abstract class StreamMetadataTasksTest {
     private final String stream1 = "stream1";
 
     private ControllerService consumer;
-
     private TestingServer zkServer;
-
     private StreamMetadataStore streamStorePartialMock;
     private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
@@ -325,37 +325,51 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 80000)
     public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
-        /*
-        // subscribers for non-existing stream
-        List<String> allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, "stream2", null).get().getSubscribersList();
-        assertEquals(0, allSubscribers.size());
-
         // no subscribers found for existing Stream
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
-        assertEquals(0, allSubscribers.size());
+        SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
+        assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
+        assertEquals(0, listSubscribersResponse.getSubscribersList().size());
 
-        // add a new subscribers - positive case
-        String subscriber1 = "subscriber1";
-        AddSubscriberStatus.Status addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber1, 0L, null).get();
-        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+        // subscribers for non-existing stream
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, "stream2", null).get();
+        assertEquals(SubscribersResponse.Status.STREAM_NOT_FOUND, listSubscribersResponse.getStatus());
+        assertEquals(0, listSubscribersResponse.getSubscribersList().size());
 
-        String subscriber2 = "subscriber2";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber2, 0L, null).get();
-        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
+        final Segment seg0 = new Segment(SCOPE, stream1, 0L);
+        final Segment seg1 = new Segment(SCOPE, stream1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                                    .automaticCheckpointIntervalMillis(30000L)
+                                    .groupRefreshTimeMillis(20000L)
+                                    .maxOutstandingCheckpointRequest(2)
+                                    .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                                    .generation(0L)
+                                    .startingStreamCuts(startSC)
+                                    .endingStreamCuts(endSC).build();
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createFuture =
+                streamMetadataTasks.createReaderGroup(SCOPE, "rg1", config, System.currentTimeMillis());
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
-        String subscriber3 = "subscriber3";
-        addStatus = streamMetadataTasks.addSubscriber(SCOPE, stream1, subscriber3, 0L, null).get();
-        assertEquals(Controller.AddSubscriberStatus.Status.SUCCESS, addStatus);
 
-        allSubscribers = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get().getSubscribersList();
-        assertEquals(3, allSubscribers.size());
-        assertTrue(allSubscribers.contains(subscriber1));
-        assertTrue(allSubscribers.contains(subscriber2));
-        assertTrue(allSubscribers.contains(subscriber3));
+        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", config, System.currentTimeMillis());
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
-         */
+        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg3", config, System.currentTimeMillis());
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
+        assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
+        assertEquals(3, listSubscribersResponse.getSubscribersList().size());
     }
 
     @Test(timeout = 30000)

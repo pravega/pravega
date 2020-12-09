@@ -997,6 +997,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                    }
                  }), executor);
     }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
+                                                                                final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
+                                                                                final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).updateVersionedState(previous, state), executor);
+    }
+
     //endregion
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {

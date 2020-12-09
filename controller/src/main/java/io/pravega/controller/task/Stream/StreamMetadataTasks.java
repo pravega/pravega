@@ -244,7 +244,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(state -> {
                 if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
                    CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, requestId);
-                   //4. Create Reader Group Metadata
+                   //3. Create Reader Group Metadata and submit event
                    return eventHelper.addIndexAndSubmitTask(event,
                               () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, null, executor))
                               .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
@@ -261,8 +261,8 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
                 .thenApply(state -> {
-                    log.debug("KVTable State is {}", state.toString());
-                    return !(state.equals(ReaderGroupState.UNKNOWN) || (state.equals(ReaderGroupState.CREATING)));
+                    log.debug("ReaderGroup State is {}", state.toString());
+                    return ReaderGroupState.ACTIVE.equals(state);
                 });
     }
 
