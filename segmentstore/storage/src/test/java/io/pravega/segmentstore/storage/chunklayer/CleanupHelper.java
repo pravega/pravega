@@ -23,7 +23,7 @@ public class CleanupHelper implements AutoCloseable {
     /**
      * List of objects to close.
      */
-    ArrayList<AutoCloseable> cleanupList = new ArrayList<>();
+    private final ArrayList<AutoCloseable> cleanupList = new ArrayList<>();
 
     /**
      * Adds given {@link AutoCloseable} instance to list of objects to clean up.
@@ -35,9 +35,9 @@ public class CleanupHelper implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    synchronized public void close() throws Exception {
         for (val toCleanUp : cleanupList) {
-            close("CleanupUtils", toCleanUp);
+            close("CleanupHelper", toCleanUp);
         }
     }
 
