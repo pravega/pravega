@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [11, 14]
+        java: [11]
 
     name: Java ${{ matrix.java }}
     steps:
