@@ -31,7 +31,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -48,6 +47,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -63,7 +63,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -71,7 +70,6 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Properties;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -79,7 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Tests Data recovery commands.
  */
 @Slf4j
-public class DataRecoveryTest {
+public class DataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     private static final int NUM_EVENTS = 10;
     private static final String EVENT = "12345";
@@ -91,7 +89,6 @@ public class DataRecoveryTest {
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "Data recovery test pool");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
@@ -108,6 +105,11 @@ public class DataRecoveryTest {
     private File logsDir = null;
     private BookKeeperLogFactory factory = null;
 
+    @Override
+    protected int getThreadPoolSize() {
+        return 10;
+    }
+
     @Before
     public void setUp() throws Exception {
         this.baseDir = Files.createTempDirectory("TestDataRecovery").toFile().getAbsoluteFile();
@@ -117,7 +119,17 @@ public class DataRecoveryTest {
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true)
                 .build();
 
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executor);
+        this.storageFactory = new FileSystemStorageFactory(adapterConfig, executorService());
+    }
+
+    @After
+    public void tearDown() {
+        STATE.get().close();
+        if (this.factory != null) {
+            this.factory.close();
+        }
+        FileHelpers.deleteFileOrDirectory(this.baseDir);
+        FileHelpers.deleteFileOrDirectory(this.logsDir);
     }
 
     // Creates the given scope and stream using the given controller instance.
@@ -180,11 +192,11 @@ public class DataRecoveryTest {
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
         // Command under test
-        TestUtils.executeCommand("storage DurableLog-recovery", STATE.get());
+        TestUtils.executeCommand("storage durableLog-recovery", STATE.get());
 
         // Start a new segment store and controller
         this.factory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(), pravegaRunner.bookKeeperRunner.zkClient.get(),
-                executor);
+                executorService());
         pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.factory);
         log.info("Started a controller and segment store.");
         // Create the client with new controller.
@@ -245,19 +257,9 @@ public class DataRecoveryTest {
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
 
-    @After
-    public void tearDown() throws IOException {
-        STATE.get().close();
-        if (this.factory != null) {
-            this.factory.close();
-        }
-        FileHelpers.deleteFileOrDirectory(this.baseDir);
-        FileHelpers.deleteFileOrDirectory(this.logsDir);
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
-    }
-
     // write events to the given stream
     private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
@@ -277,7 +279,7 @@ public class DataRecoveryTest {
                         .builder()
                         .stream(Stream.of(SCOPE, streamName))
                         .build());
-
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName,
                 readerGroupName,
                 new UTF8StringSerializer(),

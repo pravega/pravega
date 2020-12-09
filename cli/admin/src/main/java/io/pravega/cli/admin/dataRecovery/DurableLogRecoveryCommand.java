@@ -80,12 +80,12 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
 
     private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
 
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(100, "recoveryProcessor");
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "recoveryProcessor");
     private final int containerCount;
     private final StorageFactory storageFactory;
     private final CuratorFramework zkClient;
     private final Storage storage;
-    private BookKeeperLogFactory dataLogFactory = null;
+    private final BookKeeperLogFactory dataLogFactory;
 
     /**
      * Creates an instance of DurableLogRecoveryCommand class.
@@ -98,24 +98,32 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
         this.storageFactory = createStorageFactory(executorService);
         this.storage = this.storageFactory.createStorageAdapter();
         this.zkClient = createZKClient();
+
+        val bkConfig = getCommandArgs().getState().getConfigBuilder()
+                .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
+                .build().getConfig(BookKeeperConfig::builder);
+        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, this.zkClient, executorService);
     }
 
+    @Override
+    public void close() throws Exception {
+        if (this.dataLogFactory != null) {
+            this.dataLogFactory.close();
+        }
+        this.zkClient.close();
+        this.storage.close();
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executorService);
+    }
 
     @Override
     public void execute() throws Exception {
         outputInfo("Container Count = %d", this.containerCount);
 
-        // Start a zk client and create a bookKeeperLogFactory
-        val bkConfig = getCommandArgs().getState().getConfigBuilder()
-                .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
-                .build().getConfig(BookKeeperConfig::builder);
-
-        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, this.zkClient, executorService);
         try {
             this.dataLogFactory.initialize();
         } catch (DurableDataLogException ex) {
             this.zkClient.close();
-            ex.printStackTrace();
+            this.dataLogFactory.close();
             throw ex;
         }
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
@@ -197,17 +205,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "DurableLog-recovery", "Recover DurableLog state from the storage.");
-    }
-
-    @Override
-    public void close() throws Exception {
-        if (this.dataLogFactory != null) {
-            this.dataLogFactory.close();
-        }
-        this.zkClient.close();
-        this.storage.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executorService);
+        return new CommandDescriptor(COMPONENT, "durableLog-recovery", "Recover DurableLog state from the storage.");
     }
 
     // Creates the environment for debug segment container

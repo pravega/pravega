@@ -38,7 +38,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
     private static final List<String> HEADER = Arrays.asList("Sealed Status", "Length", "Segment Name");
     private static final int CONTAINER_EPOCH = 1;
     private final int containerCount;
-    private final ScheduledExecutorService scheduledExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(10,
+    private final ScheduledExecutorService scheduledExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(1,
             "listSegmentsProcessor");
     private final SegmentToContainerMapper segToConMapper;
     private final StorageFactory storageFactory;
@@ -58,6 +58,17 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
         this.storageFactory = createStorageFactory(scheduledExecutorService);
         this.storage = this.storageFactory.createStorageAdapter();
         this.csvWriters = new FileWriter[this.containerCount];
+    }
+
+    @Override
+    public void close() throws Exception {
+        for (int containerId = 0; containerId < this.containerCount; containerId++) {
+            if (this.csvWriters[containerId] != null) {
+                this.csvWriters[containerId].close();
+            }
+        }
+        this.storage.close();
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), scheduledExecutorService);
     }
 
     /**
@@ -131,32 +142,26 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
             }
 
             segmentsCount++;
-            int containerId = segToConMapper.getContainerId(currentSegment.getName());
+            int containerId = this.segToConMapper.getContainerId(currentSegment.getName());
             outputInfo(containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
                     currentSegment.getName());
-            csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
+            this.csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
                     currentSegment.getName() + "\n");
         }
 
         outputInfo("Closing all csv files...");
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            csvWriters[containerId].flush();
-            csvWriters[containerId].close();
+        for (int containerId = 0; containerId < this.containerCount; containerId++) {
+            this.csvWriters[containerId].flush();
+            this.csvWriters[containerId].close();
         }
 
         outputInfo("All non-shadow segments' details have been written to the csv files.");
-        outputInfo("Path to the csv files: '%s'", filePath);
+        outputInfo("Path to the csv files: '%s'", this.filePath);
         outputInfo("Total number of segments found = %d", segmentsCount);
         outputInfo("Done listing the segments!");
     }
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "list-segments", "Lists segments from storage with their name, length and sealed status.");
-    }
-
-    @Override
-    public void close() throws Exception {
-        this.storage.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), scheduledExecutorService);
     }
 }
