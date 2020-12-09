@@ -29,7 +29,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -38,6 +37,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.ArrayList;
@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -64,7 +62,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-public class BatchClientTest {
+public class BatchClientTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testBatchStream";
@@ -82,13 +80,15 @@ public class BatchClientTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
     private JavaSerializer<String> serializer;
     private ClientConfig clientConfig;
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         // Create and start segment store service
@@ -109,7 +109,6 @@ public class BatchClientTest {
 
     @After
     public void tearDown() throws Exception {
-        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -151,6 +150,7 @@ public class BatchClientTest {
     @Test(timeout = 50000)
     @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws InterruptedException, ExecutionException {
+        @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 
         @Cleanup
@@ -281,7 +281,7 @@ public class BatchClientTest {
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
         Boolean result;
-        assertTrue("Scale up operation", controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Collections.singletonList(0L), map, executor).getFuture().join());
+        assertTrue("Scale up operation", controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Collections.singletonList(0L), map, executorService()).getFuture().join());
         write30ByteEvents(3, writer);
 
         //scale down and write events.
@@ -289,7 +289,7 @@ public class BatchClientTest {
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
         result = controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Arrays.asList(computeSegmentId(1, 1),
-                computeSegmentId(2, 1), computeSegmentId(3, 1)), map, executor).getFuture().get();
+                computeSegmentId(2, 1), computeSegmentId(3, 1)), map, executorService()).getFuture().get();
         assertTrue("Scale down operation result", result);
         write30ByteEvents(3, writer);
     }

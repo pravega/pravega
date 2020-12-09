@@ -12,6 +12,7 @@ package io.pravega.shared.metrics;
 import io.pravega.common.Timer;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +34,11 @@ public class MetricsProviderTest {
                                                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                                                 .build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
+    }
+
+    @After
+    public void tearDown() {
+        MetricsProvider.getMetricsProvider().close();
     }
 
     /**

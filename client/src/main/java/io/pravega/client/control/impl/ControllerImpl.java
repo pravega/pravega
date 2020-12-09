@@ -46,6 +46,7 @@ import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
@@ -60,10 +61,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetEpochSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
@@ -84,20 +88,18 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeRespons
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
@@ -122,7 +124,11 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.*;
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ExistsResponse;
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesRequest;
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesResponse;
+import static io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import static io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -1317,7 +1323,7 @@ public class ControllerImpl implements Controller {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            closeChannel();
+            Callbacks.invokeSafely(this::closeChannel, ex -> log.error("Error while closing ControllerImpl.", ex));
         }
     }
 

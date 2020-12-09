@@ -9,7 +9,9 @@
  */
 package io.pravega.test.system.framework;
 
+import feign.Response;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
@@ -18,19 +20,16 @@ import io.pravega.test.system.framework.metronome.model.v1.Artifact;
 import io.pravega.test.system.framework.metronome.model.v1.Job;
 import io.pravega.test.system.framework.metronome.model.v1.Restart;
 import io.pravega.test.system.framework.metronome.model.v1.Run;
-import feign.Response;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
-
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
@@ -40,7 +39,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {

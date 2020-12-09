@@ -345,8 +345,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
-     * Get list of  subscribers for Stream.
-     * Needed only for Consumption based retention.
+     * Get list of subscribers for a Stream.
+     * Subscribers are ReaderGroups reading from a Stream such that their reads impact data retention in the Stream.
      * @param scope      scope.
      * @param stream     stream name.
      * @param contextOpt optional context
@@ -356,13 +356,13 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("listSubscribers", scope, stream);
         return streamMetadataStore.checkStreamExists(scope, stream)
-                .thenCompose(exists -> {
-                    if (!exists) {
+               .thenCompose(exists -> {
+               if (!exists) {
                         return CompletableFuture.completedFuture(SubscribersResponse.newBuilder()
                                 .setStatus(SubscribersResponse.Status.STREAM_NOT_FOUND).build());
                     }
-                  // 2. get subscribers
-                  return streamMetadataStore.listSubscribers(scope, stream, context, executor)
+               // 2. get subscribers
+               return streamMetadataStore.listSubscribers(scope, stream, context, executor)
                           .thenApply(result -> SubscribersResponse.newBuilder()
                                      .setStatus(SubscribersResponse.Status.SUCCESS)
                                      .addAllSubscribers(result).build())

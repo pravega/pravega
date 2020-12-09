@@ -75,6 +75,7 @@ public class IdleSegmentTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .stream(Stream.of(scope, streamName))
@@ -87,6 +88,7 @@ public class IdleSegmentTest {
                                                       .build());
         streamManager.createReaderGroup(readerGroup, groupConfig);
         Serializer<ByteBuffer> serializer = new ByteBufferSerializer();
+        @Cleanup
         EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, serializer,
                                                                              EventWriterConfig.builder().build());
         List<CompletableFuture<Void>> results = new ArrayList<>();
@@ -95,7 +97,6 @@ public class IdleSegmentTest {
             System.out.println("Writing event " + i);
         }
         producer.flush();
-        System.err.println(results);
 
         @Cleanup
         EventStreamReader<ByteBuffer> reader = clientFactory.createReader(readerName, readerGroup, serializer,

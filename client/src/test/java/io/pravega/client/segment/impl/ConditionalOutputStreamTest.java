@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -45,10 +46,13 @@ public class ConditionalOutputStreamTest {
 
     @Test(timeout = 10000)
     public void testWrite() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -79,10 +83,13 @@ public class ConditionalOutputStreamTest {
 
     @Test(timeout = 10000)
     public void testClose() throws SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -92,10 +99,13 @@ public class ConditionalOutputStreamTest {
 
     @Test(timeout = 10000)
     public void testRetries() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -139,10 +149,13 @@ public class ConditionalOutputStreamTest {
 
     @Test(timeout = 10000)
     public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -169,10 +182,13 @@ public class ConditionalOutputStreamTest {
     @SneakyThrows
     @Test(timeout = 10000)
     public void testRetriesOnTokenExpiry() {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -206,10 +222,13 @@ public class ConditionalOutputStreamTest {
 
     @Test(timeout = 10000)
     public void testNonExpiryTokenCheckFailure() throws ConnectionFailedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -235,10 +254,13 @@ public class ConditionalOutputStreamTest {
 
     @Test
     public void handleUnexpectedReplythrowsAppropriateTokenExceptions() {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStreamImpl objectUnderTest = (ConditionalOutputStreamImpl) factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
                 EventWriterConfig.builder().build());
@@ -264,10 +286,13 @@ public class ConditionalOutputStreamTest {
      */
     @Test(timeout = 10000)
     public void testOnlyOneWriteAtATime() throws ConnectionFailedException, SegmentSealedException {
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController("localhost", 0, connectionFactory, true);
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
-        Segment segment = new Segment("scope", "testWrite", 1);       
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);

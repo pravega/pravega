@@ -10,10 +10,10 @@
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
-import io.pravega.shared.security.auth.Credentials;
-import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.common.security.ZKTLSUtils;
 import com.google.common.base.Strings;
+import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -39,6 +39,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
@@ -410,8 +411,13 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);
-        controllerService.startAsync();
-        return controllerService;
+        try {
+            controllerService.startAsync().awaitRunning();
+            return controllerService;
+        } catch (Throwable ex) {
+            Callbacks.invokeSafely(controllerService::close, ex2 -> log.error("Unable to clean up controller startup.", ex2));
+            throw ex;
+        }
     }
 
     @Synchronized
@@ -419,23 +425,18 @@ public class InProcPravegaCluster implements AutoCloseable {
         return controllerURI;
     }
 
-    @Synchronized
-    public String getZkUrl() {
-        return zkUrl;
-    }
-
     @Override
     @Synchronized
     public void close() throws Exception {
         if (isInProcSegmentStore) {
-            for ( ServiceStarter starter : this.nodeServiceStarter ) {
+            for (ServiceStarter starter : this.nodeServiceStarter) {
                 starter.shutdown();
             }
         }
         if (isInProcController) {
-            for ( ControllerServiceMain controller : this.controllerServers ) {
-                    controller.stopAsync();
-                }
+            for (ControllerServiceMain controller : this.controllerServers) {
+                Callbacks.invokeSafely(controller::close, ex -> log.error("Unable to shut down Controller.", ex));
+            }
         }
 
         if (this.zkService != null) {
