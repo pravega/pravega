@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
@@ -66,7 +67,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testInitialization() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
@@ -90,7 +93,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testInitializationInvalidArgs() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
@@ -114,7 +119,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
     @Test
     public void testIsSystemSegment() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
         int containerId = 42;
         int maxLength = 8;
@@ -140,8 +147,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithOneFailover() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
         int containerId = 42;
@@ -155,6 +165,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Start container with epoch 1
+        @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
@@ -176,6 +187,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Start container with epoch 2
         epoch++;
 
+        @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
@@ -202,8 +214,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithTwoFailovers() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         int containerId = 42;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
@@ -214,6 +229,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
+        @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
 
         segmentStorage1.initialize(epoch);
@@ -233,6 +249,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Epoch 2
         epoch++;
 
+        @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
@@ -265,12 +282,14 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithPartialDataWrite() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         if (!chunkStorage.supportsAppend()) {
             return;
         }
-
+        @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         int containerId = 42;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
@@ -281,6 +300,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
+        @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStore, executorService(), config);
 
         segmentStorage1.initialize(epoch);
@@ -313,7 +333,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         // Step 2
         // Start container with epoch 2
         epoch++;
-
+        @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
@@ -342,11 +362,14 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     @Test
     public void testSimpleBootstrapWithMultipleFailovers() throws Exception {
         val containerId = 42;
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, null);
     }
 
     private void testSimpleBootstrapWithMultipleFailovers(int containerId, ChunkStorage chunkStorage, Consumer<Long> faultInjection) throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
         val policy = new SegmentRollingPolicy(100);
@@ -359,7 +382,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             // Epoch 2
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+            cleanupHelper.add(metadataStoreAfterCrash);
+
             ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
+            cleanupHelper.add(segmentStorageInLoop);
+
             segmentStorageInLoop.initialize(epoch);
 
             segmentStorageInLoop.bootstrap().join();
@@ -387,9 +414,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         }
 
         epoch++;
-
+        @Cleanup
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
-
+        @Cleanup
         ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
         segmentStorageFinal.initialize(epoch);
 
@@ -409,6 +436,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     @Test
     public void testSimpleBootstrapWithIncompleteSnapshot() throws Exception {
         val containerId = 42;
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
             val snapShotFile = NameUtils.getSystemJournalFileName(containerId, epoch, 0);
@@ -428,6 +456,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     @Test
     public void testSimpleBootstrapWithMissingSnapshot() throws Exception {
         val containerId = 42;
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
         testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
             val snapShotFile = NameUtils.getSystemJournalFileName(containerId, epoch, 0);
@@ -445,6 +474,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithMultipleFailoversWithTruncate() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
 
         int containerId = 42;
@@ -463,8 +495,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
             // Epoch 2
             epoch++;
             ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
+            cleanupHelper.add(metadataStoreAfterCrash);
 
             ChunkedSegmentStorage segmentStorageInLoop = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
+            cleanupHelper.add(segmentStorageInLoop);
+
             segmentStorageInLoop.initialize(epoch);
 
             segmentStorageInLoop.bootstrap().join();
@@ -513,9 +548,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         }
 
         epoch++;
+        @Cleanup
         ChunkMetadataStore metadataStoreFinal = getMetadataStore();
 
         ChunkedSegmentStorage segmentStorageFinal = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreFinal, executorService(), config);
+        cleanupHelper.add(segmentStorageFinal);
         segmentStorageFinal.initialize(epoch);
 
         segmentStorageFinal.bootstrap().join();
@@ -587,8 +624,13 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      * @throws Exception Throws exception in case of any error.
      */
     private void testBootstrapWithTruncate(String initialGarbageThatIsTruncated, String garbageAfterFailure, String validWriteBeforeFailure, String validWriteAfterFailure, int maxLength) throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
 
         int containerId = 42;
@@ -600,6 +642,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
+        @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
 
@@ -620,7 +663,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Epoch 2
         epoch++;
-
+        @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
@@ -656,8 +699,13 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleBootstrapWithTwoTruncates() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         int containerId = 42;
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
@@ -668,6 +716,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         // Epoch 1
+        @Cleanup
         ChunkedSegmentStorage segmentStorage1 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreBeforeCrash, executorService(), config);
         segmentStorage1.initialize(epoch);
         // Bootstrap
@@ -685,7 +734,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         // Epoch 2
         epoch++;
-
+        @Cleanup
         ChunkedSegmentStorage segmentStorage2 = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStoreAfterCrash, executorService(), config);
         segmentStorage2.initialize(epoch);
 
@@ -720,7 +769,9 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleChunkAddition() throws Exception {
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
         int containerId = 42;
@@ -753,6 +804,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
 
         // Failover
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, config);
 
@@ -761,6 +813,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         TestUtils.checkSegmentLayout(metadataStoreAfterCrash, systemSegmentName, policy.getMaxLength(), 10);
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash, systemSegmentName, 0, totalBytesWritten);
 
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, config);
 
@@ -777,7 +830,11 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleTruncation() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
+        @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
         ChunkMetadataStore metadataStoreBeforeCrash = getMetadataStore();
 
         int containerId = 42;
@@ -809,6 +866,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         Assert.assertEquals(policy.getMaxLength() * 10, totalBytesWritten);
 
         // Step 2: First failover, truncate first 5 chunks.
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash = getMetadataStore();
         SystemJournal systemJournalAfter = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash, config);
 
@@ -829,6 +887,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         }
 
         // Step 3: Second failover, truncate last 5 chunks.
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash2 = getMetadataStore();
         SystemJournal systemJournalAfter2 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash2, config);
 
@@ -849,6 +908,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         }
 
         // Step 4: third failover validate.
+        @Cleanup
         ChunkMetadataStore metadataStoreAfterCrash3 = getMetadataStore();
         SystemJournal systemJournalAfter3 = new SystemJournal(containerId, chunkStorage, metadataStoreAfterCrash3, config);
 

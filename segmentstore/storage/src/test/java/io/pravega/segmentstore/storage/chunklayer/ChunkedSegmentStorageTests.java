@@ -197,6 +197,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testSegmentNotExistsExceptionForNonExistent() throws Exception {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(1); // Force rollover after each byte.
+        @Cleanup
         TestContext testContext = getTestContext();
         Assert.assertFalse(testContext.chunkedSegmentStorage.exists(testSegmentName, null).get());
 
@@ -253,6 +254,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testStorageNotPrimaryException() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
@@ -310,6 +312,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testStorageNotPrimaryExceptionOnFencing() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
@@ -359,6 +362,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testStorageNotPrimaryExceptionOnFencingAfterOpenWrite() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
@@ -387,6 +391,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testSimpleScenarioWithNonAppendProvider() throws Exception {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
         TestContext testContext = getTestContext();
 
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportAppend(false);
@@ -480,6 +485,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testSimpleScenario() throws Exception {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
         TestContext testContext = getTestContext();
         testSimpleScenario(testSegmentName, policy, testContext);
     }
@@ -589,6 +595,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testRead() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         // Setup a segment with 5 chunks with given lengths.
         val segment = testContext.insertMetadata(testSegmentName, 1024, 1,
@@ -633,6 +640,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testReadInvalidParameters() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         // Setup a segment.
         val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{25});
@@ -701,6 +709,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testWrite() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
 
@@ -759,6 +768,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testWriteSequential() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
 
@@ -785,6 +795,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testWriteInvalidParameters() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         // Setup a segment.
         val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{10, 10, 5});
@@ -853,6 +864,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testSegmentNotExistsExceptionForDeleted() throws Exception {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(1); // Force rollover after each byte.
+        @Cleanup
         TestContext testContext = getTestContext();
         Assert.assertFalse(testContext.chunkedSegmentStorage.exists(testSegmentName, null).get());
 
@@ -905,6 +917,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testOpenWriteAfterFailoverWithNoData() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
@@ -928,6 +941,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testOpenReadAfterFailoverWithNoData() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
@@ -952,7 +966,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testFailoverBehavior() throws Exception {
         String testSegmentName = "foo";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(1000);
-
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(1);
         val h = testContext.chunkedSegmentStorage.create(testSegmentName, policy, null).get();
@@ -1009,6 +1023,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage) throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
@@ -1026,6 +1041,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage) throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
@@ -1049,6 +1065,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSimpleConcat() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         for (int maxChunkLength = 1; maxChunkLength <= 3; maxChunkLength++) {
             testSimpleConcat(testContext, maxChunkLength, 1, 1);
@@ -1080,6 +1097,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testSimpleConcatWithDefrag() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportAppend(true);
@@ -1149,6 +1167,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String validSourceSegmentName = "validsource";
         String truncatedSource = "truncatedSource";
         String unsealedSourceSegmentName = "unsealedsource";
+        @Cleanup
         TestContext testContext = getTestContext();
         // Setup a segment.
         val targetSegment = testContext.insertMetadata(targetSegmentName, 1024, 1, new long[]{25});
@@ -1236,6 +1255,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "foo";
         String emptySegmentName = "empty";
         String nonEmptySegmentName = "nonempty";
+        @Cleanup
         TestContext testContext = getTestContext();
         long endOffset = 25;
         // Setup a segment.
@@ -1285,6 +1305,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testBasicConcatWithDefrag() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportAppend(true);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
@@ -1308,7 +1329,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .maxSizeLimitForConcat(12)
                 .minSizeLimitForConcat(2)
                 .build();
-
+        @Cleanup
         TestContext testContext = getTestContext(config);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
 
@@ -1351,6 +1372,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testBaseConcatWithDefrag() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
 
@@ -1392,6 +1414,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testTruncateInvalidParameters() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         // Setup a segment.
         val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{25});
@@ -1423,6 +1446,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testTruncateNoOpTruncateOffset() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();        // Setup a segment.
         val segment = testContext.insertMetadata(testSegmentName, 1024, 1, new long[]{25});
 
@@ -1442,6 +1466,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncates() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         String testSegmentName = "testSegmentName";
 
@@ -1478,6 +1503,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncatesOnLargeChunkVaryingSizes() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         String testSegmentName = "testSegmentName";
         // Set up.
@@ -1507,6 +1533,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncatesOnLargeChunk() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         String testSegmentName = "testSegmentName";
         // Populate.
@@ -1534,6 +1561,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     @Test
     public void testRepeatedTruncatesAtFullLength() throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         String testSegmentName = "testSegmentName";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2);
@@ -1601,6 +1629,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     private void testTruncate(long maxChunkLength, long truncateAt, int chunksCountBefore, int chunksCountAfter, long expectedLength) throws Exception {
+        @Cleanup
         TestContext testContext = getTestContext();
         String testSegmentName = "testSegmentName";
 
@@ -1623,9 +1652,11 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testReadWriteWithMultipleFailovers() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
         String testSegmentName = "foo";
         TestContext testContext = getTestContext();
-
+        cleanupHelper.add(testContext);
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
 
@@ -1648,6 +1679,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             // Fork the context.
             val oldTestCotext = testContext;
             testContext = oldTestCotext.fork(epoch++);
+            cleanupHelper.add(testContext);
+
             TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
 
             // Fence out old store.
@@ -1661,6 +1694,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Create a new test context and initialize with new epoch.
         testContext = testContext.fork(epoch++);
+        cleanupHelper.add(testContext);
 
         checkDataRead(testSegmentName, testContext, 0, total);
     }
@@ -1672,8 +1706,12 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testReadWriteWithMultipleFailoversWithGarbage() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
+        cleanupHelper.add(testContext);
 
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
@@ -1697,6 +1735,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             // Fork the context.
             val oldTestCotext = testContext;
             testContext = oldTestCotext.fork(epoch++);
+            cleanupHelper.add(testContext);
+
             TestUtils.checkSegmentLayout(testContext.metadataStore, testSegmentName, Longs.toArray(lengths));
 
             // Make sure to open segment with new instance before writing garbage to old instance.
@@ -1706,7 +1746,6 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             oldTestCotext.chunkedSegmentStorage.write(hWrite, writeAt, new ByteArrayInputStream(new byte[10]), 10, null).join();
 
             // Fence out old store.
-            boolean exceptionThrown = false;
             oldTestCotext.metadataStore.markFenced();
 
             AssertExtensions.assertFutureThrows("write() allowed after fencing",
@@ -1720,6 +1759,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Create a new test context and initialize with new epoch.
         testContext = testContext.fork(epoch++);
+        cleanupHelper.add(testContext);
 
         checkDataRead(testSegmentName, testContext, 0, total);
     }
@@ -1731,8 +1771,12 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testTruncateWithMultipleFailoversWithGarbage() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
+        cleanupHelper.add(testContext);
 
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
@@ -1761,6 +1805,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             // Fork the context.
             val oldTestCotext = testContext;
             testContext = oldTestCotext.fork(epoch++);
+            cleanupHelper.add(testContext);
 
             // Make sure to open segment with new instance before writing garbage to old instance.
             hWrite = testContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
@@ -1783,14 +1828,19 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         // Create a new test context and initialize with new epoch.
         testContext = testContext.fork(epoch++);
+        cleanupHelper.add(testContext);
 
         checkDataRead(testSegmentName, testContext, truncateAt, total);
     }
 
     @Test
     public void testTruncateWithFailover() throws Exception {
+        @Cleanup
+        CleanupHelper cleanupHelper = new CleanupHelper();
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
+        cleanupHelper.add(testContext);
 
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
@@ -1808,8 +1858,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         offset += i;
         // Fork the context.
         testContext = testContext.fork(++epoch);
+        cleanupHelper.add(testContext);
         val oldTestCotext = testContext;
         val newTestContext = oldTestCotext.fork(++epoch);
+        cleanupHelper.add(newTestContext);
         // Fence out old store.
         oldTestCotext.metadataStore.markFenced();
 
@@ -1847,6 +1899,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     public void testParallelSegmentOperations(int numberOfRequests, int threadPoolSize) throws Exception {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
         TestContext testContext = getTestContext();
         @Cleanup("shutdownNow")
         ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
@@ -1881,7 +1934,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     private void testParallelSegmentOperationsWithReentry(int numberOfRequests, int threadPoolSize, boolean shouldBlock) throws Exception {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-
+        @Cleanup
         TestContext testContext = getTestContext();
 
         if (!(testContext.metadataStore instanceof InMemoryMetadataStore)) {
@@ -1953,6 +2006,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "testSegment";
 
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
         TestContext testContext = getTestContext();
 
         // Step 1: Create system segment.
@@ -2013,6 +2067,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         String testSegmentName = "testSegment";
 
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        @Cleanup
         TestContext testContext = getTestContext();
         if (!(testContext.metadataStore instanceof InMemoryMetadataStore)) {
             return;
@@ -2166,7 +2221,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     /**
      * Test context.
      */
-    public static class TestContext {
+    public static class TestContext implements AutoCloseable {
         @Getter
         protected ChunkedSegmentStorageConfig config;
 
@@ -2342,6 +2397,18 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          */
         public void addChunk(String chunkName, long length) {
             ((AbstractInMemoryChunkStorage) chunkStorage).addChunk(chunkName, length);
+        }
+
+        @Override
+        public void close() throws Exception {
+            CleanupHelper.close("chunkedSegmentStorage", chunkedSegmentStorage);
+            CleanupHelper.close("chunkStorage", chunkStorage);
+            CleanupHelper.close("metadataStore", metadataStore);
+
+            this.config = null;
+            this.chunkedSegmentStorage = null;
+            this.chunkStorage = null;
+            this.metadataStore = null;
         }
     }
 }
