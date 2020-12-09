@@ -38,7 +38,6 @@ import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.Data;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -81,11 +80,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
             }
         }
     }
-    
+
+    private final Object lock = new Object();
     private final ClientConfig clientConfig;
     private final MetricNotifier metricNotifier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    @GuardedBy("$lock")
+    @GuardedBy("lock")
     private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
     private final ConnectionFactory connectionFactory;
 
@@ -97,42 +97,42 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
-    @Synchronized
     public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
+        Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(flow, "Flow");
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
-        Exceptions.checkNotClosed(closed.get(), this);
+        synchronized (lock) {
+            Exceptions.checkNotClosed(closed.get(), this);
+            final List<Connection> connectionList = connectionMap.getOrDefault(location, new ArrayList<>());
 
-        final List<Connection> connectionList = connectionMap.getOrDefault(location, new ArrayList<>());
+            // remove connections for which the underlying network connection is disconnected.
+            List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
+                // Filter out Connection objects which have been completed exceptionally or have been disconnected.
+                return !connection.getFlowHandler().isDone() || connection.isConnected();
+            }).collect(Collectors.toList());
+            log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
 
-        // remove connections for which the underlying network connection is disconnected.
-        List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
-            // Filter out Connection objects which have been completed exceptionally or have been disconnected.
-            return !connection.getFlowHandler().isDone() || connection.isConnected();
-        }).collect(Collectors.toList());
-        log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
+            // Choose the connection with the least number of flows.
+            Optional<Connection> suggestedConnection = prunedConnectionList.stream().min(Comparator.naturalOrder());
 
-        // Choose the connection with the least number of flows.
-        Optional<Connection> suggestedConnection = prunedConnectionList.stream().min(Comparator.naturalOrder());
-
-        final Connection connection;
-        if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
-            log.info("Reusing connection: {}", suggestedConnection.get());
-            connection = suggestedConnection.get();
-        } else {
-            // create a new connection.
-            log.info("Creating a new connection to {}", location);
-            CompletableFuture<FlowHandler> establishedFuture = establishConnection(location);
-            connection = new Connection(location, establishedFuture);
-            prunedConnectionList.add(connection);
+            final Connection connection;
+            if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
+                log.info("Reusing connection: {}", suggestedConnection.get());
+                connection = suggestedConnection.get();
+            } else {
+                // create a new connection.
+                log.info("Creating a new connection to {}", location);
+                CompletableFuture<FlowHandler> establishedFuture = establishConnection(location);
+                connection = new Connection(location, establishedFuture);
+                prunedConnectionList.add(connection);
+            }
+            connectionMap.put(location, prunedConnectionList);
+            return connection.getFlowHandler().thenApply(flowHandler -> flowHandler.createFlow(flow, rp));
         }
-        connectionMap.put(location, prunedConnectionList);
-        return connection.getFlowHandler().thenApply(flowHandler -> flowHandler.createFlow(flow, rp));
     }
 
     @Override
-    @Synchronized
     public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
@@ -152,27 +152,29 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * Used only for testing.
      */
     @VisibleForTesting
-    @Synchronized
     public void pruneUnusedConnections() {
-        for (List<Connection> connections : connectionMap.values()) {
-            for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
-                Connection connection = iterator.next();
-                if (isUnused(connection)) {
-                    connection.getFlowHandler().join().close();
-                    iterator.remove();
+        synchronized (lock) {
+            for (List<Connection> connections : connectionMap.values()) {
+                for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext(); ) {
+                    Connection connection = iterator.next();
+                    if (isUnused(connection)) {
+                        connection.getFlowHandler().join().close();
+                        iterator.remove();
+                    }
                 }
             }
         }
     }
 
     @VisibleForTesting
-    @Synchronized
     public List<Connection> getActiveChannels() {
-        ArrayList<Connection> result = new ArrayList<Connection>();
-        for (List<Connection> connection : this.connectionMap.values()) {
-            result.addAll(connection);
+        synchronized (lock) {
+            ArrayList<Connection> result = new ArrayList<Connection>();
+            for (List<Connection> connection : this.connectionMap.values()) {
+                result.addAll(connection);
+            }
+            return result;
         }
-        return result;
     }
 
     /**
@@ -186,18 +188,19 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
-    @Synchronized
     public void close() {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {
             metricNotifier.close();
             connectionFactory.close();
-            for (List<Connection> connections : connectionMap.values()) {
-                for (Connection connection : connections) {
-                    connection.close();
+            synchronized (lock) {
+                for (List<Connection> connections : connectionMap.values()) {
+                    for (Connection connection : connections) {
+                        connection.close();
+                    }
                 }
+                connectionMap.clear();
             }
-            connectionMap.clear();
         }
     }
 
