@@ -41,12 +41,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
@@ -59,6 +53,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -74,6 +73,7 @@ public class WriteBatchTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
+    private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService writerPool;
     private ScheduledExecutorService readerPool;
     private final AtomicInteger totalNumberOfEvents = new AtomicInteger();
@@ -90,7 +90,7 @@ public class WriteBatchTest {
         this.zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SegmentStore service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
@@ -118,9 +118,21 @@ public class WriteBatchTest {
             this.server.close();
             this.server = null;
         }
+        if (this.serviceBuilder != null) {
+            this.serviceBuilder.close();
+            this.serviceBuilder = null;
+        }
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
             this.zkTestServer = null;
+        }
+        if (this.writerPool != null) {
+            ExecutorServiceHelpers.shutdown(this.writerPool);
+            this.writerPool = null;
+        }
+        if (this.readerPool != null) {
+            ExecutorServiceHelpers.shutdown(this.readerPool);
+            this.readerPool = null;
         }
     }
 

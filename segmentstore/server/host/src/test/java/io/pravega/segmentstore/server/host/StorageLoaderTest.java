@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -29,10 +30,10 @@ import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
-
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,14 +46,15 @@ public class StorageLoaderTest {
 
     @Test
     public void testNoOpWithInMemoryStorage() throws Exception {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(StorageExtraConfig.builder()
-                            .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
+                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
                 .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, 1)
-                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
 
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
@@ -166,7 +168,8 @@ public class StorageLoaderTest {
     }
 
     private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageLoader loader = new StorageLoader();
         return loader.load(setup, name, storageLayoutType, executor);
     }

@@ -35,6 +35,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -149,7 +150,9 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(setupUtils.getZkTestServer().getConnectString(),
                 new RetryOneTime(5000));
         curatorFramework.start();
-        Assert.assertNotNull(command.instantiateSegmentHelper(curatorFramework));
+        @Cleanup
+        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework);
+        Assert.assertNotNull(sh);
 
         // Try the Zookeeper backend, which is expected to fail and be handled by the command.
         Properties properties = new Properties();
@@ -180,7 +183,9 @@ public class ControllerCommandsTest extends AbstractAdminCommandTest {
         state.get().getConfigBuilder().include(pravegaProperties);
 
         // Exercise response codes for REST requests.
-        CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), new AdminCommandState());
+        @Cleanup
+        val c1 = new AdminCommandState();
+        CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), c1);
         ControllerListScopesCommand command = new ControllerListScopesCommand(commandArgs);
         command.printResponseInfo(Response.status(Response.Status.UNAUTHORIZED).build());
         command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());

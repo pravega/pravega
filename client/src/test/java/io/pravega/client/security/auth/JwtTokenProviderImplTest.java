@@ -13,18 +13,19 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.test.common.JwtBody;
+import io.pravega.test.common.JwtTestUtils;
 import java.net.URI;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
-
-import io.pravega.test.common.JwtBody;
-import io.pravega.test.common.JwtTestUtils;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Test;
 
 import static io.pravega.test.common.JwtTestUtils.createEmptyDummyToken;
@@ -257,9 +258,13 @@ public class JwtTokenProviderImplTest {
     @Test(expected = CompletionException.class)
     public void testRefreshTokenCompletesUponFailure() {
         ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tcp://non-existent-cluster:9090")).build();
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+
+        @Cleanup
         Controller controllerClient = new ControllerImpl(
                 ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
-                Executors.newScheduledThreadPool(1));
+                executor);
 
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controllerClient,
                 "bob-0", "bob-0", AccessOperation.ANY);
@@ -275,10 +280,13 @@ public class JwtTokenProviderImplTest {
     public void testTokenRefreshFutureIsClearedUponFailure() throws InterruptedException {
         ClientConfig config = ClientConfig.builder().controllerURI(
                 URI.create("tcp://non-existent-cluster:9090")).build();
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
 
+        @Cleanup
         Controller controllerClient = new ControllerImpl(
                 ControllerImplConfig.builder().clientConfig(config).retryAttempts(1).build(),
-                Executors.newScheduledThreadPool(1));
+                executor);
 
         JwtTokenProviderImpl tokenProvider = (JwtTokenProviderImpl) DelegationTokenProviderFactory.create(controllerClient,
                 "bob-0", "bob-0", AccessOperation.ANY);

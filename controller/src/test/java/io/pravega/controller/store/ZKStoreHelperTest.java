@@ -28,7 +28,6 @@ import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -45,7 +44,7 @@ public class ZKStoreHelperTest {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
     private ZKStoreHelper zkStoreHelper;
 
     @Before

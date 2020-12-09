@@ -230,6 +230,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 if (rebalanceFuture != null) {
                     rebalanceFuture.cancel(true);
                 }
+                this.writer.close();
             } finally {
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
             }
@@ -370,8 +371,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
     }
     
     @Override
-    public void close() throws Exception {
+    public void close() {
         this.stopAsync();
+        this.writer.close();
     }
 
     @Override

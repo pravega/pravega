@@ -18,6 +18,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -28,7 +29,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -181,6 +182,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         try (ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory)) {
+            @Cleanup
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());
@@ -242,6 +244,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                     executorService()).getFuture();
             Assert.assertTrue(scaleStatus.get());
 
+            @Cleanup
             EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM_NAME,
                     new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());

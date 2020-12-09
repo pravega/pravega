@@ -48,7 +48,6 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -59,6 +58,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.ReadWriteUtils;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
@@ -67,9 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
@@ -92,7 +90,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-public class EndToEndTruncationTest {
+public class EndToEndTruncationTest extends ThreadPooledTestSuite {
 
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
@@ -102,11 +100,13 @@ public class EndToEndTruncationTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -130,7 +130,6 @@ public class EndToEndTruncationTest {
 
     @After
     public void tearDown() throws Exception {
-        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -222,7 +221,7 @@ public class EndToEndTruncationTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executorService()).getFuture().get();
 
         assertTrue(result);
         writer.writeEvent("0", "truncationTest2").get();
@@ -281,7 +280,7 @@ public class EndToEndTruncationTest {
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 1.0);
-        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executor).getFuture().get());
+        assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executorService()).getFuture().get());
 
         // truncate stream at segment 2, offset 0.
         Map<Long, Long> streamCutPositions = new HashMap<>();
@@ -396,16 +395,16 @@ public class EndToEndTruncationTest {
         ImmutableMap<Double, Double> twoSegmentKeyRange = ImmutableMap.of(0.0, 0.5, 0.5, 1.0);
         // scale down to 1 segment.
         assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L),
-                singleSegmentKeyRange, executor).getFuture().get());
+                singleSegmentKeyRange, executorService()).getFuture().get());
         // scale up to 2 segments.
         assertTrue("Stream Scale up", controller.scaleStream(stream,
-                Lists.newArrayList(computeSegmentId(2, 1)), twoSegmentKeyRange, executor).getFuture().get());
+                Lists.newArrayList(computeSegmentId(2, 1)), twoSegmentKeyRange, executorService()).getFuture().get());
         // scale down to 1 segment.
         assertTrue("Stream Scale down", controller.scaleStream(stream,
-                Lists.newArrayList(computeSegmentId(3, 2), computeSegmentId(4, 2)), singleSegmentKeyRange, executor).getFuture().get());
+                Lists.newArrayList(computeSegmentId(3, 2), computeSegmentId(4, 2)), singleSegmentKeyRange, executorService()).getFuture().get());
         // scale up to 2 segments.
         assertTrue("Stream Scale up", controller.scaleStream(stream,
-                Lists.newArrayList(computeSegmentId(5, 3)), twoSegmentKeyRange, executor).getFuture().get());
+                Lists.newArrayList(computeSegmentId(5, 3)), twoSegmentKeyRange, executorService()).getFuture().get());
         //truncateStream.
         Map<Long, Long> streamCutPositions = new HashMap<>();
         streamCutPositions.put(computeSegmentId(3, 2), 0L);
@@ -426,12 +425,12 @@ public class EndToEndTruncationTest {
                 ReaderConfig.builder().build());
         EventRead<String> event = reader.readNextEvent(200);
         assertNull(event.getEvent());
-        groupManager.getReaderGroup("reader").initiateCheckpoint("cp1", executor);
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp1", executorService());
         event = reader.readNextEvent(2000);
         assertEquals("cp1", event.getCheckpointName());
         event = reader.readNextEvent(200);
         assertNull(event.getEvent());
-        groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executor);
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executorService());
         event = reader.readNextEvent(2000);
         assertEquals("cp2", event.getCheckpointName());
         event = reader.readNextEvent(10000);
@@ -453,6 +452,7 @@ public class EndToEndTruncationTest {
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(1)).build();
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
@@ -477,7 +477,7 @@ public class EndToEndTruncationTest {
         reader.close();
 
         // Create a Checkpoint, get StreamCut and truncate the Stream at that point.
-        Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint", executor).join();
+        Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint", executorService()).join();
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
         assertTrue(streamManager.truncateStream(scope, streamName, streamCut));
 
@@ -530,7 +530,7 @@ public class EndToEndTruncationTest {
             Futures.allOf(futures).join();
             int eventsReadBeforeTruncation = futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get();
             // Perform truncation on stream segment
-            Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint" + i, executor).join();
+            Checkpoint cp = readerGroup.initiateCheckpoint("myCheckpoint" + i, executorService()).join();
             StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
             assertTrue(streamManager.truncateStream(scope, streamName, streamCut));
 
@@ -579,7 +579,7 @@ public class EndToEndTruncationTest {
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        assertTrue(controller.scaleStream(stream, Lists.newArrayList(0L), map, executor).getFuture().join());
+        assertTrue(controller.scaleStream(stream, Lists.newArrayList(0L), map, executorService()).getFuture().join());
 
         long one = computeSegmentId(1, 1);
         long two = computeSegmentId(2, 1);
@@ -594,6 +594,7 @@ public class EndToEndTruncationTest {
                                                         .automaticCheckpointIntervalMillis(100)
                                                         .stream(Stream.of(scope, streamName))
                                                         .build());
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(String.valueOf(0), readerGroupName,
                                                                       new UTF8StringSerializer(),
                                                                       ReaderConfig.builder().build());
@@ -656,6 +657,7 @@ public class EndToEndTruncationTest {
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
@@ -669,6 +671,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(500).stream(Stream.of(scope, streamName)).build());
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(String.valueOf(0), readerGroup, new UTF8StringSerializer(), ReaderConfig.builder().build());
         assertEquals(totalEvents / 2, ReadWriteUtils.readEvents(reader, totalEvents / 2, 0));
         reader.close();
