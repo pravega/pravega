@@ -230,30 +230,30 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(final String scope, final String rgName,
                                                                                final ReaderGroupConfig config, long createTimestamp) {
 
-        final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
-        return RetryHelper.withRetriesAsync(() -> {
-            // 1. check if scope with this name exists...
-            return streamMetadataStore.checkScopeExists(scope)
-               .thenCompose(exists -> {
-                  if (!exists) {
-                            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
-                  }
-                  //2. check state of the ReaderGroup, if found
-                  return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, executor),
-                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
-                                .thenCompose(state -> {
-                                    if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
-                                        CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, requestId);
-                                        //4. Create Reader Group Metadata
-                                        return eventHelper.addIndexAndSubmitTask(event,
-                                                () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, null, executor))
-                                                .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                                .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
-                                    }
-                                // idempotent call
-                                return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
-                             });
-                    });
+    final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
+    return RetryHelper.withRetriesAsync(() -> {
+      // 1. check if scope with this name exists...
+      return streamMetadataStore.checkScopeExists(scope)
+         .thenCompose(exists -> {
+         if (!exists) {
+                  return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
+         }
+         //2. check state of the ReaderGroup, if found
+         return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
+                .thenCompose(state -> {
+                if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
+                   CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, requestId);
+                   //4. Create Reader Group Metadata
+                   return eventHelper.addIndexAndSubmitTask(event,
+                              () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, null, executor))
+                              .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
+                              .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
+                }
+                // idempotent call
+                return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+             });
+         });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 

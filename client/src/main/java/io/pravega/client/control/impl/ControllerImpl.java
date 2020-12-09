@@ -1509,10 +1509,10 @@ public class ControllerImpl implements Controller {
 
     // region ReaderGroups
     public CompletableFuture<Boolean> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(scope, "rgName");
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(rgConfig, "streamConfig");
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(rgConfig, "rgConfig");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "createReaderGroup", rgConfig, requestId);
 
