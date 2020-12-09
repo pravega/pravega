@@ -10,6 +10,7 @@
 package io.pravega.cli.admin.utils;
 
 import io.pravega.cli.admin.AdminCommandState;
+import lombok.Cleanup;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ public class ConfigUtilsTest {
 
     @Test
     public void testConfigUtils() throws IOException {
+        @Cleanup
         AdminCommandState commandState = new AdminCommandState();
         System.setProperty("pravega.configurationFile", "../../config/admin-cli.properties");
         System.setProperty("pravegaservice", "pravegaservice");

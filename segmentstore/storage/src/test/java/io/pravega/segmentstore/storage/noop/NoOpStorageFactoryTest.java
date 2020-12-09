@@ -9,18 +9,20 @@
  */
 package io.pravega.segmentstore.storage.noop;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import org.junit.Test;
-
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public class NoOpStorageFactoryTest {
 
     @Test(expected = UnsupportedOperationException.class)
     public void testCreateSyncStorage() {
         StorageExtraConfig config = StorageExtraConfig.builder().build();
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageFactory factory = new NoOpStorageFactory(config, executor, new InMemoryStorageFactory(executor), null);
         factory.createSyncStorage();
     }

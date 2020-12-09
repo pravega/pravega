@@ -41,6 +41,7 @@ public class ReadFromDeletedStreamTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("test", "localhost", Config.SERVICE_PORT);
 
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();

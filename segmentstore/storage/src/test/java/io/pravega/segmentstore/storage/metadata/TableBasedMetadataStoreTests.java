@@ -16,11 +16,9 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryTableStore;
+import java.util.concurrent.ExecutorService;
 import lombok.val;
 import org.junit.Before;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  *  Note that this is just a test for key-value store. Here the storage is NOT using this implementation.
@@ -79,7 +77,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
     public static class TableBasedMetadataChunkedSegmentStorageTests extends ChunkedSegmentStorageTests {
         @Override
         public ChunkMetadataStore createMetadataStore() throws Exception {
-            TableStore tableStore = new InMemoryTableStore(Executors.newScheduledThreadPool(1));
+            TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
             return new TableBasedMetadataStore(tableName, tableStore, executorService());
         }

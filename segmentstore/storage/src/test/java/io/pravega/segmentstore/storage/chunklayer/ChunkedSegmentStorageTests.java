@@ -29,7 +29,17 @@ import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
+import java.io.ByteArrayInputStream;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -39,16 +49,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.io.ByteArrayInputStream;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Random;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for {@link ChunkedSegmentStorage}.
@@ -1816,7 +1816,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testParallelSegmentOperations(int numberOfRequests, int threadPoolSize) throws Exception {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         TestContext testContext = getTestContext();
-        Executor executor = Executors.newFixedThreadPool(threadPoolSize);
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
         CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
         for (int i = 0; i < numberOfRequests; i++) {
             String testSegmentName = "test" + i;
@@ -1882,7 +1883,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         });
 
         // Step 3: Perform operations on multiple segments.
-        Executor executor = Executors.newFixedThreadPool(threadPoolSize);
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
         CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
         for (int i = 0; i < numberOfRequests; i++) {
             String testSegmentName = "test" + i;
@@ -1937,7 +1939,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
 
         // Step 3: Read data back.
-        Executor executor = Executors.newFixedThreadPool(threadPoolSize);
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
         CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
         for (int i = 0; i < numberOfRequests; i++) {
             CompletableFuture<Void> f = testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null)
@@ -2019,7 +2022,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         });
 
         // Step 5: Read back data concurrently.
-        Executor executor = Executors.newFixedThreadPool(threadPoolSize);
+        @Cleanup("shutdownNow")
+        ExecutorService executor = Executors.newFixedThreadPool(threadPoolSize);
         CompletableFuture[] futures = new CompletableFuture[numberOfRequests];
         for (int i = 0; i < numberOfRequests; i++) {
             CompletableFuture<Void> f = testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null)

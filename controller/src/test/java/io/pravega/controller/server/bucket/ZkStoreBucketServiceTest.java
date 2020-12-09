@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
@@ -131,7 +130,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         zkClient2.start();
 
         @Cleanup("shutdownNow")
-        ScheduledExecutorService executor2 = Executors.newScheduledThreadPool(10);
+        ScheduledExecutorService executor2 = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         String hostId = UUID.randomUUID().toString();
         
         BucketStore bucketStore2 = StreamStoreFactory.createZKBucketStore(ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1), zkClient2, executor2);
