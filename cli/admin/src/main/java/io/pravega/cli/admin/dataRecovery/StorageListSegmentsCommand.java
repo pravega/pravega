@@ -62,9 +62,9 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
 
     @Override
     public void close() throws Exception {
-        for (int containerId = 0; containerId < this.containerCount; containerId++) {
-            if (this.csvWriters[containerId] != null) {
-                this.csvWriters[containerId].close();
+        for (FileWriter fileWriter : this.csvWriters) {
+            if (fileWriter != null) {
+                fileWriter.close();
             }
         }
         this.storage.close();
@@ -150,9 +150,9 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
         }
 
         outputInfo("Closing all csv files...");
-        for (int containerId = 0; containerId < this.containerCount; containerId++) {
-            this.csvWriters[containerId].flush();
-            this.csvWriters[containerId].close();
+        for (FileWriter fileWriter : this.csvWriters) {
+            fileWriter.flush();
+            fileWriter.close();
         }
 
         outputInfo("All non-shadow segments' details have been written to the csv files.");

@@ -41,6 +41,7 @@ import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -68,14 +69,9 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig.builder().build();
 
-    private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
-            .build();
-
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
             .build();
 
     private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
@@ -183,7 +179,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
         for (int containerId = 0; containerId < containerCount; containerId++) {
             DebugStreamSegmentContainer debugStreamSegmentContainer = new
                     DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                    context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
+                    context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), storageFactory,
                     context.getDefaultExtensions(), executorService);
 
             outputInfo("Starting debug segment container %d.", containerId);
@@ -205,7 +201,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "durableLog-recovery", "Recover DurableLog state from the storage.");
+        return new CommandDescriptor(COMPONENT, "durableLog-recovery", "Recovers the state of the DurableLog from the storage.");
     }
 
     // Creates the environment for debug segment container
@@ -214,8 +210,11 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     private static class Context implements AutoCloseable {
+        @Getter
         public final ReadIndexFactory readIndexFactory;
+        @Getter
         public final AttributeIndexFactory attributeIndexFactory;
+        @Getter
         public final WriterFactory writerFactory;
         public final CacheStorage cacheStorage;
         public final CacheManager cacheManager;
