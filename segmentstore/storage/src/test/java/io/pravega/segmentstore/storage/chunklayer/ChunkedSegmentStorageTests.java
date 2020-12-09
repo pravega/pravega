@@ -737,6 +737,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     @Test
     public void testWriteAfterWriteFailure() throws Exception {
         String testSegmentName = "foo";
+        @Cleanup
         TestContext testContext = getTestContext();
         SegmentRollingPolicy policy = new SegmentRollingPolicy(20); // Force rollover after every 20 byte.
 
