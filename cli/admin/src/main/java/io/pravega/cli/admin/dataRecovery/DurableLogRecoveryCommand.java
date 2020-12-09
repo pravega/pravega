@@ -136,8 +136,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
         Context context = createContext(executorService);
 
         // create debug segment container instances using new new dataLog and old storage.
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context,
-                containerCount, this.dataLogFactory, this.storageFactory);
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context);
 
         outputInfo("Containers started. Recovering all segments...");
         ContainerRecoveryUtils.recoverAllSegments(this.storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
@@ -168,18 +167,16 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     // Creates debug segment container instances, puts them in a map and returns it.
-    private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(Context context, int containerCount,
-                                                                                  BookKeeperLogFactory dataLogFactory,
-                                                                                  StorageFactory storageFactory) throws Exception {
+    private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(Context context) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, dataLogFactory, executorService);
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, this.dataLogFactory, executorService);
 
         // Create a debug segment container instances using a
-        for (int containerId = 0; containerId < containerCount; containerId++) {
+        for (int containerId = 0; containerId < this.containerCount; containerId++) {
             DebugStreamSegmentContainer debugStreamSegmentContainer = new
                     DebugStreamSegmentContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                    context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), storageFactory,
+                    context.getReadIndexFactory(), context.getAttributeIndexFactory(), context.getWriterFactory(), this.storageFactory,
                     context.getDefaultExtensions(), executorService);
 
             outputInfo("Starting debug segment container %d.", containerId);
