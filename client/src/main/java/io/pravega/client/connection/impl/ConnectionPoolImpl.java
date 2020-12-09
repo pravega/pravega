@@ -103,6 +103,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         synchronized (lock) {
+            Exceptions.checkNotClosed(closed.get(), this);
             final List<Connection> connectionList = connectionMap.getOrDefault(location, new ArrayList<>());
 
             // remove connections for which the underlying network connection is disconnected.
