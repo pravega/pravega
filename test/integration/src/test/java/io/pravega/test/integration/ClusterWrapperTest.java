@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 public class ClusterWrapperTest {
 
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(150);
+    public Timeout globalTimeout = Timeout.seconds(60);
 
     @Test
     public void writeAndReadBackAMessageWithSecurityOff() {
