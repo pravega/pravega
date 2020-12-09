@@ -9,6 +9,13 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -16,25 +23,15 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.TxnSegments;
-
+import io.pravega.test.common.TestingServerStarter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
@@ -47,7 +44,8 @@ public class ScaleTest {
 
     public static void main(String[] args) throws Exception {
         try {
-            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            @Cleanup("shutdownNow")
+            val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
             @Cleanup
             TestingServer zkTestServer = new TestingServerStarter().start();
 

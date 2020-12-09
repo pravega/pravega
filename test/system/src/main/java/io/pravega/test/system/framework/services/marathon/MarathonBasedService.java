@@ -10,9 +10,11 @@
 package io.pravega.test.system.framework.services.marathon;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.marathon.AuthEnabledMarathonClient;
+import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -20,23 +22,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.LocalVolume;
 import mesosphere.marathon.client.model.v2.PortDefinition;
-import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.model.v2.Result;
-import mesosphere.marathon.client.MarathonException;
+import mesosphere.marathon.client.model.v2.Volume;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import io.pravega.test.system.framework.services.Service;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
@@ -54,7 +54,7 @@ public abstract class MarathonBasedService implements Service {
     final String id;
     final Marathon marathonClient;
 
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
 
     MarathonBasedService(final String id) {
         this.id = id.toLowerCase(); //Marathon allows only lowercase ids.

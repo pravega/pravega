@@ -27,6 +27,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,6 +49,11 @@ public class MetricsLogAppenderTests {
                                                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                                                 .build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
+    }
+
+    @After
+    public void tearDown() {
+        MetricsProvider.getMetricsProvider().close();
     }
 
     /**

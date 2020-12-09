@@ -12,6 +12,7 @@ package io.pravega.cli.admin.bookkeeper;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -20,16 +21,6 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.test.common.AssertExtensions;
-import lombok.Cleanup;
-import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -42,8 +33,17 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
+import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -214,8 +214,10 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         @Cleanup
         CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(zkUtil.getZooKeeperConnectString(), new RetryOneTime(5000));
         curatorFramework.start();
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "bk-test");
         @Cleanup
-        BookKeeperLogFactory bookKeeperLogFactory = new BookKeeperLogFactory(bookKeeperConfig, curatorFramework, Executors.newSingleThreadScheduledExecutor());
+        BookKeeperLogFactory bookKeeperLogFactory = new BookKeeperLogFactory(bookKeeperConfig, curatorFramework, executorService);
         bookKeeperLogFactory.initialize();
         @Cleanup
         DurableDataLog log = bookKeeperLogFactory.createDurableDataLog(logId);

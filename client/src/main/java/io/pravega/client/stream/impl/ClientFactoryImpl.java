@@ -56,14 +56,14 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
@@ -150,9 +150,15 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         NameUtils.validateWriterId(writerId);
         log.info("Creating writer: {} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
-                + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
+        ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100,
+                "ScalingRetransmission-" + stream.getScopedName());
+        try {
+            return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionPool.getInternalExecutor());
+        } catch (Throwable ex) {
+            // Make sure we shut down the pool if we can't use it.
+            ExecutorServiceHelpers.shutdown(retransmitPool);
+            throw ex;
+        }
     }
 
     @Override
