@@ -14,6 +14,13 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Supplier;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -22,22 +29,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.time.Duration;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
-
 import static org.junit.Assert.assertEquals;
 
-public class ZkGarbageCollectorTest {
+public class ZkGarbageCollectorTest extends ThreadPooledTestSuite {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 2;
+    }
 
     @Before
     public void setup() throws Exception {
@@ -47,19 +49,17 @@ public class ZkGarbageCollectorTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        executor = Executors.newScheduledThreadPool(2);
     }
 
     @After
     public void cleanupTaskStore() throws IOException {
         cli.close();
         zkServer.close();
-        executor.shutdown();
     }
     
     @Test(timeout = 30000)
     public void testGC() {
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
         String gcName = "testGC";
         Duration gcPeriod = Duration.ofSeconds(2);
         Duration delta = Duration.ofMillis(100);
@@ -79,7 +79,7 @@ public class ZkGarbageCollectorTest {
         assertEquals(0, gc2.getLatestBatch());
 
         // verify that only gc1's gcwork is called because it is the leader. gc2 is never called
-        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        Futures.delayedFuture(gcPeriod.plus(delta), executorService()).join();
 
         gc1.fetchVersion().join();
         gc2.fetchVersion().join();
@@ -91,7 +91,7 @@ public class ZkGarbageCollectorTest {
         queue.add(Futures.failedFuture(new RuntimeException()));
 
         // the processing should not fail and gc should happen in the next period. 
-        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        Futures.delayedFuture(gcPeriod.plus(delta), executorService()).join();
         // at least one of the three GC will be able to take the guard and run the periodic processing.
         // add some delay
         assertEquals(2, gc1.getLatestBatch());
@@ -101,7 +101,7 @@ public class ZkGarbageCollectorTest {
         queue.add(Futures.failedFuture(StoreException.create(StoreException.Type.CONNECTION_ERROR, "store connection")));
 
         // the processing should not fail and gc should happen in the next period. 
-        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        Futures.delayedFuture(gcPeriod.plus(delta), executorService()).join();
         assertEquals(3, gc1.getLatestBatch());
         assertEquals(3, gc2.getLatestBatch());
         queue.add(CompletableFuture.completedFuture(null));
@@ -110,7 +110,7 @@ public class ZkGarbageCollectorTest {
         gc1.stopAsync();
         gc1.awaitTerminated();
 
-        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        Futures.delayedFuture(gcPeriod.plus(delta), executorService()).join();
         gc2.fetchVersion().join();
         assertEquals(4, gc2.getLatestBatch());
         
@@ -133,7 +133,7 @@ public class ZkGarbageCollectorTest {
                 runningLatch.complete(null);
             }
         };
-        gc.addListener(listener, executor);
+        gc.addListener(listener, executorService());
         runningLatch.join();
     }
 }

@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -45,7 +44,6 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -120,6 +118,7 @@ public class MultiReadersEndToEndTest {
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SETUP_UTILS.getScope(), ClientConfig.builder()
                                                                                                   .controllerURI(SETUP_UTILS.getControllerUri()).build());
         streamNames.stream().forEach(stream -> {
+            @Cleanup
             EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(
                     stream, new IntegerSerializer(), EventWriterConfig.builder().build());
             for (Integer i = 0; i < NUM_TEST_EVENTS; i++) {
@@ -151,8 +150,8 @@ public class MultiReadersEndToEndTest {
                                               final String readerGroupName, final int numSegments) {
         ConcurrentLinkedQueue<Integer> read = new ConcurrentLinkedQueue<>();
         @Cleanup("shutdownNow")
-        final ExecutorService executorService = Executors.newFixedThreadPool(
-                numParallelReaders, new ThreadFactoryBuilder().setNameFormat("testreader-pool-%d").build());
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(
+                numParallelReaders, "testreader-pool");
         List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < numParallelReaders; i++) {
             futures.add(executorService.submit(() -> {
@@ -188,6 +187,7 @@ public class MultiReadersEndToEndTest {
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         int servicePort = TestUtils.getAvailableListenPort();
+        @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -198,6 +198,7 @@ public class MultiReadersEndToEndTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("scope");
         streamNames.stream().forEach(stream -> {
@@ -206,6 +207,7 @@ public class MultiReadersEndToEndTest {
                                        StreamConfiguration.builder()
                                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                        .build());
+            @Cleanup
             EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(stream,
                                                                                      new IntegerSerializer(),
                                                                                      EventWriterConfig.builder()

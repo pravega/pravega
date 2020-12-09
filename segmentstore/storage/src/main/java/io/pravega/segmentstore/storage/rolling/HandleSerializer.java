@@ -12,17 +12,15 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.StringTokenizer;
-import lombok.SneakyThrows;
 import lombok.val;
 
 /**
@@ -92,9 +90,8 @@ final class HandleSerializer {
      * @param handle The RollingSegmentHandle to serialize.
      * @return A ByteArraySegment with the serialization.
      */
-    @SneakyThrows(IOException.class)
     static ByteArraySegment serialize(RollingSegmentHandle handle) {
-        try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
+        try (ByteBufferOutputStream os = new ByteBufferOutputStream()) {
             //1. Policy Max Size.
             os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
             //2. Chunks.

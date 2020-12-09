@@ -23,9 +23,9 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -42,11 +42,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -69,7 +67,7 @@ import static org.mockito.Mockito.spy;
 public abstract class RequestSweeperTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework cli;
 
     private final String stream1 = "stream1";

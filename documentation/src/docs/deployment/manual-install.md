@@ -41,12 +41,12 @@ For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache
 
 ### Bookkeeper
 
-Pravega requires **Bookkeeper 4.9.2**. At least 3 Bookkeeper servers are recommended for a quorum.
+Pravega requires **Bookkeeper 4.11.1**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.9.2-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.9.2/bookkeeper-server-4.9.2-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.11.1-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.11.1/bookkeeper-server-4.11.1-bin.tar.gz).
 
-For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.9.2/getting-started).
-Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.9.2` directory.
+For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.11.1/getting-started/installation).
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.11.1` directory.
 
 #### Bookkeeper Configuration
 
@@ -85,7 +85,7 @@ Start the bookie as mentioned below:
 bin/bookkeeper bookie
 ```
 ### Running Bookkeeper with encryption enabled
-Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/latest/security/tls/).
+Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/4.11.1/security/tls/).
 
 ---
 # Installing Pravega
