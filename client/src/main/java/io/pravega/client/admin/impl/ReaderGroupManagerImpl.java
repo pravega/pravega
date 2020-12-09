@@ -48,6 +48,7 @@ import lombok.val;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
@@ -94,15 +95,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        synchronizer.setGroupName(groupName);
-        controller.createReaderGroup(groupName, segmentNum, config);
+        controller.createReaderGroup(groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), 0));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        val result = controller.deleteReaderGroup(groupName, segmentNum);
+        val result = getThrowingException(controller.deleteReaderGroup(groupName));
         if (result) {
             getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
                                          .thenCompose(b -> controller.deleteStream(scope,

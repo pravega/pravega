@@ -94,6 +94,25 @@ public class ReaderGroupState implements Revisioned {
     private final long generation;
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
+                     Map<Segment, Long> endSegments) {
+        Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
+        Preconditions.checkNotNull(revision);
+        Preconditions.checkNotNull(config);
+        Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
+        this.scopedSynchronizerStream = scopedSynchronizerStream;
+        this.config = config;
+        this.revision = revision;
+        this.checkpointState = new CheckpointState();
+        this.distanceToTail = new HashMap<>();
+        this.futureSegments = new HashMap<>();
+        this.assignedSegments = new HashMap<>();
+        this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
+        this.lastReadPosition = new HashMap<>(segmentsToOffsets);
+        this.endSegments = ImmutableMap.copyOf(endSegments);
+        this.generation = 0;
+    }
+
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments, long generation) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
@@ -478,7 +497,8 @@ public class ReaderGroupState implements Revisioned {
             @Override
             protected void declareVersions() {
                 version(0).revision(0, this::write00, this::read00)
-                          .revision(1, this::write01, this::read01);
+                          .revision(1, this::write01, this::read01)
+                          .revision(2, this::write02, this::read02);
             }
 
             private void read00(RevisionDataInput revisionDataInput,
@@ -536,6 +556,11 @@ public class ReaderGroupState implements Revisioned {
                                                                               e -> e.getValue())));
             }
 
+            private void read02(RevisionDataInput revisionDataInput,
+                                CompactReaderGroupStateBuilder builder) throws IOException {
+                builder.generation(revisionDataInput.readLong());
+            }
+
             private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
@@ -574,6 +599,10 @@ public class ReaderGroupState implements Revisioned {
                                             RevisionDataOutput::writeLong);
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
                 revisionDataOutput.writeMap(ranges, segmentSerializer, ReaderGroupState::writeRange);
+            }
+
+            private void write02(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeLong(object.generation);
             }
         }
     }

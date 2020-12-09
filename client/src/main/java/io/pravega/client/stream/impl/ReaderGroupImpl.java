@@ -37,15 +37,20 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
-import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
+import lombok.Cleanup;
+import lombok.Data;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -61,11 +66,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
-import lombok.Data;
-import lombok.SneakyThrows;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
@@ -201,7 +201,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
         synchronizer.fetchUpdates();
-        val result = controller.updateReaderGroup(config);
+        val result = getThrowingException(controller.updateReaderGroup(groupName, config));
         if (result) {
             synchronizer.fetchUpdates();
         }

@@ -24,22 +24,10 @@ import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.NoSuchScopeException;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.*;
 import io.pravega.shared.security.auth.Credentials;
-import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
@@ -259,6 +247,26 @@ public class ControllerImpl implements Controller {
                         return false;
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createReaderGroup(String groupName, ReaderGroupConfig config) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(String groupName) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateReaderGroup(String groupName, ReaderGroupConfig config) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupState> getReaderGroup(String groupName) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

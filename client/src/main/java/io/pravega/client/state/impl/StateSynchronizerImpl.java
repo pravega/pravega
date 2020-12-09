@@ -9,8 +9,8 @@
  */
 package io.pravega.client.state.impl;
 
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 
-import lombok.Setter;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.val;
@@ -39,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 import static java.lang.String.format;
 
@@ -106,9 +106,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             }
             val groupName = segment.getStreamName().replace(READER_GROUP_STREAM_PREFIX, "");
             val clientState = (ReaderGroupState) this.getState();
-            val controllerState = controller.getReaderGroup(groupName);
-            val config = controllerState.config;
-            val gen = controllerState.generation;
+            val controllerState = getThrowingException(controller.getReaderGroup(groupName));
+            val config = controllerState.getConfig();
+            val gen = controllerState.getGeneration();
             if (clientState.getGeneration() < gen) {
                 Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
                 this.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), gen));
