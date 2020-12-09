@@ -119,9 +119,11 @@ public class ControllerWatermarkingTest {
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
         
+        @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
         RevisionedStreamClient<Watermark> reader = clientFactory.createRevisionedStreamClient(markStream,
                                                                                               new WatermarkSerializer(),
                                                                                               SynchronizerConfig.builder().build());

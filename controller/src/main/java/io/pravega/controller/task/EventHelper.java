@@ -20,8 +20,6 @@ import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Class with methods related to publishing/tracking completion of events to event processor framework.
@@ -72,7 +71,10 @@ public class EventHelper implements AutoCloseable {
 
     @VisibleForTesting
     public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
-        requestEventWriterRef.set(requestEventWriter);
+        EventStreamWriter<ControllerEvent> oldWriter = requestEventWriterRef.getAndSet(requestEventWriter);
+        if (oldWriter != null) {
+            oldWriter.close();
+        }
         writerInitFuture.complete(null);
     }
 
@@ -192,7 +194,7 @@ public class EventHelper implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (!writerInitFuture.isDone()) {
             writerInitFuture.cancel(true);
         }

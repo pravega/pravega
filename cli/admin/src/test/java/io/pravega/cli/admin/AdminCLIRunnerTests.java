@@ -9,19 +9,22 @@
  */
 package io.pravega.cli.admin;
 
-import org.junit.Test;
-
 import java.io.IOException;
+import java.util.Arrays;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.Test;
 
 public class AdminCLIRunnerTests {
 
     @Test
     public void testWrongExecCommandInputs() throws IOException {
-        AdminCLIRunner.processCommand("", new AdminCommandState());
-        AdminCLIRunner.processCommand("fakecommand", new AdminCommandState());
-        AdminCLIRunner.processCommand("scope fakeoption", new AdminCommandState());
-        AdminCLIRunner.processCommand("help", new AdminCommandState());
-        AdminCLIRunner.processCommand("controller describe-scope 1 2 3", new AdminCommandState());
+        val commands = Arrays.asList("", "fakecommand", "scope fakeoption", "help", "controller describe-scope 1 2 3");
+        for (val cmd : commands) {
+            @Cleanup
+            val state = new AdminCommandState();
+            AdminCLIRunner.processCommand(cmd, state);
+        }
     }
 
     @Test

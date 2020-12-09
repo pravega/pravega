@@ -24,16 +24,15 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTOperationContext;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.stream.StoreException;
-
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
-
+import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -41,8 +40,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
@@ -99,7 +96,9 @@ public class TableMetadataTasks implements AutoCloseable {
     @Synchronized
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
-
+        if (this.eventHelper != null) {
+            this.eventHelper.close();
+        }
         this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
                 EventWriterConfig.builder().build()), this.executor, this.eventExecutor, hostId,
@@ -271,7 +270,9 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
-        eventHelper.close();
+    public void close() {
+        if (eventHelper != null) {
+            eventHelper.close();
+        }
     }
 }

@@ -89,6 +89,7 @@ public class ClientFactoryTest {
         when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outStream);
 
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, writer.getConfig());
     }
@@ -105,8 +106,10 @@ public class ClientFactoryTest {
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
 
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, writer.getConfig());
+        writer.close();
     }
 
     @Test

@@ -27,12 +27,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
@@ -50,11 +50,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.Synchronized;
@@ -97,7 +97,7 @@ public class WatermarkWorkflowTest {
 
         zkClient.start();
 
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
         streamMetadataStore = StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),
                                                                           GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
@@ -270,6 +270,7 @@ public class WatermarkWorkflowTest {
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         String markStreamName = NameUtils.getMarkStreamForStream(streamName);
 
+        @Cleanup
         MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
         doAnswer(x -> revisionedClient).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
         doNothing().when(clientFactory).close();
@@ -287,6 +288,7 @@ public class WatermarkWorkflowTest {
         AssertExtensions.assertThrows("constructor should throw", 
                 () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
         
+        @Cleanup
         PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
         streamMetadataStore.createScope(scope).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
@@ -326,6 +328,7 @@ public class WatermarkWorkflowTest {
             });
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
+        @Cleanup
         PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
 
         String streamName = "stream";
@@ -489,7 +492,8 @@ public class WatermarkWorkflowTest {
             return revisionedStreamClientMap.compute(name, (s, rsc) -> new MockRevisionedStreamClient(() -> 
                     streamMetadataStore.getActiveSegments(scope, name, null, executor).join().get(0).segmentId()));
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
-        
+
+        @Cleanup
         PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
 
         streamMetadataStore.createScope(scope).join();
@@ -566,6 +570,7 @@ public class WatermarkWorkflowTest {
 
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
+        @Cleanup
         PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, sp -> clientFactory, executor);
 
         String streamName = "stream";

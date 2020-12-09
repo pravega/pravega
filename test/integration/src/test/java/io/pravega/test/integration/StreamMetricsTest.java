@@ -12,13 +12,13 @@ package io.pravega.test.integration;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -40,21 +40,19 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
@@ -73,7 +71,7 @@ public class StreamMetricsTest {
     private ServiceBuilder serviceBuilder = null;
     private AutoScaleMonitor monitor = null;
     private int controllerPort;
-    private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
 
     @Before
     public void setup() throws Exception {

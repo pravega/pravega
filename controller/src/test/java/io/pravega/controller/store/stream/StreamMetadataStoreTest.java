@@ -38,16 +38,6 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
-import static io.pravega.shared.NameUtils.computeSegmentId;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -64,11 +54,18 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -91,7 +88,7 @@ public abstract class StreamMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected BucketStore bucketStore;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
     protected final String stream2 = "stream2";

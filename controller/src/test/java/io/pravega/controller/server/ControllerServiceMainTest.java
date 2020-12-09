@@ -19,6 +19,7 @@ import io.pravega.controller.util.Config;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -81,6 +82,7 @@ public abstract class ControllerServiceMainTest {
     
     @Test(timeout = 10000)
     public void mainShutdownTest() {
+        @Cleanup
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 MockControllerServiceStarter::new);
 
@@ -95,6 +97,7 @@ public abstract class ControllerServiceMainTest {
     
     @Test(timeout = 10000)
     public void testControllerServiceMainStartStop() {
+        @Cleanup
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 MockControllerServiceStarter::new);
 

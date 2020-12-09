@@ -48,6 +48,7 @@ public class ControllerStreamMetadataTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
+    private ServiceBuilder serviceBuilder;
     private StreamConfiguration streamConfiguration = null;
 
     @Before
@@ -62,7 +63,7 @@ public class ControllerStreamMetadataTest {
             this.zkTestServer = new TestingServerStarter().start();
 
             // 2. Start Pravega service.
-            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             TableStore tableStore = serviceBuilder.createTableStoreService();
@@ -94,6 +95,10 @@ public class ControllerStreamMetadataTest {
             if (this.server != null) {
                 this.server.close();
                 this.server = null;
+            }
+            if (this.serviceBuilder != null) {
+                this.serviceBuilder.close();
+                this.serviceBuilder = null;
             }
             if (this.zkTestServer != null) {
                 this.zkTestServer.close();

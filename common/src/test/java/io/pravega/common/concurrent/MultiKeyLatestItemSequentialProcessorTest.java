@@ -16,8 +16,6 @@ import io.pravega.test.common.InlineExecutor;
 import java.util.Vector;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -41,7 +39,7 @@ public class MultiKeyLatestItemSequentialProcessorTest {
     @Test
     public void testSkipsOverItemsSingleKey() throws InterruptedException {
         @Cleanup("shutdown")
-        ExecutorService pool = Executors.newFixedThreadPool(1);
+        ExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         ReusableLatch startedLatch = new ReusableLatch(false);
         ReusableLatch latch = new ReusableLatch(false);
         Vector<String> processed = new Vector<>();
@@ -57,15 +55,14 @@ public class MultiKeyLatestItemSequentialProcessorTest {
         processor.updateItem("k", "c");
         startedLatch.await();
         latch.release();
-        pool.shutdown();
-        pool.awaitTermination(5, TimeUnit.SECONDS);
+        ExecutorServiceHelpers.shutdown(pool);
         assertEquals(ImmutableList.of("a", "c"), processed);
     }
 
     @Test
     public void testSkipsOverItemsMultipleKey() throws InterruptedException {
         @Cleanup("shutdown")
-        ExecutorService pool = Executors.newFixedThreadPool(1);
+        ExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         ReusableLatch startedLatch = new ReusableLatch(false);
         ReusableLatch latch = new ReusableLatch(false);
         Vector<String> processed = new Vector<>();
@@ -84,15 +81,14 @@ public class MultiKeyLatestItemSequentialProcessorTest {
         processor.updateItem("k1", "z");
         startedLatch.await();
         latch.release();
-        pool.shutdown();
-        pool.awaitTermination(5, TimeUnit.SECONDS);
+        ExecutorServiceHelpers.shutdown(pool);
         assertEquals(ImmutableList.of("a", "c", "x", "z"), processed);
     }
 
     @Test
-    public void testNotCalledInParallel() throws InterruptedException {
+    public void testNotCalledInParallel() {
         @Cleanup("shutdown")
-        ExecutorService pool = Executors.newFixedThreadPool(2);
+        ExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
         CountDownLatch parCheck = new CountDownLatch(2);
         ReusableLatch latch = new ReusableLatch(false);
         MultiKeyLatestItemSequentialProcessor<String, String> processor = new MultiKeyLatestItemSequentialProcessor<>(
@@ -106,14 +102,13 @@ public class MultiKeyLatestItemSequentialProcessorTest {
         processor.updateItem("k", "c");
         AssertExtensions.assertBlocks(() -> parCheck.await(), () -> parCheck.countDown());
         latch.release();
-        pool.shutdown();
-        pool.awaitTermination(5, TimeUnit.SECONDS);
+        ExecutorServiceHelpers.shutdown(pool);
     }
 
     @Test
-    public void testMultipleKeyParallelInvocation() throws InterruptedException {
+    public void testMultipleKeyParallelInvocation() {
         @Cleanup("shutdown")
-        ExecutorService pool = Executors.newFixedThreadPool(2);
+        ExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
 
         CountDownLatch key1Check = new CountDownLatch(2);
         CountDownLatch key2Check = new CountDownLatch(2);
@@ -140,7 +135,6 @@ public class MultiKeyLatestItemSequentialProcessorTest {
         AssertExtensions.assertBlocks(() -> key1Check.await(), () -> key1Check.countDown());
         AssertExtensions.assertBlocks(() -> key2Check.await(), () -> key2Check.countDown());
         latch.release();
-        pool.shutdown();
-        pool.awaitTermination(5, TimeUnit.SECONDS);
+        ExecutorServiceHelpers.shutdown(pool);
     }
 }

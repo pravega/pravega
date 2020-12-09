@@ -33,15 +33,12 @@ import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.test.common.TestingServerStarter;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -90,7 +87,7 @@ public class ControllerClusterListenerTest {
         curatorClient.start();
 
         // 3. Start executor service.
-        executor = Executors.newScheduledThreadPool(5);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
         // 4. start cluster event listener
         clusterZK = new ClusterZKImpl(curatorClient, ClusterType.CONTROLLER);
@@ -113,7 +110,7 @@ public class ControllerClusterListenerTest {
     @After
     public void shutdown() throws Exception {
         clusterZK.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
+        ExecutorServiceHelpers.shutdown(executor);
         curatorClient.close();
         zkServer.close();
     }

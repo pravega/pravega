@@ -13,6 +13,7 @@ import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -23,23 +24,21 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -61,7 +60,7 @@ public class PravegaTablesStoreHelperTest {
 
     @Before
     public void setup() throws Exception {
-        executor = Executors.newScheduledThreadPool(5);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
@@ -69,7 +68,7 @@ public class PravegaTablesStoreHelperTest {
     
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     @Test

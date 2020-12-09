@@ -63,6 +63,7 @@ public class ClusterZKTest {
         LinkedBlockingQueue<Exception> exceptionsQueue = new LinkedBlockingQueue<>();
 
         //ClusterListener for testing purposes
+        @Cleanup
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
                 .retryPolicy(new ExponentialBackoffRetry(
@@ -88,6 +89,7 @@ public class ClusterZKTest {
             }
         });
 
+        @Cleanup
         CuratorFramework client = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
                 .retryPolicy(new ExponentialBackoffRetry(
@@ -120,6 +122,7 @@ public class ClusterZKTest {
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
         LinkedBlockingQueue<Exception> exceptionsQueue = new LinkedBlockingQueue<>();
 
+        @Cleanup
         CuratorFramework client2 = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
                 .retryPolicy(new ExponentialBackoffRetry(
@@ -145,6 +148,7 @@ public class ClusterZKTest {
             }
         });
 
+        @Cleanup
         CuratorFramework client = CuratorFrameworkFactory.builder()
                 .connectString(zkUrl)
                 .retryPolicy(new ExponentialBackoffRetry(

@@ -13,7 +13,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -23,12 +22,13 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
-
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
@@ -62,7 +62,8 @@ public abstract class ControllerServiceStarterTest {
     @Test
     public void testStartStop() throws URISyntaxException {
         Assert.assertNotNull(storeClient);
-        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient, 
+        @Cleanup
+        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient,
                 SegmentHelperMock.getSegmentHelperMockForTables(executor));
         starter.startAsync();
         starter.awaitRunning();
