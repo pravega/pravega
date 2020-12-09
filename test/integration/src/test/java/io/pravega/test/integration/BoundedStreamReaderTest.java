@@ -21,8 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -87,12 +85,15 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
         super.before();
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -114,7 +115,6 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -273,7 +273,7 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
                 ReaderConfig.builder().build());
         assertNull(reader2.readNextEvent(100).getEvent());
-        readerGroup.initiateCheckpoint("c1", executor);
+        readerGroup.initiateCheckpoint("c1", executorService());
         readAndVerify(reader2, 3, 4, 5);
         Assert.assertNull("Null is expected", reader2.readNextEvent(2000).getEvent());
     }
@@ -382,7 +382,7 @@ public class BoundedStreamReaderTest extends LeakDetectorTestSuite {
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executor).getFuture().get());
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executorService()).getFuture().get());
     }
 
     private void truncateStream(final String streamName, final StreamCut streamCut) throws Exception {

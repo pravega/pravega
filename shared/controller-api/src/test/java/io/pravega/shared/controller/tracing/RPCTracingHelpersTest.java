@@ -20,6 +20,7 @@ import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.netty.NettyChannelBuilder;
 import io.pravega.common.tracing.RequestTracker;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -47,6 +48,7 @@ public class RPCTracingHelpersTest {
         ClientCall.Listener<Object> listener = Mockito.mock(ClientCall.Listener.class);
         ServerCall serverCall = Mockito.mock(ServerCall.class);
         ServerCallHandler serverCallHandler = Mockito.mock(ServerCallHandler.class);
+        @Cleanup("shutdown")
         ManagedChannel channel = NettyChannelBuilder.forTarget("localhost").build();
         MethodDescriptor method = MethodDescriptor.newBuilder()
                                                   .setFullMethodName("createStream")

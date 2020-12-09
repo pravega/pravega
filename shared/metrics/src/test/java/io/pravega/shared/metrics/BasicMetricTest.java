@@ -11,6 +11,7 @@ package io.pravega.shared.metrics;
 
 import io.pravega.shared.MetricsTags;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,6 +33,11 @@ public class BasicMetricTest {
                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
+    }
+
+    @After
+    public void tearDown() {
+        MetricsProvider.getMetricsProvider().close();
     }
 
     @Test

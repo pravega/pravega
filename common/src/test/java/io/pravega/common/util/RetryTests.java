@@ -15,9 +15,9 @@ import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
@@ -234,12 +234,14 @@ public class RetryTests {
     @Test
     public void retryIndefiniteTest() throws ExecutionException, InterruptedException {
         AtomicInteger i = new AtomicInteger(0);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService pool = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         Retry.indefinitelyWithExpBackoff(10, 10, 10, e -> i.getAndIncrement())
                 .runAsync(() -> CompletableFuture.runAsync(() -> {
                     if (i.get() < 10) {
                         throw new RuntimeException("test");
                     }
-                }), Executors.newSingleThreadScheduledExecutor()).get();
+                }), pool).get();
         assert i.get() == 10;
     }
 
