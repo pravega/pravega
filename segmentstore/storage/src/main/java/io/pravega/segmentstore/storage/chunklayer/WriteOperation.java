@@ -268,8 +268,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     didSegmentLayoutChange = true;
                     chunksAddedCount.incrementAndGet();
 
-                    log.debug("{} write - New chunk added - segment={}, chunk={}, offset={}.",
-                            chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
+                    log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
+                            chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -323,7 +323,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         if (isFirstWriteAfterFailover) {
             segmentMetadata.setOwnerEpoch(chunkedSegmentStorage.getEpoch());
             segmentMetadata.setOwnershipChanged(false);
-            log.debug("{} write - First write after failover - segment={}.", chunkedSegmentStorage.getLogPrefix(), segmentMetadata.getName());
+            log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
         segmentMetadata.incrementChunkCount();
 
