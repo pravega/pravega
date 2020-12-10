@@ -175,8 +175,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         // Find the first chunk that contains the data.
         startOffsetForCurrentChunk.set(segmentMetadata.getFirstChunkStartOffset());
         val readIndexTimer = new Timer();
-
-        if (offset > segmentMetadata.getLastChunkStartOffset()) {
+        if (offset >= segmentMetadata.getLastChunkStartOffset()) {
             startOffsetForCurrentChunk.set(segmentMetadata.getLastChunkStartOffset());
             currentChunkName = segmentMetadata.getLastChunk();
         } else {
