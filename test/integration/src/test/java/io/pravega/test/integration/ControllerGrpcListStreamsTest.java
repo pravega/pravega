@@ -57,7 +57,7 @@ public class ControllerGrpcListStreamsTest {
         // Arrange
         @Cleanup
         ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
         String scopeName = "test-scope";
 
         ClientConfig clientConfig = ClientConfig.builder()
@@ -80,7 +80,7 @@ public class ControllerGrpcListStreamsTest {
                 .authEnabled(true)
                 .tokenTtlInSeconds(600)
                 .build();
-        cluster.initialize();
+        cluster.start();
         String scopeName = "test-scope";
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
@@ -108,7 +108,7 @@ public class ControllerGrpcListStreamsTest {
                 .passwordAuthHandlerEntries(this.preparePasswordInputFileEntries(passwordInputFileEntries))
                 .build();
 
-        cluster.initialize();
+        cluster.start();
         String scopeName = "scope1";
 
         this.createStreams(ClientConfig.builder()
@@ -134,7 +134,7 @@ public class ControllerGrpcListStreamsTest {
         try {
             // Arrange
             cluster = ClusterWrapper.builder().authEnabled(true).build();
-            cluster.initialize();
+            cluster.start();
             String scopeName = "test-scope";
             this.createStreams(ClientConfig.builder()
                                 .controllerURI(URI.create(cluster.controllerUri()))
