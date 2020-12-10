@@ -1759,7 +1759,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     public void testTruncateWithFailover() throws Exception {
         String testSegmentName = "foo";
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .garbageCollectionFrequencyInSeconds(0)
+                .garbageCollectionDelay(Duration.ZERO)
                 .build();
         TestContext testContext = getTestContext(config);
 
@@ -1796,12 +1796,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("openWrite() allowed after fencing",
                 oldTestCotext.chunkedSegmentStorage.openWrite(testSegmentName),
                 ex -> ex instanceof StorageNotPrimaryException);
-        /*
         AssertExtensions.assertFutureThrows("openRead() allowed after fencing",
                 oldTestCotext.chunkedSegmentStorage.openRead(testSegmentName),
                 ex -> ex instanceof StorageNotPrimaryException);
 
-         */
     }
 
     // Very useful test, but takes couple seconds.

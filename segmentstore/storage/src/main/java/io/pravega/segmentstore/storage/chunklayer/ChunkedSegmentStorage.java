@@ -175,8 +175,8 @@ public class ChunkedSegmentStorage implements Storage {
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
         return this.systemJournal.bootstrap(epoch)
-                .thenRunAsync(() -> garbageCollector.initialize())
-                .thenRunAsync(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix), executor);
+                .thenRun(() -> garbageCollector.initialize())
+                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
     }
 
     @Override
@@ -253,7 +253,7 @@ public class ChunkedSegmentStorage implements Storage {
                                     Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
                                     Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
                                     // Mark chunk as "not garbage" if present.
-                                    garbageCollector.removeFromGarbage(lastChunkName);
+                                    //garbageCollector.removeFromGarbage(lastChunkName);
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
@@ -492,11 +492,10 @@ public class ChunkedSegmentStorage implements Storage {
                                 .thenRunAsync(() -> txn.delete(streamSegmentName), executor)
                                 .thenComposeAsync(v ->
                                         txn.commit()
-                                                .thenComposeAsync(vv -> {
-                                                    // Collect garbage.
-                                                    return garbageCollector.addToGarbage(chunksToDelete);
-                                                }, executor)
                                                 .thenRunAsync(() -> {
+                                                    // Collect garbage
+                                                    garbageCollector.addToGarbage(chunksToDelete);
+
                                                     // Update the read index.
                                                     readIndexCache.remove(streamSegmentName);
 

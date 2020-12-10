@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -327,7 +328,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         String testSegmentName = "test";
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                .garbageCollectionFrequencyInSeconds(0)
+                .garbageCollectionDelay(Duration.ZERO)
                 .build();
 
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
@@ -359,7 +360,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .defaultRollingPolicy(policy)
-                .garbageCollectionFrequencyInSeconds(0)
+                .garbageCollectionDelay(Duration.ZERO)
                 .build();
 
         BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));

@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.metadata;
 /**
  * Class that defines various constants.
  */
-public final class Constants {
+final class Constants {
     /**
      * Flag to indicate whether the chunk or segment is active or not.
      */

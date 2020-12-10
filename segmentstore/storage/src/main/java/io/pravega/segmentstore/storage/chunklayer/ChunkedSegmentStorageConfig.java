@@ -19,6 +19,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.time.Duration;
+
 /**
  * Configuration for {@link ChunkedSegmentStorage}.
  */
@@ -38,6 +40,9 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_CONCURRENCY = Property.named("garbage.collection.concurrency", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
+
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -54,8 +59,10 @@ public class ChunkedSegmentStorageConfig {
             .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
-            .garbageCollectionFrequencyInSeconds(60)
+            .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionConcurrency(10)
+            .garbageCollectionMaxQueueSize(16 * 1024)
+            .garbageCollectionSleep(Duration.ofSeconds(60))
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -132,7 +139,7 @@ public class ChunkedSegmentStorageConfig {
      * Minimum delay in seconds between when garbage chunks are marked for deletion and actually deleted.
      */
     @Getter
-    final private int garbageCollectionFrequencyInSeconds;
+    final private Duration garbageCollectionDelay;
 
     /**
      * Number of chunks deleted concurrently.
@@ -140,6 +147,19 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private int garbageCollectionConcurrency;
+
+    /**
+     * Max size of garbage collection queue.
+     */
+    @Getter
+    final private int garbageCollectionMaxQueueSize;
+
+    /**
+     * Duration for which garbage collector sleeps if there is no work.
+     */
+    @Getter
+    final private Duration garbageCollectionSleep;
+
 
     /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
@@ -159,8 +179,10 @@ public class ChunkedSegmentStorageConfig {
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
-        this.garbageCollectionFrequencyInSeconds = properties.getInt(GARBAGE_COLLECTION_DELAY);
+        this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionConcurrency = properties.getInt(GARBAGE_COLLECTION_CONCURRENCY);
+        this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
+        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
     }
 
     /**
