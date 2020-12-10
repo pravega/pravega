@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.ByteArrayInputStream;
@@ -94,6 +95,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * </li>
  * </ul>
  */
+@Slf4j
 class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final MetadataTransaction txn;
     private final SegmentMetadata segmentMetadata;
@@ -152,11 +154,17 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                     if (null != ex) {
                                         ex = Exceptions.unwrap(ex);
                                         if (ex instanceof InvalidOffsetException) {
-                                            // Skip ahead by 1 chunk.
-                                            targetChunkName = chunksToConcat.get(1).getName();
-                                            chunksToConcat.clear();
-                                            skipFailed.set(true);
-                                            return null;
+                                            val invalidEx = (InvalidOffsetException) ex;
+                                            if (invalidEx.getExpectedOffset() > invalidEx.getGivenOffset()) {
+                                                // Skip ahead by 1 chunk.
+                                                targetChunkName = chunksToConcat.get(1).getName();
+                                                chunksToConcat.clear();
+                                                skipFailed.set(true);
+                                                log.debug("{} defrag - skipping partially written chunk op={}, {}",
+                                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                                        invalidEx.getMessage());
+                                                return null;
+                                            }
                                         }
                                         throw new CompletionException(ex);
                                     }

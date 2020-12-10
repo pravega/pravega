@@ -32,6 +32,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -1459,9 +1460,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             testContext.chunkStorage.write(ChunkHandle.writeHandle(chunkMetadata.getName()), chunkMetadata.getLength(), 1, new ByteArrayInputStream(new byte[1]));
         }
         val hTarget = testContext.chunkedSegmentStorage.openWrite(targetSegmentName).get();
-        testContext.chunkedSegmentStorage.concat(hTarget, 5, sourceSegmentName, null).join();
+        val concatAt = Arrays.stream(targetLayoutBefore).sum();
+        testContext.chunkedSegmentStorage.concat(hTarget, concatAt, sourceSegmentName, null).join();
         val list = TestUtils.getChunkList(testContext.metadataStore, targetSegmentName);
-        checkDataRead(targetSegmentName, testContext, 0, 15);
+        checkDataRead(targetSegmentName, testContext, 0, expectedLength);
         TestUtils.checkSegmentLayout(testContext.metadataStore, targetSegmentName, targetLayoutAfter);
         TestUtils.checkSegmentBounds(testContext.metadataStore, targetSegmentName, 0, expectedLength);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, targetSegmentName);
