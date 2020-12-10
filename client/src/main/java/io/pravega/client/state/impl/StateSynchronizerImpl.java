@@ -9,8 +9,6 @@
  */
 package io.pravega.client.state.impl;
 
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
@@ -19,27 +17,20 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.util.Retry;
+import lombok.Synchronized;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import javax.annotation.concurrent.GuardedBy;
 
-import lombok.Synchronized;
-import lombok.ToString;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
-import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
-import static io.pravega.common.concurrent.Futures.getThrowingException;
-import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 import static java.lang.String.format;
 
 @Slf4j
@@ -52,7 +43,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @GuardedBy("$lock")
     private StateT currentState;
     private Segment segment;
-    private Controller controller;
 
     /**
      * Creates a new instance of StateSynchronizer class.
@@ -60,10 +50,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
      * @param segment The segment.
      * @param client  The revisioned stream client this state synchronizer builds upon."
      */
-    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client, Controller controller) {
+    public StateSynchronizerImpl(Segment segment, RevisionedStreamClient<UpdateOrInit<StateT>> client) {
         this.segment = segment;
         this.client = client;
-        this.controller = controller;
     }
 
     @Override
@@ -103,15 +92,6 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                 } else {
                     applyUpdates(entry.getKey().asImpl(), entry.getValue().getUpdates());
                 }
-            }
-            val groupName = segment.getStreamName().replace(READER_GROUP_STREAM_PREFIX, "");
-            val clientState = (ReaderGroupState) this.getState();
-            val controllerState = getThrowingException(controller.getReaderGroup(groupName));
-            val config = controllerState.getConfig();
-            val gen = controllerState.getGeneration();
-            if (clientState.getGeneration() < gen) {
-                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-                this.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), gen));
             }
         } catch (TruncatedDataException e) {
             log.info("{} encountered truncation on segment {}", this, segment);

@@ -42,6 +42,7 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
+import io.pravega.client.state.impl.ReaderGroupStateSynchronizer;
 import io.pravega.client.state.impl.RevisionedStreamClientImpl;
 import io.pravega.client.state.impl.StateSynchronizerImpl;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
@@ -189,8 +190,8 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         NameUtils.validateReaderId(readerId);
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(
-                NameUtils.getStreamForReaderGroup(readerGroup),
+        StateSynchronizer<ReaderGroupState> sync = createReaderGroupStateSynchronizer(
+                readerGroup,
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
                 synchronizerConfig);
@@ -236,7 +237,16 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config), controller);
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
+    }
+
+    private StateSynchronizer<ReaderGroupState> createReaderGroupStateSynchronizer(String readerGroup,
+                                                                        ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer updateSerializer,
+                                                                        ReaderGroupManagerImpl.ReaderGroupStateInitSerializer initialSerializer,
+                                                                        SynchronizerConfig config) {
+        String streamName = NameUtils.getStreamForReaderGroup(readerGroup);
+        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
+        return new ReaderGroupStateSynchronizer(readerGroup, sync, controller);
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {
