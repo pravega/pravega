@@ -99,7 +99,7 @@ public class ReadWithReadPermissionsTest {
                 .rgWritesWithReadPermEnabled(writeToInternalStreamsWithReadPermission)
                 .passwordAuthHandlerEntries(TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, pwd))
                 .build();
-        cluster.initialize();
+        cluster.start();
 
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
