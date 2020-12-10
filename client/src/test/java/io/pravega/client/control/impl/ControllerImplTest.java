@@ -76,8 +76,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
