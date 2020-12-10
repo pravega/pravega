@@ -1434,6 +1434,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 .minSizeLimitForConcat(100)
                 .build();
 
+        @Cleanup
         TestContext testContext = getTestContext(config);
         ((AbstractInMemoryChunkStorage) testContext.chunkStorage).setShouldSupportConcat(true);
 
