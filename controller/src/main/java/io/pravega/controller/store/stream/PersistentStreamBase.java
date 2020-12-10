@@ -1957,7 +1957,7 @@ public abstract class PersistentStreamBase implements Stream {
                     case ABORTED:
                     case UNKNOWN:
                         // Aborting, aborted, unknown and committed 
-                        log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
+                        log.debug("stale txn {} with status {}. removing {}", txnId, txnRecord.getTxnStatus(), order);
                         toPurge.add(order);
                         break;
                 }
