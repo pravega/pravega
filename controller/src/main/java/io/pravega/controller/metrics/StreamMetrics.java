@@ -47,12 +47,12 @@ import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_LATENCY;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_LATENCY;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_FAILED;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_FAILED;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_FAILED;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_FAILED;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
@@ -88,8 +88,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
-        addSubscriberLatency = STATS_LOGGER.createStats(ADD_SUBSCRIBER_LATENCY);
-        removeSubscriberLatency = STATS_LOGGER.createStats(REMOVE_SUBSCRIBER_LATENCY);
+        addSubscriberLatency = STATS_LOGGER.createStats(CREATE_READER_GROUP_LATENCY);
+        removeSubscriberLatency = STATS_LOGGER.createStats(DELETE_READER_GROUP_LATENCY);
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
@@ -324,9 +324,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param streamName    Name of the Stream.
      * @param latency       Latency of the addSubscriber operation.
      */
-    public void addReaderGroup(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER, 1, streamTags(scope, streamName));
+    public void createReaderGroup(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP, 1, streamTags(scope, streamName));
         addSubscriberLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -336,9 +336,9 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param scope         Scope Name.
      * @param streamName    Stream Name.
      */
-    public void addReaderGroupFailed(String scope, String streamName) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    public void createReaderGroupFailed(String scope, String streamName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP_FAILED, 1, streamTags(scope, streamName));
     }
 
     /**
@@ -350,8 +350,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param latency       Latency of the removeSubscriber operation.
      */
     public void deleteSubscriber(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, streamTags(scope, streamName));
         removeSubscriberLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -362,8 +362,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * @param streamName    Stream Name.
      */
     public void deleteSubscriberFailed(String scope, String streamName) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, streamTags(scope, streamName));
     }
 
     /**
