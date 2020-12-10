@@ -53,6 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -182,6 +183,17 @@ public class ControllerService {
                 .thenApplyAsync(status -> {
                     reportCreateReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
                     return CreateReaderGroupStatus.newBuilder().setStatus(status).build();
+                }, executor);
+    }
+
+    public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(String scope, String rgName) {
+        Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
+        Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
+        Timer timer = new Timer();
+        return streamMetadataTasks.getReaderGroupConfig(scope, rgName, null)
+                .thenApplyAsync(response -> {
+                    reportGetReaderGroupConfigMetrics(scope, rgName, response.getStatus(), timer.getElapsed());
+                    return response;
                 }, executor);
     }
 
@@ -662,6 +674,14 @@ public class ControllerService {
 
     private void reportCreateReaderGroupMetrics(String scope, String streamName, CreateReaderGroupStatus.Status status, Duration latency) {
         if (status.equals(CreateReaderGroupStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
+        } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
+        }
+    }
+
+    private void reportGetReaderGroupConfigMetrics(String scope, String streamName, ReaderGroupConfigResponse.Status status, Duration latency) {
+        if (status.equals(Controller.ReaderGroupConfigResponse.Status.SUCCESS)) {
             StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
         } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);

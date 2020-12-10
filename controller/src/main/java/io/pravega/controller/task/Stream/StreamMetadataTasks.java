@@ -20,6 +20,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -42,6 +43,8 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.RGOperationContext;
+import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -51,13 +54,10 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
-
-import io.pravega.controller.store.stream.ReaderGroupState;
-
-
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
@@ -68,6 +68,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
@@ -94,6 +98,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -101,7 +106,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -219,6 +223,58 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
+     * Get Reader Group Configuration.
+     *
+     * @param scope  Reader Group scope.
+     * @param rgName Reader Group name.
+     * @param contextOpt Reader Group context.
+     * @return creation status.
+     */
+    public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(final String scope, final String rgName,
+                                                                             RGOperationContext contextOpt) {
+        final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
+
+        return RetryHelper.withRetriesAsync(() -> {
+          // 1. check if scope with this name exists...
+          return streamMetadataStore.checkReaderGroupExists(scope, rgName)
+             .thenCompose(exists -> {
+               if (!exists) {
+                  return CompletableFuture.completedFuture(ReaderGroupConfigResponse.newBuilder()
+                                    .setConfig(ReaderGroupConfiguration.getDefaultInstance())
+                                    .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND).build());
+               }
+               return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
+                      .thenCompose(configRecord -> CompletableFuture.completedFuture(ReaderGroupConfigResponse.newBuilder()
+                                .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject()))
+                                .setStatus(ReaderGroupConfigResponse.Status.SUCCESS).build()));
+               });
+       }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private ReaderGroupConfiguration getRGConfigurationFromRecord(final String scope, final String rgName, final ReaderGroupConfigRecord record) {
+        List<StreamCut> startStreamCuts = record.getStartingStreamCuts().entrySet().stream()
+                .map(e -> StreamCut.newBuilder()
+                        .setStreamInfo(StreamInfo.newBuilder().setStream(Stream.of(e.getKey()).getStreamName())
+                                .setScope(Stream.of(e.getKey()).getScope()).build())
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+        List<StreamCut> endStreamCuts = record.getEndingStreamCuts().entrySet().stream()
+                .map(e -> StreamCut.newBuilder()
+                        .setStreamInfo(StreamInfo.newBuilder().setStream(Stream.of(e.getKey()).getStreamName())
+                                                              .setScope(Stream.of(e.getKey()).getScope()).build())
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+        return ReaderGroupConfiguration.newBuilder().setScope(scope).setReaderGroupName(rgName)
+          .setGroupRefreshTimeMillis(record.getGroupRefreshTimeMillis())
+          .setAutomaticCheckpointIntervalMillis(record.getAutomaticCheckpointIntervalMillis())
+          .setMaxOutstandingCheckpointRequest(record.getMaxOutstandingCheckpointRequest())
+          .setRetentionType(record.getRetentionTypeOrdinal())
+          .setGeneration(record.getGeneration())
+          .addAllStartingStreamCuts(startStreamCuts)
+          .addAllEndingStreamCuts(endStreamCuts)
+          .build();
+    }
+
+    /**
      * Create Reader Group.
      *
      * @param scope           Reader Group scope.
@@ -229,7 +285,6 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(final String scope, final String rgName,
                                                                                final ReaderGroupConfig config, long createTimestamp) {
-
     final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
     return RetryHelper.withRetriesAsync(() -> {
       // 1. check if scope with this name exists...

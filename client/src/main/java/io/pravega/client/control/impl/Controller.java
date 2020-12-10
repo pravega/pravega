@@ -133,6 +133,15 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
+     * API to get Reader Group Configuration.
+     * @param scope Scope name for Reader Group.
+     * @param rgName Stream name.
+     * @throws IllegalArgumentException if ReaderGroup does not exist.
+     * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
+     */
+    CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName);
+
+    /**
      * Get list of Subscribers for the Stream.
      * @param scope Scope name
      * @param streamName Stream name

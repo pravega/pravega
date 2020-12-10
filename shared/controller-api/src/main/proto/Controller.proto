@@ -55,6 +55,7 @@ service ControllerService {
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
     rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
+    rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
 }
 
 message ServerRequest {
@@ -79,6 +80,21 @@ message ReaderGroupConfiguration {
     int64 generation = 7;
     repeated StreamCut startingStreamCuts = 8;
     repeated StreamCut endingStreamCuts = 9;
+}
+
+message ReaderGroupConfigResponse {
+    ReaderGroupConfiguration config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+    }
+    Status status = 2;
+}
+
+message ReaderGroupInfo {
+    string scope = 1;
+    string readerGroup = 2;
 }
 
 message CreateReaderGroupStatus {

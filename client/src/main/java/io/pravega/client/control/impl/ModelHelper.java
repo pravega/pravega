@@ -40,6 +40,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 
@@ -505,6 +506,13 @@ public final class ModelHelper {
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {
         return createStreamInfo(scope, stream, null);
+    }
+
+    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(readerGroup, "readerGroup");
+        ReaderGroupInfo.Builder builder = ReaderGroupInfo.newBuilder().setScope(scope).setReaderGroup(readerGroup);
+        return builder.build();
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

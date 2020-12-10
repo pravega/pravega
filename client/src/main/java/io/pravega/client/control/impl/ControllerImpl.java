@@ -33,6 +33,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -98,6 +99,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
@@ -1554,6 +1557,44 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
         });
     }
+
+    @Override
+    public CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "streamName");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getReaderGroupConfig", scope, rgName, requestId);
+        final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
+
+        final CompletableFuture<ReaderGroupConfigResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ReaderGroupConfigResponse> callback = new RPCAsyncCallback<>(requestId, "getReaderGroupConfig", scope, rgName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getReaderGroupConfig", scope, rgName)
+                    .getReaderGroupConfig(ModelHelper.createReaderGroupInfo(scope, rgName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to get config for reader group: {}", scopedRGName);
+                    throw new ControllerFailureException("Failed to get config for reader group: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
+                    throw new InvalidStreamException("ReaderGroup does not exist: " + scopedRGName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "getReaderGroupConfig failed for Reader Group: ", scopedRGName, e);
+            }
+            LoggerHelpers.traceLeave(log, "getReaderGroupConfig", traceId, scope, rgName, requestId);
+        });
+    }
     // endregion
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
@@ -1720,9 +1761,14 @@ public class ControllerImpl implements Controller {
                     .deleteKeyValueTable(kvtInfo, callback);
         }
 
-        public void createReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<CreateReaderGroupStatus> callback) {
+        void createReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<CreateReaderGroupStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .createReaderGroup(rgConfig, callback);
+        }
+
+        void getReaderGroupConfig(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<ReaderGroupConfigResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .getReaderGroupConfig(readerGroupInfo, callback);
         }
     }
 }
