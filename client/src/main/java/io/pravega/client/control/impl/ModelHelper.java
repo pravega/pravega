@@ -13,10 +13,16 @@ import com.google.common.base.Preconditions;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -37,8 +43,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigurat
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 /**
@@ -261,15 +271,13 @@ public final class ModelHelper {
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
                                 streamCut.getStreamInfo().getStream()),
-                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream())
-                                              ,getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(),
-                                               streamCut.getCutMap())))))
+                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
+                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
                 .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
                                 streamCut.getStreamInfo().getStream()),
-                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream())
-                                        ,getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(),
-                                        streamCut.getCutMap())))))
+                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
+                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
                 .build();
     }
 

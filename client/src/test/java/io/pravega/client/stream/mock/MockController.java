@@ -22,6 +22,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
@@ -242,12 +243,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber, long generation) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Boolean> deleteSubscriber(String scope, String streamName, String subscriber, long generation) {
+    public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         throw new UnsupportedOperationException();
     }
 
