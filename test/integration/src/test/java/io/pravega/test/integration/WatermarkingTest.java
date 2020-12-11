@@ -100,7 +100,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void watermarkTest() throws Exception {
         @Cleanup
         final ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
 
         Controller controller = cluster.getController();
         String scope = "scope";
@@ -227,7 +227,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void recreateStreamWatermarkTest() throws Exception {
         @Cleanup
         final ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
 
         // in each iteration create stream, note times and let watermark be generated. 
         // then delete stream and move to next iteration and verify that watermarks are generated. 
@@ -281,7 +281,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void watermarkTxnTest() throws Exception {
         @Cleanup
         final ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
 
         Controller controller = cluster.getController();
         String scope = "scopeTx";
@@ -409,7 +409,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void progressingWatermarkWithWriterTimeouts() throws Exception {
         @Cleanup
         final ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
 
         String scope = "Timeout";
         String streamName = "Timeout";
@@ -525,7 +525,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 .passwordAuthHandlerEntries(
                         TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
                 .build();
-        cluster.initialize();
+        cluster.start();
         log.info("Cluster running");
 
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
