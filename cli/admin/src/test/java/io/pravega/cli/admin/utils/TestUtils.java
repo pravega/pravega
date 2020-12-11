@@ -58,6 +58,13 @@ public final class TestUtils {
         return "../../config/";
     }
 
+    /**
+     * Creates a local Pravega cluster to test on using {@link ClusterWrapper}.
+     *
+     * @param authEnabled whether accessing the cluster require authentication or not.
+     * @param tlsEnabled whether accessing the cluster require TLS or not.
+     * @return A local Pravega cluster
+     */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
         return ClusterWrapper.builder()
                 .authEnabled(authEnabled)
