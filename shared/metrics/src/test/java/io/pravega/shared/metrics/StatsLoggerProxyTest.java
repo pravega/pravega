@@ -67,6 +67,7 @@ public class StatsLoggerProxyTest {
         createMetrics(proxy, "", "hostname", "localhost");
         Assert.assertEquals("Unexpected number of metrics registered initially.", METRIC_COUNT * 2, metrics.size());
 
+        // Re-create/request the same metrics. Verify the original ones have not been touched.
         createMetrics(proxy, "");
         Assert.assertEquals("Unexpected number of metrics registered after re-registering same names.", 3 * METRIC_COUNT, metrics.size());
         Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
