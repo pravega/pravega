@@ -86,20 +86,13 @@ public class StatsLoggerProxy implements StatsLogger {
     private <T extends Metric, V extends MetricProxy<T>> V getOrSet(ConcurrentHashMap<String, V> cache, String name,
                                                                     Function<String, T> createMetric,
                                                                     ProxyCreator<T, V> createProxy, String... tags) {
-        // We could simply use Map.computeIfAbsent to do everything atomically, however in ConcurrentHashMap, the function
-        // is evaluated while holding the lock. As per the method's guidelines, the computation should be quick and not
-        // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
-        // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
-        // the newly created one.
         MetricsNames.MetricKey keys = metricKey(name, tags);
-        T newMetric = createMetric.apply(keys.getRegistryKey());
-        V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
-        V existingProxy = cache.putIfAbsent(newProxy.getProxyName(), newProxy);
-        if (existingProxy != null) {
-            newProxy.close();
-            newMetric.close();
-            return existingProxy;
+        if (cache.contains(keys.getCacheKey())) {
+            return cache.get(keys.getCacheKey());
         } else {
+            T newMetric = createMetric.apply(keys.getRegistryKey());
+            V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
+            cache.put(newProxy.getProxyName(), newProxy);
             return newProxy;
         }
     }
