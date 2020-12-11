@@ -109,7 +109,7 @@ public class ReadWithReadPermissionsTest {
                 .passwordAuthHandlerEntries(
                         TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, password))
                 .build();
-        cluster.initialize();
+        cluster.start();
 
         // Prepare a client config for "hello-rw", whose home scope is "marketdata"
         final ClientConfig writerClientConfig = ClientConfig.builder()
@@ -153,13 +153,6 @@ public class ReadWithReadPermissionsTest {
         String readMessage = reader.readNextEvent(500).getEvent();
 
         assertEquals("test message", readMessage);
-    }
-
-    @Test
-    public void test() {
-
-
-
     }
 
     @SneakyThrows

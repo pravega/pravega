@@ -55,7 +55,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -528,26 +527,28 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         cluster.start();
         log.info("Cluster running");
 
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
         ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials(userPassword, writerUserName))
                 .build();
 
         TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
-
-        Stream stream = Stream.of(scopeName, streamName);
+        log.info("Created scope {} and stream {}", scopeName, streamName);
 
         // create 2 writers
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
+        EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
         JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+
         @Cleanup
-        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(streamName, javaSerializer,
+        EventStreamWriter<Long> writer1 = writerClientFactory.createEventWriter(streamName, javaSerializer,
                 EventWriterConfig.builder().build());
+        log.info("Created writer1");
+
         @Cleanup
-        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(streamName, javaSerializer,
+        EventStreamWriter<Long> writer2 = writerClientFactory.createEventWriter(streamName, javaSerializer,
                 EventWriterConfig.builder().build());
+        log.info("Created writer2");
 
         AtomicBoolean stopFlag = new AtomicBoolean(false);
 
@@ -556,10 +557,14 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
 
         // scale the stream several times so that we get complex positions
-        scale(cluster.getController(), stream, config);
+        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        Stream stream = Stream.of(scopeName, streamName);
+        scale(cluster.getController(), stream, streamConfig);
+        log.info("Stream scaled");
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
+
         @Cleanup
         ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName,
                 new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
@@ -567,20 +572,24 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(streamName);
+        log.debug("markstream: {}", markStream);
 
         @Cleanup
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());
+        log.info("Created watermark reader");
 
         LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
         fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
         AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
 
         stopFlag.set(true);
 
         writer1Future.join();
         writer2Future.join();
+        log.info("Writing is all done");
 
         // Prepare a client config for "hello-rw", whose home scope is "marketdata"
         final ClientConfig readerClientConfig = ClientConfig.builder()
@@ -591,7 +600,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // Now read events from the stream
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-                // new ReaderGroupManagerImpl(scopeName, readerClientConfig, syncClientFactory);
+        log.info("Created reader group manager");
 
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
@@ -615,12 +624,17 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 .startingStreamCuts(firstMarkStreamCut)
                 .endingStreamCuts(secondMarkStreamCut)
                 .build());
+        log.info("Created reader group {}", readerGroupName);
 
         @Cleanup
-        final EventStreamReader<Long> reader = clientFactory.createReader(readerName,
+        EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scopeName, readerClientConfig);
+
+        @Cleanup
+        final EventStreamReader<Long> reader = readerClientFactory.createReader(readerName,
                 readerGroupName,
                 javaSerializer,
                 ReaderConfig.builder().build());
+        log.info("Created reader {}, in reader group name {}", reader, readerGroupName);
 
         EventRead<Long> event = reader.readNextEvent(10000L);
         TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(stream);
