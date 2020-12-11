@@ -41,14 +41,14 @@ interface ReaderGroup {
      *
      * @param configuration reader group configuration.
      * @param createTimestamp creation timestamp.
-     * @return boolean indicating success.
+     * @return void.
      */
     CompletableFuture<Void> create(final ReaderGroupConfig configuration, final long createTimestamp);
 
     /**
      * Deletes a Reader Group.
      *
-     * @return boolean indicating success.
+     * @return void.
      */
     CompletableFuture<Void> delete();
 

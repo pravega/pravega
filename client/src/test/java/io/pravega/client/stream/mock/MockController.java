@@ -248,6 +248,16 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> getReaderGroupConfig(String scope, String rgName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
         throw new UnsupportedOperationException();
     }

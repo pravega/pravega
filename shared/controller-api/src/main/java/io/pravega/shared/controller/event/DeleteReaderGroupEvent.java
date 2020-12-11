@@ -72,6 +72,5 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
             b.requestId(source.readLong());
         }
     }
-
     //endregion
 }

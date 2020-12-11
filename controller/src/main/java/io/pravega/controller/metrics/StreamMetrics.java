@@ -346,12 +346,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param streamName    Name of the Stream.
+     * @param rgName    Name of the Stream.
      * @param latency       Latency of the removeSubscriber operation.
      */
-    public void deleteSubscriber(String scope, String streamName, Duration latency) {
+    public void deleteReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP), 1);
-        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, streamTags(scope, rgName));
         removeSubscriberLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -359,11 +359,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
      *
      * @param scope         Scope Name.
-     * @param streamName    Stream Name.
+     * @param rgName    Stream Name.
      */
-    public void deleteSubscriberFailed(String scope, String streamName) {
+    public void deleteReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, streamTags(scope, rgName));
     }
 
     /**

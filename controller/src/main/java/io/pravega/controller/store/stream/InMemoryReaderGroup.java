@@ -58,6 +58,11 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
     }
 
     @Override
+    public CompletableFuture<Void> delete() {
+        return null;
+    }
+
+    @Override
     public void refresh() {
 
     }

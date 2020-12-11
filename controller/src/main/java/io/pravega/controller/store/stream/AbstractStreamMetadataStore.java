@@ -999,6 +999,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scopeName, final String rgName,
+                                                     final RGOperationContext context, final Executor executor) {
+        return getReaderGroup(scopeName, rgName, context).delete();
+    }
+
+
+    @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
                                                                                 final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
                                                                                 final RGOperationContext context, final Executor executor) {

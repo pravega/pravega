@@ -176,8 +176,12 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
     }
 
     @Override
-    public void refresh() {
+    public CompletableFuture<Void> delete() {
+        return getId().thenCompose(id -> Futures.toVoid(storeHelper.deleteTable(getMetadataTableName(id), false)));
+    }
 
+    @Override
+    public void refresh() {
     }
 
     private ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {

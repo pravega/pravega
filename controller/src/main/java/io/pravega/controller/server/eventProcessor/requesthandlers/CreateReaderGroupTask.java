@@ -65,28 +65,25 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                 .thenCompose(state -> {
                     if (state.getObject().equals(ReaderGroupState.CREATING)) {
                         String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
-                        return streamMetadataStore.createStream(scope,
-                                NameUtils.getStreamForReaderGroup(readerGroup), StreamConfiguration.builder()
-                                        .scalingPolicy(ScalingPolicy.fixed(1))
-                                        .build(), System.currentTimeMillis(), null, executor)
-                                .thenCompose(v ->
-                                    streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
-                                    .thenApply(configRecord -> {
-                                       if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
-                                          .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
+                        return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
+                               .thenCompose(configRecord -> {
+                               if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
+                                   .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
                                           // update Stream metadata tables, if RG is a Subscriber
                                           configRecord.getObject().getStartingStreamCuts().keySet().stream()
                                           .forEach(rgStream -> {
                                                   Stream stream = Stream.of(rgStream);
                                                   streamMetadataStore.addSubscriber(stream.getScope(), stream.getStreamName(), scopedRGName, null, executor);
                                           });
-                                       }
-                                    return null;
-                                })).thenCompose(v ->
-                                        Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                                ReaderGroupState.ACTIVE, state, context, executor)));
+                                   }
+                                   return null;
+                               }).thenCompose(v ->
+                                  Futures.toVoid(streamMetadataStore.createStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
+                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis(), null, executor)
+                                 .thenCompose(x -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
+                                         ReaderGroupState.ACTIVE, state, context, executor))));
                     }
-                return CompletableFuture.completedFuture(null);
-             }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
+                    return null;
+        }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 }

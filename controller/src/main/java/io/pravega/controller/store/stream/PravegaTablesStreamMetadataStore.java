@@ -321,5 +321,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                    .thenCompose(v -> super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor)),
                 executor);
     }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scope, final String name,
+                                                    final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(super.deleteReaderGroup(scope, name, context, executor)
+                        .thenCompose(status -> ((PravegaTablesScope) getScope(scope))
+                                .removeReaderGroupFromScope(name).thenApply(v -> status)),
+                executor);
+    }
     //endregion
 }

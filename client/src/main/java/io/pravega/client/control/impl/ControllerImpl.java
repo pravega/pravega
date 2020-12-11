@@ -98,6 +98,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -1513,7 +1514,6 @@ public class ControllerImpl implements Controller {
                 LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
             });
         }
-
     //endregion
 
     // region ReaderGroups
@@ -1562,7 +1562,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(rgName, "streamName");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getReaderGroupConfig", scope, rgName, requestId);
         final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
@@ -1593,6 +1593,44 @@ public class ControllerImpl implements Controller {
                 log.warn(requestId, "getReaderGroupConfig failed for Reader Group: ", scopedRGName, e);
             }
             LoggerHelpers.traceLeave(log, "getReaderGroupConfig", traceId, scope, rgName, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "deleteReaderGroup", scope, rgName, requestId);
+        final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
+
+        final CompletableFuture<DeleteReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "deleteReaderGroup", scope, rgName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteReaderGroup", scope, rgName)
+                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete reader group: {}", scopedRGName);
+                    throw new ControllerFailureException("Failed to delete reader group: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
+                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully deleted Reader Group: {}", scopedRGName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteReaderGroup failed for Reader Group: ", scopedRGName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteReaderGroup", traceId, scope, rgName, requestId);
         });
     }
     // endregion
@@ -1769,6 +1807,11 @@ public class ControllerImpl implements Controller {
         void getReaderGroupConfig(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<ReaderGroupConfigResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .getReaderGroupConfig(readerGroupInfo, callback);
+        }
+
+        void deleteReaderGroup(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<DeleteReaderGroupStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteReaderGroup(readerGroupInfo, callback);
         }
     }
 }

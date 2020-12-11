@@ -35,6 +35,7 @@ import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
@@ -66,6 +67,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -85,6 +87,7 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -319,6 +322,37 @@ public class StreamMetadataTasks extends TaskBase {
                     log.debug("ReaderGroup State is {}", state.toString());
                     return ReaderGroupState.ACTIVE.equals(state);
                 });
+    }
+
+    /**
+     * Delete Reader Group.
+     *
+     * @param scope           Reader Group scope.
+     * @param rgName          Reader Group name.
+     * @param contextOpt      Reader Group context.
+     * @return deletion status.
+     */
+    public CompletableFuture<DeleteReaderGroupStatus.Status> deleteReaderGroup(final String scope, final String rgName,
+                                                                               RGOperationContext contextOpt) {
+        final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("deleteReaderGroup", scope, rgName);
+        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, null, executor),
+        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
+                new VersionedMetadata<>(ReaderGroupState.UNKNOWN, new Version.IntVersion(0)))
+            .thenCompose(state -> {
+                if (ReaderGroupState.UNKNOWN.equals(state.getObject())) {
+                    return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
+                }
+                return eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId),
+                () -> streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
+                        ReaderGroupState.DELETING, state, context, executor))
+                .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
+                .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS));
+        }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {
+        return streamMetadataStore.checkReaderGroupExists(scope, rgName);
     }
 
     /**

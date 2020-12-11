@@ -74,6 +74,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
@@ -163,6 +164,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getReaderGroupConfig(scope, rgName),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void deleteReaderGroup(ReaderGroupInfo request, StreamObserver<DeleteReaderGroupStatus> responseObserver) {
+        String scope = request.getScope();
+        String rgName = request.getReaderGroup();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getReaderGroupConfig",
+                scope, rgName);
+        log.info(requestTag.getRequestId(), "getReaderGroupConfig called for Reader Group {}/{}.", scope, rgName);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.deleteReaderGroup(scope, rgName),
                 responseObserver, requestTag);
     }
 

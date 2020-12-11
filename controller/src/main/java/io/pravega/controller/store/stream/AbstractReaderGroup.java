@@ -53,11 +53,6 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<Void> delete() {
-        return null;
-    }
-
-    @Override
     public CompletableFuture<Long> getCreationTime() {
         return null;
     }

@@ -54,6 +54,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatu
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -194,6 +195,17 @@ public class ControllerService {
                 .thenApplyAsync(response -> {
                     reportGetReaderGroupConfigMetrics(scope, rgName, response.getStatus(), timer.getElapsed());
                     return response;
+                }, executor);
+    }
+
+    public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName) {
+        Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
+        Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
+        Timer timer = new Timer();
+        return streamMetadataTasks.deleteReaderGroup(scope, rgName, null)
+                .thenApplyAsync(status -> {
+                    reportDeleteReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
+                    return DeleteReaderGroupStatus.newBuilder().setStatus(status).build();
                 }, executor);
     }
 
@@ -680,10 +692,18 @@ public class ControllerService {
         }
     }
 
+    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, Duration latency) {
+        if (status.equals(DeleteReaderGroupStatus.Status.SUCCESS)) {
+            StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
+        } else if (status.equals(DeleteReaderGroupStatus.Status.FAILURE)) {
+            StreamMetrics.getInstance().deleteReaderGroupFailed(scope, streamName);
+        }
+    }
+
     private void reportGetReaderGroupConfigMetrics(String scope, String streamName, ReaderGroupConfigResponse.Status status, Duration latency) {
-        if (status.equals(Controller.ReaderGroupConfigResponse.Status.SUCCESS)) {
+        if (status.equals(ReaderGroupConfigResponse.Status.SUCCESS)) {
             StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
-        } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
+        } else if (status.equals(ReaderGroupConfigResponse.Status.FAILURE)) {
             StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
         }
     }

@@ -142,6 +142,14 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName);
 
     /**
+     * API to delete a Reader Group.
+     * @param scope Scope name for Reader Group.
+     * @param rgName Reader Group name.
+     * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
+     */
+    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName);
+
+    /**
      * Get list of Subscribers for the Stream.
      * @param scope Scope name
      * @param streamName Stream name
