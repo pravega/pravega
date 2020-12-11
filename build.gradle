@@ -726,6 +726,10 @@ project('cli:admin') {
     applicationName = "pravega-admin"
     mainClassName = "io.pravega.cli.admin.AdminCLIRunner"
 
+    applicationDefaultJvmArgs = ["-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/admin-cli-logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=adminCli"]
+
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
@@ -741,6 +745,7 @@ project('cli:admin') {
         compile project(':controller')
         compile project(':segmentstore:server')
         compile project(':segmentstore:storage')
+        compile project(':segmentstore:server:host')
         compile project(':segmentstore:storage:impl')
         compile project(':shared:cluster')
         compile project(':test:testcommon')
