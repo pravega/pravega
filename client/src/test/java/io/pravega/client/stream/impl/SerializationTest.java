@@ -247,7 +247,7 @@ public class SerializationTest {
                                                     .groupRefreshTimeMillis(r.nextInt(1000))
                                                     .stream(createSegment().getStream())
                                                     .build();
-        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap()));
+        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap(), 0));
         CompactReaderGroupStateBuilder builder = new CompactReaderGroupState.CompactReaderGroupStateBuilder();
         builder.assignedSegments(createMap(this::createString, this::createSegmentRangeMap));
         builder.checkpointState(new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
@@ -272,7 +272,7 @@ public class SerializationTest {
                 version(0).revision(0,  this::write00, this::read00);
             }
         };
-        ReaderGroupStateInit init = new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap());
+        ReaderGroupStateInit init = new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap(), 0);
         ReaderGroupStateInit oldFormat = newSerializer.deserialize(oldSerializer.serialize(init));
         assertEquals(init.getStartingSegments()
                          .keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet()),

@@ -990,7 +990,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), 0));
         //Data segment writers
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
@@ -1106,7 +1106,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), 0));
         return sync;
     }
     

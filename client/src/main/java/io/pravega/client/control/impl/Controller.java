@@ -471,8 +471,11 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(final String scope, final String kvtName);
 
     CompletableFuture<Boolean> createReaderGroup(String groupName, ReaderGroupConfig config);
+
     CompletableFuture<Boolean> deleteReaderGroup(String groupName);
+
     CompletableFuture<Boolean> updateReaderGroup(String groupName, ReaderGroupConfig config);
+
     CompletableFuture<ReaderGroupState> getReaderGroup(String groupName);
 
     //endregion

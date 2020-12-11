@@ -13,15 +13,17 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -604,6 +606,26 @@ public class LocalController implements Controller {
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
                 .thenApply(this::getKeyValueTableSegments);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> createReaderGroup(String groupName, ReaderGroupConfig config) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(String groupName) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateReaderGroup(String groupName, ReaderGroupConfig config) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupState> getReaderGroup(String groupName) {
+        return null;
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {

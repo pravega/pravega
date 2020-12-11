@@ -93,6 +93,7 @@ public class ReaderGroupImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
+        when(controller.getReaderGroup(GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(state));
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionPool);
     }
@@ -114,11 +115,16 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                                                      .build());
+                .build();
+        when(state.getConfig()).thenReturn(config);
+        when(controller.updateReaderGroup(GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(state.getGeneration()).thenReturn(0L, 0L, 1L, 0L);
+        readerGroup.resetReaderGroup(config);
+        verify(synchronizer, times(2)).fetchUpdates();
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 
@@ -128,7 +134,12 @@ public class ReaderGroupImplTest {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build());
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
+        when(state.getConfig()).thenReturn(config);
+        when(controller.updateReaderGroup(GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(state.getGeneration()).thenReturn(0L, 0L, 1L, 0L);
+        readerGroup.resetReaderGroup(config);
+        verify(synchronizer, times(2)).fetchUpdates();
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 

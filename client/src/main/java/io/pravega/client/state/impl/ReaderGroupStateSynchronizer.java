@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.client.state.impl;
 
 import io.pravega.client.SynchronizerClientFactory;
@@ -21,7 +30,8 @@ import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
- *
+ * A new {@link StateSynchronizer} implementation specifically with the {@link ReaderGroupState} to allow for special
+ * updates to the controller.
  */
 public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGroupState> {
     private final String readerGroup;
@@ -69,7 +79,8 @@ public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGro
     }
 
     /**
-     *
+     * Method to fetch and apply all updates to the {@link ReaderGroupState} while making calls to the {@link Controller}
+     * to make sure the {@link ReaderGroupState} is consistent with its version on the {@link Controller).
      */
     @Override
     public void fetchUpdates() {
