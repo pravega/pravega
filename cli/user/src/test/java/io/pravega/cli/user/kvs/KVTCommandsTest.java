@@ -9,67 +9,24 @@
  */
 package io.pravega.cli.user.kvs;
 
-import io.pravega.cli.user.AbstractUserCommandTest;
 import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
-import lombok.SneakyThrows;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Collections;
 
-public class KVTCommandsTest extends AbstractUserCommandTest {
-
-    @Test(timeout = 10000)
-    @SneakyThrows
-    public void testCreateKeyValueTable() {
-        final String scope = "createKVTable";
-        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
-        String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG.get());
-        Assert.assertTrue(commandResult.contains("created successfully"));
-
-        commandResult = TestUtils.executeCommand("kvt create " + table, CONFIG.get());
-        Assert.assertTrue(commandResult.contains("created successfully"));
-        Assert.assertNotNull(KeyValueTableCommand.Create.descriptor());
-    }
-
-    @Test(timeout = 20000)
-    @SneakyThrows
-    public void testDeleteKeyValueTable() {
-        final String scope = "deleteKVTable";
-        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
-        new ScopeCommand.Create(commandArgs).execute();
-
-        commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG.get());
-        new KeyValueTableCommand.Create(commandArgs).execute();
-
-        String commandResult = TestUtils.executeCommand("kvt delete " + table, CONFIG.get());
-        Assert.assertTrue(commandResult.contains("deleted successfully"));
-        Assert.assertNotNull(KeyValueTableCommand.Delete.descriptor());
-    }
-
-    @Test(timeout = 10000)
-    @SneakyThrows
-    public void testListKeyValueTables() {
-        final String scope = "listKVTable";
-        final String table = scope + "/kvt1";
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
-        new ScopeCommand.Create(commandArgs).execute();
-
-        CommandArgs commandArgsCreate = new CommandArgs(Collections.singletonList(table), CONFIG.get());
-        new KeyValueTableCommand.Create(commandArgsCreate).execute();
-
-        String commandResult = TestUtils.executeCommand("kvt list " + scope, CONFIG.get());
-        Assert.assertTrue(commandResult.contains("kvt1"));
-        Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
+public class KVTCommandsTest extends AuthEnabledKVTCommandsTest {
+    @BeforeClass
+    public static void start() {
+        setUpCluster(false, false);
     }
 
     @Test(timeout = 60000)
-    @SneakyThrows
-    public void testPutAndGetKeyValueTable() {
+    public void testPutAndGetKVT() throws Exception {
         final String scope = "putAndGetKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -116,5 +73,12 @@ public class KVTCommandsTest extends AbstractUserCommandTest {
         commandResult = TestUtils.executeCommand("kvt remove " + table + " key-family-1 {[[key1]]}", CONFIG.get());
         Assert.assertTrue(commandResult.contains("Removed"));
         Assert.assertNotNull(KeyValueTableCommand.Remove.descriptor());
+    }
+
+    public static class TLSEnabledKVTCommandsTest extends KVTCommandsTest {
+        @BeforeClass
+        public static void start() {
+            setUpCluster(false, true);
+        }
     }
 }

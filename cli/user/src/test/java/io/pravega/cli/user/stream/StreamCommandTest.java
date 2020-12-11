@@ -14,8 +14,8 @@ import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
-import lombok.SneakyThrows;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -23,8 +23,7 @@ import java.util.Collections;
 public class StreamCommandTest extends AbstractUserCommandTest {
 
     @Test(timeout = 5000)
-    @SneakyThrows
-    public void testCreateStream() {
+    public void testCreateStream() throws Exception {
         String scope = "createStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "newStream");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -36,8 +35,7 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 5000)
-    @SneakyThrows
-    public void testDeleteStream() {
+    public void testDeleteStream() throws Exception {
         String scope = "deleteStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "deleteStream");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -52,8 +50,7 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 5000)
-    @SneakyThrows
-    public void testListStream() {
+    public void testListStream() throws Exception {
         String scope = "listStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "theStream");
         CommandArgs commandArgsScope = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -73,8 +70,7 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     }
 
     @Test(timeout = 20000)
-    @SneakyThrows
-    public void testAppendAndReadStream() {
+    public void testAppendAndReadStream() throws Exception {
         String scope = "appendAndReadStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "appendAndReadStream");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
@@ -96,5 +92,26 @@ public class StreamCommandTest extends AbstractUserCommandTest {
         commandResult = TestUtils.executeCommand("stream read " + stream + " 5", CONFIG.get());
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Read.descriptor());
+    }
+
+    public static class AuthEnabledStreamCommandsTest extends StreamCommandTest {
+        @BeforeClass
+        public static void start() {
+            setUpCluster(true, false);
+        }
+    }
+
+    public static class TLSEnabledStreamCommandsTest extends StreamCommandTest {
+        @BeforeClass
+        public static void start() {
+            setUpCluster(false, true);
+        }
+    }
+
+    public static class SecureStreamCommandsTest extends StreamCommandTest {
+        @BeforeClass
+        public static void start() {
+            setUpCluster(true, true);
+        }
     }
 }

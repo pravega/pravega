@@ -14,6 +14,7 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.integration.demo.ClusterWrapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,6 +56,19 @@ public final class TestUtils {
      */
     public static String pathToConfig() {
         return "../../config/";
+    }
+
+    public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
+        return ClusterWrapper.builder()
+                .authEnabled(authEnabled)
+                .tlsEnabled(tlsEnabled)
+                .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                .tlsHostVerificationEnabled(false)
+                .tlsServerKeystorePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME)
+                .tlsServerKeystorePasswordPath(pathToConfig() + SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME)
+                .controllerRestEnabled(true)
+                .build();
     }
 
     /**

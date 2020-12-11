@@ -9,13 +9,22 @@
  */
 package io.pravega.cli.admin.controller;
 
-import io.pravega.cli.admin.AbstractTlsAdminCommandTest;
+import io.pravega.cli.admin.AbstractAdminCommandTest;
+import io.pravega.cli.admin.AdminCommandState;
+import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTest {
+import javax.ws.rs.core.Response;
+import java.util.Collections;
+import java.util.Properties;
+
+public class TLSEnabledControllerCommandsTest extends AbstractAdminCommandTest {
 
     @Test
     @SneakyThrows
@@ -46,4 +55,39 @@ public class TLSEnabledControllerCommandsTest extends AbstractTlsAdminCommandTes
         System.out.println(commandResult);
         Assert.assertTrue(commandResult.contains("_system"));
     }
+
+    @Test
+    @SneakyThrows
+    public void testAuthConfig() {
+        String scope = "testScope";
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.security.auth.enable", "true");
+        pravegaProperties.setProperty("cli.security.auth.credentials.username", "admin");
+        pravegaProperties.setProperty("cli.security.auth.credentials.password", "1111_aaaa");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+        String commandResult = TestUtils.executeCommand("controller list-scopes", STATE.get());
+        // Check that both the new scope and the system one exist.
+        Assert.assertTrue(commandResult.contains("_system"));
+        Assert.assertTrue(commandResult.contains(scope));
+        Assert.assertNotNull(ControllerListScopesCommand.descriptor());
+        // Restore config
+        pravegaProperties.setProperty("cli.security.auth.enable", "false");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Exercise response codes for REST requests.
+        @Cleanup
+        val c1 = new AdminCommandState();
+        CommandArgs commandArgs = new CommandArgs(Collections.emptyList(), c1);
+        ControllerListScopesCommand command = new ControllerListScopesCommand(commandArgs);
+        command.printResponseInfo(Response.status(Response.Status.UNAUTHORIZED).build());
+        command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
+    }
+
+    public static class SecureControllerCommandsTest extends TLSEnabledControllerCommandsTest {
+        @BeforeClass
+        public static void setUp() throws Exception {
+            setUpCluster(true, true);
+        }
+    }
 }
+

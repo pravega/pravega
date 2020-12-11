@@ -30,7 +30,7 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
 
     @Test
     public void testGetClusterNodesCommand() throws Exception {
-        String commandResult = TestUtils.executeCommand("cluster list-instances", state.get());
+        String commandResult = TestUtils.executeCommand("cluster list-instances", STATE.get());
         Assert.assertTrue(commandResult.contains("controllers"));
         Assert.assertNotNull(GetClusterNodesCommand.descriptor());
     }
@@ -38,7 +38,7 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
     @Test
     public void testGetSegmentStoreByContainerCommand() throws Exception {
         createDummyHostContainerAssignment();
-        String commandResult = TestUtils.executeCommand("cluster get-host-by-container 0", state.get());
+        String commandResult = TestUtils.executeCommand("cluster get-host-by-container 0", STATE.get());
         Assert.assertTrue(commandResult.contains("owner_segment_store"));
         Assert.assertNotNull(GetSegmentStoreByContainerCommand.descriptor());
     }
@@ -46,7 +46,7 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
     @Test
     public void testListContainersCommand() throws Exception {
         createDummyHostContainerAssignment();
-        String commandResult = TestUtils.executeCommand("cluster list-containers", state.get());
+        String commandResult = TestUtils.executeCommand("cluster list-containers", STATE.get());
         Assert.assertTrue(commandResult.contains("segment_store_container_map"));
         Assert.assertNotNull(ListContainersCommand.descriptor());
     }
@@ -57,7 +57,7 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
     private void createDummyHostContainerAssignment() {
         @Cleanup
         CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
-                .connectString(setupUtils.getZkTestServer().getConnectString())
+                .connectString(CLUSTER.get().zookeeperConnectString())
                 .retryPolicy(new RetryOneTime(5000)).build();
         curatorFramework.start();
         ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);

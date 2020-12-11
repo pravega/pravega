@@ -11,7 +11,7 @@ package io.pravega.cli.admin.cluster;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 public class ClusterCommandsNoZKTests extends AbstractAdminCommandTest {
@@ -19,14 +19,14 @@ public class ClusterCommandsNoZKTests extends AbstractAdminCommandTest {
     @Test
     public void testGetClusterNodesCommand() throws Exception {
         // Check that all the commands handle without throwing ZK being down.
-        setupUtils.close();
-        TestUtils.executeCommand("cluster list-instances", state.get());
-        TestUtils.executeCommand("cluster get-host-by-container 0", state.get());
-        TestUtils.executeCommand("cluster list-containers", state.get());
+        CLUSTER.get().close();
+        TestUtils.executeCommand("cluster list-instances", STATE.get());
+        TestUtils.executeCommand("cluster get-host-by-container 0", STATE.get());
+        TestUtils.executeCommand("cluster list-containers", STATE.get());
     }
 
-    @After
-    public void tearDown() {
-        state.get().close();
+    @AfterClass
+    public static void tearDown() {
+        STATE.get().close();
     }
 }

@@ -10,8 +10,8 @@
 package io.pravega.cli.user;
 
 import io.pravega.cli.user.config.InteractiveConfig;
-import io.pravega.test.integration.utils.SetupUtils;
-import lombok.SneakyThrows;
+import io.pravega.test.integration.demo.ClusterWrapper;
+import lombok.val;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -20,28 +20,33 @@ import org.junit.rules.Timeout;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.setInteractiveConfig;
 
 public abstract class AbstractUserCommandTest {
 
-    // Setup utility.
-    protected static final SetupUtils SETUP_UTILS = new SetupUtils();
+    protected static final AtomicReference<ClusterWrapper> CLUSTER = new AtomicReference<>();
     protected static final AtomicReference<InteractiveConfig> CONFIG = new AtomicReference<>();
-
     @Rule
     public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
+    public static void setUpCluster(boolean authEnabled, boolean tlsEnabled) {
+        CLUSTER.set(createPravegaCluster(authEnabled, tlsEnabled));
+        CLUSTER.get().start();
+        setInteractiveConfig(CLUSTER.get().controllerUri().replace("tcp://", "").replace("tls://", ""),
+                authEnabled, tlsEnabled, CONFIG);
+    }
+
     @BeforeClass
-    @SneakyThrows
-    public static void setUp() {
-        SETUP_UTILS.startAllServices();
-        setInteractiveConfig(SETUP_UTILS.getControllerUri().toString().replace("tcp://", "").replace("tls://", ""),
-                false, false, CONFIG);
+    public static void start() {
+        setUpCluster(false, false);
     }
 
     @AfterClass
-    @SneakyThrows
-    public static void tearDown() {
-        SETUP_UTILS.stopAllServices();
+    public static void stop() {
+        val cluster = CLUSTER.getAndSet(null);
+        if (cluster != null) {
+            cluster.close();
+        }
     }
 }
