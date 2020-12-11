@@ -291,6 +291,21 @@ project('shared:protocol') {
     }
 }
 
+project ('shared:health') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('client') {
     dependencies {
         compile project(':common')
