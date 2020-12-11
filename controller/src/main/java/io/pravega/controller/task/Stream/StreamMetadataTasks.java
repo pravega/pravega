@@ -352,7 +352,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {
-        return streamMetadataStore.checkReaderGroupExists(scope, rgName);
+        return streamMetadataStore.checkReaderGroupExists(scope, rgName).thenApply(exists -> !exists);
     }
 
     /**

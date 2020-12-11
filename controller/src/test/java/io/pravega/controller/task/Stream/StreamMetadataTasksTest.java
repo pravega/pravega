@@ -344,7 +344,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // no subscribers found for existing Stream
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
@@ -386,7 +386,8 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(this.rgConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
         CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", null);
-        assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.get());
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.join());
         response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
         assertEquals(ReaderGroupConfigResponse.Status.RG_NOT_FOUND, response.getStatus());
     }

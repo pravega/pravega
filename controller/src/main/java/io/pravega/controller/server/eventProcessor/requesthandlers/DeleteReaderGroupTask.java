@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -20,6 +21,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -49,23 +51,29 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
       String scope = request.getScope();
       String readerGroup = request.getRgName();
       long requestId = request.getRequestId();
-
+      log.info("Inside Delete Event");
       final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
       return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                .thenCompose(configRecord -> {
                if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                        .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
                String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
+               log.info("Inside Delete Event, found config");
                // update Stream metadata tables, if RG is a Subscriber
-               configRecord.getObject().getStartingStreamCuts().keySet().stream()
-                  .forEach(rgStream -> {
-                  Stream stream = Stream.of(rgStream);
-                  streamMetadataStore.deleteSubscriber(stream.getScope(), stream.getStreamName(), scopedRGName, null, executor);
-                });
+               Iterator<String> streamIter = configRecord.getObject().getStartingStreamCuts().keySet().iterator();
+               return Futures.loop(() -> streamIter.hasNext(), () -> {
+                       Stream stream = Stream.of(streamIter.next());
+                       return streamMetadataStore.deleteSubscriber(stream.getScope(),
+                               stream.getStreamName(), scopedRGName, null, executor);
+                       }, executor);
                }
-               return streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor)
-                       .thenCompose(v -> streamMetadataStore.deleteStream(scope,
-                               NameUtils.getStreamForReaderGroup(readerGroup), null, executor));
-            });
+               return CompletableFuture.completedFuture(null);
+               })
+               .thenCompose(v -> {
+                   log.info("Inside Delete Event, deleting metadata and stream");
+                   return streamMetadataStore.deleteStream(scope,
+                           NameUtils.getStreamForReaderGroup(readerGroup), null, executor)
+                           .thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor));
+               });
     }
 }

@@ -122,7 +122,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
 
     @Override
     public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
-        log.info("Processing create request {} for ReaderGroup {}/{}",
+        log.info("Processing delete request {} for ReaderGroup {}/{}",
                 deleteRGEvent.getRequestId(), deleteRGEvent.getScope(), deleteRGEvent.getRgName());
         return deleteRGTask.execute(deleteRGEvent);
     }
