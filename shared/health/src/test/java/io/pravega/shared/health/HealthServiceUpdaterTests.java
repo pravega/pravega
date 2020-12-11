@@ -43,7 +43,7 @@ public class HealthServiceUpdaterTests {
     @After
     public void after() {
         factory.close();
-        service.clear();
+        service.close();
         healthServiceUpdater.stopAsync();
         healthServiceUpdater.awaitTerminated();
     }

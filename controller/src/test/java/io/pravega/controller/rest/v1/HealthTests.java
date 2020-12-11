@@ -73,7 +73,6 @@ public class HealthTests {
     public final Timeout globalTimeout = new Timeout(10000, TimeUnit.SECONDS);
 
     private  HealthServiceFactory healthServiceFactory;
-
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
@@ -98,7 +97,7 @@ public class HealthTests {
 
     @After
     public void tearDown() {
-        service.clear();
+        service.close();
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();

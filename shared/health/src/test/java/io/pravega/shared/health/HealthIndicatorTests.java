@@ -18,8 +18,6 @@ import io.pravega.shared.health.TestHealthIndicators.ThrowingIndicator;
 
 public class HealthIndicatorTests {
 
-    // A HealthIndicator should be have any contributors (dependencies).
-
     /**
      * Tests that by default no details will be provided.
      */
