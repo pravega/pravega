@@ -66,7 +66,7 @@ public class DelegationTokenTest {
     private void writeAnEvent(int tokenTtlInSeconds) throws ExecutionException, InterruptedException {
         ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(600).build();
         try {
-            pravegaCluster.initialize();
+            pravegaCluster.start();
 
             String scope = "testscope";
             String streamName = "teststream";
@@ -111,7 +111,7 @@ public class DelegationTokenTest {
         // get renewed before each use.
         ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
         try {
-            pravegaCluster.initialize();
+            pravegaCluster.start();
 
             final String scope = "testscope";
             final String streamName = "teststream";
@@ -199,7 +199,7 @@ public class DelegationTokenTest {
         // get renewed before each use.
         @Cleanup
         ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
-        pravegaCluster.initialize();
+        pravegaCluster.start();
 
         final String scope = "testscope";
         final String streamName = "teststream";
