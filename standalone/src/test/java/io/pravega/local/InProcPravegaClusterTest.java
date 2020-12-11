@@ -24,7 +24,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.UUID;
@@ -56,12 +55,6 @@ public class InProcPravegaClusterTest {
 
     @Before
     public void setUp() throws Exception {
-        ServiceBuilderConfig config = ServiceBuilderConfig
-                .builder()
-                .include(System.getProperties())
-                .build();
-        SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);
-
         LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()
                 .controllerPort(TestUtils.getAvailableListenPort())
                 .segmentStorePort(TestUtils.getAvailableListenPort())

@@ -43,12 +43,12 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
@@ -132,9 +132,12 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
 
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         // create one thread on connection factory
-        cf.setExecutor(Executors.newSingleThreadScheduledExecutor());
+        cf.setExecutor(executor);
         CompletableFuture<Void> signal = new CompletableFuture<>();
         MockControllerWithTokenTask controller = spy(new MockControllerWithTokenTask(uri.getEndpoint(), uri.getPort(), cf,
                 true, signal));

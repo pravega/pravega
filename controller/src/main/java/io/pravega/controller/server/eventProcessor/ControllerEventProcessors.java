@@ -14,13 +14,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -43,22 +44,21 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,12 +68,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -81,7 +81,7 @@ import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper {
+public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
 
     public static final EventSerializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new EventSerializer<>();
     public static final EventSerializer<AbortEvent> ABORT_EVENT_SERIALIZER = new EventSerializer<>();
@@ -173,7 +173,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting controller event processors");
-            rebalanceExecutor = Executors.newSingleThreadScheduledExecutor();
+            rebalanceExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "event-processor");
             initialize();
             log.info("Controller event processors startUp complete");
         } finally {
@@ -188,6 +188,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             log.info("Stopping controller event processors");
             stopEventProcessors();
             rebalanceExecutor.shutdownNow();
+            this.clientFactory.close();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
@@ -576,5 +577,15 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     @VisibleForTesting
     void setTruncationInterval(long interval) {
         truncationInterval.set(interval);
+    }
+
+    @Override
+    public void close() {
+        this.clientFactory.close();
+        try {
+            this.stopAsync().awaitTerminated(10, TimeUnit.SECONDS);
+        } catch (TimeoutException ex) {
+            log.error("Timeout expired while waiting for service to shut down.", ex);
+        }
     }
 }

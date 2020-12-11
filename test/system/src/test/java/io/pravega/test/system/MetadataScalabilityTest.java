@@ -10,12 +10,12 @@
 package io.pravega.test.system;
 
 import com.google.common.collect.Lists;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -23,14 +23,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -41,10 +33,15 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
 
@@ -60,7 +57,6 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
     private final String streamName = getStreamName();
-    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
     @Environment
     public static void initialize() {
@@ -95,7 +91,6 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
         getClientFactory().close();
         getConnectionFactory().close();
         getController().close();
-        ExecutorServiceHelpers.shutdown(executorService, scaleExecutorService);
     }
 
     abstract StreamConfiguration getStreamConfig();

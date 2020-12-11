@@ -10,16 +10,14 @@
 package io.pravega.controller.task;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
-
-import java.io.IOException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Zk task metadata store tests.
@@ -32,7 +30,7 @@ public class ZKTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
     @Override
     public void setupTaskStore() throws Exception {
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));

@@ -21,7 +21,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -36,11 +35,10 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -69,7 +67,7 @@ import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
  * Check the end to end correctness of metrics published by the Controller.
  */
 @Slf4j
-public class ControllerMetricsTest {
+public class ControllerMetricsTest extends ThreadPooledTestSuite {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -80,8 +78,12 @@ public class ControllerMetricsTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
     private StatsProvider statsProvider = null;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -96,7 +98,6 @@ public class ControllerMetricsTest {
         statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
 
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -126,7 +127,6 @@ public class ControllerMetricsTest {
             log.info("Metrics statsProvider is now closed.");
         }
 
-        ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -151,6 +151,7 @@ public class ControllerMetricsTest {
         // At this point, we have at least 6 internal streams.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         @Cleanup
@@ -186,7 +187,7 @@ public class ControllerMetricsTest {
                 Futures.allOf(readEvents(clientFactory, iterationReaderGroupName, parallelism));
 
                 // Get a StreamCut for truncating the Stream.
-                StreamCut streamCut = readerGroup.generateStreamCuts(executor).join().get(Stream.of(scope, iterationStreamName));
+                StreamCut streamCut = readerGroup.generateStreamCuts(executorService()).join().get(Stream.of(scope, iterationStreamName));
 
                 // Truncate the Stream and check that the number of truncated Streams and per-Stream truncations is incremented.
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);

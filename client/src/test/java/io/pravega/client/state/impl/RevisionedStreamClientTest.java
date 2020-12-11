@@ -98,6 +98,7 @@ public class RevisionedStreamClientTest {
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
         
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         Revision initialRevision = client.fetchLatestRevision();
@@ -140,6 +141,7 @@ public class RevisionedStreamClientTest {
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
                
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
@@ -177,6 +179,7 @@ public class RevisionedStreamClientTest {
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
             
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config);
         
         client.writeUnconditionally("a");
@@ -357,9 +360,11 @@ public class RevisionedStreamClientTest {
         when(metaFactory.createSegmentMetadataClient(any(Segment.class), any(DelegationTokenProvider.class))).thenReturn(metaClient);
         when(metaClient.getSegmentInfo()).thenReturn(new SegmentInfo(segment, 0, 30, false, System.currentTimeMillis()));
 
+        @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
                 inFactory, streamFactory, streamFactory, metaFactory);
 
+        @Cleanup
         RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, serializer,
                 SynchronizerConfig.builder().build());
         Iterator<Entry<Revision, String>> iterator = client.readFrom(new RevisionImpl(segment, 15, 1));
@@ -382,6 +387,7 @@ public class RevisionedStreamClientTest {
 
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint
                 .getPort(), connectionFactory, false);
 
@@ -400,6 +406,7 @@ public class RevisionedStreamClientTest {
         SegmentMetadataClient segMetaClient = mock(SegmentMetadataClient.class);
         when(segMetaFactory.createSegmentMetadataClient(eq(segment), any(DelegationTokenProvider.class)))
                 .thenReturn(segMetaClient);
+        @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, segInputFactory,
                 segOutputFactory, condOutputFactory, segMetaFactory);
 

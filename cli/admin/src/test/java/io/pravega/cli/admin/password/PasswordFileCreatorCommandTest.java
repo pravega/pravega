@@ -11,31 +11,46 @@ package io.pravega.cli.admin.password;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import lombok.Cleanup;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class PasswordFileCreatorCommandTest {
 
     @Test
     public void testPasswordFileCreatorCommand() throws Exception {
         final String fileName = "passwordFileTest";
-        TestUtils.executeCommand("password create-password-file " + fileName + " user:password:acl", new AdminCommandState());
-        Assert.assertTrue(Files.exists(Paths.get(fileName)));
-        // Test wrong input arguments.
-        TestUtils.executeCommand("password create-password-file " + fileName + " wrong", new AdminCommandState());
-        TestUtils.executeCommand("password create-password-file wrong", new AdminCommandState());
-        // Remove generated file by command.
-        Files.delete(Paths.get(fileName));
+        try {
+            @Cleanup
+            val c1 = new AdminCommandState();
+            TestUtils.executeCommand("password create-password-file " + fileName + " user:password:acl", c1);
+            Assert.assertTrue(Files.exists(Paths.get(fileName)));
+            // Test wrong input arguments.
+            @Cleanup
+            val c2 = new AdminCommandState();
+            TestUtils.executeCommand("password create-password-file " + fileName + " wrong", c2);
+            @Cleanup
+            val c3 = new AdminCommandState();
+            TestUtils.executeCommand("password create-password-file wrong", c3);
+            // Remove generated file by command.
+        } finally {
+            Files.delete(Paths.get(fileName));
+        }
     }
 
     @Test
     public void testPasswordFileCreatorCommandParsesAuthFormat() throws Exception {
         final String fileName = "fileWithAuthFormat";
-        TestUtils.executeCommand("password create-password-file " + fileName + " user:password:prn::/scope:scope1,READ_UPDATE,", new AdminCommandState());
-        Assert.assertTrue(Files.exists(Paths.get(fileName)));
-        Files.delete(Paths.get(fileName));
+        try {
+            @Cleanup
+            val c1 = new AdminCommandState();
+            TestUtils.executeCommand("password create-password-file " + fileName + " user:password:prn::/scope:scope1,READ_UPDATE,", c1);
+            Assert.assertTrue(Files.exists(Paths.get(fileName)));
+        } finally {
+            Files.delete(Paths.get(fileName));
+        }
     }
 }

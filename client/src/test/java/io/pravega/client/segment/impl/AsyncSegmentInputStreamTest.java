@@ -58,7 +58,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     public void testRetry() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         DelegationTokenProvider tokenProvider = mock(DelegationTokenProvider.class);
         when(tokenProvider.retrieveToken()).thenReturn(CompletableFuture.completedFuture("")); // return empty token
@@ -110,7 +112,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     public void testProcessingFailure() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         DelegationTokenProvider tokenProvider = mock(DelegationTokenProvider.class);
         when(tokenProvider.retrieveToken()).thenReturn(CompletableFuture.completedFuture("")); // return empty token
@@ -154,7 +158,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     public void testAuthenticationFailure() {
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(0);
 
@@ -187,7 +193,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
 
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
@@ -250,7 +258,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     public void testCloseAbortsRead() throws InterruptedException, ExecutionException {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
@@ -271,7 +281,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
     public void testRead() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
@@ -300,7 +312,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         String mockClientReplyStackTrace = "SomeException";
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
@@ -345,7 +359,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         byte[] good = new byte[] { 0, 1, 2, 3, 4 };
         byte[] bad = new byte[] { 9, 8, 7, 6 };
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(0);
         @Cleanup
@@ -372,7 +388,9 @@ public class AsyncSegmentInputStreamTest extends LeakDetectorTestSuite {
         int requestId = 0;
         Segment segment = new Segment("scope", "testWrongOffsetReturned", requestId);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         Semaphore dataAvailable = new Semaphore(requestId);
         @Cleanup

@@ -12,6 +12,7 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -24,7 +25,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.ArrayList;
@@ -43,8 +44,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.Cleanup;
@@ -59,7 +58,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-public class StreamSeekTest {
+public class StreamSeekTest extends ThreadPooledTestSuite {
 
     private static final String SCOPE = "testScope";
     private static final String STREAM1 = "testStreamSeek1";
@@ -77,11 +76,14 @@ public class StreamSeekTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
-    private ScheduledExecutorService executor;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -103,7 +105,6 @@ public class StreamSeekTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -161,7 +162,7 @@ public class StreamSeekTest {
         Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
         readAndVerify(reader, 1, 2);
         assertNull(reader.readNextEvent(100).getEvent()); //Sees the segments are empty prior to scaling
-        readerGroup.initiateCheckpoint("cp1", executor); //Checkpoint to move past the scale
+        readerGroup.initiateCheckpoint("cp1", executorService()); //Checkpoint to move past the scale
         readAndVerify(reader, 3, 4, 5); // Old segments are released and new ones can be read
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
@@ -189,7 +190,7 @@ public class StreamSeekTest {
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executor).getFuture().get());
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executorService()).getFuture().get());
     }
 
     private void verifyReinitializationRequiredException(EventStreamReader<String> reader) {
