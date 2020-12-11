@@ -107,7 +107,6 @@ public abstract class CompositeHealthContributor implements HealthContributor {
         if (registry != null) {
             return registry.dependencies(getName());
         }
-        log.warn("Calling contributors() with no ContributorRegistry defined.");
         return this.contributors;
     }
 

@@ -127,8 +127,6 @@ public class ContributorRegistryTests {
      */
     @Test
     public void testUnregisterInternalContributor() {
-        // ContributorRegistry does not expose the API that would allow us to test potentially dangerous inserts.
-        ContributorRegistryImpl registry = new ContributorRegistryImpl();
         // Create the contributors to register.
         ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
                 new HealthComponent("CONTAINER", StatusAggregatorImpl.DEFAULT, registry),

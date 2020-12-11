@@ -50,4 +50,7 @@ public interface HealthService extends AutoCloseable {
      * Removes all state (contents of the {@link ContributorRegistry}) from this object.
      */
     void clear();
+
+    @Override
+    void close();
 }

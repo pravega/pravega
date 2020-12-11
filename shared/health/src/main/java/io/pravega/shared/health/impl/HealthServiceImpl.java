@@ -14,7 +14,6 @@ import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
@@ -84,7 +83,6 @@ public class HealthServiceImpl implements HealthService {
     }
 
     @Override
-    @SneakyThrows
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.updater.close();

@@ -32,4 +32,7 @@ public interface HealthServiceUpdater extends Service, AutoCloseable {
      * @return The interval in which the executor will call {@link HealthEndpoint#getHealth(boolean)}.
      */
     int getInterval();
+
+    @Override
+    void close();
 }

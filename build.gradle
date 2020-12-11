@@ -748,10 +748,6 @@ project('controller') {
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
     }
 
-    tasks.withType(JavaCompile) {
-        options.compilerArgs.remove("-Werror")
-    }
-
     task createAppWithGCLogging(type: CreateStartScripts) {
         applicationName = "pravega-controller-withGCLogging"
         mainClassName = "io.pravega.controller.server.Main"

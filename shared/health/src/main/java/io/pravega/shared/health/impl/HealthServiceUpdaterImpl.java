@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -108,6 +109,13 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
         }
         if (state() == Service.State.RUNNING) {
             Futures.await(Services.stopAsync(this, this.executorService));
+        }
+        log.info("Stopping ScheduledExecutorService.");
+        try {
+            executorService.shutdown();
+            executorService.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            log.error("Error closing down ScheduledExecutorService.", e);
         }
     }
 }

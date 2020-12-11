@@ -8,6 +8,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Description of the Pravega Controller APIs.
+
 swagger: "2.0"
 info:
   description: "List of admin REST APIs for the pravega controller service."

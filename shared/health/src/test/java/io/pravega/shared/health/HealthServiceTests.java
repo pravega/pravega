@@ -46,7 +46,7 @@ public class HealthServiceTests {
     }
 
     private void stop() {
-        service.clear();
+        service.close();
         factory.close();
         // Except its root.
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
@@ -67,7 +67,6 @@ public class HealthServiceTests {
     @After
     public void after() {
         stop();
-
     }
 
     /**
