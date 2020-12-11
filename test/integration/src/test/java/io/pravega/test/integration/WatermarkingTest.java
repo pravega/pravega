@@ -39,27 +39,23 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
+import io.pravega.test.integration.demo.ClusterWrapper;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -70,10 +66,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -88,15 +85,6 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class WatermarkingTest extends ThreadPooledTestSuite {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final int servicePort = TestUtils.getAvailableListenPort();
-
-    private TestingServer zkTestServer;
-    private ControllerWrapper controllerWrapper;
-    private PravegaConnectionListener server;
-    private ServiceBuilder serviceBuilder;
-    private StreamSegmentStore store;
-    private TableStore tableStore;
     private AtomicLong timer = new AtomicLong();
 
     protected int getThreadPoolSize() {
@@ -105,52 +93,21 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
     @Before
     public void setup() throws Exception {
-        final String serviceHost = "localhost";
-        final int containerCount = 4;
-
-        // 1. Start ZK
-        zkTestServer = new TestingServerStarter().start();
-
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        store = serviceBuilder.createStreamSegmentService();
-        tableStore = serviceBuilder.createTableStoreService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-        server.startListening();
-
-        // 2. Start controller
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                controllerPort, serviceHost, servicePort, containerCount);
-
-        controllerWrapper.awaitRunning();
         timer.set(0);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        if (controllerWrapper != null) {
-            controllerWrapper.close();
-        }
-        if (server != null) {
-            server.close();
-        }
-        if (serviceBuilder != null) {
-            serviceBuilder.close();
-        }
-        if (zkTestServer != null) {
-            zkTestServer.close();
-        }
     }
 
     @Test(timeout = 120000)
     public void watermarkTest() throws Exception {
-        Controller controller = controllerWrapper.getController();
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder().build();
+        cluster.initialize();
+
+        Controller controller = cluster.getController();
         String scope = "scope";
         String stream = "stream";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        URI controllerUri = URI.create(cluster.controllerUri());
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerUri);
         streamManager.createScope(scope);
@@ -201,11 +158,11 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         writer1Future.join();
         writer2Future.join();
-        
+
         // read events from the stream
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
-        
+
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
         assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
@@ -221,7 +178,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
         Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
-        
+
         // read from stream cut of first watermark
         String readerGroup = "rg";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
@@ -255,19 +212,23 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
             assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
             currentTimeWindow = nextTimeWindow;
-            
+
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);
             }
         }
-        
+
         assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
 
     @Test(timeout = 120000)
     public void recreateStreamWatermarkTest() throws Exception {
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder().build();
+        cluster.initialize();
+
         // in each iteration create stream, note times and let watermark be generated. 
         // then delete stream and move to next iteration and verify that watermarks are generated. 
         for (int i = 0; i < 2; i++) {
@@ -275,7 +236,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             String stream = "recreate";
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-            URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+            URI controllerUri = URI.create(cluster.controllerUri());
             @Cleanup
             StreamManager streamManager = StreamManager.create(controllerUri);
             streamManager.createScope(scope);
@@ -318,12 +279,16 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 120000)
     public void watermarkTxnTest() throws Exception {
-        Controller controller = controllerWrapper.getController();
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder().build();
+        cluster.initialize();
+
+        Controller controller = cluster.getController();
         String scope = "scopeTx";
         String stream = "streamTx";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        URI controllerUri = URI.create(cluster.controllerUri());
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerUri);
         streamManager.createScope(scope);
@@ -442,11 +407,15 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 60000)
     public void progressingWatermarkWithWriterTimeouts() throws Exception {
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder().build();
+        cluster.initialize();
+
         String scope = "Timeout";
         String streamName = "Timeout";
         int numSegments = 1;
 
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        URI controllerUri = URI.create(cluster.controllerUri());
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
 
@@ -512,6 +481,175 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // no watermark should be emitted. 
         Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
         assertNull(nullMark);
+    }
+
+    @Test
+    public void test() {
+        String scopeName = "testScope";
+        String streamName = "testStreamstream";
+        String readerGroupName = "testReaderGroup";
+        System.out.println(String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ"));
+    }
+
+    @SneakyThrows
+    @Test
+    public void watermarkingWithAuth() {
+        String writerUserName = "writer";
+        String readerUserName = "reader";
+        String userPassword = "test-password";
+
+        String scopeName = "testScope";
+        String streamName = "testStreamstream";
+        String readerGroupName = "testReaderGroup";
+        String readerName = "testReader";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put(writerUserName, String.join(";",
+                "prn::/,READ_UPDATE",
+                String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
+        ));
+
+        passwordInputFileEntries.put(readerUserName, String.join(";",
+                "prn::/,READ",
+                String.join("", "prn::/scope:", scopeName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
+        ));
+
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
+                .rgWritesWithReadPermEnabled(true)
+                .passwordAuthHandlerEntries(
+                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
+                .build();
+        cluster.initialize();
+        log.info("Cluster running");
+
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, writerUserName))
+                .build();
+
+        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+
+        Stream stream = Stream.of(scopeName, streamName);
+
+        // create 2 writers
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(streamName, javaSerializer,
+                EventWriterConfig.builder().build());
+        @Cleanup
+        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(streamName, javaSerializer,
+                EventWriterConfig.builder().build());
+
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+
+        // write events
+        CompletableFuture<Void> writer1Future = writeEvents(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
+
+        // scale the stream several times so that we get complex positions
+        scale(cluster.getController(), stream, config);
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
+        @Cleanup
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName,
+                new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
+                        connectionFactory.getInternalExecutor()),
+                connectionFactory);
+
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+
+        @Cleanup
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                new WatermarkSerializer(),
+                SynchronizerConfig.builder().build());
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
+        stopFlag.set(true);
+
+        writer1Future.join();
+        writer2Future.join();
+
+        // Prepare a client config for "hello-rw", whose home scope is "marketdata"
+        final ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, readerUserName))
+                .build();
+
+        // Now read events from the stream
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
+                // new ReaderGroupManagerImpl(scopeName, readerClientConfig, syncClientFactory);
+
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(stream, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(stream, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(stream, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(stream, streamCutSecond);
+
+        // read from stream cut of first watermark
+
+        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(stream)
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .build());
+
+        @Cleanup
+        final EventStreamReader<Long> reader = clientFactory.createReader(readerName,
+                readerGroupName,
+                javaSerializer,
+                ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(stream);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(stream);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
+        while (event.getEvent() != null) {
+            Long time = event.getEvent();
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(stream);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+
+            event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
+        }
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {

@@ -11,7 +11,14 @@ package io.pravega.test.integration;
 
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.TestUtils;
@@ -23,6 +30,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,6 +75,91 @@ public class ReadWithReadPermissionsTest {
         ));
         AssertExtensions.assertThrows(StatusRuntimeException.class,
                 () -> writeThenReadDataBack(passwordInputFileEntries, false));
+    }
+
+    @Test
+    public void readsPassButWatermarksFailTest() {
+        String marketDataWriter = "hello-rw";
+        String marketDataReader = "hello-r";
+        String password = "test-password";
+        String marketDataScope = "marketdata";
+        String computeScope = "compute";
+        String stream1 = "stream1";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put(marketDataWriter, String.join(";",
+                "prn::/,READ_UPDATE", // Allows user to create the "marketdata" scope, for this test
+                "prn::/scope:marketdata,READ_UPDATE", // Allows user to create stream (and other scope children)
+                "prn::/scope:marketdata/*,READ_UPDATE"  // Provides user all access to child objects of the "marketdata" scope
+        ));
+
+        passwordInputFileEntries.put(marketDataReader, String.join(";",
+                "prn::/,READ_UPDATE", // Allows use to create the "compute" home scope
+                "prn::/scope:compute,READ_UPDATE", // Allows user to create reader-group under its home scope
+                "prn::/scope:compute/*,READ_UPDATE", // Provides user all access to child objects of the "compute" scope
+                "prn::/scope:marketdata/stream:stream1,READ" // Provides use read access to the "marketdata/stream1" stream.
+        ));
+
+        // Setup and run the servers
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
+                .rgWritesWithReadPermEnabled(false)
+                .passwordAuthHandlerEntries(
+                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, password))
+                .build();
+        cluster.initialize();
+
+        // Prepare a client config for "hello-rw", whose home scope is "marketdata"
+        final ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(password, marketDataWriter))
+                .build();
+
+        // Create scope/stream `marketdata/stream1`
+        TestUtils.createScopeAndStreams(writerClientConfig, marketDataScope, Arrays.asList(stream1));
+
+        // Write a message to stream `marketdata/stream1`
+        TestUtils.writeDataToStream(marketDataScope, stream1, "test message", writerClientConfig);
+
+        // Prepare a client config for `hello-r`, whose home scope is "compute"
+        ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(password, marketDataReader))
+                .build();
+
+        // Create scope `compute` (without any streams)
+        TestUtils.createScopeAndStreams(readerClientConfig, computeScope, new ArrayList<>());
+
+        // Create a reader group config that enables a user to read data from `marketdata/stream1`
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(marketDataScope, stream1))
+                .disableAutomaticCheckpoints()
+                .build();
+
+        // Create a reader-group for user `hello-r` in `compute` scope, which is its home scope.
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(computeScope, readerClientConfig);
+        readerGroupManager.createReaderGroup("testRg", readerGroupConfig);
+
+        @Cleanup
+        EventStreamClientFactory readerClientFactory =
+                EventStreamClientFactory.withScope(computeScope, readerClientConfig);
+        @Cleanup
+        EventStreamReader<String> reader = readerClientFactory.createReader(
+                "readerId", "testRg",
+                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
+        String readMessage = reader.readNextEvent(500).getEvent();
+
+        assertEquals("test message", readMessage);
+    }
+
+    @Test
+    public void test() {
+
+
+
     }
 
     @SneakyThrows

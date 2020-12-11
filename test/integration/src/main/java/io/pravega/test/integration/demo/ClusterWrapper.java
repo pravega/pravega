@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.control.impl.Controller;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -28,6 +29,7 @@ import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -166,6 +168,11 @@ public class ClusterWrapper implements AutoCloseable {
 
         segmentStoreServer.startListening();
         log.info("Done starting Segment Store");
+    }
+
+    @SneakyThrows
+    public Controller getController() {
+        return this.controllerServerWrapper.getController();
     }
 
     @Override
