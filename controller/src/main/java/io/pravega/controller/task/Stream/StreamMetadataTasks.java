@@ -236,7 +236,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(final String scope, final String rgName,
                                                                              RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
-        final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
+        final long requestId = requestTracker.getRequestIdFor("getReaderGroupConfig", scope, rgName);
 
         return RetryHelper.withRetriesAsync(() -> {
           // 1. check if scope with this name exists...

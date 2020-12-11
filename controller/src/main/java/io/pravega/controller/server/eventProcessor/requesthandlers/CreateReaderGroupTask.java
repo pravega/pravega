@@ -30,7 +30,7 @@ import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
+import java.util.Iterator;
 
 /**
  * Request handler for executing a create operation for a KeyValueTable.
@@ -60,6 +60,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         long requestId = request.getRequestId();
 
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
+        log.info("Processing create request.");
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup,
                 true, context, executor)
                 .thenCompose(state -> {
@@ -67,21 +68,23 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                         String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
                         return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                                .thenCompose(configRecord -> {
+                               log.info("Adding metadata to Streams");
                                if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                                    .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
-                                          // update Stream metadata tables, if RG is a Subscriber
-                                          configRecord.getObject().getStartingStreamCuts().keySet().stream()
-                                          .forEach(rgStream -> {
-                                                  Stream stream = Stream.of(rgStream);
-                                                  streamMetadataStore.addSubscriber(stream.getScope(), stream.getStreamName(), scopedRGName, null, executor);
-                                          });
+                                   // update Stream metadata tables, if RG is a Subscriber
+                                   Iterator<String> streamIter = configRecord.getObject().getStartingStreamCuts().keySet().iterator();
+                                   return Futures.loop(() -> streamIter.hasNext(), () -> {
+                                          Stream stream = Stream.of(streamIter.next());
+                                          return streamMetadataStore.addSubscriber(stream.getScope(),
+                                                       stream.getStreamName(), scopedRGName, null, executor);
+                                      }, executor);
                                    }
-                                   return null;
+                               return CompletableFuture.completedFuture(null);
                                }).thenCompose(v ->
                                   Futures.toVoid(streamMetadataStore.createStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
                                            StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis(), null, executor)
                                  .thenCompose(x -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                         ReaderGroupState.ACTIVE, state, context, executor))));
+                                     ReaderGroupState.ACTIVE, state, context, executor))));
                     }
                     return null;
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);

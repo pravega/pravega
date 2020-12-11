@@ -73,6 +73,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
@@ -121,11 +123,7 @@ import org.junit.Test;
 import org.mockito.Mock;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -347,7 +345,7 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
-    public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
+    public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // no subscribers found for existing Stream
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
@@ -376,6 +374,21 @@ public abstract class StreamMetadataTasksTest {
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
         assertEquals(3, listSubscribersResponse.getSubscribersList().size());
+
+        ReaderGroupConfigResponse response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
+        assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, response.getStatus());
+        assertNotNull(response.getConfig());
+        assertEquals(this.rgConfig.getAutomaticCheckpointIntervalMillis(), response.getConfig().getAutomaticCheckpointIntervalMillis());
+        assertEquals(this.rgConfig.getGroupRefreshTimeMillis(), response.getConfig().getGroupRefreshTimeMillis());
+        assertEquals(this.rgConfig.getRetentionType().ordinal(), response.getConfig().getRetentionType());
+        assertEquals(this.rgConfig.getGeneration(), response.getConfig().getGeneration());
+        assertEquals(this.rgConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
+        assertEquals(this.rgConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
+
+        CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", null);
+        assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.get());
+        response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
+        assertEquals(ReaderGroupConfigResponse.Status.RG_NOT_FOUND, response.getStatus());
     }
 
     @Test(timeout = 30000)
