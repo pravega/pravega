@@ -10,11 +10,14 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Ints;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,35 +27,44 @@ import lombok.val;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Implements simple garbage collector for cleaning up the deleted chunks.
  * The garbage collector maintains a in memory queue of chunks to delete which is drained by a background task.
  * This queue is populated by following
- * 1. Various SLTS operations requesting deletes
- * 2. Background task that scans all records to find undeleted chunks inside metadata (not yet implemented).
- * 3. Background task that scans all LTS to find unaccounted chunks that are deemed garbage (not yet implemented).
+ * <ol>
+ * <li>Various ChunkedSegmentStorage operations requesting deletes.</li>
+ * <li>Background task that scans all records to find undeleted chunks inside metadata (not yet implemented).</li>
+ * <li>Background task that scans all LTS to find unaccounted chunks that are deemed garbage (not yet implemented)</li>
+ * </ol>
  *
  * The background task throttles itself in two ways.
- * 1. It limits number of concurrent deletes at a time, so that it doesn't interfere with foreground SLTS tasks.
- * 2. It limits the number of items in the queue.
+ * <ol>
+ * <li>It limits number of concurrent deletes at a time, so that it doesn't interfere with foreground Storage calls. </li>
+ * <li>It limits the number of items in the queue.</li>
+ * </ol>
  */
 @Slf4j
 public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
     /**
      * Set of garbage chunks.
-     * This queue needs to be lock free, hence ConcurrentLinkedQueue.
      */
     @Getter
-    private final ConcurrentLinkedQueue<GarbageChunkInfo> garbageChunks = new ConcurrentLinkedQueue<>();
+    private final DelayQueue<GarbageChunkInfo> garbageChunks = new DelayQueue<>();
 
-    private final ChunkedSegmentStorage chunkedSegmentStorage;
+    private final ChunkStorage chunkStorage;
+
+    private final ChunkMetadataStore metadataStore;
 
     private final ChunkedSegmentStorageConfig config;
 
@@ -64,20 +76,63 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * Keeps track of queue size.
      * Size is an expensive operation on ConcurrentLinkedQueue.
      */
+    @Getter
     private final AtomicInteger queueSize = new AtomicInteger();
 
+    @Getter
+    private final AtomicLong iterationId = new AtomicLong();
+
     private CompletableFuture<Void> loopFuture;
+
+    private final Supplier<Long> currentTimeSupplier;
+
+    private final Supplier<CompletableFuture<Void>> delaySupplier;
+
+    private final ScheduledExecutorService storageExecutor;
 
     /**
      * Constructs a new instance.
      *
-     * @param chunkedSegmentStorage Instance of {@link ChunkedSegmentStorage}.
-     * @param config Configuration to use.
+     * @param containerId         Container id of the owner container.
+     * @param chunkStorage        ChunkStorage instance to use for writing all logs.
+     * @param metadataStore       ChunkMetadataStore for owner container.
+     * @param config              Configuration options for this ChunkedSegmentStorage instance.
+     * @param executorService     ScheduledExecutorService to use.
      */
-    public GarbageCollector(ChunkedSegmentStorage chunkedSegmentStorage, ChunkedSegmentStorageConfig config) {
-        super("io.pravega.segmentstore.storage.chunklayer.GarbageCollector", (ScheduledExecutorService) chunkedSegmentStorage.getExecutor());
-        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+    public GarbageCollector(int containerId, ChunkStorage chunkStorage,
+                            ChunkMetadataStore metadataStore,
+                            ChunkedSegmentStorageConfig config,
+                            ScheduledExecutorService executorService
+                            ) {
+        this(containerId, chunkStorage, metadataStore, config, executorService,
+                System::currentTimeMillis,
+                () -> Futures.delayedFuture(config.getGarbageCollectionSleep(), executorService));
+    }
+
+    /**
+     * Constructs a new instance.
+     *
+     * @param containerId         Container id of the owner container.
+     * @param chunkStorage        ChunkStorage instance to use for writing all logs.
+     * @param metadataStore       ChunkMetadataStore for owner container.
+     * @param config              Configuration options for this ChunkedSegmentStorage instance.
+     * @param storageExecutor     ScheduledExecutorService to use for storage operations.
+     * @param currentTimeSupplier Function that supplies current time.
+     * @param delaySupplier       Function that supplies delay future.
+     */
+    public GarbageCollector(int containerId, ChunkStorage chunkStorage,
+                            ChunkMetadataStore metadataStore,
+                            ChunkedSegmentStorageConfig config,
+                            ScheduledExecutorService storageExecutor,
+                            Supplier<Long> currentTimeSupplier,
+                            Supplier<CompletableFuture<Void>> delaySupplier) {
+        super(String.format("GarbageCollector[%d]", containerId), ExecutorServiceHelpers.newScheduledThreadPool(1, "storage-gc"));
+        this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
+        this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.config = Preconditions.checkNotNull(config, "config");
+        this.currentTimeSupplier = Preconditions.checkNotNull(currentTimeSupplier, "currentTimeSupplier");
+        this.delaySupplier = Preconditions.checkNotNull(delaySupplier, "delaySupplier");
+        this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
     }
 
     /**
@@ -107,12 +162,16 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     protected CompletableFuture<Void> doRun() {
         loopFuture = Futures.loop(
                 this::canRun,
-                () -> CompletableFuture.completedFuture(null)
-                        .thenComposeAsync( v -> deleteGarbage(true, config.getGarbageCollectionConcurrency()), executor)
+                () -> delaySupplier.get()
+                        .thenRunAsync(() -> {
+                            log.info("{} Iteration {} started.", traceObjectId, iterationId.get());
+                        }, executor)
+                        .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionConcurrency()), executor)
                         .handleAsync((v, ex) -> {
                             if (null != ex) {
-                                log.error("{} Error during run.", chunkedSegmentStorage.getLogPrefix(), ex);
+                                log.error("{} Error during doRun.", traceObjectId, ex);
                             }
+                            log.info("{} Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                             return null;
                         }, executor),
                 executor);
@@ -133,20 +192,33 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     }
 
     /**
-     * collect the garbage chunks.
+     * Adds given chunks to list of garbage chunks.
      *
      * @param chunksToDelete List of chunks to delete.
      */
     void addToGarbage(Collection<String> chunksToDelete) {
-        val currentTime = System.currentTimeMillis();
+        val currentTime = currentTimeSupplier.get();
 
+        chunksToDelete.forEach(chunkToDelete -> addToGarbage(chunkToDelete,
+                    currentTime + config.getGarbageCollectionDelay().toMillis()));
+
+        if (queueSize.get() >= config.getGarbageCollectionMaxQueueSize()) {
+            log.warn("{} deleteGarbage - Queue full. Could not delete garbage. Chunks skipped", traceObjectId);
+        }
+    }
+
+    /**
+     * Adds given chunk to list of garbage chunks.
+     *
+     * @param chunkToDelete Name of the chunk to delete.
+     * @param startTime Start time.
+     */
+    void addToGarbage(String chunkToDelete, long startTime) {
         if (queueSize.get() < config.getGarbageCollectionMaxQueueSize()) {
-            chunksToDelete.forEach(chunkToDelete -> garbageChunks.add(new GarbageChunkInfo(chunkToDelete, currentTime)));
+            garbageChunks.add(new GarbageChunkInfo(chunkToDelete, startTime));
             queueSize.incrementAndGet();
         } else {
-            for (val chunkToDelete : chunksToDelete) {
-                log.warn("{} deleteGarbage - Queue full. Could not delete garbage. chunk {}.", chunkedSegmentStorage.getLogPrefix(), chunkToDelete);
-            }
+            log.debug("{} deleteGarbage - Queue full. Could not delete garbage. chunk {}.", traceObjectId, chunkToDelete);
         }
     }
 
@@ -158,90 +230,120 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * If there are any errors then failed chunk is enqueued back.
      * If suspended or there are no items then it "sleeps" for time specified by configuration.
      *
-     * @param isBackground True if the caller is backgound task else False if called explicitly.
-     * @param maxItems Maximum number of items to delete at a time.
+     * @param isBackground True if the caller is background task else False if called explicitly.
+     * @param maxItems     Maximum number of items to delete at a time.
      * @return CompletableFuture which is completed when garbage is deleted.
      */
-    CompletableFuture<Void> deleteGarbage(boolean isBackground, int maxItems) {
+    CompletableFuture<Boolean> deleteGarbage(boolean isBackground, int maxItems) {
+        log.debug("{} deleteGarbage - started.", traceObjectId);
         // Sleep if suspended.
         if (suspended.get() && isBackground) {
-            log.info("{} deleteGarbage - suspended - sleeping for {}.", chunkedSegmentStorage.getLogPrefix(), config.getGarbageCollectionDelay());
-            return Futures.delayedFuture(config.getGarbageCollectionSleep(), executor);
+            log.info("{} deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
+            return CompletableFuture.completedFuture(false);
         }
 
         // Find chunks to delete.
-        val currentTime = System.currentTimeMillis();
         val chunksToDelete = new ArrayList<GarbageChunkInfo>();
         int count = 0;
-        val iterator = garbageChunks.iterator();
-        while (iterator.hasNext()) {
-            GarbageChunkInfo info = iterator.next();
-            if (info == null || count >= maxItems) {
-                break;
-            }
-            if (canDelete(info.getDeletedTime(), currentTime)) {
+        try {
+            // Block until you have at least one item.
+            GarbageChunkInfo info = garbageChunks.take();
+            log.trace("\"{} deleteGarbage - retrieved {}", traceObjectId, info);
+            while (null != info ) {
                 queueSize.decrementAndGet();
                 chunksToDelete.add(info);
-                iterator.remove();
+
                 count++;
+                if (count >= maxItems) {
+                    break;
+                }
+                // Do not block
+                info = garbageChunks.poll();
+                log.trace("\"{} deleteGarbage - retrieved {}", traceObjectId, info);
             }
+        } catch (InterruptedException e) {
+            throw new CompletionException(e);
         }
 
         // Sleep if no chunks to delete.
         if (count == 0) {
-            log.debug("{} deleteGarbage - no work - sleeping for {}.", chunkedSegmentStorage.getLogPrefix(), config.getGarbageCollectionDelay());
-            return Futures.delayedFuture(config.getGarbageCollectionSleep(), executor);
+            log.debug("{} deleteGarbage - no work - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
+            return CompletableFuture.completedFuture(false);
         }
 
         // For each chunk delete if the chunk is not present at all in the metadata or is present but marked as inactive.
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (val infoToDelete : chunksToDelete) {
             val chunkToDelete = infoToDelete.name;
-            val txn = chunkedSegmentStorage.getMetadataStore().beginTransaction(false, chunkToDelete);
+            val failed = new AtomicBoolean();
+            val txn = metadataStore.beginTransaction(false, chunkToDelete);
             val future =
                     txn.get(infoToDelete.name)
-                    .thenComposeAsync( metadata -> {
-                            val chunkMetadata = (ChunkMetadata) metadata;
-                            // Delete if the chunk is not present at all in the metadata or is present but marked as inactive.
-                            boolean shouldDelete = (null == chunkMetadata) ? true : !chunkMetadata.isActive();
-                            // Check whether the chunk is marked as inactive
-                            if (shouldDelete) {
-                                return chunkedSegmentStorage.getChunkStorage().openWrite(chunkToDelete)
-                                        .thenComposeAsync(chunkedSegmentStorage.getChunkStorage()::delete, executor)
-                                        .thenRunAsync(() -> {
-                                            if (null != metadata) {
-                                                txn.delete(chunkToDelete);
-                                            }
-                                            log.debug("{} deleteGarbage - deleted chunk={}.", chunkedSegmentStorage.getLogPrefix(), chunkToDelete);
-                                        }, executor)
-                                        .thenComposeAsync(v -> txn.commit(), executor)
-                                        .handleAsync((v, e) -> {
-                                            if (e != null) {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof ChunkNotFoundException) {
-                                                    // Ignore - nothing to do here.
-                                                    log.debug("{} deleteGarbage - Could not delete garbage chunk {}.", chunkedSegmentStorage.getLogPrefix(), chunkToDelete);
-                                                } else {
-                                                    log.warn("{} deleteGarbage - Could not delete garbage chunk {}.", chunkedSegmentStorage.getLogPrefix(), chunkToDelete);
-                                                    // Queue it back.
-                                                    addToGarbage(Collections.singleton(chunkToDelete));
-                                                }
-                                            }
-                                            return v;
-                                        }, executor);
-                            } else {
-                                log.info("{} deleteGarbage - Chunk is not marked as garbage{}.", chunkedSegmentStorage.getLogPrefix(), chunkToDelete);
-                                return CompletableFuture.completedFuture(null);
-                            }
-                        })
-                    .whenCompleteAsync((v, ex) -> txn.close(), executor);
-                    futures.add(future);
-        }
-        return Futures.allOf(futures);
-    }
+                            .thenComposeAsync(metadata -> {
+                                val chunkMetadata = (ChunkMetadata) metadata;
+                                // Delete if the chunk is not present at all in the metadata or is present but marked as inactive.
+                                val shouldDeleteChunk = null == chunkMetadata || !chunkMetadata.isActive();
+                                val shouldDeleteMetadata = new AtomicBoolean(null != metadata && !chunkMetadata.isActive());
 
-    boolean canDelete(long chunkDeletedTime, long currentTime) {
-        return config.getGarbageCollectionDelay().toMillis() <= (currentTime - chunkDeletedTime);
+                                // Check whether the chunk is marked as inactive
+                                if (shouldDeleteChunk) {
+                                    return chunkStorage.openWrite(chunkToDelete)
+                                            .thenComposeAsync(chunkStorage::delete, storageExecutor)
+                                            .handleAsync((v, e) -> {
+                                                if (e != null) {
+                                                    val ex = Exceptions.unwrap(e);
+                                                    if (ex instanceof ChunkNotFoundException) {
+                                                        // Ignore - nothing to do here.
+                                                        log.debug("{} deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
+                                                    } else {
+                                                        log.warn("{} deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
+                                                        shouldDeleteMetadata.set(false);
+                                                        failed.set(true);
+                                                    }
+                                                } else {
+                                                    log.debug("{} deleteGarbage - deleted chunk={}.", traceObjectId, chunkToDelete);
+                                                }
+                                                return v;
+                                            }, storageExecutor)
+                                            .thenRunAsync(() -> {
+                                                if (shouldDeleteMetadata.get()) {
+                                                    txn.delete(chunkToDelete);
+                                                    log.debug("{} deleteGarbage - deleted metadata for chunk={}.", traceObjectId, chunkToDelete);
+                                                }
+                                            }, storageExecutor)
+                                            .thenComposeAsync(v -> txn.commit(), storageExecutor)
+                                            .handleAsync((v, e) -> {
+                                                if (e != null) {
+                                                    log.error(String.format("%s deleteGarbage - Could not delete metadata for garbage chunk=%s.",
+                                                            traceObjectId, chunkToDelete), e);
+                                                    failed.set(true);
+                                                }
+                                                return v;
+                                            }, storageExecutor);
+                                } else {
+                                    log.info("{} deleteGarbage - Chunk is not marked as garbage chunk={}.", traceObjectId, chunkToDelete);
+                                    return CompletableFuture.completedFuture(null);
+                                }
+                            }, storageExecutor)
+                            .whenCompleteAsync((v, ex) -> {
+                                // Queue it back.
+                                if (failed.get()) {
+                                    log.info("{} deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);
+                                    addToGarbage(chunkToDelete, infoToDelete.startTime + config.getGarbageCollectionDelay().toMillis());
+                                }
+                                if (ex != null) {
+                                    log.error(String.format("%s deleteGarbage - Could not find garbage chunk=%s.",
+                                            traceObjectId, chunkToDelete), ex);
+                                }
+                                txn.close();
+                            }, executor);
+            futures.add(future);
+        }
+        return Futures.allOf(futures)
+                .thenApplyAsync( v -> {
+                    log.debug("{} deleteGarbage - finished.", traceObjectId);
+                    return true;
+                }, executor);
     }
 
     @Override
@@ -254,10 +356,21 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         }
     }
 
-    @Data
     @RequiredArgsConstructor
-    static class GarbageChunkInfo {
+    @Data
+    class GarbageChunkInfo implements Delayed {
+        @Getter
         private final String name;
-        private final long deletedTime;
+        private final long startTime;
+
+        @Override
+        public long getDelay(TimeUnit timeUnit) {
+            return timeUnit.convert(startTime - currentTimeSupplier.get(), TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public int compareTo(Delayed delayed) {
+            return Ints.saturatedCast(startTime - ((GarbageChunkInfo) delayed).startTime);
+        }
     }
 }

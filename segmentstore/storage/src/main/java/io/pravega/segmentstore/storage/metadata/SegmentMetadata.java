@@ -135,7 +135,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setActive(boolean value) {
-        return setFlag(Constants.ACTIVE, value);
+        return setFlag(StatusFlags.ACTIVE, value);
     }
 
     /**
@@ -144,7 +144,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setSealed(boolean value) {
-        return setFlag(Constants.SEALED, value);
+        return setFlag(StatusFlags.SEALED, value);
     }
 
     /**
@@ -153,7 +153,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setStorageSystemSegment(boolean value) {
-        return setFlag(Constants.SYSTEM_SEGMENT, value);
+        return setFlag(StatusFlags.SYSTEM_SEGMENT, value);
     }
 
     /**
@@ -163,7 +163,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setOwnershipChanged(boolean value) {
-        return setFlag(Constants.OWNERSHIP_CHANGED, value);
+        return setFlag(StatusFlags.OWNERSHIP_CHANGED, value);
     }
 
     /**
@@ -171,7 +171,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if active, false otherwise.
      */
     public boolean isActive() {
-        return getFlag(Constants.ACTIVE);
+        return getFlag(StatusFlags.ACTIVE);
     }
 
     /**
@@ -179,7 +179,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if sealed, false otherwise.
      */
     public boolean isSealed() {
-        return getFlag(Constants.SEALED);
+        return getFlag(StatusFlags.SEALED);
     }
 
     /**
@@ -187,7 +187,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if changed, false otherwise.
      */
     public boolean isOwnershipChanged() {
-        return getFlag(Constants.OWNERSHIP_CHANGED);
+        return getFlag(StatusFlags.OWNERSHIP_CHANGED);
     }
 
     /**
@@ -195,7 +195,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if segment is system segment, false otherwise.
      */
     public boolean isStorageSystemSegment() {
-        return getFlag(Constants.SYSTEM_SEGMENT);
+        return getFlag(StatusFlags.SYSTEM_SEGMENT);
     }
 
     /**

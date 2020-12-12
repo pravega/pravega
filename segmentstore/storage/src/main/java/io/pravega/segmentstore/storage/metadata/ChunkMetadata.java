@@ -98,7 +98,7 @@ public class ChunkMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public ChunkMetadata setActive(boolean value) {
-        return setFlag(Constants.ACTIVE, value);
+        return setFlag(StatusFlags.ACTIVE, value);
     }
 
     /**
@@ -106,7 +106,7 @@ public class ChunkMetadata extends StorageMetadata {
      * @return True if active, false otherwise.
      */
     public boolean isActive() {
-        return getFlag(Constants.ACTIVE);
+        return getFlag(StatusFlags.ACTIVE);
     }
 
     /**

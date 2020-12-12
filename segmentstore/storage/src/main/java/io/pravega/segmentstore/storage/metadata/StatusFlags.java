@@ -12,24 +12,28 @@ package io.pravega.segmentstore.storage.metadata;
 /**
  * Class that defines various constants.
  */
-final class Constants {
+public final class StatusFlags {
+    /**
+     * Not Initialized.
+     */
+    public static final int NONE = 0x0000;
     /**
      * Flag to indicate whether the chunk or segment is active or not.
      */
-    static final int ACTIVE = 0x0001;
+    public static final int ACTIVE = 0x0001;
 
     /**
      * Flag to indicate whether the  chunk or segment is sealed or not.
      */
-    static final int SEALED = 0x0002;
+    public static final int SEALED = 0x0002;
 
     /**
      * Flag to indicate whether the segment is storage system segment.
      */
-    static final int SYSTEM_SEGMENT = 0x0010;
+    public static final int SYSTEM_SEGMENT = 0x0010;
 
     /**
      * Flag to indicate whether followup actions (like adding new chunks) after ownership changes are needed or not.
      */
-    static final int OWNERSHIP_CHANGED = 0x0008;
+    public static final int OWNERSHIP_CHANGED = 0x0008;
 }
