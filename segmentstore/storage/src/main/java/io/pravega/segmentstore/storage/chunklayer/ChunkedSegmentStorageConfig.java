@@ -134,7 +134,8 @@ public class ChunkedSegmentStorageConfig {
         this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
-        this.minSizeLimitForConcat = properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT);
+        // Don't use appends for concat when appends are disabled.
+        this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
         this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
         this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
         this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
