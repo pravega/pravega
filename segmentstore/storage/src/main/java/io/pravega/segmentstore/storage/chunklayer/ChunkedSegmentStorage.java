@@ -257,8 +257,6 @@ public class ChunkedSegmentStorage implements Storage {
                                 .thenComposeAsync(chunkInfo -> {
                                     Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
                                     Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
-                                    // Mark chunk as "not garbage" if present.
-                                    //garbageCollector.removeFromGarbage(lastChunkName);
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
