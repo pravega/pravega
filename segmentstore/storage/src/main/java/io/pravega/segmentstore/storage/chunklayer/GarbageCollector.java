@@ -74,7 +74,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
 
     /**
      * Keeps track of queue size.
-     * Size is an expensive operation on ConcurrentLinkedQueue.
+     * Size is an expensive operation on DelayQueue.
      */
     @Getter
     private final AtomicInteger queueSize = new AtomicInteger();
@@ -164,14 +164,14 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 this::canRun,
                 () -> delaySupplier.get()
                         .thenRunAsync(() -> {
-                            log.info("{} Iteration {} started.", traceObjectId, iterationId.get());
+                            log.info("{}: Iteration {} started.", traceObjectId, iterationId.get());
                         }, executor)
-                        .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionConcurrency()), executor)
+                        .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionMaxConcurrency()), executor)
                         .handleAsync((v, ex) -> {
                             if (null != ex) {
-                                log.error("{} Error during doRun.", traceObjectId, ex);
+                                log.error("{}: Error during doRun.", traceObjectId, ex);
                             }
-                            log.info("{} Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
+                            log.info("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                             return null;
                         }, executor),
                 executor);
@@ -203,7 +203,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                     currentTime + config.getGarbageCollectionDelay().toMillis()));
 
         if (queueSize.get() >= config.getGarbageCollectionMaxQueueSize()) {
-            log.warn("{} deleteGarbage - Queue full. Could not delete garbage. Chunks skipped", traceObjectId);
+            log.warn("{}: deleteGarbage - Queue full. Could not delete garbage. Chunks skipped", traceObjectId);
         }
     }
 
@@ -218,7 +218,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
             garbageChunks.add(new GarbageChunkInfo(chunkToDelete, startTime));
             queueSize.incrementAndGet();
         } else {
-            log.debug("{} deleteGarbage - Queue full. Could not delete garbage. chunk {}.", traceObjectId, chunkToDelete);
+            log.debug("{}: deleteGarbage - Queue full. Could not delete garbage. chunk {}.", traceObjectId, chunkToDelete);
         }
     }
 
@@ -235,10 +235,10 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * @return CompletableFuture which is completed when garbage is deleted.
      */
     CompletableFuture<Boolean> deleteGarbage(boolean isBackground, int maxItems) {
-        log.debug("{} deleteGarbage - started.", traceObjectId);
+        log.debug("{}: deleteGarbage - started.", traceObjectId);
         // Sleep if suspended.
         if (suspended.get() && isBackground) {
-            log.info("{} deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
+            log.info("{}: deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
             return CompletableFuture.completedFuture(false);
         }
 
@@ -248,7 +248,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         try {
             // Block until you have at least one item.
             GarbageChunkInfo info = garbageChunks.take();
-            log.trace("\"{} deleteGarbage - retrieved {}", traceObjectId, info);
+            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
             while (null != info ) {
                 queueSize.decrementAndGet();
                 chunksToDelete.add(info);
@@ -259,7 +259,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 }
                 // Do not block
                 info = garbageChunks.poll();
-                log.trace("\"{} deleteGarbage - retrieved {}", traceObjectId, info);
+                log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
             }
         } catch (InterruptedException e) {
             throw new CompletionException(e);
@@ -267,7 +267,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
 
         // Sleep if no chunks to delete.
         if (count == 0) {
-            log.debug("{} deleteGarbage - no work - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
+            log.debug("{}: deleteGarbage - no work - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
             return CompletableFuture.completedFuture(false);
         }
 
@@ -285,7 +285,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                                 val shouldDeleteChunk = null == chunkMetadata || !chunkMetadata.isActive();
                                 val shouldDeleteMetadata = new AtomicBoolean(null != metadata && !chunkMetadata.isActive());
 
-                                // Check whether the chunk is marked as inactive
+                                // Delete chunk from storage.
                                 if (shouldDeleteChunk) {
                                     return chunkStorage.openWrite(chunkToDelete)
                                             .thenComposeAsync(chunkStorage::delete, storageExecutor)
@@ -294,21 +294,21 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                                                     val ex = Exceptions.unwrap(e);
                                                     if (ex instanceof ChunkNotFoundException) {
                                                         // Ignore - nothing to do here.
-                                                        log.debug("{} deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
+                                                        log.debug("{}: deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
                                                     } else {
-                                                        log.warn("{} deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
+                                                        log.warn("{}: deleteGarbage - Could not delete garbage chunk={}.", traceObjectId, chunkToDelete);
                                                         shouldDeleteMetadata.set(false);
                                                         failed.set(true);
                                                     }
                                                 } else {
-                                                    log.debug("{} deleteGarbage - deleted chunk={}.", traceObjectId, chunkToDelete);
+                                                    log.debug("{}: deleteGarbage - deleted chunk={}.", traceObjectId, chunkToDelete);
                                                 }
                                                 return v;
                                             }, storageExecutor)
                                             .thenRunAsync(() -> {
                                                 if (shouldDeleteMetadata.get()) {
                                                     txn.delete(chunkToDelete);
-                                                    log.debug("{} deleteGarbage - deleted metadata for chunk={}.", traceObjectId, chunkToDelete);
+                                                    log.debug("{}: deleteGarbage - deleted metadata for chunk={}.", traceObjectId, chunkToDelete);
                                                 }
                                             }, storageExecutor)
                                             .thenComposeAsync(v -> txn.commit(), storageExecutor)
@@ -321,15 +321,15 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                                                 return v;
                                             }, storageExecutor);
                                 } else {
-                                    log.info("{} deleteGarbage - Chunk is not marked as garbage chunk={}.", traceObjectId, chunkToDelete);
+                                    log.info("{}: deleteGarbage - Chunk is not marked as garbage chunk={}.", traceObjectId, chunkToDelete);
                                     return CompletableFuture.completedFuture(null);
                                 }
                             }, storageExecutor)
                             .whenCompleteAsync((v, ex) -> {
                                 // Queue it back.
                                 if (failed.get()) {
-                                    log.info("{} deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);
-                                    addToGarbage(chunkToDelete, infoToDelete.startTime + config.getGarbageCollectionDelay().toMillis());
+                                    log.info("{}: deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);
+                                    addToGarbage(chunkToDelete, infoToDelete.scheduledDeleteTime + config.getGarbageCollectionDelay().toMillis());
                                 }
                                 if (ex != null) {
                                     log.error(String.format("%s deleteGarbage - Could not find garbage chunk=%s.",
@@ -341,7 +341,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         }
         return Futures.allOf(futures)
                 .thenApplyAsync( v -> {
-                    log.debug("{} deleteGarbage - finished.", traceObjectId);
+                    log.debug("{}: deleteGarbage - finished.", traceObjectId);
                     return true;
                 }, executor);
     }
@@ -350,7 +350,9 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     public void close() {
         Services.stopAsync(this, executor);
         if (!this.closed.get()) {
-            loopFuture.cancel(true);
+            if (null != loopFuture) {
+                loopFuture.cancel(true);
+            }
             closed.set(true);
             super.close();
         }
@@ -361,16 +363,16 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     class GarbageChunkInfo implements Delayed {
         @Getter
         private final String name;
-        private final long startTime;
+        private final long scheduledDeleteTime;
 
         @Override
         public long getDelay(TimeUnit timeUnit) {
-            return timeUnit.convert(startTime - currentTimeSupplier.get(), TimeUnit.MILLISECONDS);
+            return timeUnit.convert(scheduledDeleteTime - currentTimeSupplier.get(), TimeUnit.MILLISECONDS);
         }
 
         @Override
         public int compareTo(Delayed delayed) {
-            return Ints.saturatedCast(startTime - ((GarbageChunkInfo) delayed).startTime);
+            return Ints.saturatedCast(scheduledDeleteTime - ((GarbageChunkInfo) delayed).scheduledDeleteTime);
         }
     }
 }

@@ -643,13 +643,13 @@ public class ChunkedSegmentStorage implements Storage {
 
     private void close(String message, AutoCloseable toClose) {
         try {
-            log.info("{} Closing {}", logPrefix, message);
+            log.debug("{} Closing {}", logPrefix, message);
             if (null != toClose) {
                 toClose.close();
             }
             log.info("{} Closed {}", logPrefix, message);
         } catch (Exception e) {
-            log.warn("{} Error while closing {}", logPrefix, message);
+            log.error("{} Error while closing {}", logPrefix, message, e);
         }
     }
 

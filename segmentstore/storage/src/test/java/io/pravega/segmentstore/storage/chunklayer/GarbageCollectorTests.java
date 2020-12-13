@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class GarbageCollectorTests extends ThreadPooledTestSuite {
+    public static final int CONTAINER_ID = 42;
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
 
     @Rule
@@ -80,7 +81,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -103,7 +104,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         @Cleanup
         GarbageCollector garbageCollector = new GarbageCollector(containerId,
@@ -175,7 +176,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for chunk that is active but marked as garbage.
+     * Test for chunk that is marked active but added as garbage.
      */
     @Test
     public void testActiveChunk() throws Exception {
@@ -183,7 +184,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "activeChunk", dataSize);
@@ -231,7 +232,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for chunk that is inactive and marked as garbage.
+     * Test for chunk that is marked inactive and added as garbage.
      */
     @Test
     public void testDeletedChunk() throws Exception {
@@ -239,7 +240,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -287,7 +288,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for chunk that is inactive, marked as garbage but missing from storage.
+     * Test for chunk that is marked inactive, added as garbage but missing from storage.
      */
     @Test
     public void testDeletedChunkMissingFromStorage() throws Exception {
@@ -295,7 +296,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
@@ -342,7 +343,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for chunk that does not exist in metadata.
+     * Test for chunk that does not exist in metadata but added as garbage.
      */
     @Test
     public void testNonExistentChunk() throws Exception {
@@ -350,7 +351,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         val manualDelay = new ManualDelay(2);
 
@@ -399,7 +400,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -456,7 +457,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -517,7 +518,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for a mix bag of chunks.
+     * Test for IO exception.
      */
     @Test
     public void testIOException() throws Exception {
@@ -525,7 +526,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -571,7 +572,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test for a mix bag of chunks.
+     * Test for metadata exception.
      */
     @Test
     public void testMetadataException() throws Exception {
@@ -579,7 +580,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -633,7 +634,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         insertChunk(chunkStorage, "deletedChunk", dataSize);
@@ -694,7 +695,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
 
@@ -754,7 +755,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         ArrayList<String> expected = new ArrayList<>();
@@ -774,7 +775,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                         .garbageCollectionDelay(Duration.ofMillis(1))
                         .garbageCollectionSleep(Duration.ofMillis(1))
-                        .garbageCollectionConcurrency(2)
+                        .garbageCollectionMaxConcurrency(2)
                         .build(),
                 executorService(),
                 System::currentTimeMillis,
@@ -830,7 +831,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         ChunkStorage chunkStorage = getChunkStorage();
         @Cleanup
         ChunkMetadataStore metadataStore = getMetadataStore();
-        int containerId = 42;
+        int containerId = CONTAINER_ID;
 
         int dataSize = 1;
         ArrayList<String> expected = new ArrayList<>();

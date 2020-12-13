@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.metadata;
 
 /**
- * Class that defines various constants.
+ * Class that defines various status flags for {@link StorageMetadata}.
  */
 public final class StatusFlags {
     /**
