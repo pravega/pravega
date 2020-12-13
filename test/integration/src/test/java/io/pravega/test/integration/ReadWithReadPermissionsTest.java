@@ -78,9 +78,9 @@ public class ReadWithReadPermissionsTest {
     }
 
     @Test
-    public void readsPassButWatermarksFailTest() {
-        String marketDataWriter = "hello-rw";
-        String marketDataReader = "hello-r";
+    public void readsFromADifferentScopeTest() {
+        String marketDataWriter = "writer";
+        String marketDataReader = "reader";
         String password = "test-password";
         String marketDataScope = "marketdata";
         String computeScope = "compute";
@@ -111,7 +111,7 @@ public class ReadWithReadPermissionsTest {
                 .build();
         cluster.start();
 
-        // Prepare a client config for "hello-rw", whose home scope is "marketdata"
+        // Prepare a client config for the `marketDataWriter`, whose home scope is "marketdata"
         final ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials(password, marketDataWriter))
@@ -123,7 +123,7 @@ public class ReadWithReadPermissionsTest {
         // Write a message to stream `marketdata/stream1`
         TestUtils.writeDataToStream(marketDataScope, stream1, "test message", writerClientConfig);
 
-        // Prepare a client config for `hello-r`, whose home scope is "compute"
+        // Prepare a client config for `marketDataReader`, whose home scope is "compute"
         ClientConfig readerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials(password, marketDataReader))
@@ -138,7 +138,7 @@ public class ReadWithReadPermissionsTest {
                 .disableAutomaticCheckpoints()
                 .build();
 
-        // Create a reader-group for user `hello-r` in `compute` scope, which is its home scope.
+        // Create a reader-group for user `marketDataReader` in `compute` scope, which is its home scope.
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(computeScope, readerClientConfig);
         readerGroupManager.createReaderGroup("testRg", readerGroupConfig);

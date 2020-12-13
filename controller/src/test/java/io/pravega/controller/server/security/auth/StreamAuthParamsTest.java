@@ -74,17 +74,18 @@ public class StreamAuthParamsTest {
 
     @Test
     public void requestedPermissionForWatermarkStream() {
-        StreamAuthParams params1 = new StreamAuthParams("testScope", NameUtils.getMarkStreamForStream("testStream"),
+        String watermarkStream = NameUtils.getMarkStreamForStream("testStream");
+        StreamAuthParams params1 = new StreamAuthParams("testScope", watermarkStream,
                 AccessOperation.UNSPECIFIED, false);
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, params1.requiredPermissionForWrites());
+        assertEquals(AuthHandler.Permissions.READ, params1.requiredPermissionForWrites());
 
-        StreamAuthParams params2 = new StreamAuthParams("testscope", "_MARKteststream",
+        StreamAuthParams params2 = new StreamAuthParams("testscope", watermarkStream,
                 AccessOperation.READ, false);
         assertEquals(AuthHandler.Permissions.READ, params2.requiredPermissionForWrites());
 
-        StreamAuthParams params3 = new StreamAuthParams("testscope", "_MARKteststream",
+        StreamAuthParams params3 = new StreamAuthParams("testscope", watermarkStream,
                 AccessOperation.READ_WRITE, false);
-        assertEquals(AuthHandler.Permissions.READ_UPDATE, params3.requiredPermissionForWrites());
+        assertEquals(AuthHandler.Permissions.READ, params3.requiredPermissionForWrites());
     }
 
     @Test
