@@ -91,4 +91,9 @@ public class SecureKVTCommandsTest {
         Assert.assertTrue(commandResult.contains("kvt1"));
         Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
     }
+
+    // TODO: Test KVT commands in the secure scenario (auth+TLS).
+    // Cannot at this point due to the following issue:
+    // Issue 5374: Updating a KeyValueTable throws an InvalidClaimException against standalone with auth and TLS enabled
+    // https://github.com/pravega/pravega/issues/5374
 }
