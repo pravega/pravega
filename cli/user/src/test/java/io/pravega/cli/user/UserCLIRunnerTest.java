@@ -20,7 +20,7 @@ public class UserCLIRunnerTest {
         UserCLIRunner.processCommand("fakecommand", InteractiveConfig.builder().build());
         UserCLIRunner.processCommand("scope fakeoption", InteractiveConfig.builder().build());
         UserCLIRunner.processCommand("help", InteractiveConfig.builder().build());
-        UserCLIRunner.processCommand("scope create 1 2 3", InteractiveConfig.builder().build());
+        UserCLIRunner.processCommand("scope create", InteractiveConfig.builder().build());
     }
 
     @Test

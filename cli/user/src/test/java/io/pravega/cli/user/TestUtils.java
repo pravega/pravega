@@ -9,8 +9,9 @@
  */
 package io.pravega.cli.user;
 
-
 import io.pravega.cli.user.config.InteractiveConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.integration.demo.ClusterWrapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -35,11 +36,64 @@ public final class TestUtils {
         CommandArgs args = new CommandArgs(pc.getArgs().getArgs(), config);
         Command cmd = Command.Factory.get(pc.getComponent(), pc.getName(), args);
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (PrintStream ps = new PrintStream(baos, true, "UTF-8")) {
+        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
             assert cmd != null;
             cmd.setOut(ps);
             cmd.execute();
         }
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Returns the relative path to `pravega/config` source directory from cli/user tests.
+     *
+     * @return the path
+     */
+    public static String pathToConfig() {
+        return "../../config/";
+    }
+
+    /**
+     * Creates a local Pravega cluster to test on using {@link ClusterWrapper}.
+     *
+     * @param authEnabled whether accessing the cluster require authentication or not.
+     * @param tlsEnabled whether accessing the cluster require TLS or not.
+     * @return A local Pravega cluster
+     */
+    public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
+        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder().authEnabled(authEnabled);
+        if (tlsEnabled) {
+            clusterWrapperBuilder
+                    .tlsEnabled(true)
+                    .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                    .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                    .tlsHostVerificationEnabled(false);
+        }
+        return clusterWrapperBuilder.build();
+    }
+
+    /**
+     * Creates the required config for the user-cli to use during testing.
+     *
+     * @param controllerUri the controller URI.
+     * @param authEnabled whether the cli requires authentication to access the cluster.
+     * @param tlsEnabled whether the cli requires TLS to access the cluster
+     */
+    public static InteractiveConfig createCLIConfig(String controllerUri, boolean authEnabled, boolean tlsEnabled) {
+        InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
+        interactiveConfig.setControllerUri(controllerUri);
+        interactiveConfig.setDefaultSegmentCount(4);
+        interactiveConfig.setMaxListItems(100);
+        interactiveConfig.setTimeoutMillis(10000);
+        interactiveConfig.setAuthEnabled(authEnabled);
+        interactiveConfig.setUserName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+        interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+        interactiveConfig.setTlsEnabled(tlsEnabled);
+        interactiveConfig.setTruststore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+        return interactiveConfig;
+    }
+
+    public static String getCLIControllerUri(String uri) {
+        return uri.replace("tcp://", "").replace("tls://", "");
     }
 }
