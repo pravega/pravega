@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.val;
 
 import static io.pravega.shared.MetricsTags.containerTag;
@@ -310,6 +312,7 @@ public final class SegmentStoreMetrics {
         private final Meter mergeSegment;
         private final Meter seal;
         private final Meter truncate;
+        private final AtomicBoolean closed = new AtomicBoolean();
 
         public Container(int containerId) {
             String[] containerTag = containerTag(containerId);
@@ -372,17 +375,18 @@ public final class SegmentStoreMetrics {
 
         @Override
         public void close() {
-            this.createSegment.close();
-            this.deleteSegment.close();
-            this.append.close();
-            this.appendWithOffset.close();
-            this.updateAttributes.close();
-            this.getAttributes.close();
-            this.read.close();
-            this.getInfo.close();
-            this.mergeSegment.close();
-            this.seal.close();
-            this.truncate.close();
+            this.closed.getAndSet(true);
+                this.createSegment.close();
+                this.deleteSegment.close();
+                this.append.close();
+                this.appendWithOffset.close();
+                this.updateAttributes.close();
+                this.getAttributes.close();
+                this.read.close();
+                this.getInfo.close();
+                this.mergeSegment.close();
+                this.seal.close();
+                this.truncate.close();
         }
     }
 
