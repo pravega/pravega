@@ -1141,7 +1141,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
     }
-
+    
     @Test
     public void txnCommitBatchLimitTest() throws Exception {
         final String scope = "txnCommitBatch";
@@ -1205,6 +1205,44 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx02, ordered.get(0));
         
         // scale and create transaction on new epoch too. 
+    }
+    
+    @Test
+    public void txnCommitBatchLimitOrderTest() throws Exception {
+        final String scope = "txnCommitBatch2";
+        final String stream = "txnCommitBatch2";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        
+        // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
+        List<UUID> txns = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            UUID tx = store.generateTransactionId(scope, stream, null, executor).join();
+            store.createTransaction(scope, stream, tx,
+                    100, 100, null, executor).join();
+            store.sealTransaction(scope, stream, tx, true, Optional.empty(),
+                    "", Long.MIN_VALUE, null, executor).join();
+            txns.add(tx);
+        }
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        
+        while (!txns.isEmpty()) {
+            int limit = 5;
+            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit).join();
+            List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+            assertEquals(limit, ordered.size());
+            for (int i = 0; i < limit; i++) {
+                assertEquals(txns.remove(0), ordered.get(i));
+                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i), null, executor).join();
+            }
+        }
     }
 
     private void scale(String scope, String stream, long scaleTs, List<Map.Entry<Double, Double>> newSegments, List<Long> scale1SealedSegments) {
