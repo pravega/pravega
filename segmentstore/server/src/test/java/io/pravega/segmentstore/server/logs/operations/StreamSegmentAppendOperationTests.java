@@ -70,7 +70,7 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         Assert.assertEquals("Expected an invocation to BufferView.release().", 0, buf.refCount);
     }
 
-    public static class RefCountByteArraySegment extends ByteArraySegment {
+    private static class RefCountByteArraySegment extends ByteArraySegment {
         private int refCount = 0;
 
         RefCountByteArraySegment(byte[] array) {
