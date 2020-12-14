@@ -9,7 +9,6 @@
  */
 package io.pravega.cli.user;
 
-
 import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
@@ -17,7 +16,6 @@ import io.pravega.test.integration.demo.ClusterWrapper;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -63,25 +61,25 @@ public final class TestUtils {
      * @return A local Pravega cluster
      */
     public static ClusterWrapper createPravegaCluster(boolean authEnabled, boolean tlsEnabled) {
-        return ClusterWrapper.builder()
-                .authEnabled(authEnabled)
-                .tlsEnabled(tlsEnabled)
-                .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
-                .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
-                .tlsHostVerificationEnabled(false)
-                .build();
+        ClusterWrapper.ClusterWrapperBuilder clusterWrapperBuilder = ClusterWrapper.builder().authEnabled(authEnabled);
+        if (tlsEnabled) {
+            clusterWrapperBuilder
+                    .tlsEnabled(true)
+                    .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
+                    .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
+                    .tlsHostVerificationEnabled(false);
+        }
+        return clusterWrapperBuilder.build();
     }
 
     /**
-     * Sets the given config for the user-cli to use during testing.
+     * Creates the required config for the user-cli to use during testing.
      *
      * @param controllerUri the controller URI.
      * @param authEnabled whether the cli requires authentication to access the cluster.
      * @param tlsEnabled whether the cli requires TLS to access the cluster
-     * @param config the config to be set.
      */
-    public static void setInteractiveConfig(String controllerUri, boolean authEnabled, boolean tlsEnabled,
-                                            AtomicReference<InteractiveConfig> config) {
+    public static InteractiveConfig createCLIConfig(String controllerUri, boolean authEnabled, boolean tlsEnabled) {
         InteractiveConfig interactiveConfig = InteractiveConfig.getDefault();
         interactiveConfig.setControllerUri(controllerUri);
         interactiveConfig.setDefaultSegmentCount(4);
@@ -92,6 +90,10 @@ public final class TestUtils {
         interactiveConfig.setPassword(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         interactiveConfig.setTlsEnabled(tlsEnabled);
         interactiveConfig.setTruststore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
-        config.set(interactiveConfig);
+        return interactiveConfig;
+    }
+
+    public static String getCLIControllerUri(String uri) {
+        return uri.replace("tcp://", "").replace("tls://", "");
     }
 }

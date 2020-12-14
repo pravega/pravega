@@ -9,27 +9,47 @@
  */
 package io.pravega.cli.user.stream;
 
-import io.pravega.cli.user.AbstractUserCommandTest;
 import io.pravega.cli.user.CommandArgs;
 import io.pravega.cli.user.TestUtils;
+import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
+import io.pravega.test.integration.demo.ClusterWrapper;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Collections;
 
-public class StreamCommandTest extends AbstractUserCommandTest {
+import static io.pravega.cli.user.TestUtils.createPravegaCluster;
+import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
+import static io.pravega.cli.user.TestUtils.createCLIConfig;
+
+public class StreamCommandTest {
+
+    static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
+    static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), false, false);
+    @BeforeClass
+    public static void start() {
+        CLUSTER.start();
+    }
+
+    @AfterClass
+    public static void shutDown() {
+        if (CLUSTER != null) {
+            CLUSTER.close();
+        }
+    }
 
     @Test(timeout = 5000)
     public void testCreateStream() throws Exception {
         String scope = "createStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "newStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG);
         new ScopeCommand.Create(commandArgs).execute();
 
-        String commandResult = TestUtils.executeCommand("stream create " + stream, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream create " + stream, CONFIG);
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(StreamCommand.Create.descriptor());
     }
@@ -38,13 +58,13 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testDeleteStream() throws Exception {
         String scope = "deleteStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "deleteStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG);
         new ScopeCommand.Create(commandArgs).execute();
 
-        commandArgs = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        commandArgs = new CommandArgs(Collections.singletonList(stream), CONFIG);
         new StreamCommand.Create(commandArgs).execute();
 
-        String commandResult = TestUtils.executeCommand("stream delete " + stream, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream delete " + stream, CONFIG);
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(StreamCommand.Delete.descriptor());
     }
@@ -53,18 +73,18 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testListStream() throws Exception {
         String scope = "listStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "theStream");
-        CommandArgs commandArgsScope = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgsScope = new CommandArgs(Collections.singletonList(scope), CONFIG);
         new ScopeCommand.Create(commandArgsScope).execute();
 
         // List Streams in scope when it is empty.
-        String commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG);
         Assert.assertFalse(commandResult.contains("theStream"));
 
-        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG);
         new StreamCommand.Create(commandArgsStream).execute();
 
         // List Streams in scope when we have one.
-        commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream list " + scope, CONFIG);
         Assert.assertTrue(commandResult.contains("theStream"));
         Assert.assertNotNull(StreamCommand.List.descriptor());
     }
@@ -73,45 +93,75 @@ public class StreamCommandTest extends AbstractUserCommandTest {
     public void testAppendAndReadStream() throws Exception {
         String scope = "appendAndReadStreamScope";
         String stream = NameUtils.getScopedStreamName(scope, "appendAndReadStream");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG.get());
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG);
         new ScopeCommand.Create(commandArgs).execute();
 
-        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG.get());
+        CommandArgs commandArgsStream = new CommandArgs(Collections.singletonList(stream), CONFIG);
         new StreamCommand.Create(commandArgsStream).execute();
 
-        String commandResult = TestUtils.executeCommand("stream append " + stream + " 100", CONFIG.get());
+        String commandResult = TestUtils.executeCommand("stream append " + stream + " 100", CONFIG);
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Append.descriptor());
 
         // Need to use a timeout for readers, otherwise the test never completes.
-        commandResult = TestUtils.executeCommand("stream read " + stream + " true 5", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream read " + stream + " true 5", CONFIG);
         Assert.assertTrue(commandResult.contains("Done"));
 
-        commandResult = TestUtils.executeCommand("stream append " + stream + " key 100", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream append " + stream + " key 100", CONFIG);
         Assert.assertTrue(commandResult.contains("Done"));
-        commandResult = TestUtils.executeCommand("stream read " + stream + " 5", CONFIG.get());
+        commandResult = TestUtils.executeCommand("stream read " + stream + " 5", CONFIG);
         Assert.assertTrue(commandResult.contains("Done"));
         Assert.assertNotNull(StreamCommand.Read.descriptor());
     }
 
     public static class AuthEnabledStreamCommandsTest extends StreamCommandTest {
+        static final ClusterWrapper CLUSTER = createPravegaCluster(true, false);
+        static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, false);
+
         @BeforeClass
         public static void start() {
-            setUpCluster(true, false);
+            CLUSTER.start();
+        }
+
+        @AfterClass
+        public static void shutDown() {
+            if (CLUSTER != null) {
+                CLUSTER.close();
+            }
         }
     }
 
     public static class TLSEnabledStreamCommandsTest extends StreamCommandTest {
+        static final ClusterWrapper CLUSTER = createPravegaCluster(false, true);
+        static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), false, true);
+
         @BeforeClass
         public static void start() {
-            setUpCluster(false, true);
+            CLUSTER.start();
+        }
+
+        @AfterClass
+        public static void shutDown() {
+            if (CLUSTER != null) {
+                CLUSTER.close();
+            }
         }
     }
 
     public static class SecureStreamCommandsTest extends StreamCommandTest {
+        static final ClusterWrapper CLUSTER = createPravegaCluster(true, true);
+        static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, true);
+
         @BeforeClass
         public static void start() {
-            setUpCluster(true, true);
+            CLUSTER.start();
+        }
+
+        @AfterClass
+        public static void shutDown() {
+            if (CLUSTER != null) {
+                CLUSTER.close();
+            }
         }
     }
 }

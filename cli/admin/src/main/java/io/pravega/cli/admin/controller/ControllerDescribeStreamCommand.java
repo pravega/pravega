@@ -73,11 +73,7 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
             } else {
                 segmentHelper = instantiateSegmentHelper(zkClient);
                 GrpcAuthHelper authHelper;
-                if (getCLIControllerConfig().isAuthEnabled()) {
-                    authHelper = new GrpcAuthHelper(true, getCLIControllerConfig().getTokenSigningKey(), 300);
-                } else {
-                    authHelper = GrpcAuthHelper.getDisabledAuthHelper();
-                }
+                authHelper = GrpcAuthHelper.getDisabledAuthHelper();
                 store = StreamStoreFactory.createPravegaTablesStore(segmentHelper, authHelper, zkClient, executor);
             }
 

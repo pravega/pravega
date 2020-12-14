@@ -24,7 +24,11 @@ import javax.ws.rs.core.Response;
 import java.util.Collections;
 import java.util.Properties;
 
-public class TLSEnabledControllerCommandsTest extends AbstractAdminCommandTest {
+public class SecureControllerCommandsTest extends AbstractAdminCommandTest {
+    @BeforeClass
+    public static void setUp() throws Exception {
+        setUpCluster(true, true);
+    }
 
     @Test
     @SneakyThrows
@@ -83,10 +87,26 @@ public class TLSEnabledControllerCommandsTest extends AbstractAdminCommandTest {
         command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
     }
 
-    public static class SecureControllerCommandsTest extends TLSEnabledControllerCommandsTest {
+    public static class AuthEnabledControllerCommandsTest extends SecureControllerCommandsTest {
         @BeforeClass
         public static void setUp() throws Exception {
-            setUpCluster(true, true);
+            setUpCluster(true, false);
+        }
+
+        @Test
+        @SneakyThrows
+        public void testDescribeReaderGroupCommand() {
+            // Check that the system reader group can be listed.
+            String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", STATE.get());
+            Assert.assertTrue(commandResult.contains("commitStreamReaders"));
+            Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+        }
+    }
+
+    public static class TLSEnabledControllerCommandsTest extends SecureControllerCommandsTest {
+        @BeforeClass
+        public static void setUp() throws Exception {
+            setUpCluster(false, true);
         }
     }
 }

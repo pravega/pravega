@@ -14,7 +14,6 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
-import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
@@ -55,20 +54,11 @@ import java.util.stream.IntStream;
 /**
  * Validate basic controller commands.
  */
-public class ControllerCommandsTest extends TLSEnabledControllerCommandsTest {
+public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEnabledControllerCommandsTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
         setUpCluster(false, false);
-    }
-
-    @Test
-    @SneakyThrows
-    public void testDescribeReaderGroupCommand() {
-        // Check that the system reader group can be listed.
-        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", STATE.get());
-        Assert.assertTrue(commandResult.contains("commitStreamReaders"));
-        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
     }
 
     @Test
@@ -170,13 +160,6 @@ public class ControllerCommandsTest extends TLSEnabledControllerCommandsTest {
         @Override
         public void execute() {
             super.execute();
-        }
-    }
-
-    public static class AuthEnabledControllerCommandsTest extends ControllerCommandsTest {
-        @BeforeClass
-        public static void setUp() throws Exception {
-            setUpCluster(true, false);
         }
     }
 }

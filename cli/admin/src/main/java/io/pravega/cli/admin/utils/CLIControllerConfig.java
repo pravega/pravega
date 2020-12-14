@@ -29,7 +29,6 @@ public final class CLIControllerConfig {
     private static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.channel.auth", false);
     private static final Property<String> CONTROLLER_USER_NAME = Property.named("controller.connect.credentials.username", "");
     private static final Property<String> CONTROLLER_PASSWORD = Property.named("controller.connect.credentials.pwd", "");
-    private static final Property<String> CONTROLLER_SIGNING_KEY = Property.named("controller.connect.delegationToken.signingKey.basis", "");
     private static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.channel.tls", false);
     private static final Property<String> TRUSTSTORE_JKS = Property.named("controller.connect.trustStore.location", "");
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
@@ -73,12 +72,6 @@ public final class CLIControllerConfig {
     private final String password;
 
     /**
-     * Token signing key if authentication is configured in the Controller.
-     */
-    @Getter
-    private final String tokenSigningKey;
-
-    /**
      * Truststore if TLS is configured in the Controller.
      */
     @Getter
@@ -97,7 +90,6 @@ public final class CLIControllerConfig {
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
         this.userName = properties.get(CONTROLLER_USER_NAME);
         this.password = properties.get(CONTROLLER_PASSWORD);
-        this.tokenSigningKey = properties.get(CONTROLLER_SIGNING_KEY);
         this.truststore = properties.get(TRUSTSTORE_JKS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }
