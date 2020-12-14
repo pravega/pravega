@@ -119,23 +119,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             .build();
 
     private static final SegmentType BASIC_SEGMENT_TYPE = SegmentType.STREAM_SEGMENT;
-    private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
-            .build();
-
-    // Configurations for DebugSegmentContainer
-    private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
-            .builder()
-            .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
-            .build();
-    private static final DurableLogConfig DURABLE_LOG_CONFIG = DurableLogConfig
-            .builder()
-            .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 1)
-            .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 10)
-            .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10L * 1024 * 1024)
-            .build();
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
