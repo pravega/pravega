@@ -28,19 +28,35 @@ public class InteractiveConfig {
     public static final String MAX_LIST_ITEMS = "max-list-items";
     public static final String PRETTY_PRINT = "pretty-print";
 
+    public static final String AUTH_ENABLED = "auth-enabled";
+    public static final String CONTROLLER_USER_NAME = "auth-username";
+    public static final String CONTROLLER_PASSWORD = "auth-password";
+    public static final String TLS_ENABLED = "tls-enabled";
+    public static final String TRUSTSTORE_JKS = "truststore-location";
+
     private String controllerUri;
     private int defaultSegmentCount;
     private int timeoutMillis;
     private int maxListItems;
     private boolean prettyPrint;
+    private boolean authEnabled;
+    private String userName;
+    private String password;
+    private boolean tlsEnabled;
+    private String truststore;
 
     public static InteractiveConfig getDefault() {
         return InteractiveConfig.builder()
-                .controllerUri("tcp://localhost:9090")
+                .controllerUri("localhost:9090")
                 .defaultSegmentCount(4)
                 .timeoutMillis(60000)
                 .maxListItems(1000)
                 .prettyPrint(true)
+                .authEnabled(false)
+                .userName("")
+                .password("")
+                .tlsEnabled(false)
+                .truststore("")
                 .build();
     }
 
@@ -61,6 +77,21 @@ public class InteractiveConfig {
             case PRETTY_PRINT:
                 setPrettyPrint(Boolean.parseBoolean(value));
                 break;
+            case AUTH_ENABLED:
+                setAuthEnabled(Boolean.parseBoolean(value));
+                break;
+            case CONTROLLER_USER_NAME:
+                setUserName(value);
+                break;
+            case CONTROLLER_PASSWORD:
+                setPassword(value);
+                break;
+            case TLS_ENABLED:
+                setTlsEnabled(Boolean.parseBoolean(value));
+                break;
+            case TRUSTSTORE_JKS:
+                setTruststore(value);
+                break;
             default:
                 throw new IllegalArgumentException(String.format("Unrecognized property name '%s'.", propertyName));
         }
@@ -74,6 +105,11 @@ public class InteractiveConfig {
                 .put(TIMEOUT_MILLIS, getTimeoutMillis())
                 .put(MAX_LIST_ITEMS, getMaxListItems())
                 .put(PRETTY_PRINT, isPrettyPrint())
+                .put(AUTH_ENABLED, isAuthEnabled())
+                .put(CONTROLLER_USER_NAME, getUserName())
+                .put(CONTROLLER_PASSWORD, getPassword())
+                .put(TLS_ENABLED, isTlsEnabled())
+                .put(TRUSTSTORE_JKS, getTruststore())
                 .build();
     }
 }
