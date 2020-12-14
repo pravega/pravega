@@ -200,17 +200,46 @@ public class StreamMetadataTasks extends TaskBase {
                 ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
     }
 
-
     /**
-     * Method to create stream with retries for lock failed exception.
+     * Method to create a State Synchronizer Stream for a Reader Group.
      *
      * @param scope           scope.
-     * @param stream          stream name.
+     * @param stream          State Synchronizer stream name.
      * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
      * @param numOfRetries    number of retries for LockFailedException
      * @return CompletableFuture which when completed will have creation status for the stream.
      */
+    public CompletableFuture<CreateStreamStatus.Status> createRGStream(String scope, String stream, StreamConfiguration config,
+                                                                                       long createTimestamp, int numOfRetries) {
+        Preconditions.checkNotNull(config, "streamConfig");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        NameUtils.validateStreamName(stream);
+
+        return Futures.exceptionallyExpecting(streamMetadataStore.getState(scope, stream, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
+                .thenCompose(state -> {
+                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        return createStreamRetryOnLockFailure(scope,
+                                stream,
+                                config,
+                                createTimestamp, 10);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateStreamStatus.Status.STREAM_EXISTS);
+                    }
+                });
+    }
+
+    /**
+    * Method to create stream with retries for lock failed exception.
+    *
+    * @param scope           scope.
+    * @param stream          stream name.
+    * @param config          stream configuration.
+    * @param createTimestamp creation timestamp.
+    * @param numOfRetries    number of retries for LockFailedException
+    * @return CompletableFuture which when completed will have creation status for the stream.
+    */
     public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
                                                                                        long createTimestamp, int numOfRetries) {
         return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp),
@@ -1277,10 +1306,10 @@ public class StreamMetadataTasks extends TaskBase {
                 .handle((result, ex) -> {
                     if (ex != null) {
                         Throwable cause = Exceptions.unwrap(ex);
+                        log.warn(requestId, "Create stream failed due to ", ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
-                            log.warn(requestId, "Create stream failed due to ", ex);
                             return CreateStreamStatus.Status.FAILURE;
                         }
                     } else {

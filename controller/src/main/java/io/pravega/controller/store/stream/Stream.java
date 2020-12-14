@@ -115,7 +115,7 @@ interface Stream {
      * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
      * @return future of operation.
      */
-    CompletableFuture<Void> addSubscriber(String subscriber);
+    CompletableFuture<Void> addSubscriber(String subscriber, long generation);
 
     /**
      * Fetches the record corresponding to the subscriber

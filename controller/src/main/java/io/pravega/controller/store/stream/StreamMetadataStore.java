@@ -400,11 +400,12 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scopeName         stream scope name.
      * @param streamName        stream name.
      * @param subscriber        new subscriber Reader Group.
+     * @param generation        subscriber generation number.
      * @param context           operation context
      * @param executor          callers executor
      * @return Future of operation
      */
-    CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber,
+    CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber, long generation,
                                              final OperationContext context, final Executor executor);
 
     /**

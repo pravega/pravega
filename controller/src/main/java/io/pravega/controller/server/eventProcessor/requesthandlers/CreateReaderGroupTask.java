@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
@@ -60,7 +61,6 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         long requestId = request.getRequestId();
 
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-        log.info("Processing create request.");
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup,
                 true, context, executor)
                 .thenCompose(state -> {
@@ -68,25 +68,33 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                         String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
                         return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                                .thenCompose(configRecord -> {
-                               log.info("Adding metadata to Streams");
                                if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                                    .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
-                                   // update Stream metadata tables, if RG is a Subscriber
+                                   // update Stream metadata tables, only if RG is a Subscriber
                                    Iterator<String> streamIter = configRecord.getObject().getStartingStreamCuts().keySet().iterator();
                                    return Futures.loop(() -> streamIter.hasNext(), () -> {
                                           Stream stream = Stream.of(streamIter.next());
                                           return streamMetadataStore.addSubscriber(stream.getScope(),
-                                                       stream.getStreamName(), scopedRGName, null, executor);
+                                                       stream.getStreamName(), scopedRGName, configRecord.getObject().getGeneration(),
+                                                  null, executor);
                                       }, executor);
                                    }
                                return CompletableFuture.completedFuture(null);
                                }).thenCompose(v ->
-                                  Futures.toVoid(streamMetadataStore.createStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis(), null, executor)
-                                 .thenCompose(x -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                     ReaderGroupState.ACTIVE, state, context, executor))));
+                                  streamMetadataTasks.createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
+                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                                          System.currentTimeMillis(), 10)
+                                 .thenCompose(status -> {
+                                     if (status.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
+                                     || status.equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
+                                         return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
+                                                 ReaderGroupState.ACTIVE, state, context, executor));
+                                     }
+                               return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
+                                             readerGroup, status.toString())));
+                           }));
                     }
-                    return null;
+                    return CompletableFuture.completedFuture(null);
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 }

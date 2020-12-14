@@ -51,14 +51,12 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
       String scope = request.getScope();
       String readerGroup = request.getRgName();
       long requestId = request.getRequestId();
-      log.info("Inside Delete Event");
       final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
       return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                .thenCompose(configRecord -> {
                if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                        .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
                String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
-               log.info("Inside Delete Event, found config");
                // update Stream metadata tables, if RG is a Subscriber
                Iterator<String> streamIter = configRecord.getObject().getStartingStreamCuts().keySet().iterator();
                return Futures.loop(() -> streamIter.hasNext(), () -> {
@@ -69,11 +67,8 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                }
                return CompletableFuture.completedFuture(null);
                })
-               .thenCompose(v -> {
-                   log.info("Inside Delete Event, deleting metadata and stream");
-                   return streamMetadataStore.deleteStream(scope,
-                           NameUtils.getStreamForReaderGroup(readerGroup), null, executor)
-                           .thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor));
-               });
+               .thenCompose(v -> streamMetadataTasks.deleteStream(scope,
+                       NameUtils.getStreamForReaderGroup(readerGroup), null)
+                       .thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor)));
     }
 }

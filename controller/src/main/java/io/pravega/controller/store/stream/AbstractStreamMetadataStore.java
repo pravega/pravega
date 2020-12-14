@@ -543,9 +543,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber,
-                                                    final OperationContext context, final Executor executor) {
+                                                 final long generation, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.addSubscriber(subscriber), executor);
+        return Futures.completeOn(stream.addSubscriber(subscriber, generation), executor);
     }
 
     @Override
