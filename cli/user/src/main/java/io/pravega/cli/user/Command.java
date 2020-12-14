@@ -18,6 +18,8 @@ import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.cli.user.stream.StreamCommand;
 import io.pravega.cli.user.utils.Formatter;
 import io.pravega.cli.user.config.InteractiveConfig;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -76,7 +78,21 @@ public abstract class Command {
     }
 
     protected URI getControllerUri() {
-        return URI.create(getConfig().getControllerUri());
+        return URI.create((getConfig().isTlsEnabled() ? "tls://" : "tcp://") + getConfig().getControllerUri());
+    }
+
+    protected ClientConfig getClientConfig() {
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
+                .controllerURI(getControllerUri());
+        if (getConfig().isAuthEnabled()) {
+            clientConfigBuilder.credentials(new DefaultCredentials(getConfig().getPassword(),
+                    getConfig().getUserName()));
+        }
+        if (getConfig().isTlsEnabled()) {
+            clientConfigBuilder.trustStore(getConfig().getTruststore())
+                    .validateHostName(false);
+        }
+        return clientConfigBuilder.build();
     }
 
     protected void output(String messageTemplate, Object... args) {
