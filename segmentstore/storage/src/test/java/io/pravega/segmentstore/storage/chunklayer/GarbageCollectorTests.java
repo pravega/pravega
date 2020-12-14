@@ -746,6 +746,74 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         Assert.assertNotNull(getChunkMetadata(metadataStore, "deletedChunk"));
     }
 
+
+    /**
+     * Test for Max Attempts.
+     */
+    @Test
+    public void testMaxAttempts() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = CONTAINER_ID;
+
+        int dataSize = 1;
+        insertChunk(chunkStorage, "deletedChunk", dataSize);
+        insertChunkMetadata(metadataStore, "deletedChunk", dataSize, 0);
+
+        val manualDelay = new ManualDelay(5);
+
+        chunkStorage.setReadOnly(chunkStorage.openWrite("deletedChunk").get(), true);
+
+        @Cleanup
+        GarbageCollector garbageCollector = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStore,
+                ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                        .garbageCollectionDelay(Duration.ofMillis(1))
+                        .garbageCollectionSleep(Duration.ofMillis(1))
+                        .garbageCollectionMaxAttempts(3)
+                        .build(),
+                executorService(),
+                System::currentTimeMillis,
+                manualDelay);
+
+        // Now actually start run
+        garbageCollector.initialize();
+
+        Assert.assertNotNull(garbageCollector.getGarbageChunks());
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+
+        // Add some garbage
+        garbageCollector.addToGarbage(Arrays.asList("deletedChunk"));
+
+        // Validate state before
+        assertQueueEquals(garbageCollector, new String[]{"deletedChunk"});
+
+        for (int i = 0; i < 3; i++) {
+            // Return first delay - this will "unpause" the first iteration.
+            manualDelay.completeDelay(i);
+
+            // Wait for "Delay" to be invoked again. This indicates that first iteration was complete.
+            // Don't complete the delay.
+            manualDelay.waitForInvocation(i + 1);
+
+            // Validate state after
+            assertQueueEquals(garbageCollector, new String[]{"deletedChunk"});
+        }
+
+        // Return first delay - this will "unpause" the first iteration.
+        manualDelay.completeDelay(3);
+
+        // Wait for "Delay" to be invoked again. This indicates that first iteration was complete.
+        // Don't complete the delay.
+        manualDelay.waitForInvocation(4);
+
+        // Validate state after
+        Assert.assertEquals(0, garbageCollector.getQueueSize().get());
+    }
+
     /**
      * Test for throttling.
      */
@@ -789,7 +857,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         // Add some garbage
         for (int i = 0; i < expected.size(); i++) {
-            garbageCollector.addToGarbage(expected.get(i), 1000 * i);
+            garbageCollector.addToGarbage(expected.get(i), 1000 * i, 0);
         }
 
         // Validate state before
@@ -868,7 +936,7 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
 
         // Add some garbage
         for (int i = 0; i < expected.size(); i++) {
-            garbageCollector.addToGarbage(expected.get(i), baseTime + 10000 * (i + 1));
+            garbageCollector.addToGarbage(expected.get(i), baseTime + 10000 * (i + 1), 0);
         }
 
         // Validate state before

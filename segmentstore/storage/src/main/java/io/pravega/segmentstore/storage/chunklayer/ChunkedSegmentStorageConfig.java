@@ -42,6 +42,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
 
 
     /**
@@ -63,6 +64,7 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionMaxConcurrency(10)
             .garbageCollectionMaxQueueSize(16 * 1024)
             .garbageCollectionSleep(Duration.ofSeconds(60))
+            .garbageCollectionMaxAttempts(3)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -162,6 +164,12 @@ public class ChunkedSegmentStorageConfig {
 
 
     /**
+     * Max number of attempts per chunk for garbage collection.
+     */
+    @Getter
+    final private int garbageCollectionMaxAttempts;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -184,6 +192,7 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
     }
 
     /**

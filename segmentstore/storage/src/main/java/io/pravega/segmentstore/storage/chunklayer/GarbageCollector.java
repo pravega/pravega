@@ -199,8 +199,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     void addToGarbage(Collection<String> chunksToDelete) {
         val currentTime = currentTimeSupplier.get();
 
-        chunksToDelete.forEach(chunkToDelete -> addToGarbage(chunkToDelete,
-                    currentTime + config.getGarbageCollectionDelay().toMillis()));
+        chunksToDelete.forEach(chunkToDelete -> addToGarbage(chunkToDelete, currentTime + config.getGarbageCollectionDelay().toMillis(), 0));
 
         if (queueSize.get() >= config.getGarbageCollectionMaxQueueSize()) {
             log.warn("{}: deleteGarbage - Queue full. Could not delete garbage. Chunks skipped", traceObjectId);
@@ -212,10 +211,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      *
      * @param chunkToDelete Name of the chunk to delete.
      * @param startTime Start time.
+     * @param attempts Number of attempts to delete this chunk so far.
      */
-    void addToGarbage(String chunkToDelete, long startTime) {
+    void addToGarbage(String chunkToDelete, long startTime, int attempts) {
         if (queueSize.get() < config.getGarbageCollectionMaxQueueSize()) {
-            garbageChunks.add(new GarbageChunkInfo(chunkToDelete, startTime));
+            garbageChunks.add(new GarbageChunkInfo(chunkToDelete, startTime, attempts));
             queueSize.incrementAndGet();
         } else {
             log.debug("{}: deleteGarbage - Queue full. Could not delete garbage. chunk {}.", traceObjectId, chunkToDelete);
@@ -328,8 +328,14 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                             .whenCompleteAsync((v, ex) -> {
                                 // Queue it back.
                                 if (failed.get()) {
-                                    log.info("{}: deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);
-                                    addToGarbage(chunkToDelete, infoToDelete.scheduledDeleteTime + config.getGarbageCollectionDelay().toMillis());
+                                    if (infoToDelete.getAttempts() < config.getGarbageCollectionMaxAttempts()) {
+                                        log.debug("{}: deleteGarbage - adding back chunk={}.", traceObjectId, chunkToDelete);
+                                        addToGarbage(chunkToDelete,
+                                                infoToDelete.getScheduledDeleteTime() + config.getGarbageCollectionDelay().toMillis(),
+                                                infoToDelete.getAttempts() + 1);
+                                    } else {
+                                        log.info("{}: deleteGarbage - could not delete after max attempts chunk={}.", traceObjectId, chunkToDelete);
+                                    }
                                 }
                                 if (ex != null) {
                                     log.error(String.format("%s deleteGarbage - Could not find garbage chunk=%s.",
@@ -364,6 +370,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         @Getter
         private final String name;
         private final long scheduledDeleteTime;
+        private final int attempts;
 
         @Override
         public long getDelay(TimeUnit timeUnit) {
