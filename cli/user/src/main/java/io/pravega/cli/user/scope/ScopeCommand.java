@@ -17,8 +17,6 @@ import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.val;
 
-import java.net.URI;
-
 public abstract class ScopeCommand extends Command {
     static final String COMPONENT = "scope";
 
@@ -42,7 +40,7 @@ public abstract class ScopeCommand extends Command {
         public void execute() {
             ensureMinArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            val sm = StreamManager.create(getClientConfig());
             for (val scopeName : getCommandArgs().getArgs()) {
                 val success = sm.createScope(scopeName);
                 if (success) {
@@ -69,7 +67,7 @@ public abstract class ScopeCommand extends Command {
         public void execute() {
             ensureMinArgCount(1);
             @Cleanup
-            val sm = StreamManager.create(URI.create(getConfig().getControllerUri()));
+            val sm = StreamManager.create(getClientConfig());
             for (val scopeName : getCommandArgs().getArgs()) {
                 val success = sm.deleteScope(scopeName);
                 if (success) {
