@@ -14,10 +14,14 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
@@ -28,13 +32,14 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
+import io.pravega.test.integration.demo.ClusterWrapper;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
+import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -51,14 +56,68 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static io.pravega.cli.admin.utils.TestUtils.createAdminCLIConfig;
+import static io.pravega.cli.admin.utils.TestUtils.createPravegaCluster;
+import static io.pravega.cli.admin.utils.TestUtils.getCLIControllerRestUri;
+import static io.pravega.cli.admin.utils.TestUtils.getCLIControllerUri;
+import static io.pravega.cli.admin.utils.TestUtils.prepareValidClientConfig;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 /**
  * Validate basic controller commands.
  */
-public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEnabledControllerCommandsTest {
+public class ControllerCommandsTest extends SecureControllerCommandsTest {
+    private static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
+    private static final AdminCommandState STATE;
 
-    @BeforeClass
-    public static void setUp() throws Exception {
-        setUpCluster(false, false);
+    // The controller REST URI is generated only after the Pravega cluster has been started. So to maintain STATE as
+    // static final, we use this instead of @BeforeClass.
+    static {
+        CLUSTER.start();
+        STATE = createAdminCLIConfig(getCLIControllerRestUri(CLUSTER.controllerRestUri()),
+                getCLIControllerUri(CLUSTER.controllerUri()), CLUSTER.zookeeperConnectString(), CLUSTER.getContainerCount(), false, false);
+        String scope = "testScope";
+        String testStream = "testStream";
+        ClientConfig clientConfig = prepareValidClientConfig(CLUSTER.controllerUri(), false, false);
+
+        // Generate the scope and stream required for testing.
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertNotNull(streamManager);
+
+        boolean isScopeCreated = streamManager.createScope(scope);
+
+        // Check if scope created successfully.
+        assertTrue("Failed to create scope", isScopeCreated);
+
+        boolean isStreamCreated = streamManager.createStream(scope, testStream, StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+
+        // Check if stream created successfully.
+        assertTrue("Failed to create the stream ", isStreamCreated);
+    }
+
+    protected AdminCommandState cliConfig() {
+        return STATE;
+    }
+
+    @AfterClass
+    public static void shutDown() {
+        if (CLUSTER != null) {
+            CLUSTER.close();
+        }
+        STATE.close();
+    }
+
+    @Test
+    @SneakyThrows
+    public void testDescribeReaderGroupCommand() {
+        // Check that the system reader group can be listed.
+        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", cliConfig());
+        Assert.assertTrue(commandResult.contains("commitStreamReaders"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
     }
 
     @Test
@@ -67,7 +126,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEna
         String scope = "testScope";
         String testStream = "testStream";
 
-        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, STATE.get());
+        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, cliConfig());
         Assert.assertTrue(commandResult.contains("stream_config"));
         Assert.assertTrue(commandResult.contains("stream_state"));
         Assert.assertTrue(commandResult.contains("segment_count"));
@@ -77,10 +136,10 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEna
         Assert.assertTrue(commandResult.contains("scaling_info"));
 
         // Exercise actual instantiateSegmentHelper
-        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
         ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
         @Cleanup
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(CLUSTER.get().zookeeperConnectString(),
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(CLUSTER.zookeeperConnectString(),
                 new RetryOneTime(5000));
         curatorFramework.start();
         @Cleanup
@@ -90,11 +149,11 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEna
         // Try the Zookeeper backend, which is expected to fail and be handled by the command.
         Properties properties = new Properties();
         properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.ZOOKEEPER.name());
-        STATE.get().getConfigBuilder().include(properties);
-        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), STATE.get());
+        cliConfig().getConfigBuilder().include(properties);
+        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
         new ControllerDescribeStreamCommand(commandArgs).execute();
         properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.SEGMENTSTORE.name());
-        STATE.get().getConfigBuilder().include(properties);
+        cliConfig().getConfigBuilder().include(properties);
     }
 
     static String executeCommand(String inputCommand, AdminCommandState state) throws Exception {
@@ -125,7 +184,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest.AuthEna
         protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(false)
-                    .hostContainerMap(getHostContainerMap(Collections.singletonList("localhost:" + CLUSTER.get().getSegmentStorePort()),
+                    .hostContainerMap(getHostContainerMap(Collections.singletonList("localhost:" + CLUSTER.getSegmentStorePort()),
                             getServiceConfig().getContainerCount()))
                     .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                     .containerCount(getServiceConfig().getContainerCount())

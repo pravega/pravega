@@ -9,96 +9,41 @@
  */
 package io.pravega.cli.admin;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.test.integration.demo.ClusterWrapper;
-import lombok.Cleanup;
-import lombok.val;
+import io.pravega.test.integration.utils.SetupUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.Timeout;
 
-import java.net.URI;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.cli.admin.utils.TestUtils.createPravegaCluster;
-import static io.pravega.cli.admin.utils.TestUtils.pathToConfig;
-import static io.pravega.cli.admin.utils.TestUtils.setAdminCLIProperties;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 public abstract class AbstractAdminCommandTest {
 
-    protected static final AtomicReference<ClusterWrapper> CLUSTER = new AtomicReference<>();
+    // Setup utility.
+    protected static final SetupUtils SETUP_UTILS = new SetupUtils();
     protected static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
+
     @Rule
-    public final Timeout globalTimeout = new Timeout(80, TimeUnit.SECONDS);
-
-    public static void setUpCluster(boolean authEnabled, boolean tlsEnabled) throws Exception {
-        CLUSTER.set(createPravegaCluster(authEnabled, tlsEnabled));
-        CLUSTER.get().start();
-        setAdminCLIProperties(CLUSTER.get().controllerRestUri().replace("http://", "").replace("https://", ""),
-                CLUSTER.get().controllerUri().replace("tcp://", "").replace("tls://", ""),
-                CLUSTER.get().zookeeperConnectString(),
-                CLUSTER.get().getContainerCount(),
-                authEnabled,
-                CLUSTER.get().getTokenSigningKeyBasis(),
-                tlsEnabled,
-                STATE);
-
-        String scope = "testScope";
-        String testStream = "testStream";
-        ClientConfig clientConfig = prepareValidClientConfig(authEnabled, tlsEnabled);
-
-        // Generate the scope and stream required for testing.
-        @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
-        assertNotNull(streamManager);
-
-        boolean isScopeCreated = streamManager.createScope(scope);
-
-        // Check if scope created successfully.
-        assertTrue("Failed to create scope", isScopeCreated);
-
-        boolean isStreamCreated = streamManager.createStream(scope, testStream, StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build());
-
-        // Check if stream created successfully.
-        assertTrue("Failed to create the stream ", isStreamCreated);
-    }
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     @BeforeClass
     public static void setUp() throws Exception {
-        setUpCluster(false, true);
+        SETUP_UTILS.startAllServices();
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
+        pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
+        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        STATE.get().getConfigBuilder().include(pravegaProperties);
     }
 
     @AfterClass
-    public static void tearDown() {
-        val cluster = CLUSTER.getAndSet(null);
-        if (cluster != null) {
-            cluster.close();
-        }
+    public static void tearDown() throws Exception {
+        SETUP_UTILS.stopAllServices();
         STATE.get().close();
     }
 
-    protected static ClientConfig prepareValidClientConfig(boolean authEnabled, boolean tlsEnabled) {
-        ClientConfig.ClientConfigBuilder clientBuilder = ClientConfig.builder()
-                .controllerURI(URI.create(CLUSTER.get().controllerUri()));
-        if (authEnabled) {
-            clientBuilder.credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
-        }
-        if (tlsEnabled) {
-            clientBuilder.trustStore(pathToConfig() + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME)
-                    .validateHostName(false);
-        }
-        return clientBuilder.build();
-    }
 }

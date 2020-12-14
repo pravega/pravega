@@ -57,7 +57,7 @@ public class ClusterCommandsTest extends AbstractAdminCommandTest {
     private void createDummyHostContainerAssignment() {
         @Cleanup
         CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
-                .connectString(CLUSTER.get().zookeeperConnectString())
+                .connectString(SETUP_UTILS.getZkTestServer().getConnectString())
                 .retryPolicy(new RetryOneTime(5000)).build();
         curatorFramework.start();
         ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);

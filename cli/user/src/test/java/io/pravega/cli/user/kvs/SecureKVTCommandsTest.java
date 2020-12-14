@@ -15,6 +15,7 @@ import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.integration.demo.ClusterWrapper;
+import lombok.SneakyThrows;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -26,9 +27,13 @@ import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
 import static io.pravega.cli.user.TestUtils.createCLIConfig;
 
-public class AuthEnabledKVTCommandsTest {
-    protected static final ClusterWrapper CLUSTER = createPravegaCluster(true, false);
-    static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, false);
+public class SecureKVTCommandsTest {
+    private static final ClusterWrapper CLUSTER = createPravegaCluster(true, true);
+    private static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, true);
+
+    protected InteractiveConfig cliConfig() {
+        return CONFIG;
+    }
 
     @BeforeClass
     public static void start() {
@@ -43,61 +48,47 @@ public class AuthEnabledKVTCommandsTest {
     }
 
     @Test(timeout = 10000)
-    public void testCreateKVT() throws Exception {
+    @SneakyThrows
+    public void testCreateKVT() {
         final String scope = "createKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
-        String commandResult = TestUtils.executeCommand("scope create " + scope, CONFIG);
+        String commandResult = TestUtils.executeCommand("scope create " + scope, cliConfig());
         Assert.assertTrue(commandResult.contains("created successfully"));
 
-        commandResult = TestUtils.executeCommand("kvt create " + table, CONFIG);
+        commandResult = TestUtils.executeCommand("kvt create " + table, cliConfig());
         Assert.assertTrue(commandResult.contains("created successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Create.descriptor());
     }
 
     @Test(timeout = 20000)
-    public void testDeleteKVT() throws Exception {
+    @SneakyThrows
+    public void testDeleteKVT() {
         final String scope = "deleteKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG);
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), cliConfig());
         new ScopeCommand.Create(commandArgs).execute();
 
-        commandArgs = new CommandArgs(Collections.singletonList(table), CONFIG);
+        commandArgs = new CommandArgs(Collections.singletonList(table), cliConfig());
         new KeyValueTableCommand.Create(commandArgs).execute();
 
-        String commandResult = TestUtils.executeCommand("kvt delete " + table, CONFIG);
+        String commandResult = TestUtils.executeCommand("kvt delete " + table, cliConfig());
         Assert.assertTrue(commandResult.contains("deleted successfully"));
         Assert.assertNotNull(KeyValueTableCommand.Delete.descriptor());
     }
 
     @Test(timeout = 10000)
-    public void testListKVT() throws Exception {
+    @SneakyThrows
+    public void testListKVT() {
         final String scope = "listKVTable";
         final String table = scope + "/kvt1";
-        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), CONFIG);
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), cliConfig());
         new ScopeCommand.Create(commandArgs).execute();
 
-        CommandArgs commandArgsCreate = new CommandArgs(Collections.singletonList(table), CONFIG);
+        CommandArgs commandArgsCreate = new CommandArgs(Collections.singletonList(table), cliConfig());
         new KeyValueTableCommand.Create(commandArgsCreate).execute();
 
-        String commandResult = TestUtils.executeCommand("kvt list " + scope, CONFIG);
+        String commandResult = TestUtils.executeCommand("kvt list " + scope, cliConfig());
         Assert.assertTrue(commandResult.contains("kvt1"));
         Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
-    }
-
-    public static class SecureKVTCommandsTest extends AuthEnabledKVTCommandsTest {
-        protected static final ClusterWrapper CLUSTER = createPravegaCluster(true, true);
-        static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, true);
-
-        @BeforeClass
-        public static void start() {
-            CLUSTER.start();
-        }
-
-        @AfterClass
-        public static void shutDown() {
-            if (CLUSTER != null) {
-                CLUSTER.close();
-            }
-        }
     }
 }
