@@ -41,7 +41,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertFalse(config.isInlineDefragEnabled());
         Assert.assertEquals(config.getMaxBufferSizeForChunkDataTransfer(), 1);
         Assert.assertEquals(config.getMaxSizeLimitForConcat(), 2);
-        Assert.assertEquals(config.getMinSizeLimitForConcat(), 3);
+        Assert.assertEquals(config.getMinSizeLimitForConcat(), 0); // Don't use appends for concat when appends are disabled.
         Assert.assertEquals(config.getMaxIndexedSegments(), 4);
         Assert.assertEquals(config.getMaxIndexedChunks(), 5);
         Assert.assertEquals(config.getMaxIndexedChunksPerSegment(), 6);
