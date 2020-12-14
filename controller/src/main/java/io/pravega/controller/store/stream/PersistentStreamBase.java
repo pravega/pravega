@@ -1670,7 +1670,7 @@ public abstract class PersistentStreamBase implements Stream {
         int epoch = nextEpoch.getKey();
         List<Long> orders = new ArrayList<>();
         List<String> txnIds = new ArrayList<>();
-        nextEpoch.getValue().forEach(x -> {
+        nextEpoch.getValue().stream().sorted(Comparator.comparingLong(Map.Entry::getKey)).forEach(x -> {
             orders.add(x.getKey());
             txnIds.add(x.getValue());
         });
@@ -1681,8 +1681,9 @@ public abstract class PersistentStreamBase implements Stream {
                 () -> getTransactionRecords(epoch, txnIds.subList(from.get(), till.get())).thenAccept(txns -> {
             for (int i = 0; i < txns.size(); i++) {
                 ActiveTxnRecord txnRecord = txns.get(i);
-                UUID txnId = UUID.fromString(txnIds.get(i));
-                long order = orders.get(i);
+                int index = from.get() + i;
+                UUID txnId = UUID.fromString(txnIds.get(index));
+                long order = orders.get(index);
                 switch (txnRecord.getTxnStatus()) {
                     case COMMITTING:
                         if (txnRecord.getCommitOrder() == order) {
@@ -1706,7 +1707,7 @@ public abstract class PersistentStreamBase implements Stream {
                     case ABORTED:
                     case UNKNOWN:
                         // Aborting, aborted, unknown and committed 
-                        log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
+                        log.debug("stale txn {} with status {}. removing {}", txnId, txnRecord.getTxnStatus(), order);
                         toPurge.add(order);
                         break;
                 }
