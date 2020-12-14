@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -320,6 +321,12 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                    .addReaderGroupToScope(name)
                    .thenCompose(v -> super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor)),
                 executor);
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName,
+                                                    final RGOperationContext context, final Executor executor) {
+        return getScope(scopeName).getReaderGroupId(rgName);
     }
 
     @Override

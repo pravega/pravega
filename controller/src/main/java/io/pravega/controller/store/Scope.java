@@ -79,6 +79,8 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
                                                               final Executor executor);
 
+    CompletableFuture<UUID> getReaderGroupId(String rgName);
+
     default byte[] newId() {
         byte[] b = new byte[2 * Long.BYTES];
         BitConverter.writeUUID(new ByteArraySegment(b), UUID.randomUUID());

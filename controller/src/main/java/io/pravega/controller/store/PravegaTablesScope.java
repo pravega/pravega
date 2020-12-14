@@ -226,6 +226,12 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, readerGroup)));
     }
 
+    public CompletableFuture<UUID> getReaderGroupId(String readerGroupName) {
+        return getReaderGroupsInScopeTableName()
+                .thenCompose(tableName -> storeHelper.getEntry(tableName, readerGroupName, id -> BitConverter.readUUID(id, 0))
+                        .thenApply(versionedUUID -> versionedUUID.getObject()));
+    }
+
     @Override
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken,
                                                                             Executor executor) {

@@ -34,7 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.Iterator;
 
 /**
- * Request handler for executing a create operation for a KeyValueTable.
+ * Request handler for executing a create operation for a ReaderGroup.
  */
 @Slf4j
 public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupEvent> {
@@ -59,15 +59,17 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String scope = request.getScopeName();
         String readerGroup = request.getRgName();
         long requestId = request.getRequestId();
-
+        log.info("Inside Create RG Task");
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup,
                 true, context, executor)
                 .thenCompose(state -> {
+                    log.info("GOT RG State:{}", state.getObject().toString());
                     if (state.getObject().equals(ReaderGroupState.CREATING)) {
                         String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
                         return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                                .thenCompose(configRecord -> {
+                               log.info("GOT COnfig Record:{}", configRecord.getObject().getGeneration());
                                if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                                    .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
                                    // update Stream metadata tables, only if RG is a Subscriber
@@ -79,14 +81,17 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                                   null, executor);
                                       }, executor);
                                    }
+                               log.info("NOW HERE!!!");
                                return CompletableFuture.completedFuture(null);
                                }).thenCompose(v ->
                                   streamMetadataTasks.createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
                                            StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                                           System.currentTimeMillis(), 10)
                                  .thenCompose(status -> {
+                                     log.info("Created RG Stream. Status {}", status.toString());
                                      if (status.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
                                      || status.equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
+                                         log.debug("updating RG State...");
                                          return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
                                                  ReaderGroupState.ACTIVE, state, context, executor));
                                      }

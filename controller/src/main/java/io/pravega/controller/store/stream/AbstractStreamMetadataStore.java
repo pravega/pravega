@@ -1004,7 +1004,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getReaderGroup(scopeName, rgName, context).delete();
     }
 
-
     @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
                                                                                 final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,

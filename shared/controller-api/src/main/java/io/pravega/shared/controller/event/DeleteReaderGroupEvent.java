@@ -29,6 +29,7 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
     private final String scope;
     private final String rgName;
     private final long requestId;
+    private UUID readerGroupId;
 
     @Override
     public String getKey() {
@@ -64,12 +65,14 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
             target.writeUTF(e.scope);
             target.writeUTF(e.rgName);
             target.writeLong(e.requestId);
+            target.writeUUID(e.readerGroupId);
         }
 
         private void read00(RevisionDataInput source, DeleteReaderGroupEventBuilder b) throws IOException {
             b.scope(source.readUTF());
             b.rgName(source.readUTF());
             b.requestId(source.readLong());
+            b.readerGroupId(source.readUUID());
         }
     }
     //endregion

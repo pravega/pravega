@@ -31,6 +31,7 @@ import org.apache.curator.utils.ZKPaths;
 import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -172,6 +173,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName) {
         return null;
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, RGOperationContext context, Executor executor) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

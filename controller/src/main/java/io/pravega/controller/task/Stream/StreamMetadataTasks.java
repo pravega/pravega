@@ -219,6 +219,7 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.exceptionallyExpecting(streamMetadataStore.getState(scope, stream, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
                 .thenCompose(state -> {
+                    log.debug("CREATING RG Stream...{}", state.toString());
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                         return createStreamRetryOnLockFailure(scope,
                                 stream,
@@ -245,6 +246,7 @@ public class StreamMetadataTasks extends TaskBase {
         return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp),
                 e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
                 .exceptionally(e -> {
+                    log.warn("createStream threw exception {}", e.getCause().getMessage());
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof RetriesExhaustedException) {
                         throw new CompletionException(unwrap.getCause());
@@ -372,16 +374,30 @@ public class StreamMetadataTasks extends TaskBase {
                 if (ReaderGroupState.UNKNOWN.equals(state.getObject())) {
                     return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
                 }
-                return eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId),
-                () -> streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
-                        ReaderGroupState.DELETING, state, context, executor))
-                .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
-                .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS));
+                return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                        .thenCompose(id -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, id),
+                                    () -> startReaderGroupDelete(scope, rgName, state, context))
+                        .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
+                        .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {
         return streamMetadataStore.checkReaderGroupExists(scope, rgName).thenApply(exists -> !exists);
+    }
+
+    private CompletableFuture<Void> startReaderGroupDelete(final String scope, final String rgName, VersionedMetadata<ReaderGroupState> currentState,
+                                                           RGOperationContext context) {
+        final String rgStreamName = NameUtils.getStreamForReaderGroup(rgName);
+        return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
+           ReaderGroupState.DELETING, currentState, context, executor))
+           .thenCompose(v -> sealStream(scope, rgStreamName, null))
+                .thenAccept(sealStatus -> {
+                    if (!UpdateStreamStatus.Status.SUCCESS.equals(sealStatus)) {
+                        final String msg = String.format("Failed to seal ReaderGroup Stream %s, cause %s", NameUtils.getScopedStreamName(scope, rgStreamName), sealStatus.toString());
+                        throw new CompletionException(new IllegalStateException(msg));
+                    }
+                });
     }
 
     /**
@@ -395,6 +411,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+        log.debug("createStream with resource called.");
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config, createTimestamp},
@@ -1260,6 +1277,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
+        log.debug("Inside createStreamBody");
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
                     log.info(requestId, "{}/{} created in metadata store", scope, stream);
