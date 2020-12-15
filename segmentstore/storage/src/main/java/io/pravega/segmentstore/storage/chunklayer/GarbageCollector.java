@@ -56,6 +56,7 @@ import java.util.function.Supplier;
  */
 @Slf4j
 public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.
      */
@@ -102,8 +103,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
     public GarbageCollector(int containerId, ChunkStorage chunkStorage,
                             ChunkMetadataStore metadataStore,
                             ChunkedSegmentStorageConfig config,
-                            ScheduledExecutorService executorService
-                            ) {
+                            ScheduledExecutorService executorService) {
         this(containerId, chunkStorage, metadataStore, config, executorService,
                 System::currentTimeMillis,
                 () -> Futures.delayedFuture(config.getGarbageCollectionSleep(), executorService));
@@ -127,12 +127,17 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                             Supplier<Long> currentTimeSupplier,
                             Supplier<CompletableFuture<Void>> delaySupplier) {
         super(String.format("GarbageCollector[%d]", containerId), ExecutorServiceHelpers.newScheduledThreadPool(1, "storage-gc"));
-        this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
-        this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
-        this.config = Preconditions.checkNotNull(config, "config");
-        this.currentTimeSupplier = Preconditions.checkNotNull(currentTimeSupplier, "currentTimeSupplier");
-        this.delaySupplier = Preconditions.checkNotNull(delaySupplier, "delaySupplier");
-        this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
+        try {
+            this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
+            this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
+            this.config = Preconditions.checkNotNull(config, "config");
+            this.currentTimeSupplier = Preconditions.checkNotNull(currentTimeSupplier, "currentTimeSupplier");
+            this.delaySupplier = Preconditions.checkNotNull(delaySupplier, "delaySupplier");
+            this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
+        } catch (Exception ex) {
+            this.executor.shutdownNow();
+            throw ex;
+        }
     }
 
     /**
@@ -149,7 +154,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      */
     @Override
     protected Duration getShutdownTimeout() {
-        return null;
+        return SHUTDOWN_TIMEOUT;
     }
 
     /**
@@ -227,7 +232,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      *
      * This method retrieves a few eligible chunks for deletion at a time.
      * The chunk is deleted only if the metadata for it does not exist or is marked inactive.
-     * If there are any errors then failed chunk is enqueued back.
+     * If there are any errors then failed chunk is enqueued back up to a max number of attempts.
      * If suspended or there are no items then it "sleeps" for time specified by configuration.
      *
      * @param isBackground True if the caller is background task else False if called explicitly.

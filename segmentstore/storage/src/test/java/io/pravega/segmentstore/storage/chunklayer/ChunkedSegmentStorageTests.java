@@ -103,8 +103,11 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSupportsTruncate() throws Exception {
+        @Cleanup
         val chunkStorage = createChunkStorage();
+        @Cleanup
         val metadataStore = createMetadataStore();
+        @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         Assert.assertTrue(chunkedSegmentStorage.supportsTruncation());
     }
@@ -116,10 +119,13 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInitialization() throws Exception {
+        @Cleanup
         val chunkStorage = createChunkStorage();
+        @Cleanup
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
         val systemJournal = new SystemJournal(CONTAINER_ID, chunkStorage, metadataStore, config);
 

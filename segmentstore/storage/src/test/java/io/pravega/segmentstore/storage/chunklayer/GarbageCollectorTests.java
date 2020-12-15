@@ -117,61 +117,73 @@ public class GarbageCollectorTests extends ThreadPooledTestSuite {
         garbageCollector.initialize();
 
         AssertExtensions.assertThrows("Should not allow null chunkStorage",
-                () -> new GarbageCollector(containerId,
+                () -> {
+                        @Cleanup val x = new GarbageCollector(containerId,
                         null,
                         metadataStore,
                         ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                         executorService(),
                         System::currentTimeMillis,
-                        CompletableFuture::new),
+                        CompletableFuture::new);
+                },
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null metadataStore",
-                () -> new GarbageCollector(containerId,
+                () -> {
+                    @Cleanup val x = new GarbageCollector(containerId,
                         chunkStorage,
                         null,
                         ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                         executorService(),
                         System::currentTimeMillis,
-                        CompletableFuture::new),
+                        CompletableFuture::new);
+                },
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null config",
-                () -> new GarbageCollector(containerId,
-                        chunkStorage,
-                        metadataStore,
-                        null,
-                        executorService(),
-                        System::currentTimeMillis,
-                        CompletableFuture::new),
+                () -> {
+                    @Cleanup val x = new GarbageCollector(containerId,
+                            chunkStorage,
+                            metadataStore,
+                            null,
+                            executorService(),
+                            System::currentTimeMillis,
+                            CompletableFuture::new);
+                },
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows("Should not allow null executorService",
-                () -> new GarbageCollector(containerId,
-                        chunkStorage,
-                        metadataStore,
-                        ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
-                        null,
-                        System::currentTimeMillis,
-                        CompletableFuture::new),
+                () -> {
+                    @Cleanup val x = new GarbageCollector(containerId,
+                            chunkStorage,
+                            metadataStore,
+                            ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                            null,
+                            System::currentTimeMillis,
+                            CompletableFuture::new);
+                },
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("Should not allow null currentTimeSupplier",
-                () -> new GarbageCollector(containerId,
-                        chunkStorage,
-                        metadataStore,
-                        ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
-                        executorService(),
-                        null,
-                        CompletableFuture::new),
+                () -> {
+                    @Cleanup val x = new GarbageCollector(containerId,
+                            chunkStorage,
+                            metadataStore,
+                            ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                            executorService(),
+                            null,
+                            CompletableFuture::new);
+                },
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("Should not allow null delaySupplier",
-                () -> new GarbageCollector(containerId,
+                () -> {
+                    @Cleanup val x = new GarbageCollector(containerId,
                         chunkStorage,
                         metadataStore,
                         ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                         executorService(),
                         System::currentTimeMillis,
-                        null),
+                        null);
+                },
                 ex -> ex instanceof NullPointerException);
     }
 
