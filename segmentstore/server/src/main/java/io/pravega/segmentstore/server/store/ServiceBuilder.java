@@ -454,7 +454,7 @@ public class ServiceBuilder implements AutoCloseable {
     public static class ComponentSetup implements ConfigSetup {
         private final ServiceBuilder builder;
 
-        private ComponentSetup(ServiceBuilder builder) {
+        public ComponentSetup(ServiceBuilder builder) {
             this.builder = builder;
         }
 
@@ -502,5 +502,20 @@ public class ServiceBuilder implements AutoCloseable {
         }
     }
 
+    /**
+     * Setup helper for a ServiceBuilder component.
+     */
+    public static class ConfigSetupHelper implements ConfigSetup {
+        private final ServiceBuilderConfig builderConfig;
+
+        public ConfigSetupHelper(ServiceBuilderConfig builderConfig) {
+            this.builderConfig = builderConfig;
+        }
+
+        @Override
+        public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
+            return this.builderConfig.getConfig(builderConstructor);
+        }
+    }
     //endregion
 }
