@@ -32,6 +32,4 @@ public interface ServerConfig {
      * @return configuration properties
      */
     Properties toAuthHandlerProperties();
-
-
 }

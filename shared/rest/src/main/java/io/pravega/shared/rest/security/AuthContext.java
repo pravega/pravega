@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.security.auth.handler;
+package io.pravega.shared.rest.security;
 
 import io.pravega.auth.AuthHandler;
 import lombok.Getter;
