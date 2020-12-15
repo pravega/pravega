@@ -7,16 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static io.pravega.auth.AuthHandler.Permissions.*;
+package io.pravega.shared.rest.impl;
 
 import io.pravega.auth.AuthException;
-import io.pravega.controller.mocks.FakeAuthHandler;
-import io.pravega.shared.rest.security.AuthHandlerManager;
+import io.pravega.shared.rest.mocks.FakeAuthHandler;
 import io.pravega.shared.rest.security.RESTAuthHelper;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.auth.UserPrincipal;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,6 +21,11 @@ import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+
+import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the RESTAuthHelper class.
