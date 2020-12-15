@@ -12,23 +12,36 @@ package io.pravega.cli.admin.controller;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Response;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 
+import static io.pravega.common.util.CertificateUtils.createTrustStore;
 import static javax.ws.rs.core.Response.Status.OK;
 import static javax.ws.rs.core.Response.Status.UNAUTHORIZED;
 
 /**
  * Base for any Controller-related commands.
  */
+@Slf4j
 public abstract class ControllerCommand extends AdminCommand {
     static final String COMPONENT = "controller";
 
@@ -47,14 +60,34 @@ public abstract class ControllerCommand extends AdminCommand {
      * @return REST client.
      */
     protected Context createContext() {
+        CLIControllerConfig config = getCLIControllerConfig();
         ClientConfig clientConfig = new ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
-        Client client = ClientBuilder.newClient(clientConfig);
+
+        ClientBuilder builder = ClientBuilder.newBuilder().withConfig(clientConfig);
+
+        // If TLS parameters are configured, set them in client.
+        if (config.isTlsEnabled()) {
+            SSLContext tlsContext;
+            try {
+                KeyStore ks = createTrustStore(config.getTruststore());
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(ks);
+                tlsContext = SSLContext.getInstance("TLS");
+                tlsContext.init(null, tmf.getTrustManagers(), null);
+            } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException | KeyManagementException e) {
+                String message = String.format("Encountered exception while trying to use the given truststore: %s", config.getTruststore());
+                log.error(message, e);
+                return null;
+            }
+            builder.sslContext(tlsContext);
+        }
+        Client client = builder.build();
         // If authorization parameters are configured, set them in the client.
-        if (getCLIControllerConfig().isAuthEnabled()) {
-            HttpAuthenticationFeature auth = HttpAuthenticationFeature.basic(getCLIControllerConfig().getUserName(),
-                    getCLIControllerConfig().getPassword());
+        if (config.isAuthEnabled()) {
+            HttpAuthenticationFeature auth = HttpAuthenticationFeature.basic(config.getUserName(),
+                    config.getPassword());
             client = client.register(auth);
         }
         return new Context(client);
