@@ -57,7 +57,8 @@ public abstract class PingTest {
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory);
+                connectionFactory,
+                null);
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();

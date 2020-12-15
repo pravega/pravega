@@ -15,6 +15,7 @@ import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
+import io.pravega.shared.health.HealthConfig;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -97,6 +98,13 @@ public interface ControllerServiceConfig {
      * @return Whether REST server is enabled, and its configuration if it is enabled.
      */
     Optional<RESTServerConfig> getRestServerConfig();
+
+    /**
+     * Fetches whether HealthService is enabled, and its configuration if it is enabled.
+     *
+     * @return Whether HealthService is enabled, and its configuration if it is enabled.
+     */
+    Optional<HealthConfig> getHealthConfig();
 
     /**
      * Frequency at which periodic retention jobs should be performed for each stream. 

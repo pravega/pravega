@@ -20,6 +20,7 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.health.HealthConfig;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
@@ -47,6 +48,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final Optional<GRPCServerConfig> gRPCServerConfig;
 
     private final Optional<RESTServerConfig> restServerConfig;
+
+    private final Optional<HealthConfig> healthConfig;
     
     private final Duration retentionFrequency;
     
@@ -60,6 +63,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
+                                final Optional<HealthConfig> healthConfig,
                                 final Duration retentionFrequency) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
@@ -72,15 +76,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                             storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
-        if (eventProcessorConfig.isPresent()) {
-            Preconditions.checkNotNull(eventProcessorConfig.get());
-        }
-        if (grpcServerConfig.isPresent()) {
-            Preconditions.checkNotNull(grpcServerConfig.get());
-        }
-        if (restServerConfig.isPresent()) {
-            Preconditions.checkNotNull(restServerConfig.get());
-        }
 
         this.threadPoolSize = threadPoolSize;
         this.storeClientConfig = storeClientConfig;
@@ -91,6 +86,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;
         this.restServerConfig = restServerConfig;
+        this.healthConfig = healthConfig;
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
     }

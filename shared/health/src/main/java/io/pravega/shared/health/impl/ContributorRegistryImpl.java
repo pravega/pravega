@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.Objects;
 
 // Modifications to the 'contributors', 'children', and 'parents' must happen atomically to ensure valid state is always
 // perceived. The 'components' set is not used for program logic so synchronization is not strictly required.
@@ -113,6 +114,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     @Override
     synchronized public HealthContributor register(HealthComponent component, HealthComponent parent) {
+        parent = Objects.isNull(parent) ? root : parent;
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
         if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
             log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);

@@ -26,6 +26,8 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.health.HealthConfig;
+import io.pravega.shared.health.impl.HealthConfigImpl;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.Optional;
@@ -89,6 +91,8 @@ public class Main {
                     .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();
 
+            HealthConfig healthConfig = HealthConfigImpl.builder().empty();
+
             ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                     .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                     .storeClientConfig(storeClientConfig)
@@ -99,6 +103,7 @@ public class Main {
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
                     .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
+                    .healthConfig(Optional.of(healthConfig))
                     .build();
 
             setUncaughtExceptionHandler(Main::logUncaughtException);
