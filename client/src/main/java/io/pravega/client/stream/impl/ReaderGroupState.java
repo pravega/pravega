@@ -94,25 +94,6 @@ public class ReaderGroupState implements Revisioned {
     private final long generation;
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
-                     Map<Segment, Long> endSegments) {
-        Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
-        Preconditions.checkNotNull(revision);
-        Preconditions.checkNotNull(config);
-        Exceptions.checkNotNullOrEmpty(segmentsToOffsets.entrySet(), "segmentsToOffsets");
-        this.scopedSynchronizerStream = scopedSynchronizerStream;
-        this.config = config;
-        this.revision = revision;
-        this.checkpointState = new CheckpointState();
-        this.distanceToTail = new HashMap<>();
-        this.futureSegments = new HashMap<>();
-        this.assignedSegments = new HashMap<>();
-        this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
-        this.lastReadPosition = new HashMap<>(segmentsToOffsets);
-        this.endSegments = ImmutableMap.copyOf(endSegments);
-        this.generation = 0;
-    }
-
-    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments, long generation) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);

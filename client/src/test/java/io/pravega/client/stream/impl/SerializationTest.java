@@ -319,7 +319,7 @@ public class SerializationTest {
         // Change the state to reflect the update
         val segmentToOffsets = ImmutableMap.of(new SegmentWithRange(new Segment("scope", "stream", 0), 0.0, 1.0), 0L);
         ReaderGroupState state = new ReaderGroupState("_RGTest", mock(Revision.class), mock(ReaderGroupConfig.class),
-                                                      segmentToOffsets, mock(Map.class));
+                                                      segmentToOffsets, mock(Map.class), 0);
         oldStyleUpdate.update(state); // ensure no exceptions are thrown.
 
     }
