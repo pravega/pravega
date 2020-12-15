@@ -261,7 +261,6 @@ public class ControllerService {
                                       CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
                           }
                       });
-
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {

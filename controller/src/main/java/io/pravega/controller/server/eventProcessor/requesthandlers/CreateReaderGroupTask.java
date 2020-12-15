@@ -30,6 +30,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.Iterator;
 
@@ -81,7 +82,6 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                                   null, executor);
                                       }, executor);
                                    }
-                               log.info("NOW HERE!!!");
                                return CompletableFuture.completedFuture(null);
                                }).thenCompose(v ->
                                   streamMetadataTasks.createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
@@ -97,7 +97,11 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                      }
                                return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                                              readerGroup, status.toString())));
-                           }));
+                           })).exceptionally(ex -> {
+                                    log.debug(ex.getMessage());
+                                    Throwable cause = Exceptions.unwrap(ex);
+                                    throw new CompletionException(cause);
+                           });
                     }
                     return CompletableFuture.completedFuture(null);
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);

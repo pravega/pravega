@@ -121,6 +121,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.*;
@@ -128,12 +129,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public abstract class StreamMetadataTasksTest {
 
@@ -239,6 +235,13 @@ public abstract class StreamMetadataTasksTest {
                 .generation(0L)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        /*
+        CompletableFuture<Controller.CreateStreamStatus.Status> createStatus = streamMetadataTasks.createStream(SCOPE, NameUtils.getStreamForReaderGroup("rg1"),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis());
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStatus.join());
+
+         */
     }
 
     abstract StreamMetadataStore getStore();
@@ -356,10 +359,17 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(SubscribersResponse.Status.STREAM_NOT_FOUND, listSubscribersResponse.getStatus());
         assertEquals(0, listSubscribersResponse.getSubscribersList().size());
 
+        doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
+                .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
+        doReturn(CompletableFuture.completedFuture(Controller.DeleteStreamStatus.Status.SUCCESS))
+                .when(streamMetadataTasks).deleteStream(anyString(), anyString(), any());
+        doReturn(CompletableFuture.completedFuture(Controller.UpdateStreamStatus.Status.SUCCESS))
+                .when(streamMetadataTasks).sealStream(anyString(), anyString(), any());
+
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         CompletableFuture<Controller.CreateReaderGroupStatus.Status> createFuture =
-                streamMetadataTasks.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis());
+        streamMetadataTasks.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 

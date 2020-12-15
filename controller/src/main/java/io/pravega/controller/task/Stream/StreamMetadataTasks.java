@@ -1277,7 +1277,6 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
-        log.debug("Inside createStreamBody");
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
                     log.info(requestId, "{}/{} created in metadata store", scope, stream);
