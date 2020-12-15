@@ -17,12 +17,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base class for a Metric Proxy.
  *
  * @param <T> Type of Metric.
  */
+@Slf4j
 abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     private final AtomicReference<T> instance = new AtomicReference<>();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -77,7 +79,9 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     }
 
     protected T getInstance() {
-        Preconditions.checkState(!closed.get(), "This MetricProxy has already been closed. Further updates to this Metric will not be seen by a MeterRegistry.");
+        if (!closed.get()) {
+            log.warn("This MetricProxy ({}) has already been closed. Further updates to this Metric will not be seen by a MeterRegistry.", proxyName);
+        }
         return this.instance.get();
     }
 }
