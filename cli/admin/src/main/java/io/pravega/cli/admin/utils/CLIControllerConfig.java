@@ -24,11 +24,13 @@ public final class CLIControllerConfig {
         SEGMENTSTORE, ZOOKEEPER
     }
 
-    private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.rest.uri", "http://localhost:9091");
-    private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.grpc.uri", "tcp://localhost:9090");
-    private static final Property<Boolean> AUTH_ENABLED = Property.named("security.auth.enable", false);
-    private static final Property<String> CONTROLLER_USER_NAME = Property.named("security.auth.credentials.username", "");
-    private static final Property<String> CONTROLLER_PASSWORD = Property.named("security.auth.credentials.password", "");
+    private static final Property<String> CONTROLLER_REST_URI = Property.named("controller.connect.rest.uri", "localhost:9091");
+    private static final Property<String> CONTROLLER_GRPC_URI = Property.named("controller.connect.grpc.uri", "localhost:9090");
+    private static final Property<Boolean> AUTH_ENABLED = Property.named("controller.connect.channel.auth", false);
+    private static final Property<String> CONTROLLER_USER_NAME = Property.named("controller.connect.credentials.username", "");
+    private static final Property<String> CONTROLLER_PASSWORD = Property.named("controller.connect.credentials.pwd", "");
+    private static final Property<Boolean> TLS_ENABLED = Property.named("controller.connect.channel.tls", false);
+    private static final Property<String> TRUSTSTORE_JKS = Property.named("controller.connect.trustStore.location", "");
     private static final Property<String> METADATA_BACKEND = Property.named("store.metadata.backend", MetadataBackends.SEGMENTSTORE.name());
 
     private static final String COMPONENT_CODE = "cli";
@@ -52,6 +54,12 @@ public final class CLIControllerConfig {
     private final boolean authEnabled;
 
     /**
+     * Defines whether or not to use tls in Controller requests.
+     */
+    @Getter
+    private final boolean tlsEnabled;
+
+    /**
      * User name if authentication is configured in the Controller.
      */
     @Getter
@@ -64,17 +72,25 @@ public final class CLIControllerConfig {
     private final String password;
 
     /**
+     * Truststore if TLS is configured in the Controller.
+     */
+    @Getter
+    private final String truststore;
+
+    /**
      * Controller metadata backend. At the moment, its values can only be "segmentstore" or "zookeeper".
      */
     @Getter
     private final String metadataBackend;
 
     private CLIControllerConfig(TypedProperties properties) throws ConfigurationException {
-        this.controllerRestURI = properties.get(CONTROLLER_REST_URI);
-        this.controllerGrpcURI = properties.get(CONTROLLER_GRPC_URI);
+        this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
+        this.controllerRestURI = (this.isTlsEnabled() ? "https://" : "http://") + properties.get(CONTROLLER_REST_URI);
+        this.controllerGrpcURI = (this.isTlsEnabled() ? "tls://" : "tcp://") + properties.get(CONTROLLER_GRPC_URI);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
         this.userName = properties.get(CONTROLLER_USER_NAME);
         this.password = properties.get(CONTROLLER_PASSWORD);
+        this.truststore = properties.get(TRUSTSTORE_JKS);
         this.metadataBackend = properties.get(METADATA_BACKEND);
     }
 
