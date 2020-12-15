@@ -93,7 +93,9 @@ public class S3ProxyImpl extends S3ImplBase {
         S3ObjectMetadata metadata = request.getObjectMetadata();
 
         if (request.getObjectMetadata() != null) {
-            request.setObjectMetadata(null);
+            request.setObjectMetadata(new S3ObjectMetadata()
+                    .withContentType(metadata.getContentType())
+                    .withContentLength(metadata.getContentLength()));
         }
         PutObjectResult retVal = client.putObject(request);
         if (request.getAcl() != null) {

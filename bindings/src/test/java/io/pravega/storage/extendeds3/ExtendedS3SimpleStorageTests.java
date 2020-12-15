@@ -9,11 +9,12 @@
  */
 package io.pravega.storage.extendeds3;
 
-import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournalTests;
+import lombok.val;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -129,6 +130,60 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
         @Override
         protected ChunkStorage getChunkStorage() {
             return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+        }
+    }
+
+    /**
+     * {@link ChunkedRollingStorageTests} tests for {@link ExtendedS3ChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     */
+    public static class NoAppendExtendedS3StorageRollingTests extends ChunkedRollingStorageTests {
+        private ExtendedS3TestContext testContext = null;
+
+        @Before
+        public void setUp() throws Exception {
+            this.testContext = new ExtendedS3TestContext();
+        }
+
+        @After
+        public void tearDown() throws Exception {
+            if (this.testContext != null) {
+                this.testContext.close();
+            }
+        }
+
+        @Override
+        protected ChunkStorage getChunkStorage() {
+            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            ret.setSupportsAppend(false);
+            return ret;
+        }
+    }
+
+    /**
+     * {@link SystemJournalTests} tests for {@link ExtendedS3ChunkStorage} based {@link io.pravega.segmentstore.storage.Storage}.
+     */
+    public static class NoAppendExtendedS3ChunkStorageSystemJournalTests extends SystemJournalTests {
+        private ExtendedS3TestContext testContext = null;
+
+        @Before
+        public void before() throws Exception {
+            this.testContext = new ExtendedS3TestContext();
+            super.before();
+        }
+
+        @After
+        public void after() throws Exception {
+            if (this.testContext != null) {
+                this.testContext.close();
+            }
+            super.after();
+        }
+
+        @Override
+        protected ChunkStorage getChunkStorage() {
+            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            ret.setSupportsAppend(false);
+            return ret;
         }
     }
 }

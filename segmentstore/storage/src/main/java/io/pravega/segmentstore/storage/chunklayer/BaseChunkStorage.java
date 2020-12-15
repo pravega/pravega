@@ -73,6 +73,11 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
     }
 
     @Override
+    protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data) {
+        return execute(() -> doCreateWithContent(chunkName, length, data));
+    }
+
+    @Override
     protected CompletableFuture<Boolean> checkExistsAsync(String chunkName) {
         return execute(() -> checkExists(chunkName));
     }
@@ -141,6 +146,26 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
      * @throws IllegalArgumentException If argument is invalid.
      */
     abstract protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException;
+
+    /**
+     * Creates a new chunk.
+     *
+     * @param chunkName String name of the chunk to create.
+     * @param length Number of bytes to write.
+     * @param data   An InputStream representing the data to write.* @return ChunkHandle A writable handle for the recently created chunk.
+     * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
+     * @throws IllegalArgumentException If argument is invalid.
+     */
+    protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+        ChunkHandle handle = doCreate(chunkName);
+        int bytesWritten = doWrite(handle, 0, length, data);
+        if (bytesWritten < length) {
+            doDelete(ChunkHandle.writeHandle(chunkName));
+            throw new ChunkStorageException(chunkName, "doCreateWithContent - invalid length returned");
+        }
+        return handle;
+    }
+
 
     /**
      * Determines whether named chunk exists in underlying storage.

@@ -36,6 +36,8 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.HttpStatus;
@@ -61,6 +63,9 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //region members
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    @Getter
+    @Setter
+    private boolean supportsAppend;
 
     //endregion
 
@@ -69,6 +74,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
+        this.supportsAppend = true;
     }
     //endregion
 
@@ -81,7 +87,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsAppend() {
-        return true;
+        return supportsAppend;
     }
 
     @Override
@@ -251,7 +257,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             S3ObjectMetadata metadata = new S3ObjectMetadata();
             metadata.setContentLength((long) 0);
 
-            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null);
+            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null).withObjectMetadata(metadata);
 
             AccessControlList acl = new AccessControlList();
             acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
@@ -265,6 +271,25 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             return ChunkHandle.writeHandle(chunkName);
         } catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
+        }
+    }
+
+    @Override
+    protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+        try {
+            val objectPath = getObjectPath(chunkName);
+
+            S3ObjectMetadata metadata = new S3ObjectMetadata().withContentType("application/octet-stream").withContentLength(length);
+            val request = new PutObjectRequest(this.config.getBucket(), objectPath, data).withObjectMetadata(metadata);
+            AccessControlList acl = new AccessControlList();
+            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+            request.setAcl(acl);
+
+            client.putObject(request);
+
+            return ChunkHandle.writeHandle(chunkName);
+        } catch (Exception e) {
+            throw convertException(chunkName, "doCreateWithContent", e);
         }
     }
 

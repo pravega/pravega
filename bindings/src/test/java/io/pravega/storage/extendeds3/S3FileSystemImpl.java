@@ -68,7 +68,9 @@ public class S3FileSystemImpl extends S3ImplBase {
     public PutObjectResult putObject(PutObjectRequest request) {
 
         if (request.getObjectMetadata() != null) {
-            request.setObjectMetadata(null);
+            request.setObjectMetadata(new S3ObjectMetadata()
+                    .withContentType(request.getObjectMetadata().getContentType())
+                    .withContentLength(request.getObjectMetadata().getContentLength()));
         }
         try {
             Path path = Paths.get(this.baseDir, request.getBucketName(), request.getKey());
@@ -76,6 +78,24 @@ public class S3FileSystemImpl extends S3ImplBase {
             assert parent != null;
             Files.createDirectories(parent);
             Files.createFile(path);
+            if (null !=  request.getObject()) {
+                try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+
+                    long startOffset = 0;
+                    long length = request.getObjectMetadata().getContentLength();
+                    do {
+                        long bytesTransferred = channel.transferFrom(Channels.newChannel((InputStream) request.getObject()),
+                                0, length);
+                        length -= bytesTransferred;
+                        startOffset += bytesTransferred;
+                    } while (length > 0);
+
+                    AclSize aclKey = aclMap.get(request.getKey());
+                    aclMap.put(request.getKey(), aclKey.withSize(length));
+                } catch (IOException e) {
+                    throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
+                }
+            }
         } catch (IOException e) {
             throw new S3Exception(e.getMessage(), 0, e);
         }

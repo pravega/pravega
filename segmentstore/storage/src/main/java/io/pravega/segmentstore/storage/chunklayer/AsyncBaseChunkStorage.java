@@ -153,6 +153,30 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         return returnFuture;
     }
 
+    @Override
+    final public CompletableFuture<ChunkHandle> createWithContent(String chunkName, int length, InputStream data) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        // Validate parameters
+        checkChunkName(chunkName);
+        Preconditions.checkArgument(null != data, "data must not be null");
+        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative");
+
+        val traceId = LoggerHelpers.traceEnter(log, "create", chunkName);
+        val timer = new Timer();
+
+        // Call concrete implementation.
+        val returnFuture = doCreateWithContentAsync(chunkName, length, data);
+        returnFuture.thenAcceptAsync(handle -> {
+            // Record metrics.
+            val elapsed = timer.getElapsed();
+            ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
+            ChunkStorageMetrics.CREATE_COUNT.inc();
+            log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
+            LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
+        }, executor);
+        return returnFuture;
+    }
+
     /**
      * Deletes a chunk.
      *
@@ -494,6 +518,19 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
     abstract protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName);
+
+    /**
+     * Creates a new chunk.
+     *
+     * @param chunkName String name of the chunk to create.
+     * @param length Number of bytes to write.
+     * @param data   An InputStream representing the data to write.
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
+     * @throws IllegalArgumentException If argument is invalid.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    abstract protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data);
 
     /**
      * Determines whether named chunk exists in underlying storage.
