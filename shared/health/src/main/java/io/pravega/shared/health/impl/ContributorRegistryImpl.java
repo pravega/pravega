@@ -133,6 +133,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     synchronized public HealthContributor register(HealthContributor contributor, HealthComponent parent) {
+        parent = Objects.isNull(parent) ? root : parent;
         return register(contributor, parent.getName());
     }
 
