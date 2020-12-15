@@ -446,7 +446,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersRecordIfAbsent() {
-        Subscribers subscribersSetRecord = new Subscribers(ImmutableMap.of());
+        Subscribers subscribersSetRecord = Subscribers.EMPTY_SET;
         return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersSetRecord.toBytes()));
     }
 

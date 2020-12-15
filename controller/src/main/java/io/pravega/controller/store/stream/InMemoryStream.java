@@ -117,7 +117,7 @@ public class InMemoryStream extends PersistentStreamBase {
     private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
 
     @GuardedBy("subscribersLock")
-    private final Map<String, Long> subscribersSet = new HashMap<String, Long>();
+    private final Set<String> subscribersSet = new HashSet<String>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -843,16 +843,11 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
         synchronized (subscribersLock) {
-            if (subscribersSet.containsKey(subscriber)) {
-                Long subGeneration = subscribersSet.get(subscriber);
-                if (subGeneration < generation) {
-                    subscribersSet.put(subscriber, generation);
-                }
-            } else {
-                subscribersSet.put(subscriber, generation);
-                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, ImmutableMap.of(),
-                        System.currentTimeMillis()), new Version.IntVersion(0)));
+            if (!subscribersSet.contains(subscriber)) {
+                subscribersSet.add(subscriber);
             }
+            streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation, ImmutableMap.of(),
+                        System.currentTimeMillis()), new Version.IntVersion(0)));
         }
         return CompletableFuture.completedFuture(null);
     }

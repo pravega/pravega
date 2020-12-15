@@ -430,6 +430,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param subscriber new stream subscriber.
+     * @param generation subscriber generation.
      * @param streamCut     new truncation streamcut of subscriber.
      * @param previousRecord previous truncation streamcut of subscriber.
      * @param context       operation context
@@ -439,6 +440,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
                                                      final String name,
                                                      final String subscriber,
+                                                     final long generation,
                                                      final ImmutableMap<Long, Long> streamCut,
                                                      final VersionedMetadata<StreamSubscriber> previousRecord,
                                                      final OperationContext context,

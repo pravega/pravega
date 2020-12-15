@@ -385,7 +385,7 @@ public final class ModelHelper {
     }
 
     /**
-     * Converts StreamConfiguration into StreamConfig.
+     * Converts Subscriber and StreamCut information into SubscriberStreamCut.
      *
      * @param scope the stream's scope
      * @param streamName The Stream Name
@@ -393,14 +393,14 @@ public final class ModelHelper {
      * @param streamCut truncationStreamCut for this subscriber for this stream.
      * @return SubscriberStreamCut instance.
      */
-    public static final SubscriberStreamCut decode(String scope, String streamName,
-                                                   final String subscriber, Map<Long, Long> streamCut) {
+    public static final SubscriberStreamCut decode(String scope, String streamName, final String subscriber,
+                                                   final long generation, final Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
         Preconditions.checkNotNull(streamCut, "streamCut");
         final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
-                .setSubscriber(subscriber).setStreamCut(decode(scope, streamName, streamCut));
+                .setSubscriber(subscriber).setGeneration(generation).setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 

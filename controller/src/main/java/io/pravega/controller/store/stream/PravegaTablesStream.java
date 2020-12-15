@@ -278,44 +278,49 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> addSubscriber(String newSubscriber, long newGeneration) {
-        final StreamSubscriber newSubscriberRecord = new StreamSubscriber(newSubscriber, ImmutableMap.of(), System.currentTimeMillis());
-        return getMetadataTable()
-                .thenCompose(metadataTable -> createSubscribersRecordIfAbsent()
-                        .thenCompose(v -> getSubscriberSetRecord(true))
-                        .thenCompose(subscriberSetRecord -> {
-                            if (subscriberSetRecord.getObject().getSubscribers().containsKey(newSubscriber)) {
-                                // update Subscriber generation, if it is greater than current generation
-                                Long generation = subscriberSetRecord.getObject().getSubscribers().get(newSubscriber);
-                                if (generation.longValue() < newGeneration) {
-                                    return storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY,
-                                            Subscribers.update(subscriberSetRecord.getObject(), newSubscriber, generation).toBytes(),
-                                            subscriberSetRecord.getVersion())
-                                            .thenAccept(v -> storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY));
+        return createSubscribersRecordIfAbsent()
+                   .thenCompose(y -> getSubscriberSetRecord(true))
+                   .thenCompose(subscriberSetRecord -> {
+                      if (!subscriberSetRecord.getObject().getSubscribers().contains(newSubscriber)) {
+                         // update Subscriber generation, if it is greater than current generation
+                         return getMetadataTable()
+                                .thenCompose(metaTable -> storeHelper.updateEntry(metaTable, SUBSCRIBER_SET_KEY,
+                                 Subscribers.add(subscriberSetRecord.getObject(), newSubscriber).toBytes(),
+                                 subscriberSetRecord.getVersion())
+                                 .thenAccept(v -> storeHelper.invalidateCache(metaTable, SUBSCRIBER_SET_KEY)));
+                      }
+                            return CompletableFuture.completedFuture(null);
+                      })
+                    .thenCompose(v -> Futures.exceptionallyExpecting(getSubscriberRecord(newSubscriber),
+                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                            .thenCompose(subscriberRecord -> {
+                                if (subscriberRecord == null) {
+                                    final StreamSubscriber newSubscriberRecord = new StreamSubscriber(newSubscriber, newGeneration,
+                                                                                                        ImmutableMap.of(), System.currentTimeMillis());
+                                    return Futures.toVoid(getMetadataTable().thenApply(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable,
+                                            getKeyForSubscriber(newSubscriber), newSubscriberRecord.toBytes())));
+                                } else {
+                                    // just update the generation if subscriber already exists...
+                                    if (subscriberRecord.getObject().getGeneration() < newGeneration) {
+                                      return Futures.toVoid(setSubscriberData(new VersionedMetadata<>(new StreamSubscriber(newSubscriber, newGeneration,
+                                              subscriberRecord.getObject().getTruncationStreamCut(), System.currentTimeMillis()),
+                                              subscriberRecord.getVersion())));
+                                    }
                                 }
-                                //else do nothing & return
                                 return CompletableFuture.completedFuture(null);
-                            } else {
-                                // add a new Subscriber
-                                return storeHelper.updateEntry(metadataTable, SUBSCRIBER_SET_KEY,
-                                        Subscribers.add(subscriberSetRecord.getObject(),
-                                                newSubscriber, newGeneration).toBytes(), subscriberSetRecord.getVersion())
-                                        .thenCompose(v -> storeHelper.addNewEntryIfAbsent(metadataTable,
-                                                getKeyForSubscriber(newSubscriber), newSubscriberRecord.toBytes()))
-                                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, SUBSCRIBER_SET_KEY))
-                                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, getKeyForSubscriber(newSubscriber)));
-                            }
-                        }));
+                            })
+                    );
     }
 
     @Override
     public CompletableFuture<Void> createSubscribersRecordIfAbsent() {
         return Futures.exceptionallyExpecting(getSubscriberSetRecord(true),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenCompose( subscriberSet -> {
-                    if (subscriberSet == null) {
-                        Subscribers emptySubSet = new Subscribers(ImmutableMap.of());
+                .thenCompose(subscriberSetRecord -> {
+                    if (subscriberSetRecord == null) {
                         return Futures.toVoid(getMetadataTable()
-                                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, SUBSCRIBER_SET_KEY, emptySubSet.toBytes())));
+                                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable,
+                                                              SUBSCRIBER_SET_KEY, Subscribers.EMPTY_SET.toBytes())));
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -349,7 +354,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenAccept(x -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber)))
                 .thenCompose(v -> getSubscriberSetRecord(true)
                 .thenCompose(subscriberSetRecord -> {
-                    if (subscriberSetRecord.getObject().getSubscribers().containsKey(subscriber)) {
+                    if (subscriberSetRecord.getObject().getSubscribers().contains(subscriber)) {
                         Subscribers subSet = Subscribers.remove(subscriberSetRecord.getObject(), subscriber);
                         return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
                                 .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY));
@@ -368,7 +373,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     public CompletableFuture<List<String>> listSubscribers() {
         return getMetadataTable()
                 .thenCompose(table -> getSubscriberSetRecord(true)
-                        .thenApply(subscribersSet -> subscribersSet.getObject().getSubscribers().keySet().asList()));
+                        .thenApply(subscribersSet -> subscribersSet.getObject().getSubscribers().asList()));
     }
 
     @Override

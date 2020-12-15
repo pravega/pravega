@@ -561,12 +561,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
                                                             final String name,
                                                             final String subscriber,
+                                                            final long generation,
                                                             final ImmutableMap<Long, Long> streamCut,
                                                             final VersionedMetadata<StreamSubscriber> previousRecord,
                                                             final OperationContext context,
                                                             final Executor executor) {
         return Futures.completeOn(getStream(scope, name, context)
-                .updateSubscriberStreamCut(previousRecord, new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
+                .updateSubscriberStreamCut(previousRecord, subscriber, generation, streamCut), executor);
     }
 
     @Override

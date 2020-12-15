@@ -162,13 +162,14 @@ public interface Controller extends AutoCloseable {
      * Used when Stream has Consumption Based Retention Policy configured.
      * @param scope Scope name
      * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param generation subscriber generation number.
      * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
      * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscribers position was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final long generation, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in

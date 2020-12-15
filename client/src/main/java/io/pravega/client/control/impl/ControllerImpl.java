@@ -576,7 +576,8 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber,
+                                                                long generation, StreamCut streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
@@ -587,26 +588,28 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "updateTruncationStreamCut", scope, streamName, subscriber, streamCut);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateTruncationStreamCut", scope, streamName)
-                    .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, getStreamCutMap(streamCut)), callback);
+                .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, generation, getStreamCutMap(streamCut)), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to update stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to updateTruncationStreamcut for Stream:" + scope + "/" + streamName
-                            + ": subscriber:" + subscriber);
+                    log.warn(requestId, "Failed to update stream cut for Reader Group: {}", subscriber);
+                    throw new ControllerFailureException("Failed to update stream cut for Reader Group:" + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
                     log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
                     throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
-                case STREAMCUT_NOT_VALID:
+                case STREAM_CUT_NOT_VALID:
                     log.warn(requestId, "StreamCut not valid for stream {}/{} subscriber {}.", scope, streamName, subscriber);
                     throw new IllegalArgumentException("StreamCut not valid for stream " + scope + "/" + streamName + ": subscriber:" + subscriber);
+                case GENERATION_MISMATCH:
+                    log.warn(requestId, "Invalid generation for ReaderGroup {}.", subscriber);
+                    throw new IllegalArgumentException("Invalid generation for ReaderGroup "+ subscriber);
                 case SUCCESS:
-                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} for stream: {}/{}", subscriber, scope, streamName);
                     return true;
                 case UNRECOGNIZED:
                 default:
