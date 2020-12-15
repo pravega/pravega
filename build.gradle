@@ -292,22 +292,20 @@ project('shared:protocol') {
 }
 
 project ('shared:rest') {
-
-    def jacksonMatcher = jacksonVersion =~ /\d+\.\d+\.\d+/
-    def jacksonAnnotationVersion = jacksonMatcher[0]
-
     dependencies {
         compile project(':common')
         compile project(':client')
         compile project(":shared:authplugin")
         compile project(":shared:basic-authplugin")
+        compile project(":shared:security")
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
-        compile project(":shared:security")
-        compile group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonAnnotationVersion
-        compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jacksonVersion
     }
 
+    tasks.withType(JavaCompile) {
+        options.compilerArgs.remove(getDefaultJavaVersion())
+        options.compilerArgs.add(clientJavaVersion)
+    }
 }
 
 project('client') {
