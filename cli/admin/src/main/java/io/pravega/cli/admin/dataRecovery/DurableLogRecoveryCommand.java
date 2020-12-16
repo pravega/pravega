@@ -32,7 +32,6 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
@@ -104,13 +103,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
 
         outputInfo("Container Count = %d", this.containerCount);
 
-        try {
-            dataLogFactory.initialize();
-        } catch (DurableDataLogException ex) {
-            zkClient.close();
-            dataLogFactory.close();
-            throw ex;
-        }
+        dataLogFactory.initialize();
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
         storage.initialize(CONTAINER_EPOCH);
