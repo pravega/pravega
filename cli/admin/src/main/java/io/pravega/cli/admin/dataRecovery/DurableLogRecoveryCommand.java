@@ -10,7 +10,6 @@
 package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -33,7 +32,6 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
@@ -43,7 +41,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -55,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Loads the storage instance, recovers all segments from there.
  */
-public class DurableLogRecoveryCommand extends DataRecoveryCommand implements AutoCloseable {
+public class DurableLogRecoveryCommand extends DataRecoveryCommand {
     private static final int CONTAINER_EPOCH = 1;
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
@@ -76,12 +73,9 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
 
     private static final WriterConfig WRITER_CONFIG = WriterConfig.builder().build();
 
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "recoveryProcessor");
+    private final ScheduledExecutorService executorService = getCommandArgs().getState().getExecutor();
     private final int containerCount;
     private final StorageFactory storageFactory;
-    private final CuratorFramework zkClient;
-    private final Storage storage;
-    private final BookKeeperLogFactory dataLogFactory;
 
     /**
      * Creates an instance of DurableLogRecoveryCommand class.
@@ -91,55 +85,43 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     public DurableLogRecoveryCommand(CommandArgs args) {
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
-        this.storageFactory = createStorageFactory(executorService);
-        this.storage = this.storageFactory.createStorageAdapter();
-        this.zkClient = createZKClient();
-
-        val bkConfig = getCommandArgs().getState().getConfigBuilder()
-                .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
-                .build().getConfig(BookKeeperConfig::builder);
-        this.dataLogFactory = new BookKeeperLogFactory(bkConfig, this.zkClient, executorService);
-    }
-
-    @Override
-    public void close() throws Exception {
-        if (this.dataLogFactory != null) {
-            this.dataLogFactory.close();
-        }
-        this.zkClient.close();
-        this.storage.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executorService);
+        this.storageFactory = createStorageFactory(this.executorService);
     }
 
     @Override
     public void execute() throws Exception {
+        @Cleanup
+        Storage storage = this.storageFactory.createStorageAdapter();
+        @Cleanup
+        val zkClient = createZKClient();
+
+        val bkConfig = getCommandArgs().getState().getConfigBuilder()
+                .include(BookKeeperConfig.builder().with(BookKeeperConfig.ZK_ADDRESS, getServiceConfig().getZkURL()))
+                .build().getConfig(BookKeeperConfig::builder);
+        @Cleanup
+        val dataLogFactory = new BookKeeperLogFactory(bkConfig, zkClient, executorService);
+
         outputInfo("Container Count = %d", this.containerCount);
 
-        try {
-            this.dataLogFactory.initialize();
-        } catch (DurableDataLogException ex) {
-            this.zkClient.close();
-            this.dataLogFactory.close();
-            throw ex;
-        }
+        dataLogFactory.initialize();
         outputInfo("Started ZK Client at %s.", getServiceConfig().getZkURL());
 
-        this.storage.initialize(CONTAINER_EPOCH);
+        storage.initialize(CONTAINER_EPOCH);
         outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
         outputInfo("Starting recovery...");
         // create back up of metadata segments
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(this.storage,
+        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
                 this.containerCount, executorService, TIMEOUT);
 
         @Cleanup
         Context context = createContext(executorService);
 
         // create debug segment container instances using new new dataLog and old storage.
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context);
+        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = startDebugSegmentContainers(context, dataLogFactory);
 
         outputInfo("Containers started. Recovering all segments...");
-        ContainerRecoveryUtils.recoverAllSegments(this.storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
+        ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService, TIMEOUT);
         outputInfo("All segments recovered.");
 
         // Update core attributes from the backUp Metadata segments
@@ -167,10 +149,11 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand implements Au
     }
 
     // Creates debug segment container instances, puts them in a map and returns it.
-    private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(Context context) throws Exception {
+    private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(Context context, BookKeeperLogFactory dataLogFactory)
+            throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
-        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, this.dataLogFactory, executorService);
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, dataLogFactory, executorService);
 
         // Create a debug segment container instances using a
         for (int containerId = 0; containerId < this.containerCount; containerId++) {
