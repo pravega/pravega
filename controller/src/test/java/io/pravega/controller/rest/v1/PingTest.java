@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
@@ -36,7 +33,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
 
 /**
  * Test for ping API.
@@ -50,15 +46,11 @@ public abstract class PingTest {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-    private ConnectionFactory connectionFactory;
-    
+
     @Before
     public void setup() throws Exception {
-        ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        restServer = new RESTServer(null, serverConfig,
-                connectionFactory, Set.of(null, mockControllerService));
+        restServer = new RESTServer(serverConfig, Set.of(new PingImpl()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
@@ -74,7 +66,6 @@ public abstract class PingTest {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
-        connectionFactory.close();
     }
 
     @Test

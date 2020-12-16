@@ -10,7 +10,6 @@
 package io.pravega.shared.rest;
 
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.security.JKSHelper;
 import java.net.URI;
@@ -18,7 +17,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.UriBuilder;
 
-import io.pravega.shared.rest.security.AuthHandlerManager;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -34,17 +32,13 @@ import org.glassfish.jersey.server.ServerProperties;
 @Slf4j
 public class RESTServer extends AbstractIdleService {
 
-    private static final long MAX_PASSWORD_LENGTH = 4 * 1024 * 1024;
-
     private final String objectId;
     private final RESTServerConfig restServerConfig;
     private final URI baseUri;
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(AuthHandlerManager pravegaAuthManager,
-                      RESTServerConfig restServerConfig,
-                      ConnectionFactory connectionFactory,
+    public RESTServer(RESTServerConfig restServerConfig,
                       Set<Object> resources) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
