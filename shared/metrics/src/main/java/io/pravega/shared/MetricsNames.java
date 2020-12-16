@@ -239,6 +239,9 @@ public final class MetricsNames {
     public static final String DELETE_READER_GROUP = PREFIX + "controller.stream.delete_reader_group";                     // Counter and Per-stream Counter
     public static final String DELETE_READER_GROUP_LATENCY = PREFIX + "controller.stream.delete_reader_group_latency_ms";  // Histogram
     public static final String DELETE_READER_GROUP_FAILED = PREFIX + "controller.stream.delete_reader_group_failed";        // Counter and Per-stream Counter
+    public static final String UPDATE_READER_GROUP = PREFIX + "controller.stream.update_reader_group";                     // Counter and Per-stream Counter
+    public static final String UPDATE_READER_GROUP_LATENCY = PREFIX + "controller.stream.update_reader_group_latency_ms";  // Histogram
+    public static final String UPDATE_READER_GROUP_FAILED = PREFIX + "controller.stream.update_reader_group_failed";        // Counter and Per-stream Counter
     public static final String UPDATE_SUBSCRIBER = PREFIX + "controller.stream.update_subscriber_streamcut";                     // Counter and Per-stream Counter
     public static final String UPDATE_SUBSCRIBER_LATENCY = PREFIX + "controller.stream.update_subscriber_streamcut_latency_ms";  // Histogram
     public static final String UPDATE_SUBSCRIBER_FAILED = PREFIX + "controller.stream.update_subscriber_streamcut_failed";        // Counter and Per-stream Counter

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
@@ -59,7 +60,13 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     @Override
     public CompletableFuture<Void> startUpdateConfiguration(ReaderGroupConfig configuration) {
-        return null;
+        return getVersionedConfigurationRecord()
+                .thenCompose(configRecord -> {
+                    Preconditions.checkArgument(!configRecord.getObject().isUpdating());
+                    Preconditions.checkArgument(configRecord.getObject().getGeneration() == configuration.getGeneration());
+                    ReaderGroupConfigRecord update = ReaderGroupConfigRecord.update(configuration, configuration.getGeneration()+1, true);
+                    return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion())));
+                });
     }
 
     @Override
@@ -121,5 +128,5 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     abstract CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached);
 
-
+    abstract CompletableFuture<Version> setConfigurationData(final VersionedMetadata<ReaderGroupConfigRecord> configuration);
 }

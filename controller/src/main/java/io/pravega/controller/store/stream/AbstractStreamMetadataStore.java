@@ -940,11 +940,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     // region ReaderGroup
     @Override
+    public CompletableFuture<Void> startRGUpdateConfig(final String scope, final String name,
+                                                       final ReaderGroupConfig configuration,
+                                                       final RGOperationContext context,
+                                                       final Executor executor) {
+      return Futures.completeOn(getReaderGroup(scope, name, context).startUpdateConfiguration(configuration), executor);
+    }
+
+    @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedReaderGroupState(final String scope, final String name,
                                                                                         final boolean ignoreCached,
                                                                                         final RGOperationContext context,
                                                                                         final Executor executor) {
-        return Futures.completeOn(getReaderGroup(scope, name, context).getVersionedState(), executor);
+      return Futures.completeOn(getReaderGroup(scope, name, context).getVersionedState(), executor);
     }
 
     @Override

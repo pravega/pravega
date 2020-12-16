@@ -111,26 +111,10 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final ReaderGroupConfig configuration) {
-        Map<String, RGStreamCutRecord> startStreamCuts = configuration.getStartingStreamCuts().entrySet().stream()
-                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
-
-        Map<String, RGStreamCutRecord> endStreamCuts = configuration.getEndingStreamCuts().entrySet().stream()
-                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
-
-        ReaderGroupConfigRecord configRecord = ReaderGroupConfigRecord.builder()
-                                        .groupRefreshTimeMillis(configuration.getGroupRefreshTimeMillis())
-                                        .automaticCheckpointIntervalMillis(configuration.getAutomaticCheckpointIntervalMillis())
-                                        .maxOutstandingCheckpointRequest(configuration.getMaxOutstandingCheckpointRequest())
-                                        .retentionTypeOrdinal(configuration.getRetentionType().ordinal())
-                                        .generation(0L)
-                                        .startingStreamCuts(startStreamCuts)
-                                        .endingStreamCuts(endStreamCuts)
-                                        .build();
-
+        ReaderGroupConfigRecord configRecord = ReaderGroupConfigRecord.update(configuration, 0L, false);
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configRecord.toBytes())
+                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY,
+                        configRecord.toBytes())
                         .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));
     }
 
@@ -181,12 +165,16 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
     }
 
     @Override
-    public void refresh() {
+    CompletableFuture<Version> setConfigurationData(final VersionedMetadata<ReaderGroupConfigRecord> configuration) {
+        return getMetadataTable()
+                .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, CONFIGURATION_KEY,
+                        configuration.getObject().toBytes(), configuration.getVersion())
+                        .thenApply(r -> {
+                            storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
+                            return r;
+                        }));
     }
-
-    private ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {
-        ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
-        return mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue))).build();
+    @Override
+    public void refresh() {
     }
 }

@@ -350,6 +350,21 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                             final long createTimestamp,
                                                             final RGOperationContext context,
                                                             final Executor executor);
+    /**
+     * Updates the configuration of an existing Reader Group.
+     *
+     * @param scope         Reader Group scope
+     * @param name          Reader Group name.
+     * @param configuration new Reader Group configuration.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> startRGUpdateConfig(final String scope,
+                                                     final String name,
+                                                     final ReaderGroupConfig configuration,
+                                                     final RGOperationContext context,
+                                                     final Executor executor);
 
     /**
      * Delete a Reader Group with the given scope & name.

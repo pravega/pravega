@@ -58,6 +58,7 @@ service ControllerService {
     rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
     rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
     rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
+    rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupStatus);
 }
 
 message ServerRequest {
@@ -114,6 +115,17 @@ message DeleteReaderGroupStatus {
         SUCCESS = 0;
         FAILURE = 1;
         RG_NOT_FOUND = 2;
+    }
+    Status status = 1;
+}
+
+message UpdateReaderGroupStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+        INVALID_CONFIG = 3;
+
     }
     Status status = 1;
 }

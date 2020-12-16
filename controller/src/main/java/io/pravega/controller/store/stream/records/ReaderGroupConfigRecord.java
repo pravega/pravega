@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -25,6 +27,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -44,6 +47,42 @@ public class ReaderGroupConfigRecord {
 
     public static class ReaderGroupConfigRecordBuilder implements ObjectBuilder<ReaderGroupConfigRecord> {
 
+    }
+
+    public static ReaderGroupConfigRecord update(ReaderGroupConfig rgConfig, long generation, boolean isUpdating) {
+        Map<String, RGStreamCutRecord> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+        Map<String, RGStreamCutRecord> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+        return ReaderGroupConfigRecord.builder()
+                .generation(generation)
+                .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
+                .automaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
+                .maxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
+                .retentionTypeOrdinal(rgConfig.getRetentionType().ordinal())
+                .startingStreamCuts(startStreamCuts)
+                .endingStreamCuts(endStreamCuts)
+                .updating(isUpdating).build();
+    }
+
+    public static ReaderGroupConfigRecord complete(ReaderGroupConfigRecord rgConfigRecord) {
+        return ReaderGroupConfigRecord.builder()
+                .generation(rgConfigRecord.getGeneration())
+                .groupRefreshTimeMillis(rgConfigRecord.getGroupRefreshTimeMillis())
+                .automaticCheckpointIntervalMillis(rgConfigRecord.getAutomaticCheckpointIntervalMillis())
+                .maxOutstandingCheckpointRequest(rgConfigRecord.getMaxOutstandingCheckpointRequest())
+                .retentionTypeOrdinal(rgConfigRecord.getRetentionTypeOrdinal())
+                .startingStreamCuts(rgConfigRecord.getStartingStreamCuts())
+                .endingStreamCuts(rgConfigRecord.getEndingStreamCuts())
+                .updating(false).build();
+    }
+
+    private static ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {
+        ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
+        return mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue))).build();
     }
 
     @SneakyThrows(IOException.class)

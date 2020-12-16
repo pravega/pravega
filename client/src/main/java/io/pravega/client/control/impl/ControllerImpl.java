@@ -99,6 +99,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -1561,6 +1562,47 @@ public class ControllerImpl implements Controller {
         });
     }
 
+    public CompletableFuture<Boolean> updateReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(rgConfig, "rgConfig");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "updateReaderGroup", rgConfig, requestId);
+
+        final CompletableFuture<UpdateReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateReaderGroup", scope, rgName)
+                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to create reader group: {}", rgName);
+                    throw new ControllerFailureException("Failed to create readergroup: " + rgName);
+                case INVALID_CONFIG:
+                    log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
+                    throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case SUCCESS:
+                    log.info(requestId, "ReaderGroup created successfully: {}", rgName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status creating reader group " + rgName
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "createReaderGroup {}/{} failed: ", scope, rgName, e);
+            }
+            LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
+        });
+    }
+
     @Override
     public CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName) {
         Exceptions.checkNotClosed(closed.get(), this);
@@ -1815,6 +1857,11 @@ public class ControllerImpl implements Controller {
         void deleteReaderGroup(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<DeleteReaderGroupStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteReaderGroup(readerGroupInfo, callback);
+        }
+
+        void updateReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<UpdateReaderGroupStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .updateReaderGroup(rgConfig, callback);
         }
     }
 }

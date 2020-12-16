@@ -78,18 +78,27 @@ public interface StreamRequestProcessor extends RequestProcessor {
     CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent);
 
     /**
-     * Method to process delete stream event.
+     * Method to process delete reader group event.
      *
-     * @param createRGEvent delete stream event.
+     * @param createRGEvent create reader group event.
      * @return CompletableFuture that caller can use to synchronize.
      */
     CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent);
 
     /**
-     * Method to process delete stream event.
+     * Method to process delete reader group event.
      *
-     * @param deleteRGEvent delete stream event.
+     * @param deleteRGEvent delete reader group event.
      * @return CompletableFuture that caller can use to synchronize.
      */
     CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent);
+
+    /**
+     * Method to process update reader group event.
+     *
+     * @param updateRGEvent update reader group event.
+     * @return CompletableFuture that caller can use to synchronize.
+     */
+    CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent);
+
 }

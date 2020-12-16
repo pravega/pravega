@@ -68,6 +68,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -88,6 +89,7 @@ import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.Serializable;
 import java.time.Duration;
@@ -353,6 +355,58 @@ public class StreamMetadataTasks extends TaskBase {
                     log.debug("ReaderGroup State is {}", state.toString());
                     return ReaderGroupState.ACTIVE.equals(state);
                 });
+    }
+
+    /**
+     * Update Reader Group Configuration.
+     *
+     * @param scope           Reader Group scope.
+     * @param rgName          Reader Group name.
+     * @param config          New Reader Group config.
+     * @return updation status.
+     */
+    public CompletableFuture<UpdateReaderGroupStatus.Status> updateReaderGroup(final String scope, final String rgName,
+                                                                               final ReaderGroupConfig config, RGOperationContext contextOpt) {
+        final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("updateReaderGroup", scope, rgName);
+        return RetryHelper.withRetriesAsync(() -> {
+            // 1. check if Reader Group exists...
+            return streamMetadataStore.checkReaderGroupExists(scope, rgName)
+               .thenCompose(exists -> {
+               if (!exists) {
+                  return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.RG_NOT_FOUND);
+               }
+               //2. check state of the ReaderGroup, if found
+               return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
+                      .thenCompose(rgConfigRecord -> {
+                        if (rgConfigRecord.getObject().getGeneration() != config.getGeneration()) {
+                            return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.INVALID_CONFIG);
+                        }
+                        if (!rgConfigRecord.getObject().isUpdating()) {
+                          return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                                  .thenCompose(rgId -> {
+                                      UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId);
+                                      //3. Create Reader Group Metadata and submit event
+                                      return eventHelper.addIndexAndSubmitTask(event,
+                                              () -> streamMetadataStore.startRGUpdateConfig(scope, rgName, config, null, executor))
+                                              .thenCompose(x -> eventHelper.checkDone(() -> isRGUpdated(scope, rgName, executor))
+                                                      .thenApply(done -> UpdateReaderGroupStatus.Status.SUCCESS));
+                                  });
+                        } else {
+                          log.warn("Reader group update failed as another update is in progress.");
+                          return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.FAILURE);
+                        }
+                      });
+               });
+        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {
+            return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                    .thenCompose(rgConfigRecord -> {
+                        log.debug("ReaderGroup Config is {}", rgConfigRecord.getObject().isUpdating());
+                        return CompletableFuture.completedFuture(!rgConfigRecord.getObject().isUpdating());
+                   });
     }
 
     /**

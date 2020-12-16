@@ -194,10 +194,10 @@ public class StreamMetricsTest {
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
-        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName, streamCut1).get();
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName, 0L, streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
-        //controllerWrapper.getControllerService().deleteSubscriber(scopeName, streamName, "subscriber1", 1L).get();
-        //assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
 
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
@@ -205,9 +205,9 @@ public class StreamMetricsTest {
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
-        //controllerWrapper.getControllerService().deleteScope(scopeName).get();
+        controllerWrapper.getControllerService().deleteScope(scopeName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
-        //assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
 
         // Exercise the metrics for failed stream and scope creation/deletion.
         StreamMetrics.getInstance().createScopeFailed("failedScope");

@@ -58,6 +58,11 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
     }
 
     @Override
+    CompletableFuture<Version> setConfigurationData(VersionedMetadata<ReaderGroupConfigRecord> configuration) {
+        return null;
+    }
+
+    @Override
     public CompletableFuture<Void> delete() {
         return null;
     }

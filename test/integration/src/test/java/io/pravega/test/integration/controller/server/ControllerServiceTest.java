@@ -361,11 +361,11 @@ public class ControllerServiceTest {
         seg1 = new Segment(scope, stream, 1L);
         ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg0, 1L, seg1, 11L);
         StreamCut streamCut = new StreamCutImpl(streamToBeUpdated, streamCutPositions);
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCut).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, 0L, streamCut).get());
 
         ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg0, 2L, seg1, 22L);
         StreamCut streamCutNew = new StreamCutImpl(streamToBeUpdated, streamCutPositionsNew);
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCutNew).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, 0L, streamCutNew).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
