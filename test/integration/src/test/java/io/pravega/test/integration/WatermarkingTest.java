@@ -162,6 +162,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
+        @Cleanup
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
                 connectionFactory.getInternalExecutor());
 
@@ -297,11 +298,13 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+
         @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope,
-                new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
-                        connectionFactory.getInternalExecutor()),
-                connectionFactory);
+        ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                connectionFactory.getInternalExecutor());
+
+        @Cleanup
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
         @Cleanup
