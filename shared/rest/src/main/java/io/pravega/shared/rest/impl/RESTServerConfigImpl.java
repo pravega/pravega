@@ -15,6 +15,8 @@ import io.pravega.shared.rest.RESTServerConfig;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Properties;
+
 /**
  * REST server config.
  */
@@ -55,5 +57,17 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                         Strings.isNullOrEmpty(keyFilePasswordPath) ? "unspecified" : "specified"))
                 .append(")")
                 .toString();
+    }
+
+    @Override
+    public boolean isAuthorizationEnabled() {
+        return this.tlsEnabled;
+    }
+
+    @Override
+    public Properties toAuthHandlerProperties() {
+        Properties props = new Properties();
+        // Props to include?
+        return props;
     }
 }
