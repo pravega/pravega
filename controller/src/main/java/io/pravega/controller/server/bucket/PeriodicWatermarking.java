@@ -75,14 +75,15 @@ public class PeriodicWatermarking implements AutoCloseable {
     private final LoadingCache<String, SynchronizerClientFactory> syncFactoryCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                ClientConfig clientConfig, ScheduledExecutorService executor, Controller controller) {
-        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, controller, clientConfig), executor, controller);
+                                ClientConfig clientConfig, ScheduledExecutorService executor, Controller controllerClient) {
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, controllerClient, clientConfig),
+                executor, controllerClient);
     }
 
     @VisibleForTesting
     PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                  Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
-                                 ScheduledExecutorService executor, Controller controllerObj) {
+                                 ScheduledExecutorService executor, Controller controllerClient) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -109,13 +110,13 @@ public class PeriodicWatermarking implements AutoCloseable {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        if (controllerObj == null) {
+                                                        if (controllerClient == null) {
                                                             return new WatermarkClient(stream,
                                                                     syncFactoryCache.getUnchecked(stream.getScope()));
                                                         } else {
                                                             return new WatermarkClient(stream,
                                                                     syncFactoryCache.getUnchecked(stream.getScope()),
-                                                                    controllerObj);
+                                                                    controllerClient);
                                                         }
                                                     }
                                                 });

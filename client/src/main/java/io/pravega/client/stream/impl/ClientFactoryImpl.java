@@ -222,7 +222,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                                                                       Serializer<T> serializer,
                                                                       SynchronizerConfig config,
                                                                       AccessOperation accessOperation) {
-        log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {} and access operation: {}",
+        log.info("Creating revisioned stream client for stream {} with synchronizer configuration {} and access operation: {}",
                 streamName, config, accessOperation);
         Segment segment = getSegmentForRevisionedClient(scope, streamName, controllerObj);
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());

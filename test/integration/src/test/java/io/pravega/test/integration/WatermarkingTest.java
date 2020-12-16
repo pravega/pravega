@@ -146,6 +146,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
         JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+
         @Cleanup
         EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(streamName, javaSerializer,
                 EventWriterConfig.builder().build());
@@ -165,8 +166,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 connectionFactory.getInternalExecutor());
 
         @Cleanup
-        ClientFactoryImpl syncClientFactory = // new ClientFactoryImpl(scopeName, controller, writerClientConfig);
-        new ClientFactoryImpl(scopeName, controller, connectionFactory);
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName, controller, connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(streamName);
 

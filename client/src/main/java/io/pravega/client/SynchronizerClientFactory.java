@@ -34,7 +34,7 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      * Creates a new instance of Client Factory.
      *
      * @param scope The scope string.
-     * @param controller The {@link Controller}.
+     * @param controller The {@link Controller} to use.
      * @param clientConfig The client configuration to use.
      * @return Instance of ClientFactory implementation.
      */
@@ -67,7 +67,18 @@ public interface SynchronizerClientFactory extends AutoCloseable {
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
 
-    <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controllerObj,
+    /**
+     * Creates a new RevisionedStreamClient that will work with the specified stream.
+     *
+     * @param streamName The name of the stream for the synchronizer.
+     * @param controller The {@link Controller} to use.
+     * @param serializer The serializer for updates.
+     * @param config The client configuration.
+     * @param accessOperation The {@link AccessOperation} that the client is expected to be used for.
+     * @param <T> The type of events.
+     * @return Revisioned stream client.
+     */
+    <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controller,
             Serializer<T> serializer, SynchronizerConfig config, AccessOperation accessOperation);
     
     /**
