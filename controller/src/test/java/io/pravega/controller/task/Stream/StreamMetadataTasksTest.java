@@ -46,6 +46,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
@@ -192,6 +193,7 @@ public abstract class StreamMetadataTasksTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new CreateReaderGroupTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStorePartialMock,
                 executor);
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStorePartialMock, bucketStore, streamMetadataTasks,
@@ -234,13 +236,6 @@ public abstract class StreamMetadataTasksTest {
                 .generation(0L)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        /*
-        CompletableFuture<Controller.CreateStreamStatus.Status> createStatus = streamMetadataTasks.createStream(SCOPE, NameUtils.getStreamForReaderGroup("rg1"),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis());
-        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, createStatus.join());
-
-         */
     }
 
     abstract StreamMetadataStore getStore();

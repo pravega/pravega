@@ -310,7 +310,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     RGOperationContext createRGContext(final String scope, final String name);
 
     /**
-     * Api to get the state for Reader Group from metadata.
+     * Api to get the versioned state for Reader Group from metadata.
      *
      * @param scope scope name
      * @param name Reader Group name
@@ -350,6 +350,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                             final long createTimestamp,
                                                             final RGOperationContext context,
                                                             final Executor executor);
+
     /**
      * Updates the configuration of an existing Reader Group.
      *
@@ -365,13 +366,15 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                 final ReaderGroupConfig configuration,
                                                 final RGOperationContext context,
                                                 final Executor executor);
+
     /**
      * Completes the update of Reader Group Configuration.
      *
      * @param scope         Reader Group scope
      * @param name          Reader Group name.
-     * @param context       operation context
-     * @param executor      callers executor
+     * @param configRecord  Reader Group Config record.
+     * @param context       operation context.
+     * @param executor      callers executor.
      * @return Future of operation
      */
     CompletableFuture<Void> completeRGConfigUpdate(final String scope,
@@ -393,7 +396,6 @@ public interface StreamMetadataStore extends AutoCloseable {
                                               final String rgName,
                                               final RGOperationContext context,
                                               final Executor executor);
-
 
     /**
      * Api to update versioned state of ReaderGroup as a CAS operation.

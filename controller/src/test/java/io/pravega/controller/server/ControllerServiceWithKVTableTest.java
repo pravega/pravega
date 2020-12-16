@@ -29,6 +29,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -111,6 +112,7 @@ public abstract class ControllerServiceWithKVTableTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
                 new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
 
