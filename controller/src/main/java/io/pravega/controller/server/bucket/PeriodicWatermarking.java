@@ -82,7 +82,7 @@ public class PeriodicWatermarking implements AutoCloseable {
     @VisibleForTesting
     PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                  Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
-                                 ScheduledExecutorService executor, Controller controller) {
+                                 ScheduledExecutorService executor, Controller controllerObj) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -109,13 +109,13 @@ public class PeriodicWatermarking implements AutoCloseable {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        if (controller == null) {
+                                                        if (controllerObj == null) {
                                                             return new WatermarkClient(stream,
                                                                     syncFactoryCache.getUnchecked(stream.getScope()));
                                                         } else {
                                                             return new WatermarkClient(stream,
                                                                     syncFactoryCache.getUnchecked(stream.getScope()),
-                                                                    controller);
+                                                                    controllerObj);
                                                         }
                                                     }
                                                 });

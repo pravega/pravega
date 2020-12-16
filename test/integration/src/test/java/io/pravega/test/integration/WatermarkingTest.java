@@ -167,8 +167,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // Controller localController = new LocalController()
 
         @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName, controller, writerClientConfig);
-        // new ClientFactoryImpl(scopeName, controller, connectionFactory);
+        ClientFactoryImpl syncClientFactory = // new ClientFactoryImpl(scopeName, controller, writerClientConfig);
+        new ClientFactoryImpl(scopeName, controller, connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(streamName);
 
