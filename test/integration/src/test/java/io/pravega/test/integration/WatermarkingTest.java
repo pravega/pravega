@@ -45,6 +45,7 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -93,6 +94,170 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     @Before
     public void setup() throws Exception {
         timer.set(0);
+    }
+
+    @SneakyThrows
+    @Test
+    public void watermarkingWithAuth() {
+        String writerUserName = "writer";
+        String readerUserName = "reader";
+        String userPassword = "test-password";
+
+        String scopeName = "testScope";
+        String streamName = "testStream";
+        String readerGroupName = "testReaderGroup";
+        String readerName = "testReader";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put(writerUserName, String.join(";",
+                "prn::/,READ_UPDATE",
+                String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
+        ));
+
+        passwordInputFileEntries.put(readerUserName, String.join(";",
+                "prn::/,READ",
+                String.join("", "prn::/scope:", scopeName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
+        ));
+
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
+                .rgWritesWithReadPermEnabled(true)
+                .passwordAuthHandlerEntries(
+                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
+                .build();
+        cluster.start();
+
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, writerUserName))
+                .build();
+
+        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+
+        Stream stream = Stream.of(scopeName, streamName);
+
+        // create 2 writers
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(streamName, javaSerializer,
+                EventWriterConfig.builder().build());
+        @Cleanup
+        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(streamName, javaSerializer,
+                EventWriterConfig.builder().build());
+
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+
+        // write events
+        CompletableFuture<Void> writer1Future = writeEvents(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
+        log.info("writeEVents done");
+
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
+                connectionFactory.getInternalExecutor());
+        // Controller localController = new LocalController()
+
+        @Cleanup
+        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName, controller, writerClientConfig);
+        // new ClientFactoryImpl(scopeName, controller, connectionFactory);
+
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+
+        @Cleanup
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
+                controller, new WatermarkSerializer(), SynchronizerConfig.builder().build(), AccessOperation.READ_WRITE);
+        log.info("Created revisioned stream client");
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+        log.info("Fetched watermarks");
+
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+        log.info("Watermarks were found");
+
+        stopFlag.set(true);
+
+        writer1Future.join();
+        writer2Future.join();
+        log.info("Wait for writers to finish");
+
+        // Prepare a client config for "hello-rw", whose home scope is "marketdata"
+        final ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, readerUserName))
+                .build();
+
+        // Now read events from the stream
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
+        // new ReaderGroupManagerImpl(scopeName, readerClientConfig, syncClientFactory);
+
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(stream, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(stream, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(stream, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(stream, streamCutSecond);
+
+        // read from stream cut of first watermark
+
+        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(stream)
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .build());
+
+        @Cleanup
+        final EventStreamReader<Long> reader = clientFactory.createReader(readerName,
+                readerGroupName,
+                javaSerializer,
+                ReaderConfig.builder().build());
+
+        EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(stream);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(stream);
+        }
+
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
+        while (event.getEvent() != null) {
+            Long time = event.getEvent();
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(stream);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+
+            event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
+        }
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
     @Test(timeout = 120000)
@@ -221,6 +386,110 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
+    @SneakyThrows
+    @Test(timeout = 100000)
+    public void watermarkAuthTest() {
+        String writerUserName = "writer";
+        String readerUserName = "reader";
+        String userPassword = "test-password";
+
+        String scopeName = "testScope";
+        String streamName = "testStream";
+        String readerGroupName = "testReaderGroup";
+        String readerName = "testReader";
+
+        final Map<String, String> passwordInputFileEntries = new HashMap<>();
+        passwordInputFileEntries.put(writerUserName, String.join(";",
+                "prn::/,READ_UPDATE",
+                String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
+        ));
+
+        passwordInputFileEntries.put(readerUserName, String.join(";",
+                "prn::/,READ",
+                String.join("", "prn::/scope:", scopeName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ"),
+                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
+        ));
+
+        @Cleanup
+        final ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
+                .rgWritesWithReadPermEnabled(true)
+                .passwordAuthHandlerEntries(
+                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
+                .build();
+        cluster.start();
+        log.info("Cluster running");
+
+        ClientConfig writerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, writerUserName))
+                .build();
+
+        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
+        log.info("Created scope {} and stream {}", scopeName, streamName);
+
+        final ClientConfig readerClientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(cluster.controllerUri()))
+                .credentials(new DefaultCredentials(userPassword, readerUserName))
+                .build();
+
+        // Create a reader group config that enables a user to read data from `marketdata/stream1`
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scopeName, streamName))
+                .disableAutomaticCheckpoints()
+                .build();
+
+        // Create a reader-group for user `marketDataReader` in `compute` scope, which is its home scope.
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
+        readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
+
+        @Cleanup
+        EventStreamClientFactory readerClientFactory =
+                EventStreamClientFactory.withScope(scopeName, readerClientConfig);
+        @Cleanup
+        EventStreamReader<String> reader = readerClientFactory.createReader(
+                readerName, readerGroupName,
+                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
+
+        @Cleanup
+        EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
+        JavaSerializer<String> javaSerializer = new JavaSerializer<>();
+
+        @Cleanup
+        EventStreamWriter<String> writer = writerClientFactory.createEventWriter(streamName, javaSerializer,
+                EventWriterConfig.builder().build());
+        log.info("Created writer1");
+
+        for (long i = 0; i < 10; i++) {
+            writer.writeEvent("test message " + i);
+            writer.noteTime(i);
+            Thread.sleep(200);
+        }
+        writer.flush();
+
+        int j = 0;
+        EventRead<String> event = null;
+        do {
+            event = reader.readNextEvent(2000);
+            if (event.getEvent() != null) {
+                log.info("Done reading event: {}", event.getEvent());
+                j++;
+            }
+
+            Thread.sleep(500);
+
+            TimeWindow window = reader.getCurrentTimeWindow(Stream.of(scopeName, streamName));
+            assertNotNull(window);
+
+            log.info("Window lower time bound: {}", window.getLowerTimeBound());
+            log.info("Window lower time bound: {}", window.getUpperTimeBound());
+
+        } while (event.getEvent() != null);
+    }
 
     @Test(timeout = 120000)
     public void recreateStreamWatermarkTest() throws Exception {
@@ -480,190 +749,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // no watermark should be emitted. 
         Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
         assertNull(nullMark);
-    }
-
-    @Test
-    public void test() {
-        String scopeName = "testScope";
-        String streamName = "testStreamstream";
-        String readerGroupName = "testReaderGroup";
-        System.out.println(String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ"));
-    }
-
-    @SneakyThrows
-    @Test
-    public void watermarkingWithAuth() {
-        String writerUserName = "writer";
-        String readerUserName = "reader";
-        String userPassword = "test-password";
-
-        String scopeName = "testScope";
-        String streamName = "testStreamstream";
-        String readerGroupName = "testReaderGroup";
-        String readerName = "testReader";
-
-        final Map<String, String> passwordInputFileEntries = new HashMap<>();
-        passwordInputFileEntries.put(writerUserName, String.join(";",
-                "prn::/,READ_UPDATE",
-                String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
-                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
-        ));
-
-        passwordInputFileEntries.put(readerUserName, String.join(";",
-                "prn::/,READ",
-                String.join("", "prn::/scope:", scopeName, ",", "READ"),
-                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ"),
-                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
-        ));
-
-        @Cleanup
-        final ClusterWrapper cluster = ClusterWrapper.builder()
-                .authEnabled(true)
-                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
-                .rgWritesWithReadPermEnabled(true)
-                .passwordAuthHandlerEntries(
-                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
-                .build();
-        cluster.start();
-        log.info("Cluster running");
-
-        ClientConfig writerClientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials(userPassword, writerUserName))
-                .build();
-
-        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
-        log.info("Created scope {} and stream {}", scopeName, streamName);
-
-        // create 2 writers
-        @Cleanup
-        EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
-        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
-
-        @Cleanup
-        EventStreamWriter<Long> writer1 = writerClientFactory.createEventWriter(streamName, javaSerializer,
-                EventWriterConfig.builder().build());
-        log.info("Created writer1");
-
-        @Cleanup
-        EventStreamWriter<Long> writer2 = writerClientFactory.createEventWriter(streamName, javaSerializer,
-                EventWriterConfig.builder().build());
-        log.info("Created writer2");
-
-        AtomicBoolean stopFlag = new AtomicBoolean(false);
-
-        // write events
-        CompletableFuture<Void> writer1Future = writeEvents(writer1, stopFlag);
-        CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
-
-        // scale the stream several times so that we get complex positions
-        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
-        Stream stream = Stream.of(scopeName, streamName);
-        scale(cluster.getController(), stream, streamConfig);
-        log.info("Stream scaled");
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
-
-        @Cleanup
-        ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(scopeName,
-                new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
-                        connectionFactory.getInternalExecutor()),
-                connectionFactory);
-
-        String markStream = NameUtils.getMarkStreamForStream(streamName);
-        log.debug("markstream: {}", markStream);
-
-        @Cleanup
-        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
-                new WatermarkSerializer(),
-                SynchronizerConfig.builder().build());
-        log.info("Created watermark reader");
-
-        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
-        fetchWatermarks(watermarkReader, watermarks, stopFlag);
-
-        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
-
-        stopFlag.set(true);
-
-        writer1Future.join();
-        writer2Future.join();
-        log.info("Writing is all done");
-
-        // Prepare a client config for "hello-rw", whose home scope is "marketdata"
-        final ClientConfig readerClientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials(userPassword, readerUserName))
-                .build();
-
-        // Now read events from the stream
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-        log.info("Created reader group manager");
-
-        Watermark watermark0 = watermarks.take();
-        Watermark watermark1 = watermarks.take();
-        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
-        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
-
-        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
-                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
-        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
-                Collectors.toMap(x -> new Segment(scopeName, streamName, x.getKey().getSegmentId()), Map.Entry::getValue));
-
-        StreamCut streamCutFirst = new StreamCutImpl(stream, positionMap0);
-        StreamCut streamCutSecond = new StreamCutImpl(stream, positionMap1);
-        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(stream, streamCutFirst);
-        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(stream, streamCutSecond);
-
-        // read from stream cut of first watermark
-
-        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(stream)
-                .startingStreamCuts(firstMarkStreamCut)
-                .endingStreamCuts(secondMarkStreamCut)
-                .build());
-        log.info("Created reader group {}", readerGroupName);
-
-        @Cleanup
-        EventStreamClientFactory readerClientFactory = EventStreamClientFactory.withScope(scopeName, readerClientConfig);
-
-        @Cleanup
-        final EventStreamReader<Long> reader = readerClientFactory.createReader(readerName,
-                readerGroupName,
-                javaSerializer,
-                ReaderConfig.builder().build());
-        log.info("Created reader {}, in reader group name {}", reader, readerGroupName);
-
-        EventRead<Long> event = reader.readNextEvent(10000L);
-        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(stream);
-        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
-            event = reader.readNextEvent(10000L);
-            currentTimeWindow = reader.getCurrentTimeWindow(stream);
-        }
-
-        assertNotNull(currentTimeWindow.getUpperTimeBound());
-
-        // read all events and verify that all events are below the bounds
-        while (event.getEvent() != null) {
-            Long time = event.getEvent();
-            log.info("timewindow = {} event = {}", currentTimeWindow, time);
-            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
-            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
-
-            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(stream);
-            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
-            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
-            currentTimeWindow = nextTimeWindow;
-
-            event = reader.readNextEvent(10000L);
-            if (event.isCheckpoint()) {
-                event = reader.readNextEvent(10000L);
-            }
-        }
-
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {

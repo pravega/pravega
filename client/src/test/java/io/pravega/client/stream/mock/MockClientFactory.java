@@ -30,6 +30,8 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.function.Supplier;
 
 public class MockClientFactory extends AbstractClientFactoryImpl implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
@@ -89,6 +91,11 @@ public class MockClientFactory extends AbstractClientFactoryImpl implements Even
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config) {
+        return impl.createRevisionedStreamClient(streamName, serializer, config);
+    }
+
+    @Override
+    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controllerObj, Serializer<T> serializer, SynchronizerConfig config, AccessOperation accessOperation) {
         return impl.createRevisionedStreamClient(streamName, serializer, config);
     }
 

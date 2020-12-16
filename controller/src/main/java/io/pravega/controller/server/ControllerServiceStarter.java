@@ -258,8 +258,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             retentionService.awaitRunning();
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
+
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    clientConfig, watermarkingExecutor);
+                    clientConfig, watermarkingExecutor, this.localController);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 

@@ -217,6 +217,22 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         return createRevisionedStreamClient(getSegmentForRevisionedClient(scope, streamName), serializer, config);
     }
 
+    @Override
+    public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controllerObj,
+                                                                      Serializer<T> serializer,
+                                                                      SynchronizerConfig config,
+                                                                      AccessOperation accessOperation) {
+        log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {} and access operation: {}",
+                streamName, config, accessOperation);
+        Segment segment = getSegmentForRevisionedClient(scope, streamName, controllerObj);
+        EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controllerObj, segment,
+                accessOperation);
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
+        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
+    }
+
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
@@ -240,8 +256,13 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {
+        return getSegmentForRevisionedClient(scope, streamName, controller);
+    }
+
+    private Segment getSegmentForRevisionedClient(String scope, String streamName, Controller controllerObj) {
+        log.info("Fetching segments for scope {} and stream {} using specified controller", scope, streamName);
         // This validates if the stream exists and returns zero segments if the stream is sealed.
-        StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(controllerObj.getCurrentSegments(scope, streamName), InvalidStreamException::new);
         if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
             throw new InvalidStreamException("Stream does not exist: " + streamName);
         }

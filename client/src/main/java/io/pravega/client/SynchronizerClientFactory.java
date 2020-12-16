@@ -10,6 +10,7 @@
 package io.pravega.client;
 
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -20,6 +21,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.val;
 
 /**
@@ -52,6 +54,9 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
+
+    <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controllerObj,
+            Serializer<T> serializer, SynchronizerConfig config, AccessOperation accessOperation);
     
     /**
      * Creates a new StateSynchronizer that will work on the specified stream.
