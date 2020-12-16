@@ -97,8 +97,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
-    @Test
-    public void watermarkingWithAuth() {
+    @Test(timeout = 120000)
+    public void watermarkingAuthorizationTest() {
         String writerUserName = "writer";
         String readerUserName = "reader";
         String userPassword = "test-password";
@@ -143,7 +143,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         Stream stream = Stream.of(scopeName, streamName);
 
-        // create 2 writers
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
         JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
@@ -159,13 +158,11 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // write events
         CompletableFuture<Void> writer1Future = writeEvents(writer1, stopFlag);
         CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
-        log.info("writeEVents done");
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(writerClientConfig);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(writerClientConfig).build(),
                 connectionFactory.getInternalExecutor());
-        // Controller localController = new LocalController()
 
         @Cleanup
         ClientFactoryImpl syncClientFactory = // new ClientFactoryImpl(scopeName, controller, writerClientConfig);
@@ -200,7 +197,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // Now read events from the stream
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-        // new ReaderGroupManagerImpl(scopeName, readerClientConfig, syncClientFactory);
 
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
@@ -219,7 +215,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(stream, streamCutSecond);
 
         // read from stream cut of first watermark
-
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(stream)
                 .startingStreamCuts(firstMarkStreamCut)
                 .endingStreamCuts(secondMarkStreamCut)
@@ -385,111 +380,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         }
 
         assertNotNull(currentTimeWindow.getLowerTimeBound());
-    }
-
-    @SneakyThrows
-    @Test(timeout = 100000)
-    public void watermarkAuthTest() {
-        String writerUserName = "writer";
-        String readerUserName = "reader";
-        String userPassword = "test-password";
-
-        String scopeName = "testScope";
-        String streamName = "testStream";
-        String readerGroupName = "testReaderGroup";
-        String readerName = "testReader";
-
-        final Map<String, String> passwordInputFileEntries = new HashMap<>();
-        passwordInputFileEntries.put(writerUserName, String.join(";",
-                "prn::/,READ_UPDATE",
-                String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
-                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
-        ));
-
-        passwordInputFileEntries.put(readerUserName, String.join(";",
-                "prn::/,READ",
-                String.join("", "prn::/scope:", scopeName, ",", "READ"),
-                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ"),
-                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
-        ));
-
-        @Cleanup
-        final ClusterWrapper cluster = ClusterWrapper.builder()
-                .authEnabled(true)
-                .tokenSigningKeyBasis("secret").tokenTtlInSeconds(600)
-                .rgWritesWithReadPermEnabled(true)
-                .passwordAuthHandlerEntries(
-                        TestUtils.preparePasswordInputFileEntries(passwordInputFileEntries, userPassword))
-                .build();
-        cluster.start();
-        log.info("Cluster running");
-
-        ClientConfig writerClientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials(userPassword, writerUserName))
-                .build();
-
-        TestUtils.createScopeAndStreams(writerClientConfig, scopeName, Arrays.asList(streamName));
-        log.info("Created scope {} and stream {}", scopeName, streamName);
-
-        final ClientConfig readerClientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(cluster.controllerUri()))
-                .credentials(new DefaultCredentials(userPassword, readerUserName))
-                .build();
-
-        // Create a reader group config that enables a user to read data from `marketdata/stream1`
-        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                .stream(Stream.of(scopeName, streamName))
-                .disableAutomaticCheckpoints()
-                .build();
-
-        // Create a reader-group for user `marketDataReader` in `compute` scope, which is its home scope.
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scopeName, readerClientConfig);
-        readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
-
-        @Cleanup
-        EventStreamClientFactory readerClientFactory =
-                EventStreamClientFactory.withScope(scopeName, readerClientConfig);
-        @Cleanup
-        EventStreamReader<String> reader = readerClientFactory.createReader(
-                readerName, readerGroupName,
-                new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
-
-        @Cleanup
-        EventStreamClientFactory writerClientFactory = EventStreamClientFactory.withScope(scopeName, writerClientConfig);
-        JavaSerializer<String> javaSerializer = new JavaSerializer<>();
-
-        @Cleanup
-        EventStreamWriter<String> writer = writerClientFactory.createEventWriter(streamName, javaSerializer,
-                EventWriterConfig.builder().build());
-        log.info("Created writer1");
-
-        for (long i = 0; i < 10; i++) {
-            writer.writeEvent("test message " + i);
-            writer.noteTime(i);
-            Thread.sleep(200);
-        }
-        writer.flush();
-
-        int j = 0;
-        EventRead<String> event = null;
-        do {
-            event = reader.readNextEvent(2000);
-            if (event.getEvent() != null) {
-                log.info("Done reading event: {}", event.getEvent());
-                j++;
-            }
-
-            Thread.sleep(500);
-
-            TimeWindow window = reader.getCurrentTimeWindow(Stream.of(scopeName, streamName));
-            assertNotNull(window);
-
-            log.info("Window lower time bound: {}", window.getLowerTimeBound());
-            log.info("Window lower time bound: {}", window.getUpperTimeBound());
-
-        } while (event.getEvent() != null);
     }
 
     @Test(timeout = 120000)
