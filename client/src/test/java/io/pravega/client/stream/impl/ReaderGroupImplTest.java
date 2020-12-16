@@ -307,13 +307,13 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
-        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1)))
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, 0L, createStreamCut("test", 1)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
         readerGroup.updateRetentionStreamCut(cuts);
         verify(controller, times(1))
-                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, createStreamCut("test", 1));
+                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME, 0L, createStreamCut("test", 1));
     }
 
     @Test(expected = UnsupportedOperationException.class)

@@ -360,7 +360,7 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream5")) {
                     responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
-                            .setStatus(UpdateSubscriberStatus.Status.STREAMCUT_NOT_VALID)
+                            .setStatus(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream6")) {
@@ -1394,26 +1394,26 @@ public class ControllerImplTest {
     public void testUpdateTruncationStreamcut() throws Exception {
         CompletableFuture<Boolean> updateSubscriberStatus;
         StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope1", "stream1"), Collections.emptyMap());
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream1", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream1", "subscriber1", 0L, streamCut);
         assertTrue(updateSubscriberStatus.get());
 
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream2", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream2", "subscriber1", 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateSubscriberStatus, Throwable -> true);
 
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream3", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream3", "subscriber1", 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream4", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream4", "subscriber1", 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateSubscriberStatus, Throwable -> true);
 
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream5", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream5", "subscriber1", 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
-        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream6", "subscriber1", streamCut);
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream6", "subscriber1", 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
     }
