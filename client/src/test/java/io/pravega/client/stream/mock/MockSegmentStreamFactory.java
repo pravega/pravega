@@ -21,6 +21,8 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
+import lombok.val;
+
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -72,7 +74,9 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, long endOffset) {
-        return getMockStream(segment);
+        val reader =  getMockStream(segment);
+        reader.setOffset(startOffset);
+        return reader;
     }
 
     @Override
