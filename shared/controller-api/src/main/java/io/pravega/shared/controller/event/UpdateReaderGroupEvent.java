@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.controller.event;
 
+import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -17,6 +18,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -30,6 +33,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
     private final String rgName;
     private final long requestId;
     private UUID readerGroupId;
+    private ImmutableSet<String> removeStreams;
 
     @Override
     public String getKey() {
@@ -66,6 +70,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             target.writeUTF(e.rgName);
             target.writeLong(e.requestId);
             target.writeUUID(e.readerGroupId);
+            target.writeCollection(e.removeStreams, DataOutput::writeUTF);
         }
 
         private void read00(RevisionDataInput source, UpdateReaderGroupEventBuilder eb) throws IOException {
@@ -73,6 +78,9 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             eb.rgName(source.readUTF());
             eb.requestId(source.readLong());
             eb.readerGroupId(source.readUUID());
+            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+            source.readCollection(DataInput::readUTF, builder);
+            eb.removeStreams(builder.build());
         }
     }
     //endregion

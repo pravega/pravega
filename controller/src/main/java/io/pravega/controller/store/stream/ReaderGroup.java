@@ -68,12 +68,10 @@ interface ReaderGroup {
     CompletableFuture<Void> startUpdateConfiguration(final ReaderGroupConfig configuration);
 
     /**
-     * Completes an ongoing updates configuration of an existing stream.
-     *
-     * @return future of new StreamConfigWithVersion.
-     * @param existing
+     * Completes an ongoing updates configuration of an existing Reader Group.
+     * @param existing - existing ReaderGroupConfigRecord
      */
-    CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfig> existing);
+    CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfigRecord> existing);
 
     /**
      * Fetches the current stream configuration.

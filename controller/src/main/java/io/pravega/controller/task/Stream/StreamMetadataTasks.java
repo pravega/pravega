@@ -385,10 +385,12 @@ public class StreamMetadataTasks extends TaskBase {
                         if (!rgConfigRecord.getObject().isUpdating()) {
                           return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
                                   .thenCompose(rgId -> {
-                                      UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId);
+                                      ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
+                                      config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
+                                      UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId, removeStreams);
                                       //3. Create Reader Group Metadata and submit event
                                       return eventHelper.addIndexAndSubmitTask(event,
-                                              () -> streamMetadataStore.startRGUpdateConfig(scope, rgName, config, null, executor))
+                                              () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
                                               .thenCompose(x -> eventHelper.checkDone(() -> isRGUpdated(scope, rgName, executor))
                                                       .thenApply(done -> UpdateReaderGroupStatus.Status.SUCCESS));
                                   });
@@ -399,6 +401,11 @@ public class StreamMetadataTasks extends TaskBase {
                       });
                });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private ImmutableSet<String> getStreamsToBeUnsubscribed(final Set<String> currentConfigStreams, final Set<String> newConfigStreams) {
+        return ImmutableSet.copyOf(currentConfigStreams.stream()
+                .filter(s -> !newConfigStreams.contains(s)).collect(Collectors.toSet()));
     }
 
     private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {

@@ -10,17 +10,14 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.RGOperationContext;
-import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
@@ -30,7 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -59,48 +55,40 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         long requestId = request.getRequestId();
-        UUID readerGroupID = request.getReaderGroupId();
+        UUID readerGroupId = request.getReaderGroupId();
+        ImmutableSet<String> streamsToBeUnsubscribed = request.getRemoveStreams();
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup,
-                true, context, executor)
-                .thenCompose(state -> {
-                    if (state.getObject().equals(ReaderGroupState.CREATING)) {
-                        String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
-                        return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
-                               .thenCompose(configRecord -> {
-                               if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
-                                   .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
-                                   // update Stream metadata tables, only if RG is a Subscriber
-                                   Iterator<String> streamIter = configRecord.getObject().getStartingStreamCuts().keySet().iterator();
-                                   return Futures.loop(() -> streamIter.hasNext(), () -> {
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+                .thenCompose(id -> {
+                if (!id.equals(readerGroupId)) {
+                        log.warn("Skipping processing of Reader Group update request {} as UUIDs did not match.", requestId);
+                        return CompletableFuture.completedFuture(null);
+                }
+                return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
+                       .thenCompose(rgConfigRecord -> {
+                       if (rgConfigRecord.getObject().isUpdating() &&
+                          (!ReaderGroupConfig.StreamDataRetention.values()[rgConfigRecord.getObject().getRetentionTypeOrdinal()]
+                            .equals(ReaderGroupConfig.StreamDataRetention.NONE))) {
+                            // update Stream metadata tables, only if RG is a Subscriber
+                            Iterator<String> streamIter = rgConfigRecord.getObject().getStartingStreamCuts().keySet().iterator();
+                            String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
+                            Iterator<String> removeStreamsIter = streamsToBeUnsubscribed.stream().iterator();
+                            return Futures.loop(() -> streamIter.hasNext(), () -> {
                                           Stream stream = Stream.of(streamIter.next());
                                           return streamMetadataStore.addSubscriber(stream.getScope(),
-                                                       stream.getStreamName(), scopedRGName, configRecord.getObject().getGeneration(),
+                                                       stream.getStreamName(), scopedRGName, rgConfigRecord.getObject().getGeneration(),
                                                   null, executor);
-                                      }, executor);
-                                   }
-                               return CompletableFuture.completedFuture(null);
-                               }).thenCompose(v ->
-                                  streamMetadataTasks.createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                                          System.currentTimeMillis(), 10)
-                                 .thenCompose(status -> {
-                                     log.info("Created RG Stream. Status {}", status.toString());
-                                     if (status.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
-                                     || status.equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
-                                         log.debug("updating RG State...");
-                                         return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                                 ReaderGroupState.ACTIVE, state, context, executor));
-                                     }
-                               return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
-                                             readerGroup, status.toString())));
-                           })).exceptionally(ex -> {
-                                    log.debug(ex.getMessage());
-                                    Throwable cause = Exceptions.unwrap(ex);
-                                    throw new CompletionException(cause);
-                           });
-                    }
-                    return CompletableFuture.completedFuture(null);
+                                      }, executor)
+                                    .thenCompose(v -> Futures.loop(() -> removeStreamsIter.hasNext(), () -> {
+                                        Stream stream = Stream.of(removeStreamsIter.next());
+                                        return streamMetadataStore.deleteSubscriber(stream.getScope(),
+                                                stream.getStreamName(), scopedRGName, null, executor);
+                                    }, executor))
+                                    .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
+                            }
+                           return CompletableFuture.completedFuture(null);
+                       });
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, Integer.MAX_VALUE, executor);
     }
 }

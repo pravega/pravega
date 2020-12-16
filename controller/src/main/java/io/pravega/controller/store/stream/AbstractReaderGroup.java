@@ -17,9 +17,10 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
 import io.pravega.shared.NameUtils;
-
+import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.CompletableFuture;
 
+@Slf4j
 public abstract class AbstractReaderGroup implements ReaderGroup {
 
     private final String scope;
@@ -70,8 +71,15 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfig> existing) {
-        return null;
+    public CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfigRecord> existing) {
+        Preconditions.checkNotNull(existing.getObject());
+        if (existing.getObject().isUpdating()) {
+            ReaderGroupConfigRecord updatedRecord = ReaderGroupConfigRecord.complete(existing.getObject());
+            return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(updatedRecord, existing.getVersion())));
+        } else {
+            // idempotent
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     @Override
