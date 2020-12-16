@@ -18,6 +18,7 @@ import io.pravega.auth.AuthenticationException;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import javax.annotation.concurrent.GuardedBy;
 
@@ -152,6 +153,18 @@ public class AuthHandlerManager {
      * @param builder The grpc service builder to register the interceptors.
      */
     public void registerInterceptors(ServerBuilder<?> builder) {
+        initHandlersAndInterceptors(builder);
+    }
+
+    /**
+     * Uses {@link ServiceLoader} infrastructure to dynamically load AuthHandlers. Avoids dependence on GRPC and skips
+     * having to build any {@link AuthInterceptor} objects -- solely relying on {@link AuthHandler}.
+     */
+    public void initializeAuthHandlers() {
+        initHandlersAndInterceptors(null);
+    }
+
+    private void initHandlersAndInterceptors(ServerBuilder<?> builder) {
         try {
             if (serverConfig.isAuthorizationEnabled()) {
                 ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
@@ -164,7 +177,9 @@ public class AuthHandlerManager {
                                 continue;
                             }
                         }
-                        builder.intercept(new AuthInterceptor(handler));
+                        if (Objects.nonNull(builder)) {
+                            builder.intercept(new AuthInterceptor(handler));
+                        }
                     } catch (Exception e) {
                         log.warn("Exception while initializing auth handler {}", handler, e);
                     }
