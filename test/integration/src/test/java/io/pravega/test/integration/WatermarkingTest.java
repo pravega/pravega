@@ -112,7 +112,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         passwordInputFileEntries.put(writerUserName, String.join(";",
                 "prn::/,READ_UPDATE",
                 String.join("", "prn::/scope:", scopeName, ",", "READ_UPDATE"),
-                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE")
+                String.join("", "prn::/scope:", scopeName, "/stream:", streamName, ",", "READ_UPDATE"),
+                String.join("", "prn::/scope:", scopeName, "/reader-group:", readerGroupName, ",", "READ")
         ));
 
         passwordInputFileEntries.put(readerUserName, String.join(";",

@@ -34,6 +34,18 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      * Creates a new instance of Client Factory.
      *
      * @param scope The scope string.
+     * @param controller The {@link Controller}.
+     * @param clientConfig The client configuration to use.
+     * @return Instance of ClientFactory implementation.
+     */
+    static SynchronizerClientFactory withScope(String scope, Controller controller, ClientConfig clientConfig) {
+        return new ClientFactoryImpl(scope, controller, clientConfig);
+    }
+
+    /**
+     * Creates a new instance of Client Factory.
+     *
+     * @param scope The scope string.
      * @param config Configuration for the client.
      * @return Instance of ClientFactory implementation.
      */

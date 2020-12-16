@@ -76,7 +76,7 @@ public class PeriodicWatermarking implements AutoCloseable {
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 ClientConfig clientConfig, ScheduledExecutorService executor, Controller controller) {
-        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor, controller);
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, controller, clientConfig), executor, controller);
     }
 
     @VisibleForTesting

@@ -76,7 +76,7 @@ public class StreamAuthParams {
                 return AuthHandler.Permissions.READ;
             } else {
                 if (isMarkStream()) {
-                    return AuthHandler.Permissions.READ;
+                    return this.requestedPermission(AuthHandler.Permissions.READ_UPDATE);
                 }
                 return AuthHandler.Permissions.READ_UPDATE;
             }
