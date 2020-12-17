@@ -853,11 +853,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteSubscriber(String subscriber) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         synchronized (subscribersLock) {
-            Optional<String> foundSubscriber = streamSubscribers.stream()
-                    .map(s -> s.getObject().getSubscriber()).filter(sub -> sub.equals(subscriber)).findAny();
-            if (foundSubscriber.isPresent()) {
+            Optional<StreamSubscriber> foundSubscriber = streamSubscribers.stream()
+                    .map(s -> s.getObject()).filter(sub -> sub.getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isPresent() && foundSubscriber.get().getGeneration() >= generation) {
                 streamSubscribers.remove(foundSubscriber.get());
             }
         }

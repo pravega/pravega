@@ -83,7 +83,7 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                                     .thenCompose(v -> Futures.loop(() -> removeStreamsIter.hasNext(), () -> {
                                         Stream stream = Stream.of(removeStreamsIter.next());
                                         return streamMetadataStore.deleteSubscriber(stream.getScope(),
-                                                stream.getStreamName(), scopedRGName, null, executor);
+                                                stream.getStreamName(), scopedRGName, rgConfigRecord.getObject().getGeneration(), null, executor);
                                     }, executor))
                                     .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
                             }

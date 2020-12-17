@@ -70,7 +70,7 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                               return Futures.loop(() -> streamIter.hasNext(), () -> {
                                      Stream stream = Stream.of(streamIter.next());
                                      return streamMetadataStore.deleteSubscriber(stream.getScope(),
-                                            stream.getStreamName(), scopedRGName, null, executor);
+                                            stream.getStreamName(), scopedRGName, configRecord.getObject().getGeneration(), null, executor);
                                  }, executor);
                               }
                               return CompletableFuture.completedFuture(null);

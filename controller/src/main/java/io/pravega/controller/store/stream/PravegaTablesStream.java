@@ -349,18 +349,24 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteSubscriber(String subscriber) {
-        return getMetadataTable().thenCompose(table -> storeHelper.removeEntry(table, getKeyForSubscriber(subscriber))
-                .thenAccept(x -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber)))
-                .thenCompose(v -> getSubscriberSetRecord(true)
-                .thenCompose(subscriberSetRecord -> {
-                    if (subscriberSetRecord.getObject().getSubscribers().contains(subscriber)) {
-                        Subscribers subSet = Subscribers.remove(subscriberSetRecord.getObject(), subscriber);
-                        return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
-                                .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY));
-                    }
-                    return null;
-            })));
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
+        return getSubscriberRecord(subscriber).thenCompose(subs -> {
+            if (generation < subs.getObject().getGeneration()) {
+                log.warn("skipped deleting subscriber {} due to generation mismatch", subscriber);
+                return CompletableFuture.completedFuture(null);
+            }
+            return getMetadataTable().thenCompose(table -> storeHelper.removeEntry(table, getKeyForSubscriber(subscriber))
+                    .thenAccept(x -> storeHelper.invalidateCache(table, getKeyForSubscriber(subscriber)))
+                    .thenCompose(v -> getSubscriberSetRecord(true)
+                            .thenCompose(subscriberSetRecord -> {
+                                if (subscriberSetRecord.getObject().getSubscribers().contains(subscriber)) {
+                                    Subscribers subSet = Subscribers.remove(subscriberSetRecord.getObject(), subscriber);
+                                    return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
+                                            .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY));
+                                }
+                                return null;
+                            })));
+        });
     }
 
     @Override

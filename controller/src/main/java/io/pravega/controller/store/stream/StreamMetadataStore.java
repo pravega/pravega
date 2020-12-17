@@ -445,6 +445,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope         stream scope
      * @param name          stream name.
      * @param subscriber    subscriber Reader Group to be removed.
+     * @param generation    subscriber generation.
      * @param context       operation context
      * @param executor      callers executor
      * @return Future of operation
@@ -452,6 +453,7 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> deleteSubscriber(final String scope,
                                              final String name,
                                              final String subscriber,
+                                             final long generation,
                                              final OperationContext context,
                                              final Executor executor);
 

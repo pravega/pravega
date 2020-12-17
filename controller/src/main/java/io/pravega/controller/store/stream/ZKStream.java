@@ -259,7 +259,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteSubscriber(String subscriber) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         throw new UnsupportedOperationException();
     }
 

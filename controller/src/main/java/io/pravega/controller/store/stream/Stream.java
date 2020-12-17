@@ -145,7 +145,7 @@ interface Stream {
      * @param subscriber  subscriber to be removed.
      * @return future of operation.
      */
-    CompletableFuture<Void> deleteSubscriber(final String subscriber);
+    CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation);
 
     /**
      * Starts truncating an existing stream.
