@@ -106,9 +106,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (synchronizer.getState().getConfig().getRetentionType()
                 .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
             streamCuts.forEach((stream, cut) ->
-                    // TODO: replace 0L with getConfig().generation
                     getThrowingException(controller
-                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, 0L, cut)));
+                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName,
+                                    synchronizer.getState().getConfig().getGeneration(), cut)));
 
             return;
         }

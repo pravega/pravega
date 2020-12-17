@@ -481,9 +481,8 @@ public class ReaderGroupStateManager {
             Optional<Map<Stream, Map<Segment, Long>>> cuts = state.getPositionsForLastCompletedCheckpoint();
             cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
                  .entrySet().forEach(entry ->
-                        //TODO: replace 0L with rgconfig.generation
                         controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                                readerId, 0L, new StreamCutImpl(entry.getKey(), entry.getValue())));
+                                readerId, state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
                 sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }
