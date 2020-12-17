@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.gson.internal.LinkedTreeMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,7 +57,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicInteger position = new AtomicInteger();
     @GuardedBy("$lock")
     private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
-    
+
+    @GuardedBy("$lock")
+    private final Map<String, InMemoryReaderGroup> readerGroups = new HashMap<>();
+
+
     @GuardedBy("$lock")
     private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
 
@@ -97,6 +101,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> checkScopeExists(String scope) {
+        log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
@@ -112,7 +117,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ReaderGroup newReaderGroup(String scope, String name) {
-        return null;
+        if (readerGroups.containsKey(scopedStreamName(scope, name))) {
+            return readerGroups.get(scopedStreamName(scope, name));
+        } else {
+            return new InMemoryReaderGroup(scope, name);
+        }
     }
 
     @Override
@@ -197,15 +206,47 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         }
     }
 
+    // region ReaderGroup
     @Override
-    public CompletableFuture<Boolean> checkReaderGroupExists(String scopeName, String readerGroupName) {
-        return null;
+    public CompletableFuture<Void> createReaderGroup(final String scope,
+                                                     final String name,
+                                                     final ReaderGroupConfig configuration,
+                                                     final long createTimestamp,
+                                                     final RGOperationContext context,
+                                                     final Executor executor) {
+        if (scopes.containsKey(scope)) {
+            InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+            return readerGroup.create(configuration, createTimestamp)
+                      .thenCompose(status -> {
+                                readerGroups.put(scopedStreamName(scope, name), readerGroup);
+                                return scopes.get(scope).addReaderGroupToScope(name).thenApply(v -> status);
+                      });
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
     }
 
     @Override
-    public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, RGOperationContext context, Executor executor) {
-        return null;
+    public CompletableFuture<Void> deleteReaderGroup(final String scopeName, final String rgName,
+                                                     final RGOperationContext context, final Executor executor) {
+        String scopedRGName = scopedStreamName(scopeName, rgName);
+        if (scopes.containsKey(scopeName) && readerGroups.containsKey(scopedRGName)) {
+            readerGroups.remove(scopedRGName);
+            return scopes.get(scopeName).removeReaderGroupFromScope(rgName);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, rgName));
+        }
     }
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
+                                                             final String rgName) {
+        return Futures.completeOn(((InMemoryScope) getScope(scopeName)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+    // endregion
 
     @Override
     @Synchronized

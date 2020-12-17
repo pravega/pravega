@@ -118,6 +118,7 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
 
     @Override
     public CompletableFuture<ReaderGroupState> getState(boolean ignoreCached) {
+        log.debug("getState");
         return getStateData(ignoreCached)
                 .thenApply(x -> x.getObject().getState());
     }

@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import io.pravega.controller.store.kvtable.KeyValueTable;
+import io.pravega.controller.store.stream.InMemoryReaderGroup;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -44,6 +45,9 @@ public class InMemoryScope implements Scope {
     @GuardedBy("$lock")
     private final TreeMap<String, InMemoryKVTable> kvTablesMap =  new TreeMap<String, InMemoryKVTable>();
 
+    @GuardedBy("$lock")
+    private final TreeMap<String, InMemoryReaderGroup> readerGroupsMap =  new TreeMap<String, InMemoryReaderGroup>();
+
     public InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
     }
@@ -70,6 +74,7 @@ public class InMemoryScope implements Scope {
         this.streamsPositionMap = null;
 
         this.kvTablesMap.clear();
+        this.readerGroupsMap.clear();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -162,8 +167,12 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<UUID> getReaderGroupId(String rgName) {
-        return null;
+        if (this.readerGroupsMap.containsKey(rgName)) {
+            return CompletableFuture.completedFuture(((InMemoryReaderGroup) this.readerGroupsMap.get(rgName)).getId());
+        }
+        return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "reader group not found in scope."));
     }
 
     @Synchronized
@@ -175,5 +184,25 @@ public class InMemoryScope implements Scope {
     @Synchronized
     public KeyValueTable getKeyValueTable(String name) {
         return kvTablesMap.get(name);
+    }
+
+    @Synchronized
+    public CompletableFuture<Void> addReaderGroupToScope(String readerGroup) {
+        this.readerGroupsMap.putIfAbsent(readerGroup, new InMemoryReaderGroup(this.scopeName, readerGroup));
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Synchronized
+    public CompletableFuture<Void> removeReaderGroupFromScope(String readerGroup) {
+        this.readerGroupsMap.remove(readerGroup);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Synchronized
+    public CompletableFuture<Boolean> checkReaderGroupExistsInScope(String rgName) {
+        if (this.readerGroupsMap.containsKey(rgName)) {
+            return CompletableFuture.completedFuture(Boolean.TRUE);
+        }
+        return CompletableFuture.completedFuture(Boolean.FALSE);
     }
 }

@@ -8,7 +8,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store;
-
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.List;

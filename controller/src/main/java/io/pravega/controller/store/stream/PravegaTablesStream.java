@@ -78,7 +78,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
     private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
-    private static final String SUBSCRIBERS_TABLE = "subscribers" + SEPARATOR + "%s";
     private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
 
     // metadata keys
@@ -88,7 +87,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String STATE_KEY = "state";
     private static final String EPOCH_TRANSITION_KEY = "epochTransition";
     private static final String RETENTION_SET_KEY = "retention";
-    private static final String SUBSCRIBER_KEY = "subscriber-";
     private static final String RETENTION_STREAM_CUT_RECORD_KEY_FORMAT = "retentionCuts-%s"; // stream cut reference
     private static final String CURRENT_EPOCH_KEY = "currentEpochRecord";
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
