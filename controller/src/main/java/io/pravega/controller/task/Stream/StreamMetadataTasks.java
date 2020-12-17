@@ -268,11 +268,9 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(final String scope, final String rgName,
                                                                              RGOperationContext contextOpt) {
-        final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("getReaderGroupConfig", scope, rgName);
-
         return RetryHelper.withRetriesAsync(() -> {
-          // 1. check if scope with this name exists...
+          // 1. check if RG with this name exists...
           return streamMetadataStore.checkReaderGroupExists(scope, rgName)
              .thenCompose(exists -> {
                if (!exists) {
@@ -280,6 +278,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     .setConfig(ReaderGroupConfiguration.getDefaultInstance())
                                     .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND).build());
                }
+               final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
                return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                       .thenCompose(configRecord -> CompletableFuture.completedFuture(ReaderGroupConfigResponse.newBuilder()
                                 .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject()))

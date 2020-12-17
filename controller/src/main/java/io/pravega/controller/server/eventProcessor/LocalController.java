@@ -188,7 +188,8 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis()).thenApply(x -> {
+        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis())
+                .thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
@@ -228,16 +229,16 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scopeName, String rgName) {
         return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
-            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-            switch (x.getStatus()) {
+           final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+           switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Could not find Reader Group: " + scopedRGName);
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
-                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName
                             + " " + x.getStatus());
             }
         });
@@ -245,13 +246,13 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(String scopeName, String rgName) {
-        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
+        return this.controller.deleteReaderGroup(scopeName, rgName).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Reader group not found: " + scopedRGName);
                 case SUCCESS:
                     return true;
                 default:
