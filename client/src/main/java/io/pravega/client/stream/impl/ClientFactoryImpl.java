@@ -201,8 +201,8 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
             for (Stream stream : stateManager.getStreams()) {
                 String streamName = NameUtils.getMarkStreamForStream(stream.getStreamName());
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
-                                                          new WatermarkSerializer(),
-                                                          SynchronizerConfig.builder().readBufferSize(4096).build());
+                                                          null, new WatermarkSerializer(),
+                                                          SynchronizerConfig.builder().readBufferSize(4096).build(), null);
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
@@ -214,7 +214,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        return createRevisionedStreamClient(getSegmentForRevisionedClient(scope, streamName), serializer, config);
+        return createRevisionedStreamClient(getSegmentForRevisionedClient(scope, streamName), null, serializer, config, null);
     }
 
     @Override
@@ -225,19 +225,19 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         log.info("Creating revisioned stream client for stream {} with synchronizer configuration {} and access operation: {}",
                 streamName, config, accessOperation);
         Segment segment = getSegmentForRevisionedClient(scope, streamName, controllerObj);
-        EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
-        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controllerObj, segment,
-                accessOperation);
-        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
-        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
+        return createRevisionedStreamClient(segment, controllerObj, serializer, config, accessOperation);
     }
 
-    private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
-                                                                       SynchronizerConfig config) {
+    private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Controller controllerObj,
+                                                                       Serializer<T> serializer,
+                                                                       SynchronizerConfig config,
+                                                                       AccessOperation accessOperation) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
-        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(controller, segment,
-                AccessOperation.READ_WRITE);
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
+                controllerObj != null ? controllerObj : controller,
+                segment,
+                accessOperation != null ? accessOperation : AccessOperation.READ_WRITE);
+
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
@@ -252,7 +252,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         val segment = getSegmentForRevisionedClient(scope, streamName);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, null, serializer, config, null));
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {
