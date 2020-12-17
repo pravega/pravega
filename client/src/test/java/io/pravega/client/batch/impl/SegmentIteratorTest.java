@@ -129,7 +129,7 @@ public class SegmentIteratorTest {
         int endOffset = 10;
         SegmentInputStreamFactory factory = mock(SegmentInputStreamFactory.class);
         EventSegmentReader input = mock(EventSegmentReader.class);
-        when(factory.createEventReaderForSegment(segment)).thenReturn(input);
+        when(factory.createEventReaderForSegment(segment, 0, endOffset)).thenReturn(input);
         when(input.read()).thenReturn(null).thenReturn(stringSerializer.serialize("s"));
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, endOffset);
