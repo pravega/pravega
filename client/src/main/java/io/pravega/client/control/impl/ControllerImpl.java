@@ -608,7 +608,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("StreamCut not valid for stream " + scope + "/" + streamName + ": subscriber:" + subscriber);
                 case GENERATION_MISMATCH:
                     log.warn(requestId, "Invalid generation for ReaderGroup {}.", subscriber);
-                    throw new IllegalArgumentException("Invalid generation for ReaderGroup "+ subscriber);
+                    throw new IllegalArgumentException("Invalid generation for ReaderGroup " + subscriber);
                 case SUCCESS:
                     log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} for stream: {}/{}", subscriber, scope, streamName);
                     return true;
