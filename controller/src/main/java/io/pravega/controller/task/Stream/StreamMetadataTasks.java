@@ -377,7 +377,7 @@ public class StreamMetadataTasks extends TaskBase {
                if (!exists) {
                   return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.RG_NOT_FOUND);
                }
-               //2. check state of the ReaderGroup, if found
+               //2. check for generation match with existing config
                return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                       .thenCompose(rgConfigRecord -> {
                         if (rgConfigRecord.getObject().getGeneration() != config.getGeneration()) {

@@ -341,7 +341,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 80000)
     public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // no subscribers found for existing Stream
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
@@ -388,6 +388,35 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(this.rgConfig.getGeneration(), response.getConfig().getGeneration());
         assertEquals(this.rgConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
         assertEquals(this.rgConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
+
+        final Segment seg0 = new Segment(SCOPE, stream1, 0L);
+        final Segment seg1 = new Segment(SCOPE, stream1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 100L, seg1, 1000L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 2000L, seg1, 3000L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), endStreamCut));
+        ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(80000L)
+                .groupRefreshTimeMillis(40000L)
+                .maxOutstandingCheckpointRequest(5)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        CompletableFuture<Controller.UpdateReaderGroupStatus.Status> updateFuture =
+        streamMetadataTasks.updateReaderGroup(SCOPE, "rg2", newConfig,null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(Controller.UpdateReaderGroupStatus.Status.SUCCESS, updateFuture.join());
+
+        response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
+        assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, response.getStatus());
+        assertNotNull(response.getConfig());
+        assertEquals(newConfig.getAutomaticCheckpointIntervalMillis(), response.getConfig().getAutomaticCheckpointIntervalMillis());
+        assertEquals(newConfig.getGroupRefreshTimeMillis(), response.getConfig().getGroupRefreshTimeMillis());
+        assertEquals(newConfig.getRetentionType().ordinal(), response.getConfig().getRetentionType());
+        assertEquals(newConfig.getGeneration() + 1, response.getConfig().getGeneration());
+        assertEquals(newConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
+        assertEquals(newConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
         CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
