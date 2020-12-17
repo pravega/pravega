@@ -64,10 +64,6 @@ public class StreamAuthParams {
         return PermissionsHelper.parse(accessOperation, AuthHandler.Permissions.READ);
     }
 
-    private AuthHandler.Permissions requestedPermission(AuthHandler.Permissions defaultValue) {
-        return PermissionsHelper.parse(accessOperation, defaultValue);
-    }
-
     public AuthHandler.Permissions requiredPermissionForWrites() {
         if (this.isStreamUserDefined()) {
             return AuthHandler.Permissions.READ_UPDATE;

@@ -123,6 +123,8 @@ public class WatermarkWorkflowTest {
     @Test(timeout = 10000L)
     public void testWatermarkClient() {
         Stream stream = new StreamImpl("scope", "stream");
+
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         
         MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
@@ -267,6 +269,7 @@ public class WatermarkWorkflowTest {
         String scope = "scope1";
         String streamName = "stream1";
         StreamImpl stream = new StreamImpl(scope, streamName);
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         String markStreamName = NameUtils.getMarkStreamForStream(streamName);
 
@@ -484,6 +487,7 @@ public class WatermarkWorkflowTest {
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
         String markStreamName = NameUtils.getMarkStreamForStream(streamName);
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
@@ -554,6 +558,7 @@ public class WatermarkWorkflowTest {
 
     @Test(timeout = 30000L)
     public void testWriterTimeout() {
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
@@ -569,6 +574,7 @@ public class WatermarkWorkflowTest {
             });
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
+        @Cleanup
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
         @Cleanup
