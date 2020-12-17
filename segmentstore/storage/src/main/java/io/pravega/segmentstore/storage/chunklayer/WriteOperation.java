@@ -62,6 +62,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     // Check if this is a first write after ownership changed.
     private volatile boolean isFirstWriteAfterFailover;
+    private volatile boolean skipOverFailedChunk;
 
     private final AtomicReference<ChunkMetadata> lastChunkMetadata = new AtomicReference<>(null);
     private volatile ChunkHandle chunkHandle = null;
@@ -223,6 +224,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         if (null == lastChunkMetadata.get()
                 || (lastChunkMetadata.get().getLength() >= segmentMetadata.getMaxRollinglength())
                 || isFirstWriteAfterFailover
+                || skipOverFailedChunk
                 || !chunkedSegmentStorage.shouldAppend()) {
             return addNewChunk(txn);
 
@@ -262,11 +264,12 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     newReadIndexEntries.add(new ChunkNameOffsetPair(segmentMetadata.getLength(), newChunkName));
 
                     isFirstWriteAfterFailover = false;
+                    skipOverFailedChunk = false;
                     didSegmentLayoutChange = true;
                     chunksAddedCount.incrementAndGet();
 
-                    log.debug("{} write - New chunk added - segment={}, chunk={}, offset={}.",
-                            chunkedSegmentStorage.getLogPrefix(), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
+                    log.debug("{} write - New chunk added - op={}, segment={}, chunk={}, offset={}.",
+                            chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), newChunkName, segmentMetadata.getLength());
                 }, chunkedSegmentStorage.getExecutor());
     }
 
@@ -320,7 +323,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         if (isFirstWriteAfterFailover) {
             segmentMetadata.setOwnerEpoch(chunkedSegmentStorage.getEpoch());
             segmentMetadata.setOwnershipChanged(false);
-            log.debug("{} write - First write after failover - segment={}.", chunkedSegmentStorage.getLogPrefix(), segmentMetadata.getName());
+            log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
         segmentMetadata.incrementChunkCount();
 
@@ -373,18 +376,28 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     bytesRemaining.addAndGet(-bytesWritten);
                     currentOffset.addAndGet(bytesWritten);
                 }, chunkedSegmentStorage.getExecutor())
-                .exceptionally(e -> {
-                    val ex = Exceptions.unwrap(e);
-                    if (ex instanceof InvalidOffsetException) {
-                        throw new CompletionException(new BadOffsetException(segmentMetadata.getName(),
-                                currentOffset.get() + ((InvalidOffsetException) ex).getExpectedOffset(),
-                                currentOffset.get() + ((InvalidOffsetException) ex).getGivenOffset()));
-                    }
-                    if (ex instanceof ChunkStorageException) {
+                .handleAsync((v, e) -> {
+                    if (null != e) {
+                        val ex = Exceptions.unwrap(e);
+                        if (ex instanceof InvalidOffsetException) {
+                            val invalidEx = (InvalidOffsetException) ex;
+                            // if the length of chunk on the LTS is greater then just skip this chunk.
+                            // This could happen if the previous write failed while writing data and chunk was partially written.
+                            if (invalidEx.getExpectedOffset() > offsetToWriteAt) {
+                                skipOverFailedChunk = true;
+                                log.debug("{} write - skipping partially written chunk op={}, segment={}, chunk={} expected={} given={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(),
+                                        chunkHandle.getChunkName(), invalidEx.getExpectedOffset(), invalidEx.getGivenOffset());
+                                return null;
+                            }
+                            throw new CompletionException(new BadOffsetException(segmentMetadata.getName(),
+                                    currentOffset.get() + ((InvalidOffsetException) ex).getExpectedOffset(),
+                                    currentOffset.get() + ((InvalidOffsetException) ex).getGivenOffset()));
+                        }
+
                         throw new CompletionException(ex);
                     }
-
-                    throw new CompletionException(ex);
-                });
+                    return v;
+                }, chunkedSegmentStorage.getExecutor());
     }
 }

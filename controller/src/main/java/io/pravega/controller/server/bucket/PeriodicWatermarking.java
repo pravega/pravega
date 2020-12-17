@@ -63,7 +63,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
-public class PeriodicWatermarking {
+public class PeriodicWatermarking implements AutoCloseable {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
     private static final int MAX_CACHE_SIZE = 500;
     private final StreamMetadataStore streamMetadataStore;
@@ -112,14 +112,20 @@ public class PeriodicWatermarking {
                                                 });
     }
 
+    @Override
+    public void close() {
+        this.syncFactoryCache.invalidateAll();
+        this.watermarkClientCache.invalidateAll();
+    }
+
     /**
-     * This method computes and emits a new watermark for the given stream. 
-     * It collects all the known writers for the given stream and includes only writers that are active (have reported 
-     * their marks recently). If all active writers have reported marks greater than the previously emitted watermark, 
-     * then new watermark is computed and emitted. If not, the window for considering writers as active is progressed.  
-     * @param stream stream for which watermark should be computed. 
+     * This method computes and emits a new watermark for the given stream.
+     * It collects all the known writers for the given stream and includes only writers that are active (have reported
+     * their marks recently). If all active writers have reported marks greater than the previously emitted watermark,
+     * then new watermark is computed and emitted. If not, the window for considering writers as active is progressed.
+     * @param stream stream for which watermark should be computed.
      * @return Returns a completableFuture which when completed will have completed another iteration of periodic watermark
-     * computation. 
+     * computation.
      */
     public CompletableFuture<Void> watermark(Stream stream) {
         String scope = stream.getScope();

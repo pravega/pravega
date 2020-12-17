@@ -419,7 +419,6 @@ public class SimpleCacheTests {
         for (val evictionBatch : evictionBatches) {
             evictions.clear();
             c.cleanUp();
-            System.out.println(evictions.size() + " " + evictionBatch.size());
             AssertExtensions.assertMapEquals("", evictionBatch, evictions);
 
             evictions.clear();

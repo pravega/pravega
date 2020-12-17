@@ -38,16 +38,6 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
-import static io.pravega.shared.NameUtils.computeSegmentId;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -64,11 +54,18 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -91,7 +88,7 @@ public abstract class StreamMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected TestStore store;
     protected BucketStore bucketStore;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
     protected final String stream2 = "stream2";
@@ -1144,7 +1141,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
     }
-
+    
     @Test
     public void txnCommitBatchLimitTest() throws Exception {
         final String scope = "txnCommitBatch";
@@ -1208,6 +1205,44 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx02, ordered.get(0));
         
         // scale and create transaction on new epoch too. 
+    }
+    
+    @Test
+    public void txnCommitBatchLimitOrderTest() throws Exception {
+        final String scope = "txnCommitBatch2";
+        final String stream = "txnCommitBatch2";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        
+        // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
+        List<UUID> txns = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            UUID tx = store.generateTransactionId(scope, stream, null, executor).join();
+            store.createTransaction(scope, stream, tx,
+                    100, 100, null, executor).join();
+            store.sealTransaction(scope, stream, tx, true, Optional.empty(),
+                    "", Long.MIN_VALUE, null, executor).join();
+            txns.add(tx);
+        }
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        
+        while (!txns.isEmpty()) {
+            int limit = 5;
+            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit).join();
+            List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+            assertEquals(limit, ordered.size());
+            for (int i = 0; i < limit; i++) {
+                assertEquals(txns.remove(0), ordered.get(i));
+                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i), null, executor).join();
+            }
+        }
     }
 
     private void scale(String scope, String stream, long scaleTs, List<Map.Entry<Double, Double>> newSegments, List<Long> scale1SealedSegments) {

@@ -17,6 +17,8 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -45,7 +47,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -86,7 +87,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                 .build();
         storeClientConfig = getStoreConfig(zkClientConfig);
         storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
-        executor = Executors.newScheduledThreadPool(5);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
         segments = new ConcurrentHashMap<>();
         segmentEvent = new ConcurrentHashMap<>();
         writers = new ConcurrentHashMap<>();
@@ -97,7 +98,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
     public void tearDown() throws Exception {
         storeClient.close();
         zkServer.close();
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 
     abstract StoreClientConfig getStoreConfig(ZKClientConfig zkClientConfig);
@@ -110,7 +111,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         @Getter
         private ReplyProcessor rp;
         private ClientConnection connection;
-        private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
+        private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
@@ -129,7 +130,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
             if (connection != null) {
                 connection.close();
             }
-            executorService.shutdown();
+            ExecutorServiceHelpers.shutdown(executorService);
         }
     }
 
@@ -274,7 +275,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
             latch.join();
             throw new RuntimeException();
         }).when(store).createScope(anyString());
-        
+
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
                 SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, kvtStore);
         starter.startAsync();
@@ -287,5 +288,6 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         AssertExtensions.assertThrows(IllegalStateException.class, starter::awaitRunning);
         assertTrue(Exceptions.unwrap(starter.failureCause()) instanceof ZkSessionExpirationException);
         assertEquals(starter.state(), Service.State.FAILED);
+        Callbacks.invokeSafely(starter::shutDown, null);
     }
 }
