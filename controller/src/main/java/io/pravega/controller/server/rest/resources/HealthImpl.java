@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import io.pravega.auth.AuthException;
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
 import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
@@ -21,9 +22,13 @@ import io.pravega.shared.health.ContributorNotFoundException;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthService;
 import io.pravega.shared.health.Status;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 
@@ -33,12 +38,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
+
 @Slf4j
 public class HealthImpl implements ApiV1.HealthApi {
+
+    @Context
+    HttpHeaders headers;
 
     private final HealthService service;
 
     private final RESTAuthHelper restAuthHelper;
+    private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
     public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthService service) {
         this.service = service;
@@ -59,11 +70,16 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Health health = id == null ? service.endpoint().getHealth(details) : service.endpoint().getHealth(id, details);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
                     .build();
             asyncResponse.resume(response);
+        } catch(AuthException e) {
+            log.warn("Unable to retrieve Health state '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } finally {
@@ -84,10 +100,15 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean alive = id == null ? service.endpoint().isAlive() : service.endpoint().isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
                     .build());
+        } catch(AuthException e) {
+            log.warn("Unable to retrieve Liveness state for '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } catch (RuntimeException e) {
@@ -110,10 +131,15 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDependencies(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             List<String> dependencies = id == null ? service.endpoint().getDependencies() : service.endpoint().getDependencies(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(dependencies))
                     .build());
+        } catch (AuthException e) {
+            log.warn("Unable to retrieve Dependencies for '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } finally {
@@ -134,10 +160,15 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Map<String, Object> details = id == null ? service.endpoint().getDetails() : service.endpoint().getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
                     .build());
+        } catch (AuthException e) {
+            log.warn("Unable to retrieve Details for '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } finally {
@@ -158,10 +189,15 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean ready = id == null ? service.endpoint().isReady() : service.endpoint().isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
                     .build());
+        } catch (AuthException e) {
+            log.warn("Unable to retrieve Readiness state for '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } catch (RuntimeException e) {
@@ -184,15 +220,29 @@ public class HealthImpl implements ApiV1.HealthApi {
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
+            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Status status = id == null ? service.endpoint().getStatus() : service.endpoint().getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
                     .build());
+        } catch (AuthException e) {
+            log.warn("Unable to retrieve Status for '{}' due to authentication failure.", id);
+            asyncResponse.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
         } catch (ContributorNotFoundException e) {
             asyncResponse.resume(Response.status(Response.Status.NOT_FOUND).build());
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
+    }
+    /**
+     * This is a shortcut for {@code headers.getRequestHeader().get(HttpHeaders.AUTHORIZATION)}.
+     *
+     * @return a list of read-only values of the HTTP Authorization header
+     * @throws IllegalStateException if called outside the scope of the HTTP request
+     */
+    private List<String> getAuthorizationHeader() {
+        return headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
     }
 
     // The follow methods provide a means to cast the HealthService framework models, to the generated models.
