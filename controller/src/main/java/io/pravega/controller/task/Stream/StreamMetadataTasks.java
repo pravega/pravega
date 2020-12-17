@@ -363,6 +363,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
      * @param config          New Reader Group config.
+     * @param contextOpt      Reader Group context.
      * @return updation status.
      */
     public CompletableFuture<UpdateReaderGroupStatus.Status> updateReaderGroup(final String scope, final String rgName,

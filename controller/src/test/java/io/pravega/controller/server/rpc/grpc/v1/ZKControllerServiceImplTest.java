@@ -36,6 +36,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -127,6 +128,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 new CreateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);
 

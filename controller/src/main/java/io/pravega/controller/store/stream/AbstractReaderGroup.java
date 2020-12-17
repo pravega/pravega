@@ -65,7 +65,7 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
                     Preconditions.checkArgument(configRecord.getObject().getGeneration() == configuration.getGeneration());
-                    ReaderGroupConfigRecord update = ReaderGroupConfigRecord.update(configuration, configuration.getGeneration()+1, true);
+                    ReaderGroupConfigRecord update = ReaderGroupConfigRecord.update(configuration, configuration.getGeneration() + 1, true);
                     return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion())));
                 });
     }
